@@ -10,7 +10,7 @@ declare global {
 }
 
 function createPool(): Pool {
-  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    const connectionString = (process.env.DATABASE_URL || process.env.POSTGRES_URL || "").split("?")[0];
   if (!connectionString) {
     throw new Error(
       "Falta la variable de entorno DATABASE_URL. Configurala en .env.local con el connection string de Supabase."
