@@ -74,17 +74,17 @@ export async function enviarEmailAlerta(alerta: AlertaParaEmail): Promise<void> 
     if (!habilitada) return;
 
     const transporter = getTransporter(cfg);
-    const remitenteNombre = cfg.email_remitente || "UFAMA Sistema";
+    const remitenteNombre = cfg.email_remitente || "COOVA Sistema";
 
     await transporter.sendMail({
       from: `"${remitenteNombre}" <${cfg.smtp_user}>`,
       to: cfg.email_alertas_criticas,
-      subject: `🔴 UFAMA — ${alerta.titulo}`,
+      subject: `🔴 COOVA — ${alerta.titulo}`,
       text: `${alerta.titulo}\n\n${alerta.descripcion || ""}\n\nMódulo: ${alerta.origen_modulo}`,
       html: `
         <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto;">
           <div style="background:#123240;color:#fff;padding:14px 18px;border-radius:10px 10px 0 0;font-size:13px;letter-spacing:.03em;text-transform:uppercase;">
-            UFAMA — Alerta crítica
+            COOVA — Alerta crítica
           </div>
           <div style="border:1px solid #e5e5e5;border-top:none;padding:18px;border-radius:0 0 10px 10px;">
             <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#123240;">${escapeHtml(alerta.titulo)}</p>

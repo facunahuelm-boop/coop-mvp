@@ -100,9 +100,9 @@ export function Sidebar({ user }: { user: SessionUser }) {
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-[#123240] text-white">
       <div className="px-5 py-5 flex items-center gap-2 border-b border-white/10">
-        <img src="/logo-ufama.png" alt="UFAMA" className="h-9 w-9 rounded-full" />
+        <img src="/logo-coova.png" alt="COOVA" className="h-9 w-9 rounded-full" />
         <div>
-          <div className="text-sm font-bold leading-tight">UFAMA</div>
+          <div className="text-sm font-bold leading-tight">COOVA</div>
           <div className="text-[11px] text-white/60 leading-tight">Sistema de gestión</div>
         </div>
       </div>
@@ -138,8 +138,8 @@ export function TopBar({ user }: { user: SessionUser }) {
   return (
     <header className="md:hidden sticky top-0 z-20 bg-[#123240] text-white px-4 py-3 flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <img src="/logo-ufama.png" alt="UFAMA" className="h-7 w-7 rounded-full" />
-        <span className="text-sm font-bold">UFAMA</span>
+        <img src="/logo-coova.png" alt="COOVA" className="h-7 w-7 rounded-full" />
+        <span className="text-sm font-bold">COOVA</span>
       </div>
       <div className="text-right leading-tight">
         <div className="text-xs">{user.nombre.split(" ")[0]}</div>

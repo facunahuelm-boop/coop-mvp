@@ -578,8 +578,9 @@ async function seedData() {
 // Lo único que hace ahora:
 //   1. Crea las tablas base si no existen (idempotente, sin riesgo).
 //   2. Opcionalmente (?seed=demo), carga los datos de ejemplo — pero solo
-//      dentro de la cooperativa "ufama" y solo si esa cooperativa todavía no
-//      tiene usuarios cargados, para que no se pueda duplicar por accidente.
+//      dentro de la cooperativa "coova" (la cooperativa de referencia/demo)
+//      y solo si esa cooperativa todavía no tiene usuarios cargados, para
+//      que no se pueda duplicar por accidente.
 // La creación de una cooperativa NUEVA se hace con las migraciones
 // (`npm run migrate`) más el asistente de alta (Fase 16), nunca con esta ruta.
 export async function GET(req: NextRequest) {
@@ -598,32 +599,32 @@ export async function GET(req: NextRequest) {
     if (!querSeed) {
       return NextResponse.json({
         ok: true,
-        mensaje: "Tablas base verificadas/creadas. No se cargaron datos (agregá &seed=demo para cargar datos de ejemplo en la cooperativa UFAMA, solo si está vacía).",
+        mensaje: "Tablas base verificadas/creadas. No se cargaron datos (agregá &seed=demo para cargar datos de ejemplo en la cooperativa COOVA, solo si está vacía).",
       });
     }
 
-    const ufama = await rootGet<{ id: number }>(`SELECT id FROM organizations WHERE slug = 'ufama'`);
-    if (!ufama) {
+    const coova = await rootGet<{ id: number }>(`SELECT id FROM organizations WHERE slug = 'coova'`);
+    if (!coova) {
       return NextResponse.json(
-        { ok: false, error: "No existe la cooperativa 'ufama'. Corré antes `npm run migrate`." },
+        { ok: false, error: "No existe la cooperativa 'coova'. Corré antes `npm run migrate`." },
         { status: 409 }
       );
     }
-    setOrgContext(ufama.id);
+    setOrgContext(coova.id);
 
     const yaTieneDatos = await rootGet<{ count: string }>(
       `SELECT count(*)::text FROM users WHERE organization_id = $1`,
-      [ufama.id]
+      [coova.id]
     );
     if (Number(yaTieneDatos?.count || 0) > 0) {
       return NextResponse.json(
-        { ok: false, error: "La cooperativa UFAMA ya tiene usuarios cargados — no se vuelve a sembrar para no duplicar datos." },
+        { ok: false, error: "La cooperativa COOVA ya tiene usuarios cargados — no se vuelve a sembrar para no duplicar datos." },
         { status: 409 }
       );
     }
 
     const resultado = await seedData();
-    return NextResponse.json({ ok: true, mensaje: "Esquema verificado y datos de ejemplo cargados en UFAMA.", ...resultado });
+    return NextResponse.json({ ok: true, mensaje: "Esquema verificado y datos de ejemplo cargados en COOVA.", ...resultado });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
   }

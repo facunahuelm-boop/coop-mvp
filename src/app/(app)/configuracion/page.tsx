@@ -107,7 +107,7 @@ export default async function ConfiguracionPage() {
             <input
               type="text"
               name="email_remitente"
-              defaultValue={configObj.email_remitente || "UFAMA Sistema"}
+              defaultValue={configObj.email_remitente || "COOVA Sistema"}
               className={inputClass}
             />
           </div>
@@ -117,7 +117,7 @@ export default async function ConfiguracionPage() {
               type="email"
               name="email_alertas_criticas"
               defaultValue={configObj.email_alertas_criticas || ""}
-              placeholder="admin@ufama.uy"
+              placeholder="admin@tucooperativa.uy"
               className={inputClass}
             />
           </div>

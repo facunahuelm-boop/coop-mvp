@@ -16,8 +16,10 @@ CREATE TABLE IF NOT EXISTS organizations (
   creado_en TEXT NOT NULL DEFAULT (NOW()::text)
 );
 
--- Migra UFAMA como la primera cooperativa real del sistema (decisión
--- confirmada: se conservan sus datos actuales en vez de empezar aparte).
+-- Cooperativa de referencia para desarrollo local (coincide con el
+-- DEFAULT_SLUG usado cuando no hay subdominio propio configurado, ver
+-- src/proxy.ts). No es obligatoria: cada instalación real da de alta sus
+-- propias cooperativas con el asistente de alta, no editando esta migración.
 INSERT INTO organizations (slug, nombre, color_primario, etapa)
-VALUES ('ufama', 'UFAMA', '#123240', 'obra')
+VALUES ('coova', 'COOVA', '#123240', 'obra')
 ON CONFLICT (slug) DO NOTHING;

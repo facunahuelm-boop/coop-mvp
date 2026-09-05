@@ -66,7 +66,7 @@ export async function GET() {
     doc.on("error", reject);
 
     // ---------- Encabezado ----------
-    doc.fontSize(19).font("Helvetica-Bold").fillColor("#123240").text("UFAMA — Reporte Financiero");
+    doc.fontSize(19).font("Helvetica-Bold").fillColor("#123240").text("COOVA — Reporte Financiero");
     doc.moveDown(0.15);
     doc
       .fontSize(9.5)
@@ -163,7 +163,7 @@ export async function GET() {
         .fontSize(8)
         .font("Helvetica")
         .fillColor("#aaa")
-        .text(`UFAMA · página ${i + 1} de ${rango.count}`, MARGIN, doc.page.height - 32, {
+        .text(`COOVA · página ${i + 1} de ${rango.count}`, MARGIN, doc.page.height - 32, {
           width: PAGE_RIGHT - MARGIN,
           align: "center",
         });
@@ -175,7 +175,7 @@ export async function GET() {
   return new NextResponse(new Uint8Array(pdfBuffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="ufama-reporte-financiero-${dayjs().format("YYYY-MM-DD")}.pdf"`,
+      "Content-Disposition": `attachment; filename="coova-reporte-financiero-${dayjs().format("YYYY-MM-DD")}.pdf"`,
       "Cache-Control": "no-store",
     },
   });

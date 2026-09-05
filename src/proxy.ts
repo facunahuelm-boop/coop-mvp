@@ -10,12 +10,13 @@ import { NextRequest, NextResponse } from "next/server";
 // usuario que está iniciando sesión.
 //
 // Mientras el dominio propio con subdominios no esté configurado en el
-// hosting (o en desarrollo local), se usa "ufama" como cooperativa por
-// defecto — así el sistema sigue funcionando exactamente igual que hoy para
-// UFAMA sin necesitar ningún cambio de infraestructura todavía.
+// hosting (o en desarrollo local), se usa NEXT_PUBLIC_DEFAULT_ORG_SLUG (o
+// "coova" si no está definida) como cooperativa por defecto. Cada instalación
+// nueva debería fijar esa variable con el slug de su propia cooperativa de
+// referencia — "coova" es solo un valor de arranque, no una cooperativa real.
 // ---------------------------------------------------------------------------
 
-const DEFAULT_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG || "ufama";
+const DEFAULT_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG || "coova";
 
 // Dominios raíz conocidos donde NO hay subdominio de cooperativa (localhost,
 // el dominio de Vercel, IPs). Todo lo demás se interpreta como

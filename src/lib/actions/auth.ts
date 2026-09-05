@@ -6,7 +6,7 @@ import { rootGet, get } from "@/lib/db";
 import { verifyPassword, createSessionCookie, clearSessionCookie } from "@/lib/auth";
 import { setOrgContext } from "@/lib/tenant";
 
-const DEFAULT_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG || "ufama";
+const DEFAULT_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG || "coova";
 
 export async function loginAction(_prev: { error?: string } | undefined, formData: FormData) {
   const email = String(formData.get("email") || "").trim().toLowerCase();

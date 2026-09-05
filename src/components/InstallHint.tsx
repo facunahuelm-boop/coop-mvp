@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-const DISMISS_KEY = "ufama_install_hint_dismissed";
+const DISMISS_KEY = "coova_install_hint_dismissed";
 
 /**
- * Sugerencia (solo en celular) para agregar UFAMA a la pantalla de inicio,
+ * Sugerencia (solo en celular) para agregar COOVA a la pantalla de inicio,
  * para que se use como una app en vez de una pestaña del navegador.
  * Se oculta sola si ya está instalada, y se puede cerrar con la X (queda
  * cerrada para la próxima visita en ese mismo celular).
@@ -44,12 +44,12 @@ export function InstallHint() {
       <div className="flex-1">
         {plataforma === "ios" ? (
           <>
-            Agregá UFAMA a tu pantalla de inicio: tocá el botón <b>Compartir</b> (el cuadradito con la
+            Agregá COOVA a tu pantalla de inicio: tocá el botón <b>Compartir</b> (el cuadradito con la
             flecha) y luego <b>&quot;Agregar a la pantalla de inicio&quot;</b>.
           </>
         ) : (
           <>
-            Agregá UFAMA a tu pantalla de inicio: tocá el menú (⋮) del navegador y luego{" "}
+            Agregá COOVA a tu pantalla de inicio: tocá el menú (⋮) del navegador y luego{" "}
             <b>&quot;Instalar app&quot;</b> o <b>&quot;Agregar a la pantalla de inicio&quot;</b>.
           </>
         )}

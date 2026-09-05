@@ -2,12 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "UFAMA | Sistema de gestión",
-  description: "Sistema operativo digital UFAMA - cooperativa de vivienda por ayuda mutua",
+  title: "COOVA | Sistema de gestión",
+  description: "COOVA - plataforma de gestión digital para cooperativas de vivienda por ayuda mutua",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/logo-ufama.png",
-    apple: "/logo-ufama.png",
+    icon: "/logo-coova.png",
+    apple: "/logo-coova.png",
   },
 };
 

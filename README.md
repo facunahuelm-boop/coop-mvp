@@ -25,7 +25,7 @@ cooperativa2026
 
 Por ejemplo: `helena@coop.uy` (Consejo Directivo) ve todo; `ana@coop.uy` (Socia) ve una versión acotada; `beatriz@coop.uy` (Comisión de Obra) puede cargar tareas y avances.
 
-**El sistema es multi-tenant**: cada cooperativa es una fila en `organizations` y ve solo sus propios datos (ver `migrations/README.md`). En desarrollo local, sin subdominios configurados, todo el tráfico se resuelve a la cooperativa `ufama` por defecto.
+**El sistema es multi-tenant**: cada cooperativa es una fila en `organizations` y ve solo sus propios datos (ver `migrations/README.md`). En desarrollo local, sin subdominios configurados, todo el tráfico se resuelve a la cooperativa `coova` por defecto (configurable con `NEXT_PUBLIC_DEFAULT_ORG_SLUG`).
 
 ## Qué incluye
 
@@ -74,7 +74,7 @@ DATABASE_URL=postgres://...        # connection string de Supabase
 AUTH_SECRET=una-clave-larga-y-aleatoria-antes-de-produccion
 SETUP_SECRET=otra-clave-para-proteger-/api/setup
 ANTHROPIC_API_KEY=sk-ant-...        # opcional, activa el motor de IA con Claude real
-NEXT_PUBLIC_DEFAULT_ORG_SLUG=ufama  # cooperativa por defecto cuando no hay subdominio propio
+NEXT_PUBLIC_DEFAULT_ORG_SLUG=coova  # cooperativa por defecto cuando no hay subdominio propio
 ```
 
 Si no definís `AUTH_SECRET`, el sistema usa una clave de desarrollo solo en modo desarrollo — en producción, arranca sin sesión posible hasta que la definas (es intencional: firmar sesiones con un secreto compartido anularía el aislamiento entre cooperativas).
