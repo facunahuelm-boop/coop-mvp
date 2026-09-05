@@ -36,6 +36,13 @@ yarn-error.log*
 # vercel
 .vercel
 
+# base de datos local (se genera con `npm run seed`)
+/data/*.db
+
+# archivos subidos por usuarios (fotos, documentos)
+/public/uploads/*
+!/public/uploads/.gitkeep
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

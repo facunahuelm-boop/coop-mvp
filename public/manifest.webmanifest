@@ -1,0 +1,13 @@
+{
+  "name": "UFAMA - Cooperativa de Vivienda",
+  "short_name": "UFAMA",
+  "description": "Sistema operativo digital de la cooperativa de vivienda por ayuda mutua",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f4f6f7",
+  "theme_color": "#1f4e5f",
+  "icons": [
+    { "src": "/logo-ufama.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/logo-ufama-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
