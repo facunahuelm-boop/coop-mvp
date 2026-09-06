@@ -2,7 +2,12 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { all, get, rootGet } from "@/lib/db";
 import { Card, PageHeader, Badge, Label, inputClass } from "@/components/ui";
-import { guardarConfigEmailAction, actualizarAlertasEmailAction, actualizarEtapaAction } from "@/lib/actions/configuracion";
+import {
+  guardarConfigEmailAction,
+  actualizarAlertasEmailAction,
+  actualizarEtapaAction,
+  actualizarBrandingAction,
+} from "@/lib/actions/configuracion";
 
 const ETAPA_LABEL: Record<string, string> = {
   pre_obra: "Pre-obra (todavía no arrancó la construcción)",
@@ -36,7 +41,55 @@ export default async function ConfiguracionPage() {
     <div>
       <PageHeader title="Configuración" subtitle="Email, alertas y preferencias del sistema" />
 
-      <h3 className="text-sm font-bold text-[#123240] mb-3">Cooperativa</h3>
+      <h3 className="text-sm font-bold text-[#123240] mb-3">Marca de la cooperativa</h3>
+      <Card className="mb-6">
+        <p className="text-xs text-black/60 mb-4">
+          Estos datos reemplazan "COOVA" en el menú y la pantalla de inicio de sesión: nombre, logo
+          y color principal se aplican en todo el sistema.
+        </p>
+        <form action={actualizarBrandingAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2">
+            <Label>Nombre de la cooperativa</Label>
+            <input
+              type="text"
+              name="nombre"
+              required
+              defaultValue={organizacion?.nombre || ""}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <Label>Color principal</Label>
+            <input
+              type="color"
+              name="color_primario"
+              defaultValue={organizacion?.color_primario || "#123240"}
+              className="h-10 w-full rounded-lg border border-black/10 cursor-pointer"
+            />
+          </div>
+          <div>
+            <Label>Color secundario (opcional)</Label>
+            <input
+              type="color"
+              name="color_secundario"
+              defaultValue={organizacion?.color_secundario || organizacion?.color_primario || "#1f4e5f"}
+              className="h-10 w-full rounded-lg border border-black/10 cursor-pointer"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Logo (opcional)</Label>
+            {organizacion?.logo_url && (
+              <img src={organizacion.logo_url} alt={organizacion.nombre} className="h-12 w-12 rounded-full object-cover mb-2" />
+            )}
+            <input type="file" name="logo" accept="image/*" className="text-xs" />
+          </div>
+          <button type="submit" className="sm:col-span-2 rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">
+            Guardar marca
+          </button>
+        </form>
+      </Card>
+
+      <h3 className="text-sm font-bold text-[#123240] mb-3">Etapa</h3>
       <Card className="mb-6">
         <p className="text-xs text-black/60 mb-4">
           La etapa de la cooperativa personaliza el menú: en "Habitada" se oculta automáticamente

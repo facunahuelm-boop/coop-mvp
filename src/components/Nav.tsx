@@ -97,12 +97,16 @@ function groupsFor(user: SessionUser): NavGroup[] {
 
 export function Sidebar({ user }: { user: SessionUser }) {
   const groups = groupsFor(user);
+  const { nombre, logo_url, color_primario } = user.organizacion;
   return (
-    <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-[#123240] text-white">
+    <aside
+      className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 text-white"
+      style={{ backgroundColor: color_primario }}
+    >
       <div className="px-5 py-5 flex items-center gap-2 border-b border-white/10">
-        <img src="/logo-coova.png" alt="COOVA" className="h-9 w-9 rounded-full" />
+        <img src={logo_url || "/logo-coova.png"} alt={nombre} className="h-9 w-9 rounded-full object-cover" />
         <div>
-          <div className="text-sm font-bold leading-tight">COOVA</div>
+          <div className="text-sm font-bold leading-tight">{nombre}</div>
           <div className="text-[11px] text-white/60 leading-tight">Sistema de gestión</div>
         </div>
       </div>
@@ -135,11 +139,15 @@ export function Sidebar({ user }: { user: SessionUser }) {
 }
 
 export function TopBar({ user }: { user: SessionUser }) {
+  const { nombre, logo_url, color_primario } = user.organizacion;
   return (
-    <header className="md:hidden sticky top-0 z-20 bg-[#123240] text-white px-4 py-3 flex items-center justify-between">
+    <header
+      className="md:hidden sticky top-0 z-20 text-white px-4 py-3 flex items-center justify-between"
+      style={{ backgroundColor: color_primario }}
+    >
       <div className="flex items-center gap-2">
-        <img src="/logo-coova.png" alt="COOVA" className="h-7 w-7 rounded-full" />
-        <span className="text-sm font-bold">COOVA</span>
+        <img src={logo_url || "/logo-coova.png"} alt={nombre} className="h-7 w-7 rounded-full object-cover" />
+        <span className="text-sm font-bold">{nombre}</span>
       </div>
       <div className="text-right leading-tight">
         <div className="text-xs">{user.nombre.split(" ")[0]}</div>
@@ -156,16 +164,17 @@ export function BottomNav({ user }: { user: SessionUser }) {
   // o Documentos).
   const primary = ["/dashboard", "/buscar", "/documentos", "/alertas"];
   const items = itemsFor(user).filter((i) => primary.includes(i.href));
+  const color = user.organizacion.color_primario;
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-white border-t border-black/10 safe-bottom">
       <div className="flex">
         {items.map((i) => (
-          <Link key={i.href} href={i.href} className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px] text-[#123240]/80">
+          <Link key={i.href} href={i.href} className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px]" style={{ color }}>
             <span className="text-lg leading-none">{i.icon}</span>
             {i.label}
           </Link>
         ))}
-        <Link href="/mas" className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px] text-[#123240]/80">
+        <Link href="/mas" className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px]" style={{ color }}>
           <span className="text-lg leading-none">☰</span>
           Más
         </Link>

@@ -34,6 +34,17 @@ export type SessionUser = {
    * ya habitada no necesita ver el grupo "Obra" del menú.
    */
   etapa: string;
+  /**
+   * Datos de personalización de marca de la cooperativa (Fase de
+   * personalización): nombre, logo y colores que reemplazan los valores
+   * fijos "COOVA" / "/logo-coova.png" en Nav.tsx y el login.
+   */
+  organizacion: {
+    nombre: string;
+    logo_url: string | null;
+    color_primario: string;
+    color_secundario: string | null;
+  };
 };
 
 export async function hashPassword(pw: string) {
@@ -44,7 +55,12 @@ export async function verifyPassword(pw: string, hash: string) {
   return bcrypt.compare(pw, hash);
 }
 
-export async function createSessionCookie(user: SessionUser) {
+// Solo id/rol/organization_id viajan en el JWT (ver SignJWT abajo) — el resto
+// de los datos de marca de la cooperativa (organizacion.*) se resuelven
+// después, en cada pedido, vía getCurrentUser() con el JOIN a organizations.
+// Por eso esta función no exige un SessionUser completo: loginAction todavía
+// no tiene esos datos de marca a mano en el momento de crear la cookie.
+export async function createSessionCookie(user: Pick<SessionUser, "id" | "rol" | "organization_id">) {
   const token = await new SignJWT({ uid: user.id, rol: user.rol, org: user.organization_id })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -85,7 +101,9 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     // organizations no tiene organization_id (es la tabla raíz, sin RLS) —
     // se puede traer con un JOIN normal en la misma consulta.
     const row = await get<any>(
-      `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, o.etapa
+      `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, o.etapa,
+              o.nombre as org_nombre, o.logo_url as org_logo_url,
+              o.color_primario as org_color_primario, o.color_secundario as org_color_secundario
        FROM users u JOIN organizations o ON o.id = u.organization_id
        WHERE u.id = ?`,
       [uid]
@@ -102,6 +120,12 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       nucleo_id: row.nucleo_id,
       organization_id: row.organization_id,
       etapa: row.etapa,
+      organizacion: {
+        nombre: row.org_nombre,
+        logo_url: row.org_logo_url,
+        color_primario: row.org_color_primario,
+        color_secundario: row.org_color_secundario,
+      },
     };
   } catch {
     return null;

@@ -2,6 +2,7 @@
 
 import { getCurrentUser } from "@/lib/auth";
 import { all, insert, update } from "@/lib/db";
+import { saveUploadedFile } from "@/lib/upload";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
@@ -27,6 +28,40 @@ export async function actualizarEtapaAction(formData: FormData) {
   await update("organizations", user.organization_id, { etapa });
   revalidatePath("/configuracion");
   revalidatePath("/dashboard");
+}
+
+/**
+ * Personalización de marca de la cooperativa: nombre, logo y colores que se
+ * muestran en el menú (Nav.tsx) y en la pantalla de login. El logo se guarda
+ * hoy en disco local (ver src/lib/upload.ts, igual que las fotos de Obra o
+ * Seguridad) — la migración a Supabase Storage queda para la fase siguiente
+ * del plan (aislamiento de archivos por cooperativa).
+ */
+export async function actualizarBrandingAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || !["admin", "consejo_directivo"].includes(user.rol)) {
+    redirect("/login");
+  }
+
+  const nombre = String(formData.get("nombre") || "").trim();
+  if (!nombre) throw new Error("El nombre de la cooperativa es obligatorio");
+
+  const colorPrimario = String(formData.get("color_primario") || "#123240").trim();
+  const colorSecundario = String(formData.get("color_secundario") || "").trim();
+
+  const datos: Record<string, any> = {
+    nombre,
+    color_primario: colorPrimario,
+    color_secundario: colorSecundario || null,
+  };
+
+  const logoUrl = await saveUploadedFile(formData.get("logo") as File | null);
+  if (logoUrl) datos.logo_url = logoUrl;
+
+  await update("organizations", user.organization_id, datos);
+  revalidatePath("/configuracion");
+  revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
 }
 
 export async function guardarConfigEmailAction(formData: FormData) {

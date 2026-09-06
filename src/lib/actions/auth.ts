@@ -35,12 +35,8 @@ export async function loginAction(_prev: { error?: string } | undefined, formDat
 
   await createSessionCookie({
     id: user.id,
-    nombre: user.nombre,
-    email: user.email,
     rol: user.rol,
-    nucleo_id: user.nucleo_id,
     organization_id: org.id,
-    etapa: org.etapa,
   });
   redirect("/dashboard");
 }
