@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, canApprove } from "@/lib/roles";
 import { all } from "@/lib/db";
@@ -102,7 +103,11 @@ export default async function SociosPage() {
             <tbody>
               {socios.map((s) => (
                 <tr key={s.id} className="border-b border-black/5 last:border-0">
-                  <td className="py-2 pr-3 font-medium text-[#123240]">{s.nombre}</td>
+                  <td className="py-2 pr-3 font-medium text-[#123240]">
+                    <Link href={`/socios/${s.id}`} className="hover:underline underline-offset-2">
+                      {s.nombre}
+                    </Link>
+                  </td>
                   <td className="py-2 pr-3">
                     {puedeEditar ? (
                       <AutoSubmitSelect
