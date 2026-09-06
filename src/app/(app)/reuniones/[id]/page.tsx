@@ -31,7 +31,12 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
   ]);
   if (!reunion) notFound();
 
-  const actaExistente = reunion.acta_id ? await get<any>(`SELECT * FROM actas WHERE id = ?`, [reunion.acta_id]) : null;
+  const actaExistente = reunion.acta_id
+    ? await get<any>(
+        `SELECT a.*, d.archivo_url FROM actas a LEFT JOIN documentos d ON d.id = a.documento_id WHERE a.id = ?`,
+        [reunion.acta_id]
+      )
+    : null;
   const asistenciaPorNucleo = new Map(asistencias.map((a: any) => [a.nucleo_id, a]));
   const presentes = asistencias.filter((a: any) => a.presente).length;
 
@@ -95,7 +100,18 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
           {actaExistente ? (
             <Card>
               <p className="text-sm text-black/70 whitespace-pre-line">{actaExistente.resumen}</p>
-              <p className="text-xs text-black/40 mt-2">Guardada en Documentos → Actas y resoluciones.</p>
+              {actaExistente.archivo_url ? (
+                <a
+                  href={actaExistente.archivo_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1f4e5f] underline underline-offset-2 mt-3"
+                >
+                  📄 Descargar acta en PDF
+                </a>
+              ) : (
+                <p className="text-xs text-black/40 mt-2">Guardada en Documentos → Actas y resoluciones.</p>
+              )}
             </Card>
           ) : reunion.estado === "cancelada" ? (
             <EmptyState>Reunión cancelada, sin acta.</EmptyState>

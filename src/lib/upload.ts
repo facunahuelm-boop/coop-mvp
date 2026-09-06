@@ -85,3 +85,40 @@ export async function saveUploadedFile(
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
+
+/**
+ * Guarda un archivo generado por el propio sistema (hoy: PDFs de actas y
+ * reportes armados con pdfkit, ver src/lib/pdf.ts) en Supabase Storage y
+ * devuelve su URL pública. A diferencia de saveUploadedFile, acá el archivo
+ * no viene de un <input type="file"> — ya es un Buffer en memoria.
+ *
+ * @param buffer Contenido del archivo ya generado (ej: el PDF completo).
+ * @param organizationId Cooperativa dueña del archivo.
+ * @param carpeta Subcarpeta dentro de la cooperativa (ej: "actas", "reportes").
+ * @param nombreArchivo Nombre descriptivo para el archivo (sin necesidad de
+ *   ser único: se le antepone un timestamp para evitar colisiones).
+ * @param contentType Tipo MIME del archivo (por defecto, PDF).
+ */
+export async function saveGeneratedFile(
+  buffer: Buffer,
+  organizationId: number,
+  carpeta: string,
+  nombreArchivo: string,
+  contentType: string = "application/pdf"
+): Promise<string> {
+  const carpetaSegura = carpeta.replace(/[^a-z0-9_-]/gi, "") || "general";
+  const nombreSeguro = nombreArchivo.replace(/[^a-z0-9_.-]/gi, "_") || "documento";
+  const path = `${organizationId}/${carpetaSegura}/${Date.now()}-${nombreSeguro}`;
+
+  const supabase = getAdminClient();
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+    contentType,
+    upsert: false,
+  });
+  if (error) {
+    throw new Error(`No se pudo subir el archivo generado a Supabase Storage: ${error.message}`);
+  }
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
