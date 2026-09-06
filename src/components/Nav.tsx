@@ -45,6 +45,7 @@ const GROUPS: NavGroup[] = [
   {
     label: "Organización",
     items: [
+      { href: "/socios", label: "Socios", icon: "🏘️", mod: "socios" },
       { href: "/comisiones", label: "Comisiones", icon: "🧭", mod: "comisiones" },
       { href: "/reuniones", label: "Reuniones", icon: "🗓️", mod: "comisiones" },
     ],
