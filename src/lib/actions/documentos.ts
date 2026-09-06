@@ -9,7 +9,7 @@ import { saveUploadedFile } from "@/lib/upload";
 export async function subirDocumentoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "documentos")) throw new Error("No autorizado");
-  const archivoUrl = await saveUploadedFile(formData.get("archivo") as File | null);
+  const archivoUrl = await saveUploadedFile(formData.get("archivo") as File | null, user.organization_id, "documentos");
   const id = await insert("documentos", {
     categoria: String(formData.get("categoria") || "informes"),
     nombre: String(formData.get("nombre") || ""),

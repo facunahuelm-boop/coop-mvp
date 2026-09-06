@@ -55,7 +55,7 @@ export async function actualizarBrandingAction(formData: FormData) {
     color_secundario: colorSecundario || null,
   };
 
-  const logoUrl = await saveUploadedFile(formData.get("logo") as File | null);
+  const logoUrl = await saveUploadedFile(formData.get("logo") as File | null, user.organization_id, "marca");
   if (logoUrl) datos.logo_url = logoUrl;
 
   await update("organizations", user.organization_id, datos);

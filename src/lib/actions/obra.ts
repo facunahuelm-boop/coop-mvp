@@ -39,7 +39,7 @@ export async function agregarAvanceAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "obra")) throw new Error("No autorizado");
   const tareaId = Number(formData.get("tarea_id"));
-  const fotoUrl = await saveUploadedFile(formData.get("foto") as File | null);
+  const fotoUrl = await saveUploadedFile(formData.get("foto") as File | null, user.organization_id, "obra");
   await insert("avances_obra", {
     tarea_id: tareaId,
     autor_id: user.id,

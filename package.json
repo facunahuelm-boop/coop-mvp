@@ -12,6 +12,7 @@
     "migrate:dry-run": "node --env-file=.env.local scripts/run-migrations.mjs --dry-run"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.115.0",
     "@types/pdfkit": "^0.17.6",
     "bcryptjs": "^3.0.3",
     "dayjs": "^1.11.23",

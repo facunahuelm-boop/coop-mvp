@@ -34,7 +34,7 @@ export async function crearInspeccionAction(formData: FormData) {
 export async function crearIncidenteAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "seguridad")) throw new Error("No autorizado");
-  const foto = await saveUploadedFile(formData.get("foto") as File | null);
+  const foto = await saveUploadedFile(formData.get("foto") as File | null, user.organization_id, "seguridad");
   // Asistencia preliminar simulada: si se adjunta foto, la IA deja una observación
   // aclarando siempre que no reemplaza la evaluación del responsable de seguridad.
   const iaObs = foto
