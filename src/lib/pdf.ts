@@ -22,6 +22,15 @@ export type DatosPdf = {
 
 const MARGEN = 50;
 
+// Texto tipeado en un <textarea> puede llegar con saltos de línea "\r\n"
+// (Windows) en vez de "\n". La fuente estándar Helvetica de pdfkit no tiene
+// un glyph para el retorno de carro ("\r") y termina dibujando un caracter
+// basura (una "Ð" suelta) al final de cada línea — esto lo evita limpiando
+// cualquier texto antes de pasarlo a doc.text().
+function limpiarTexto(texto: string): string {
+  return texto.replace(/\r\n?/g, "\n");
+}
+
 function dibujarTabla(doc: PDFKit.PDFDocument, columnas: string[], filas: (string | number)[][]) {
   const anchoDisponible = doc.page.width - MARGEN * 2;
   const anchoColumna = anchoDisponible / columnas.length;
@@ -31,7 +40,7 @@ function dibujarTabla(doc: PDFKit.PDFDocument, columnas: string[], filas: (strin
 
   let y = doc.y + 4;
   doc.font("Helvetica-Bold").fontSize(9).fillColor("#333333");
-  columnas.forEach((c, i) => doc.text(c, startX + i * anchoColumna, y, { width: anchoColumna - 6 }));
+  columnas.forEach((c, i) => doc.text(limpiarTexto(c), startX + i * anchoColumna, y, { width: anchoColumna - 6 }));
   y += 16;
   doc.moveTo(startX, y - 4).lineTo(startX + anchoDisponible, y - 4).strokeColor("#dddddd").stroke();
 
@@ -42,7 +51,7 @@ function dibujarTabla(doc: PDFKit.PDFDocument, columnas: string[], filas: (strin
       y = MARGEN;
     }
     fila.forEach((valor, i) =>
-      doc.text(String(valor ?? "—"), startX + i * anchoColumna, y, { width: anchoColumna - 6 })
+      doc.text(limpiarTexto(String(valor ?? "—")), startX + i * anchoColumna, y, { width: anchoColumna - 6 })
     );
     y += 16;
   }
@@ -77,10 +86,10 @@ export function generarPdfBuffer(datos: DatosPdf): Promise<Buffer> {
 
       doc.fillColor("#111111");
       doc.y = altoEncabezado + 28;
-      doc.font("Helvetica-Bold").fontSize(17).text(datos.titulo, MARGEN, doc.y, { width: doc.page.width - MARGEN * 2 });
+      doc.font("Helvetica-Bold").fontSize(17).text(limpiarTexto(datos.titulo), MARGEN, doc.y, { width: doc.page.width - MARGEN * 2 });
       if (datos.subtitulo) {
         doc.moveDown(0.3);
-        doc.font("Helvetica").fontSize(10).fillColor("#555555").text(datos.subtitulo);
+        doc.font("Helvetica").fontSize(10).fillColor("#555555").text(limpiarTexto(datos.subtitulo));
         doc.fillColor("#111111");
       }
       doc.moveDown(1);
@@ -90,14 +99,14 @@ export function generarPdfBuffer(datos: DatosPdf): Promise<Buffer> {
 
         if (seccion.encabezado) {
           doc.moveDown(0.6);
-          doc.font("Helvetica-Bold").fontSize(12.5).fillColor("#111111").text(seccion.encabezado);
+          doc.font("Helvetica-Bold").fontSize(12.5).fillColor("#111111").text(limpiarTexto(seccion.encabezado));
           doc.moveDown(0.3);
         }
 
         if (seccion.tipo === "texto") {
           doc.font("Helvetica").fontSize(10.5).fillColor("#222222");
           for (const parrafo of seccion.parrafos) {
-            doc.text(parrafo, { align: "left" });
+            doc.text(limpiarTexto(parrafo), { align: "left" });
             doc.moveDown(0.4);
           }
         } else {
