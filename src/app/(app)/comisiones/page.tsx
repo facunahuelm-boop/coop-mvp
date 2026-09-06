@@ -2,13 +2,22 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, EmptyState, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, EmptyState, Label, inputClass, Badge } from "@/components/ui";
+import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
+import dayjs from "dayjs";
 import {
   crearComisionAction,
   archivarComisionAction,
   agregarMiembroAction,
   quitarMiembroAction,
 } from "@/lib/actions/comisiones";
+import { crearTareaAction, cambiarEstadoTareaAction } from "@/lib/actions/tareas";
+
+// Fase 06 del Plan Maestro — cualquier comisión puede llevar sus propias
+// tareas ahora, no solo Obra (tareas_obra) o Trabajo (tareas_jornada).
+const ESTADO_TAREA_LABEL: Record<string, string> = { pendiente: "Pendiente", en_curso: "En curso", completada: "Completada" };
+const ESTADO_TAREA_COLOR: Record<string, "verde" | "amarillo" | "brand"> = { pendiente: "amarillo", en_curso: "brand", completada: "verde" };
+const PRIORIDAD_LABEL: Record<string, string> = { alta: "🔴 Alta", media: "🟡 Media", baja: "⚪ Baja" };
 
 export default async function ComisionesPage() {
   const user = await getCurrentUser();
@@ -17,15 +26,20 @@ export default async function ComisionesPage() {
 
   const puedeEditar = canEdit(user.rol, "comisiones");
 
-  const [comisiones, miembros, usuarios] = await Promise.all([
+  const [comisiones, miembros, usuarios, tareas] = await Promise.all([
     all<any>(`SELECT * FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`),
     all<any>(
       `SELECT m.*, u.nombre as user_nombre FROM comision_miembros m JOIN users u ON u.id = m.user_id WHERE m.activo = 1 ORDER BY m.rol_en_comision DESC, u.nombre ASC`
     ),
     all<any>(`SELECT id, nombre, rol FROM users WHERE activo = 1 ORDER BY nombre ASC`),
+    all<any>(
+      `SELECT t.*, u.nombre as responsable_nombre FROM tareas t LEFT JOIN users u ON u.id = t.responsable_id
+       ORDER BY (t.estado = 'completada'), CASE t.prioridad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, t.creado_en DESC`
+    ),
   ]);
 
   const miembrosPorComision = (comisionId: number) => miembros.filter((m) => m.comision_id === comisionId);
+  const tareasPorComision = (comisionId: number) => tareas.filter((t) => t.comision_id === comisionId);
 
   return (
     <div>
@@ -84,6 +98,65 @@ export default async function ComisionesPage() {
                   <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-2 text-xs font-semibold whitespace-nowrap">Agregar</button>
                 </form>
               )}
+
+              <div className="mt-4 pt-4 border-t border-black/5">
+                <p className="text-xs font-semibold text-black/60 mb-2">Tareas</p>
+                <div className="space-y-1.5">
+                  {tareasPorComision(c.id).map((t) => (
+                    <div key={t.id} className="flex items-center justify-between gap-2 text-xs">
+                      <div className="min-w-0">
+                        <p className={`truncate font-medium ${t.estado === "completada" ? "text-black/40 line-through" : "text-[#123240]"}`}>
+                          {t.titulo}
+                        </p>
+                        <p className="text-black/40">
+                          {PRIORIDAD_LABEL[t.prioridad] ?? t.prioridad} · {t.responsable_nombre || "sin asignar"}
+                          {t.fecha_vencimiento ? ` · vence ${dayjs(t.fecha_vencimiento).format("DD/MM")}` : ""}
+                        </p>
+                      </div>
+                      {puedeEditar ? (
+                        <AutoSubmitSelect
+                          action={cambiarEstadoTareaAction}
+                          hiddenFields={{ id: t.id }}
+                          name="estado"
+                          defaultValue={t.estado}
+                          options={Object.entries(ESTADO_TAREA_LABEL).map(([value, label]) => ({ value, label }))}
+                          className="rounded-md border border-black/10 bg-white px-1.5 py-1 text-xs whitespace-nowrap"
+                        />
+                      ) : (
+                        <Badge color={ESTADO_TAREA_COLOR[t.estado] ?? "gray"}>{ESTADO_TAREA_LABEL[t.estado] ?? t.estado}</Badge>
+                      )}
+                    </div>
+                  ))}
+                  {tareasPorComision(c.id).length === 0 && (
+                    <p className="text-xs text-black/40 italic">Sin tareas cargadas.</p>
+                  )}
+                </div>
+
+                {puedeEditar && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs font-semibold text-[#1f4e5f]">+ Agregar tarea</summary>
+                    <form action={crearTareaAction} className="mt-2 grid grid-cols-1 gap-2">
+                      <input type="hidden" name="comision_id" value={c.id} />
+                      <input name="titulo" required placeholder="Título de la tarea" className={inputClass} />
+                      <div className="grid grid-cols-2 gap-2">
+                        <select name="responsable_id" className={inputClass} defaultValue="">
+                          <option value="">Sin asignar</option>
+                          {usuarios.map((u) => (
+                            <option key={u.id} value={u.id}>{u.nombre}</option>
+                          ))}
+                        </select>
+                        <select name="prioridad" className={inputClass} defaultValue="media">
+                          <option value="alta">Alta</option>
+                          <option value="media">Media</option>
+                          <option value="baja">Baja</option>
+                        </select>
+                      </div>
+                      <input name="fecha_vencimiento" type="date" className={inputClass} />
+                      <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-2 text-xs font-semibold">Agregar tarea</button>
+                    </form>
+                  </details>
+                )}
+              </div>
             </Card>
           );
         })}

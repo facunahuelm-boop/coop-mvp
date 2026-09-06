@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, canApprove } from "@/lib/roles";
 import { all } from "@/lib/db";
 import { Card, PageHeader, SectionTitle, EmptyState, Label, inputClass, Badge } from "@/components/ui";
-import { AutoSubmitSelect } from "./AutoSubmitSelect";
+import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import {
   crearViviendaAction,
   actualizarViviendaEstadoAction,

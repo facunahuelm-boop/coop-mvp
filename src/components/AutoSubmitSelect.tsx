@@ -6,8 +6,13 @@ import { useRef } from "react";
  * <select> que envía su propio <form action={...}> apenas cambia el valor,
  * sin botón "Guardar" aparte. Server Components no pueden tener manejadores
  * de eventos (onChange) directamente — por eso este pedacito puntual de
- * interactividad vive en su propio Client Component, y el resto de la
- * página de Socios sigue siendo un Server Component normal.
+ * interactividad vive en su propio Client Component, y el resto de cada
+ * página que lo usa sigue siendo un Server Component normal.
+ *
+ * Antes vivía solo en app/(app)/socios/ (donde se usó por primera vez, para
+ * cambiar el estado de un socio/vivienda/lista de espera sin recargar la
+ * fila); se promovió acá porque Fase 06 (tareas por comisión) necesita el
+ * mismo patrón para cambiar el estado de una tarea sin un botón aparte.
  */
 export function AutoSubmitSelect({
   action,
