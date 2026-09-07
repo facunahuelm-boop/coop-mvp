@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { SessionUser } from "@/lib/auth";
 import { canRead, ROLE_LABELS, type Module } from "@/lib/roles";
 import { logoutAction } from "@/lib/actions/auth";
+import { NavLink } from "./NavLink";
 
 type NavItem = { href: string; label: string; icon: string; mod?: Module };
 type NavGroup = { label: string; items: NavItem[] };
@@ -99,7 +100,12 @@ function groupsFor(user: SessionUser): NavGroup[] {
 
 export function Sidebar({ user }: { user: SessionUser }) {
   const groups = groupsFor(user);
-  const { nombre, logo_url, color_primario } = user.organizacion;
+  const { nombre, logo_url, color_primario, color_secundario } = user.organizacion;
+  // El acento del ítem activo usa el color secundario de la cooperativa si
+  // lo cargó en Configuración → Marca; si no, cae en el color principal, así
+  // el resaltado nunca queda sin color aunque la cooperativa no haya
+  // configurado un secundario todavía.
+  const acento = color_secundario || color_primario;
   return (
     <aside
       className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 text-white"
@@ -120,10 +126,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
             </div>
             <div className="space-y-0.5">
               {g.items.map((i) => (
-                <Link key={i.href} href={i.href} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/85 hover:bg-white/10">
-                  <span>{i.icon}</span>
-                  <span>{i.label}</span>
-                </Link>
+                <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} />
               ))}
             </div>
           </div>
@@ -166,17 +169,14 @@ export function BottomNav({ user }: { user: SessionUser }) {
   // o Documentos).
   const primary = ["/dashboard", "/buscar", "/documentos", "/alertas"];
   const items = itemsFor(user).filter((i) => primary.includes(i.href));
-  const color = user.organizacion.color_primario;
+  const acento = user.organizacion.color_secundario || user.organizacion.color_primario;
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-white border-t border-black/10 safe-bottom">
-      <div className="flex">
+      <div className="flex text-black/45">
         {items.map((i) => (
-          <Link key={i.href} href={i.href} className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px]" style={{ color }}>
-            <span className="text-lg leading-none">{i.icon}</span>
-            {i.label}
-          </Link>
+          <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} variant="bottom" />
         ))}
-        <Link href="/mas" className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px]" style={{ color }}>
+        <Link href="/mas" className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px]">
           <span className="text-lg leading-none">☰</span>
           Más
         </Link>
