@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { insert, update, get, audit } from "@/lib/db";
+import { insert, update, get, all, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 
@@ -77,6 +77,30 @@ export async function asignarViviendaSocioAction(formData: FormData) {
   revalidatePath("/socios");
 }
 
+/**
+ * Cierre de la Fase 05 del Plan Maestro: hasta ahora, después de crear un
+ * socio (crearSocioAction) no había forma de corregir un email mal cargado,
+ * agregar un teléfono más adelante o anotar algo nuevo — solo el estado y la
+ * vivienda tenían acción propia. Esta acción cubre el resto de la ficha
+ * (documento, email, teléfono, notas), igual que actualizarProveedorAction
+ * en proveedores.ts.
+ */
+export async function actualizarSocioAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
+  const id = Number(formData.get("id"));
+  const datos = {
+    documento: String(formData.get("documento") || "").trim() || null,
+    email: String(formData.get("email") || "").trim() || null,
+    telefono: String(formData.get("telefono") || "").trim() || null,
+    notas: String(formData.get("notas") || "").trim() || null,
+  };
+  await update("socios", id, datos);
+  await audit({ usuario_id: user.id, accion: "editar", entidad: "socios", entidad_id: id, valor_nuevo: datos });
+  revalidatePath(`/socios/${id}`);
+  revalidatePath("/socios");
+}
+
 // ---------- Lista de espera ----------
 
 export async function agregarListaEsperaAction(formData: FormData) {
@@ -109,6 +133,36 @@ export async function actualizarListaEsperaEstadoAction(formData: FormData) {
   const estado = String(formData.get("estado") || "");
   await update("lista_espera", id, { estado });
   await audit({ usuario_id: user.id, accion: "actualizar_estado", entidad: "lista_espera", entidad_id: id, valor_nuevo: { estado } });
+  revalidatePath("/socios");
+}
+
+/**
+ * El "orden" de la lista de espera se asignaba solo una vez, al agregar al
+ * aspirante (siempre al final) — no había forma de subirlo o bajarlo si, por
+ * ejemplo, el consejo directivo decide una prioridad distinta. Se resuelve
+ * con un intercambio simple: mueve al aspirante un lugar hacia arriba o
+ * abajo, intercambiando su "orden" con el del vecino inmediato (solo entre
+ * los que siguen "en_espera" — un aspirante ya convocado/incorporado/retirado
+ * no compite por posición).
+ */
+export async function moverListaEsperaAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
+  const id = Number(formData.get("id"));
+  const direccion = String(formData.get("direccion") || "");
+
+  const activos = await all<{ id: number; orden: number }>(
+    `SELECT id, orden FROM lista_espera WHERE estado = 'en_espera' ORDER BY orden ASC`
+  );
+  const idx = activos.findIndex((a) => a.id === id);
+  const vecinoIdx = direccion === "arriba" ? idx - 1 : idx + 1;
+  if (idx === -1 || vecinoIdx < 0 || vecinoIdx >= activos.length) return;
+
+  const actual = activos[idx];
+  const vecino = activos[vecinoIdx];
+  await update("lista_espera", actual.id, { orden: vecino.orden });
+  await update("lista_espera", vecino.id, { orden: actual.orden });
+  await audit({ usuario_id: user.id, accion: "reordenar", entidad: "lista_espera", entidad_id: id, valor_nuevo: { direccion } });
   revalidatePath("/socios");
 }
 

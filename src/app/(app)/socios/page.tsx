@@ -14,6 +14,7 @@ import {
   agregarListaEsperaAction,
   actualizarListaEsperaEstadoAction,
   incorporarDesdeListaEsperaAction,
+  moverListaEsperaAction,
 } from "@/lib/actions/socios";
 
 const ESTADOS_VIVIENDA = ["en_obra", "terminada", "ocupada"] as const;
@@ -61,6 +62,10 @@ export default async function SociosPage() {
   ]);
 
   const viviendasLibres = viviendas.filter((v) => !socios.some((s) => s.vivienda_id === v.id));
+  // Solo los aspirantes "en_espera" compiten por posición (ver
+  // moverListaEsperaAction) — se usa para saber si mostrar la flecha de
+  // subir/bajar en el extremo de la cola.
+  const idsEnEspera = listaEspera.filter((l) => l.estado === "en_espera").map((l) => l.id);
 
   return (
     <div>
@@ -251,9 +256,44 @@ export default async function SociosPage() {
               </tr>
             </thead>
             <tbody>
-              {listaEspera.map((l) => (
+              {listaEspera.map((l) => {
+                const posicion = idsEnEspera.indexOf(l.id);
+                const puedeReordenar = puedeEditar && posicion !== -1;
+                return (
                 <tr key={l.id} className="border-b border-black/5 last:border-0">
-                  <td className="py-2 pr-3 text-black/60">{l.orden}</td>
+                  <td className="py-2 pr-3 text-black/60">
+                    <div className="flex items-center gap-1">
+                      <span>{l.orden}</span>
+                      {puedeReordenar && (
+                        <span className="flex flex-col -my-1">
+                          <form action={moverListaEsperaAction}>
+                            <input type="hidden" name="id" value={l.id} />
+                            <input type="hidden" name="direccion" value="arriba" />
+                            <button
+                              type="submit"
+                              disabled={posicion === 0}
+                              className="block leading-none text-black/40 hover:text-[#1f4e5f] disabled:opacity-20 disabled:hover:text-black/40"
+                              title="Subir en la lista"
+                            >
+                              ▲
+                            </button>
+                          </form>
+                          <form action={moverListaEsperaAction}>
+                            <input type="hidden" name="id" value={l.id} />
+                            <input type="hidden" name="direccion" value="abajo" />
+                            <button
+                              type="submit"
+                              disabled={posicion === idsEnEspera.length - 1}
+                              className="block leading-none text-black/40 hover:text-[#1f4e5f] disabled:opacity-20 disabled:hover:text-black/40"
+                              title="Bajar en la lista"
+                            >
+                              ▼
+                            </button>
+                          </form>
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="py-2 pr-3 font-medium text-[#123240]">{l.nombre}</td>
                   <td className="py-2 pr-3 text-black/60">{l.contacto || "—"}</td>
                   <td className="py-2 pr-3">
@@ -287,7 +327,8 @@ export default async function SociosPage() {
                     </td>
                   )}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           {listaEspera.length === 0 && <EmptyState>No hay aspirantes en lista de espera.</EmptyState>}

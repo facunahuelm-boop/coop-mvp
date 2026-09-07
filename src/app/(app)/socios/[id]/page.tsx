@@ -6,6 +6,7 @@ import { get, all } from "@/lib/db";
 import { Card, PageHeader, SectionTitle, EmptyState, Badge, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import { registrarMovimientoCuentaSocioAction } from "@/lib/actions/cuentaSocios";
+import { actualizarSocioAction } from "@/lib/actions/socios";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
 
@@ -39,6 +40,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
   const esElPropioSocio = user.rol === "socio" && socio.user_id === user.id;
   const puedeVerCuenta = ROLES_FINANZAS_DETALLE.includes(user.rol) || esElPropioSocio;
   const puedeRegistrar = canEdit(user.rol, "finanzas");
+  const puedeEditar = canEdit(user.rol, "socios");
 
   const movimientos = puedeVerCuenta
     ? await all<any>(
@@ -68,6 +70,22 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
           <div><span className="text-black/50">Teléfono:</span> {socio.telefono || "—"}</div>
           {socio.notas && <div className="sm:col-span-2"><span className="text-black/50">Notas:</span> {socio.notas}</div>}
         </div>
+
+        {puedeEditar && (
+          <details className="mt-4">
+            <summary className="cursor-pointer text-xs font-semibold text-[#1f4e5f]">Editar datos de contacto</summary>
+            <form action={actualizarSocioAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input type="hidden" name="id" value={socio.id} />
+              <div><Label>Documento</Label><input name="documento" defaultValue={socio.documento || ""} className={inputClass} /></div>
+              <div><Label>Email</Label><input name="email" type="email" defaultValue={socio.email || ""} className={inputClass} /></div>
+              <div><Label>Teléfono</Label><input name="telefono" defaultValue={socio.telefono || ""} className={inputClass} /></div>
+              <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" defaultValue={socio.notas || ""} className={inputClass} /></div>
+              <div className="sm:col-span-2">
+                <button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Guardar</button>
+              </div>
+            </form>
+          </details>
+        )}
       </Card>
 
       <SectionTitle>Cuenta corriente</SectionTitle>
