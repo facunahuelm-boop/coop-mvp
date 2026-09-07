@@ -89,6 +89,32 @@ export async function resumenFinanciero() {
   return { ingresos, egresos, saldo, comprometido, gastosProyectados, disponiblePrudencial, porCategoria, presupuestoVsReal };
 }
 
+/**
+ * Fase 10 del Plan Maestro — cuenta corriente por socio. La ficha de cada
+ * socio (/socios/[id]) ya muestra su propio saldo ("¿cuánto debo?"), pero
+ * eso no le sirve a Tesorería para saber, de un vistazo, quién debe y
+ * cuánto en total — hoy tendría que abrir socio por socio. Esta función
+ * arma esa vista consolidada: mismo cálculo de saldo que la ficha
+ * individual (cargos menos pagos), pero para todos los socios a la vez,
+ * ordenado por deuda de mayor a menor.
+ */
+export async function cuentasPorCobrar() {
+  const filas = await all<{ socio_id: number; nombre: string; vivienda_numero: string | null; saldo: number }>(
+    `SELECT s.id as socio_id, s.nombre,
+       v.numero as vivienda_numero,
+       COALESCE(SUM(CASE WHEN m.tipo = 'cargo' THEN m.monto ELSE -m.monto END), 0) as saldo
+     FROM socios s
+     LEFT JOIN viviendas v ON v.id = s.vivienda_id
+     LEFT JOIN movimientos_cuenta_socio m ON m.socio_id = s.id
+     WHERE s.estado != 'baja'
+     GROUP BY s.id, s.nombre, v.numero
+     HAVING COALESCE(SUM(CASE WHEN m.tipo = 'cargo' THEN m.monto ELSE -m.monto END), 0) > 0
+     ORDER BY saldo DESC`
+  );
+  const totalACobrar = filas.reduce((acc, f) => acc + Number(f.saldo), 0);
+  return { filas, totalACobrar };
+}
+
 // ============ MOTOR DE ALERTAS ============
 // Recalcula alertas automáticas a partir de los datos actuales.
 // Los umbrales son un punto de partida configurable (ver sección 12 del análisis).

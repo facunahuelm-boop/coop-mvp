@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { resumenFinanciero } from "@/lib/logic";
+import { resumenFinanciero, cuentasPorCobrar } from "@/lib/logic";
 import { Card, PageHeader, StatTile, EmptyState, Label, inputClass, SectionTitle } from "@/components/ui";
+import Link from "next/link";
 import dayjs from "dayjs";
 import { registrarMovimientoAction, agregarCompromisoAction } from "@/lib/actions/finanzas";
 
@@ -17,10 +18,11 @@ export default async function FinanzasPage() {
 
   const detalle = ROLES_FINANZAS_DETALLE.includes(user.rol);
   const puedeEditar = canEdit(user.rol, "finanzas");
-  const [fin, movimientos, compromisos] = await Promise.all([
+  const [fin, movimientos, compromisos, cobrar] = await Promise.all([
     resumenFinanciero(),
     all<any>(`SELECT m.*, u.nombre as registrado_por FROM movimientos_financieros m LEFT JOIN users u ON u.id = m.registrado_por_id ORDER BY fecha DESC LIMIT 15`),
     all<any>(`SELECT * FROM compromisos_futuros ORDER BY fecha_estimada ASC`),
+    cuentasPorCobrar(),
   ]);
   const maxCategoria = Math.max(1, ...fin.porCategoria.map((c: any) => c.total));
 
@@ -115,6 +117,35 @@ export default async function FinanzasPage() {
               </Card>
             </details>
           )}
+
+          <SectionTitle action={cobrar.filas.length > 0 ? <span className="text-sm font-bold text-[#123240]">{money(cobrar.totalACobrar)}</span> : undefined}>
+            Cuentas por cobrar a socios
+          </SectionTitle>
+          <Card className="mb-6">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-black/50 border-b border-black/5">
+                    <th className="py-2 pr-3">Socio</th>
+                    <th className="py-2 pr-3">Vivienda</th>
+                    <th className="py-2 pr-3 text-right">Debe</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cobrar.filas.map((f) => (
+                    <tr key={f.socio_id} className="border-b border-black/5 last:border-0">
+                      <td className="py-2 pr-3 font-medium text-[#123240]">
+                        <Link href={`/socios/${f.socio_id}`} className="hover:underline underline-offset-2">{f.nombre}</Link>
+                      </td>
+                      <td className="py-2 pr-3 text-black/60">{f.vivienda_numero || "—"}</td>
+                      <td className="py-2 pr-3 text-right font-semibold text-[var(--color-rojo)]">{money(f.saldo)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {cobrar.filas.length === 0 && <EmptyState>Ningún socio tiene saldo pendiente registrado.</EmptyState>}
+            </div>
+          </Card>
 
           <SectionTitle>Movimientos recientes</SectionTitle>
           <Card>
