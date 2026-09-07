@@ -144,22 +144,24 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                 <div className="pt-2 border-t border-black/5">
                   <Label>Tareas resultantes (opcional)</Label>
                   <p className="text-xs text-black/40 mb-2">Se cargan directo en Comisiones — no hace falta anotarlas también en el resumen.</p>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {[0, 1, 2].map((i) => (
-                      <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-1.5">
-                        <input name="tarea_titulo" placeholder="Título de la tarea" className={inputClass + " text-xs !py-1.5"} />
-                        <select name="tarea_responsable_id" defaultValue="" className={inputClass + " text-xs !py-1.5"}>
-                          <option value="">Sin asignar</option>
-                          {usuarios.map((u) => (
-                            <option key={u.id} value={u.id}>{u.nombre}</option>
-                          ))}
-                        </select>
-                        <select name="tarea_prioridad" defaultValue="media" className={inputClass + " text-xs !py-1.5"}>
-                          <option value="alta">Alta</option>
-                          <option value="media">Media</option>
-                          <option value="baja">Baja</option>
-                        </select>
-                        <input name="tarea_fecha_vencimiento" type="date" className={inputClass + " text-xs !py-1.5"} />
+                      <div key={i} className="space-y-1.5 pb-2 border-b border-black/5 last:border-0 last:pb-0">
+                        <input name="tarea_titulo" placeholder={`Título de la tarea ${i + 1} (opcional)`} className={inputClass + " text-xs !py-1.5"} />
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <select name="tarea_responsable_id" defaultValue="" className={inputClass + " text-xs !py-1.5"}>
+                            <option value="">Sin asignar</option>
+                            {usuarios.map((u) => (
+                              <option key={u.id} value={u.id}>{u.nombre}</option>
+                            ))}
+                          </select>
+                          <select name="tarea_prioridad" defaultValue="media" className={inputClass + " text-xs !py-1.5"}>
+                            <option value="alta">Alta</option>
+                            <option value="media">Media</option>
+                            <option value="baja">Baja</option>
+                          </select>
+                          <input name="tarea_fecha_vencimiento" type="date" className={inputClass + " text-xs !py-1.5"} />
+                        </div>
                       </div>
                     ))}
                   </div>
