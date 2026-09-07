@@ -154,6 +154,87 @@ async function comparacionCompra(pregunta: string): Promise<IaAnswer | null> {
   return { answer: cmp.texto, engine: "local", sources: [{ label: "Módulo Compras", detail: `Solicitud #${match.id} — ${match.material}` }] };
 }
 
+// ---- Fase 12 del Plan Maestro: se suman Socios, Proveedores, Comisiones y
+// Reuniones al mismo motor de reglas (mismo criterio que el resto: citar la
+// fuente, y si no hay dato decirlo en vez de inventar). ----
+
+async function estadoSocios(): Promise<IaAnswer> {
+  const porEstado = await all<any>(`SELECT estado, count(*)::int as cantidad FROM socios GROUP BY estado`);
+  const espera = await all<any>(`SELECT count(*)::int as cantidad FROM lista_espera WHERE estado = 'en_espera'`);
+  const cant = (estado: string) => porEstado.find((r) => r.estado === estado)?.cantidad || 0;
+  const activos = cant("activo");
+  const inactivos = cant("inactivo");
+  const bajas = cant("baja");
+  const enEspera = espera[0]?.cantidad || 0;
+
+  let answer = `La cooperativa tiene ${activos} socio(s) activo(s)`;
+  if (inactivos > 0) answer += `, ${inactivos} inactivo(s)`;
+  if (bajas > 0) answer += `, ${bajas} de baja`;
+  answer += ". ";
+  answer += enEspera > 0 ? `Hay ${enEspera} persona(s) en lista de espera.` : "No hay nadie en lista de espera en este momento.";
+  return { answer, engine: "local", sources: [{ label: "Módulo Socios", detail: "Padrón de socios y lista de espera" }] };
+}
+
+async function proveedoresRegistrados(): Promise<IaAnswer> {
+  const proveedores = await all<any>(`SELECT * FROM proveedores ORDER BY nombre`);
+  if (proveedores.length === 0) {
+    return { answer: "No hay proveedores cargados todavía.", engine: "local", sources: [{ label: "Módulo Proveedores", detail: "Ficha de proveedores" }] };
+  }
+  const lineas = proveedores.map((p) => `• ${p.nombre}${p.rubro ? ` (${p.rubro})` : ""}`);
+  return {
+    answer: `Proveedores registrados (${proveedores.length}):\n${lineas.join("\n")}`,
+    engine: "local",
+    sources: [{ label: "Módulo Proveedores", detail: "Ficha de proveedores" }],
+  };
+}
+
+async function comisionesYMiembros(pregunta: string): Promise<IaAnswer | null> {
+  const comisiones = await all<any>(`SELECT * FROM comisiones WHERE activa = 1 ORDER BY nombre`);
+  if (comisiones.length === 0) return null;
+
+  const match = comisiones.find((c) => pregunta.includes(c.nombre.toLowerCase()));
+  if (match) {
+    const [miembros, pendientes] = await Promise.all([
+      all<any>(
+        `SELECT u.nombre, cm.rol_en_comision FROM comision_miembros cm JOIN users u ON u.id = cm.user_id
+         WHERE cm.comision_id = ? AND cm.activo = 1 ORDER BY cm.rol_en_comision DESC, u.nombre`,
+        [match.id]
+      ),
+      all<any>(`SELECT count(*)::int as cantidad FROM tareas WHERE comision_id = ? AND estado != 'completada'`, [match.id]),
+    ]);
+    const lineas = miembros.map((m) => `• ${m.nombre}${m.rol_en_comision === "coordinador" ? " (coordinador/a)" : ""}`);
+    return {
+      answer:
+        `Comisión de ${match.nombre}${match.descripcion ? ` — ${match.descripcion}` : ""}:\n` +
+        `${lineas.join("\n") || "Sin integrantes cargados."}\n\n` +
+        `Tareas pendientes: ${pendientes[0]?.cantidad || 0}.`,
+      engine: "local",
+      sources: [{ label: "Módulo Comisiones", detail: `Comisión: ${match.nombre}` }],
+    };
+  }
+  const lineas = comisiones.map((c) => `• ${c.nombre}`);
+  return {
+    answer: `Comisiones activas (${comisiones.length}):\n${lineas.join("\n")}`,
+    engine: "local",
+    sources: [{ label: "Módulo Comisiones", detail: "Comisiones activas" }],
+  };
+}
+
+async function proximasReuniones(): Promise<IaAnswer> {
+  const proximas = await all<any>(`SELECT * FROM reuniones WHERE estado = 'planificada' ORDER BY fecha ASC LIMIT 5`);
+  if (proximas.length === 0) {
+    return { answer: "No hay reuniones planificadas por el momento.", engine: "local", sources: [{ label: "Módulo Reuniones", detail: "Agenda de reuniones" }] };
+  }
+  const lineas = proximas.map(
+    (r) => `• ${r.titulo} (${r.tipo.replace("_", " ")}) — ${dayjs(r.fecha).format("DD/MM/YYYY")}${r.lugar ? `, ${r.lugar}` : ""}`
+  );
+  return {
+    answer: `Próximas reuniones:\n${lineas.join("\n")}`,
+    engine: "local",
+    sources: [{ label: "Módulo Reuniones", detail: "Agenda de reuniones planificadas" }],
+  };
+}
+
 async function actasYDecisiones(pregunta: string): Promise<IaAnswer | null> {
   const actas = await all<any>(`SELECT * FROM actas ORDER BY fecha DESC`);
   if (actas.length === 0) return null;
@@ -176,7 +257,11 @@ const HANDLERS: { test: (q: string) => boolean; run: (q: string, u: SessionUser)
   { test: (q) => /cu[aá]nto dinero|cu[aá]nto (podemos gastar|tenemos)|disponible/.test(q), run: (q, u) => dineroDisponible(u) },
   { test: (q) => /documento.*(vencer|vencid)/.test(q), run: () => documentosPorVencer() },
   { test: (q) => /a qui[eé]n.*compramos|proveedor/.test(q), run: (q) => quePasoConProveedor(q) },
+  { test: (q) => /proveedor/.test(q), run: () => proveedoresRegistrados() },
   { test: (q) => /comparaci[oó]n|comparar|presupuesto/.test(q), run: (q) => comparacionCompra(q) },
+  { test: (q) => /(cu[aá]ntos?|estado).*socio|socio.*(activo|inactivo|baja)|lista de espera/.test(q), run: () => estadoSocios() },
+  { test: (q) => /comisi[oó]n/.test(q), run: (q) => comisionesYMiembros(q) },
+  { test: (q) => /reuni[oó]n|reuniones/.test(q) && !/acta/.test(q), run: () => proximasReuniones() },
   { test: (q) => /acta|asamblea|resolv/.test(q), run: (q) => actasYDecisiones(q) },
 ];
 
@@ -204,19 +289,48 @@ export async function askClaude(pregunta: string, user: SessionUser): Promise<Ia
 
   // Contexto acotado por permisos del usuario (RAG simplificado: se arma con
   // las mismas funciones de consulta que usa el motor local).
-  const [obra, finanzas, comprasPendientesCtx, alertas] = await Promise.all([
+  //
+  // Fase 12 del Plan Maestro: se suman Socios, Proveedores, Comisiones y
+  // Reuniones, cada uno detrás del mismo canRead() que ya protege obra/
+  // finanzas/compras — un rol que no puede leer un módulo tampoco se lo ve
+  // en el contexto que recibe el modelo. Para socios se manda un resumen
+  // agregado (cantidades por estado), no la lista de personas — alcanza
+  // para responder "¿cuántos socios tenemos?" sin exponer datos personales
+  // de más en el prompt.
+  const [obra, finanzas, comprasPendientesCtx, alertas, socios, comisiones, reunionesProximas, proveedores] = await Promise.all([
     canRead(user.rol, "obra") ? tareasObraConSemaforo() : Promise.resolve(null),
     canRead(user.rol, "finanzas") ? resumenFinanciero() : Promise.resolve(null),
     canRead(user.rol, "compras")
       ? all(`SELECT * FROM solicitudes_compra WHERE estado IN ('pendiente_cotizacion','en_comparacion')`)
       : Promise.resolve(null),
     all(`SELECT * FROM alertas WHERE estado='abierta' ORDER BY severidad ASC LIMIT 20`),
+    canRead(user.rol, "socios")
+      ? Promise.all([
+          all<any>(`SELECT estado, count(*)::int as cantidad FROM socios GROUP BY estado`),
+          all<any>(`SELECT count(*)::int as cantidad FROM lista_espera WHERE estado = 'en_espera'`),
+        ]).then(([porEstado, espera]) => ({ porEstado, enListaDeEspera: espera[0]?.cantidad || 0 }))
+      : Promise.resolve(null),
+    canRead(user.rol, "comisiones")
+      ? all(
+          `SELECT c.nombre, c.descripcion,
+             (SELECT count(*)::int FROM tareas t WHERE t.comision_id = c.id AND t.estado != 'completada') as tareas_pendientes
+           FROM comisiones c WHERE c.activa = 1 ORDER BY c.nombre`
+        )
+      : Promise.resolve(null),
+    canRead(user.rol, "comisiones")
+      ? all(`SELECT titulo, tipo, fecha, lugar FROM reuniones WHERE estado = 'planificada' ORDER BY fecha ASC LIMIT 10`)
+      : Promise.resolve(null),
+    canRead(user.rol, "compras") ? all(`SELECT nombre, rubro FROM proveedores ORDER BY nombre`) : Promise.resolve(null),
   ]);
   const contexto = {
     obra: obra ? obra.slice(0, 30) : null,
     finanzas,
     comprasPendientes: comprasPendientesCtx,
     alertas,
+    socios,
+    comisiones,
+    reunionesProximas,
+    proveedores,
   };
 
   try {
@@ -261,4 +375,6 @@ export const PREGUNTAS_SUGERIDAS = [
   "¿Qué compras están pendientes?",
   "¿Cuánto dinero tenemos?",
   "¿Qué documentos están por vencer?",
+  "¿Cuántos socios activos tenemos?",
+  "¿Cuándo es la próxima reunión?",
 ];
