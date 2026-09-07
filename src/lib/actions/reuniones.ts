@@ -83,6 +83,13 @@ export async function registrarAsistenciaAction(formData: FormData) {
  * verdad (orden del día + resumen + asistencia) con generarPdfBuffer, lo
  * sube a Supabase Storage y lo deja disponible como un documento más en
  * Documentos → Actas, en vez de quedar solo como texto dentro del sistema.
+ *
+ * Fase 09 (cierre): además del PDF, esta misma acción puede dejar cargadas
+ * las tareas resultantes de la reunión directamente en la tabla genérica
+ * "tareas" (Fase 06) — ya no hace falta anotarlas en el resumen y después
+ * volver a cargarlas a mano en Comisiones. Se reciben como listas paralelas
+ * (mismo índice = misma tarea) vía formData.getAll, una fila por tarea
+ * cargada en el formulario de cierre.
  */
 export async function cerrarReunionAction(formData: FormData) {
   const user = await requireUser();
@@ -103,6 +110,21 @@ export async function cerrarReunionAction(formData: FormData) {
   );
   const presentes = asistencias.filter((a: any) => a.presente).length;
 
+  // Tareas resultantes cargadas en el formulario de cierre (filas paralelas,
+  // se descartan las filas sin título).
+  const titulos = formData.getAll("tarea_titulo").map((v) => String(v).trim());
+  const responsables = formData.getAll("tarea_responsable_id").map((v) => String(v));
+  const prioridades = formData.getAll("tarea_prioridad").map((v) => String(v || "media"));
+  const vencimientos = formData.getAll("tarea_fecha_vencimiento").map((v) => String(v));
+  const tareasResultantes = titulos
+    .map((titulo, i) => ({
+      titulo,
+      responsable_id: responsables[i] ? Number(responsables[i]) : null,
+      prioridad: prioridades[i] || "media",
+      fecha_vencimiento: vencimientos[i] || null,
+    }))
+    .filter((t) => t.titulo);
+
   let documentoId: number | null = null;
   try {
     const pdfBuffer = await generarPdfBuffer({
@@ -120,6 +142,20 @@ export async function cerrarReunionAction(formData: FormData) {
           columnas: ["Núcleo familiar", "Presente", "Justificación"],
           filas: asistencias.map((a: any) => [a.nucleo_nombre, a.presente ? "Sí" : "No", a.justificacion || ""]),
         },
+        ...(tareasResultantes.length > 0
+          ? [
+              {
+                tipo: "tabla" as const,
+                encabezado: "Tareas resultantes",
+                columnas: ["Título", "Prioridad", "Vencimiento"],
+                filas: tareasResultantes.map((t) => [
+                  t.titulo,
+                  t.prioridad,
+                  t.fecha_vencimiento ? dayjs(t.fecha_vencimiento).format("DD/MM/YYYY") : "",
+                ]),
+              },
+            ]
+          : []),
       ],
     });
 
@@ -152,9 +188,29 @@ export async function cerrarReunionAction(formData: FormData) {
     await update("actas", actaId, documentoId ? { resumen, documento_id: documentoId } : { resumen });
   }
 
+  for (const t of tareasResultantes) {
+    const tareaId = await insert("tareas", {
+      comision_id: reunion.comision_id || null,
+      reunion_id,
+      titulo: t.titulo,
+      responsable_id: t.responsable_id,
+      prioridad: t.prioridad,
+      fecha_vencimiento: t.fecha_vencimiento,
+      creado_por_id: user.id,
+    });
+    await audit({
+      usuario_id: user.id,
+      accion: "crear",
+      entidad: "tareas",
+      entidad_id: tareaId,
+      valor_nuevo: { titulo: t.titulo, reunion_id, origen: "acta" },
+    });
+  }
+
   await update("reuniones", reunion_id, { estado: "realizada", acta_id: actaId });
-  await audit({ usuario_id: user.id, accion: "cerrar", entidad: "reuniones", entidad_id: reunion_id, valor_nuevo: { acta_id: actaId, documento_id: documentoId } });
+  await audit({ usuario_id: user.id, accion: "cerrar", entidad: "reuniones", entidad_id: reunion_id, valor_nuevo: { acta_id: actaId, documento_id: documentoId, tareas_creadas: tareasResultantes.length } });
   revalidatePath("/reuniones");
   revalidatePath(`/reuniones/${reunion_id}`);
   revalidatePath("/documentos");
+  revalidatePath("/comisiones");
 }
