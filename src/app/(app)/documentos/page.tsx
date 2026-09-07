@@ -25,14 +25,20 @@ function etiquetasDe(d: { etiquetas?: string | null }): string[] {
 export default async function DocumentosPage({
   searchParams,
 }: {
-  searchParams: { etiqueta?: string };
+  // Next.js 15+ (acá corremos 16): searchParams llega como Promise, no como
+  // objeto plano — hay que hacer await antes de leer sus propiedades. Sin
+  // esto, cualquier lectura de searchParams.algo da undefined en runtime sin
+  // tirar error (el filtro por etiqueta quedaba siempre vacío pese a que la
+  // URL sí tenía ?etiqueta=... — mismo bug que en /buscar, ver ese archivo).
+  searchParams: Promise<{ etiqueta?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canRead(user.rol, "documentos")) redirect("/dashboard");
 
   const puedeEditar = canEdit(user.rol, "documentos");
-  const etiquetaFiltro = searchParams.etiqueta?.trim() || "";
+  const { etiqueta } = await searchParams;
+  const etiquetaFiltro = etiqueta?.trim() || "";
   const [docsSinFiltrar, actas, categoriasPropias] = await Promise.all([
     all<any>(`SELECT d.*, u.nombre as subido_por FROM documentos d LEFT JOIN users u ON u.id = d.subido_por_id ORDER BY fecha DESC`),
     all<any>(`SELECT * FROM actas ORDER BY fecha DESC`),

@@ -7,12 +7,20 @@ import dayjs from "dayjs";
 export default async function BuscarPage({
   searchParams,
 }: {
-  searchParams: { q?: string };
+  // Next.js 15+ (acá corremos 16): searchParams llega como Promise, no como
+  // objeto plano — hay que hacer await antes de leer sus propiedades. Este
+  // archivo era la referencia que se copió para /documentos (Fase 07), pero
+  // el patrón en sí ya estaba mal acá: sin el await, searchParams.q daba
+  // undefined en runtime (sin tirar error), así que la búsqueda global nunca
+  // filtraba nada — quedaba pegada en el estado "sin resultados" pasara lo
+  // que pasara en el input.
+  searchParams: Promise<{ q?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const q = searchParams.q?.trim() || "";
+  const { q: qParam } = await searchParams;
+  const q = qParam?.trim() || "";
   const resultados: any[] = [];
 
   if (q && q.length >= 2) {
