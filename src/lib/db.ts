@@ -9,8 +9,29 @@ declare global {
   var __coopPool: Pool | undefined;
 }
 
+// Fase 04 del Plan Maestro (hallazgo crítico del audit): la app corría con el
+// rol "postgres", que tiene BYPASSRLS = true — las políticas de RLS de
+// migrations/0003_rls_policies.sql existen y están bien escritas, pero
+// quedaban completamente inertes para esa conexión, así que el único
+// aislamiento real entre cooperativas era el filtro por organization_id en
+// esta misma capa (ver withTenantClient más abajo). Si algún query puntual
+// se olvidara ese filtro, no había red de contención en la base.
+//
+// APP_DATABASE_URL es una variable nueva y separada de DATABASE_URL/
+// POSTGRES_URL a propósito: esta última la sincroniza automáticamente la
+// integración Supabase↔Vercel (y la usa scripts/run-migrations.mjs vía
+// .env.local, que sí necesita permisos de DDL), así que no conviene
+// pisarla — un resync de la integración la volvería a dejar en "postgres"
+// sin que nadie lo note. APP_DATABASE_URL, en cambio, es una variable de
+// entorno normal en Vercel que sólo la app en runtime conoce, apuntando al
+// rol app_user (NOSUPERUSER, NOBYPASSRLS — ver FASE04_SEGURIDAD_DB.md para
+// cómo se armó y verificó). Mientras no exista, se sigue usando
+// DATABASE_URL/POSTGRES_URL como antes, así que este cambio no rompe nada
+// hasta que alguien defina APP_DATABASE_URL a propósito.
 function createPool(): Pool {
-    const connectionString = (process.env.DATABASE_URL || process.env.POSTGRES_URL || "").split("?")[0];
+    const connectionString = (
+      process.env.APP_DATABASE_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL || ""
+    ).split("?")[0];
   if (!connectionString) {
     throw new Error(
       "Falta la variable de entorno DATABASE_URL. Configurala en .env.local con el connection string de Supabase."
