@@ -7,11 +7,11 @@ import Link from "next/link";
 import dayjs from "dayjs";
 import { crearSolicitudAction } from "@/lib/actions/compras";
 
-const estadoColor: Record<string, "gray" | "amarillo" | "verde" | "brand"> = {
-  pendiente_cotizacion: "gray", en_comparacion: "amarillo", aprobada: "verde", rechazada: "gray", entregada: "brand",
+const estadoColor: Record<string, "gray" | "amarillo" | "verde" | "brand" | "rojo"> = {
+  pendiente_cotizacion: "gray", en_comparacion: "amarillo", aprobada: "brand", pedida: "amarillo", entregada: "verde", rechazada: "rojo",
 };
 const estadoLabel: Record<string, string> = {
-  pendiente_cotizacion: "Pendiente de cotización", en_comparacion: "En comparación", aprobada: "Aprobada", rechazada: "Rechazada", entregada: "Entregada",
+  pendiente_cotizacion: "Pendiente de cotización", en_comparacion: "En comparación", aprobada: "Aprobada", pedida: "Pedida a proveedor", entregada: "Entregada", rechazada: "Rechazada",
 };
 
 export default async function ComprasPage() {
@@ -24,7 +24,15 @@ export default async function ComprasPage() {
 
   return (
     <div>
-      <PageHeader title="Compras" subtitle="Solicitudes, presupuestos y proveedores" />
+      <PageHeader
+        title="Compras"
+        subtitle="Solicitudes y presupuestos"
+        action={
+          <Link href="/proveedores" className="text-xs font-semibold text-[#1f4e5f] underline underline-offset-2 whitespace-nowrap">
+            Ver proveedores →
+          </Link>
+        }
+      />
 
       <div className="space-y-2">
         {solicitudes.map((s) => (

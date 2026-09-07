@@ -31,6 +31,7 @@ const GROUPS: NavGroup[] = [
     label: "Gestión",
     items: [
       { href: "/compras", label: "Compras", icon: "🛒", mod: "compras" },
+      { href: "/proveedores", label: "Proveedores", icon: "🚚", mod: "compras" },
       { href: "/finanzas", label: "Finanzas", icon: "💰", mod: "finanzas" },
     ],
   },

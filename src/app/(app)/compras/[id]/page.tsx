@@ -1,11 +1,17 @@
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, canApprove } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { compararPresupuestos, historialProveedor } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
-import { agregarPresupuestoAction, decidirCompraAction, marcarEntregadaAction } from "@/lib/actions/compras";
+import { agregarPresupuestoAction, decidirCompraAction, marcarPedidaAction, marcarEntregadaAction, rechazarSolicitudAction } from "@/lib/actions/compras";
+
+const ESTADO_LABEL: Record<string, string> = {
+  pendiente_cotizacion: "pendiente de cotización", en_comparacion: "en comparación", aprobada: "aprobada",
+  pedida: "pedida a proveedor", entregada: "entregada", rechazada: "rechazada",
+};
 
 export default async function SolicitudPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,23 +36,38 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
 
       <Card className="mb-5 text-sm">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div><Label>Estado</Label>{solicitud.estado.replace(/_/g, " ")}</div>
+          <div><Label>Estado</Label>{ESTADO_LABEL[solicitud.estado] || solicitud.estado.replace(/_/g, " ")}</div>
           <div><Label>Etapa</Label>{solicitud.etapa_obra || "—"}</div>
           <div><Label>Necesario para</Label>{solicitud.fecha_necesaria ? dayjs(solicitud.fecha_necesaria).format("DD/MM/YYYY") : "—"}</div>
           <div><Label>Estimado</Label>{solicitud.presupuesto_estimado ? `$${solicitud.presupuesto_estimado.toLocaleString("es-UY")}` : "—"}</div>
         </div>
         {solicitud.especificacion && <p className="text-black/60 mt-3">{solicitud.especificacion}</p>}
-        {solicitud.estado === "aprobada" && puedeEditar && (
-          <form action={marcarEntregadaAction} className="mt-3"><input type="hidden" name="id" value={solicitud.id} />
+        {puedeEditar && solicitud.estado === "aprobada" && (
+          <form action={marcarPedidaAction} className="mt-3 inline-block mr-2"><input type="hidden" name="id" value={solicitud.id} />
+            <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-1.5 text-xs font-semibold">Marcar como pedida al proveedor</button>
+          </form>
+        )}
+        {puedeEditar && (solicitud.estado === "aprobada" || solicitud.estado === "pedida") && (
+          <form action={marcarEntregadaAction} className="mt-3 inline-block"><input type="hidden" name="id" value={solicitud.id} />
             <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-1.5 text-xs font-semibold">Marcar como entregada</button>
           </form>
+        )}
+        {puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-rojo)]">Rechazar esta solicitud</summary>
+            <form action={rechazarSolicitudAction} className="mt-2 flex items-center gap-2">
+              <input type="hidden" name="id" value={solicitud.id} />
+              <input name="motivo" placeholder="Motivo del rechazo" className={inputClass + " text-xs"} />
+              <button className="rounded-lg bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Confirmar rechazo</button>
+            </form>
+          </details>
         )}
       </Card>
 
       {decision && (
         <Card className="mb-5 !border-[var(--color-verde)]/30 bg-[var(--color-verde-bg)]/40">
           <p className="text-sm font-semibold text-[var(--color-verde)]">Decisión registrada</p>
-          <p className="text-sm mt-1">Se eligió a <strong>{decision.proveedor_nombre}</strong> por <strong>${decision.monto?.toLocaleString("es-UY")}</strong>, decidido por {decision.decidido_por} el {dayjs(decision.fecha).format("DD/MM/YYYY")}.</p>
+          <p className="text-sm mt-1">Se eligió a <Link href={`/proveedores/${decision.proveedor_id}`} className="font-semibold underline underline-offset-2">{decision.proveedor_nombre}</Link> por <strong>${decision.monto?.toLocaleString("es-UY")}</strong>, decidido por {decision.decidido_por} el {dayjs(decision.fecha).format("DD/MM/YYYY")}.</p>
           {decision.motivo && <p className="text-xs text-black/60 mt-1">Motivo: {decision.motivo}</p>}
         </Card>
       )}
@@ -62,7 +83,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
         {comparacion.presupuestos.map((p: any) => (
           <Card key={p.id} className="text-sm">
             <div className="flex items-center justify-between">
-              <p className="font-semibold">{p.proveedor_nombre}</p>
+              <Link href={`/proveedores/${p.proveedor_id}`} className="font-semibold hover:underline underline-offset-2">{p.proveedor_nombre}</Link>
               <p className="font-bold">${p.precio.toLocaleString("es-UY")}{p.costo_envio ? ` + $${p.costo_envio.toLocaleString("es-UY")} envío` : ""}</p>
             </div>
             <p className="text-xs text-black/50 mt-1">
@@ -70,7 +91,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
               {p.forma_pago && `Pago: ${p.forma_pago} · `}
               {p.garantia ? `Garantía: ${p.garantia}` : "Sin garantía informada"}
             </p>
-            {puedeAprobar && solicitud.estado !== "aprobada" && (
+            {puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
               <form action={decidirCompraAction} className="mt-2 flex items-center gap-2">
                 <input type="hidden" name="solicitud_id" value={solicitud.id} />
                 <input type="hidden" name="presupuesto_id" value={p.id} />
@@ -82,7 +103,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
         ))}
       </div>
 
-      {puedeEditar && solicitud.estado !== "aprobada" && solicitud.estado !== "entregada" && (
+      {puedeEditar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
         <details open={comparacion.presupuestos.length < 3}>
           <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Cargar presupuesto</summary>
           <Card className="mt-3">

@@ -70,11 +70,49 @@ export async function decidirCompraAction(formData: FormData) {
   revalidatePath("/compras");
 }
 
+/**
+ * Fase 08 del Plan Maestro ("estados más granulares"): antes de esto, una
+ * solicitud aprobada pasaba directo a "entregada" con un solo botón, sin
+ * forma de reflejar que ya se hizo el pedido/pago al proveedor pero todavía
+ * no llegó — un estado intermedio real en cualquier compra de obra, donde
+ * puede pasar más de una semana entre pedir y recibir. "pedida" cubre ese
+ * tramo; se puede marcar como entregada igual directamente si llegó al
+ * toque, para no trabar el caso simple.
+ */
+export async function marcarPedidaAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
+  const id = Number(formData.get("id"));
+  await update("solicitudes_compra", id, { estado: "pedida" });
+  revalidatePath("/compras");
+  revalidatePath(`/compras/${id}`);
+}
+
 export async function marcarEntregadaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
   const id = Number(formData.get("id"));
   await update("solicitudes_compra", id, { estado: "entregada" });
+  revalidatePath("/compras");
+  revalidatePath(`/compras/${id}`);
+}
+
+/**
+ * El estado "rechazada" ya estaba previsto en el esquema (columna estado,
+ * comentario original en schema.postgres.sql) pero ninguna acción lo dejaba
+ * elegir — una solicitud que ya no correspondía (cambió el plan de obra, se
+ * consiguió donada, etc.) se quedaba pendiente para siempre o había que
+ * "aprobarla" igual solo para sacarla de la lista. Mismo nivel de permiso
+ * que aprobar (Tesorería / Consejo Directivo): rechazar una compra es la
+ * otra cara de la misma decisión.
+ */
+export async function rechazarSolicitudAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canApprove(user.rol, "compras")) throw new Error("No autorizado: esta decisión requiere un rol con permiso de aprobación (Tesorería o Consejo Directivo).");
+  const id = Number(formData.get("id"));
+  const motivo = String(formData.get("motivo") || "");
+  await update("solicitudes_compra", id, { estado: "rechazada" });
+  await audit({ usuario_id: user.id, accion: "rechazar_compra", entidad: "solicitudes_compra", entidad_id: id, valor_nuevo: { motivo } });
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
 }
