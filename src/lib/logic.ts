@@ -1,6 +1,7 @@
 import dayjs from "dayjs";
 import { all, get, upsertAlerta, insert } from "./db";
 import { enviarEmailAlerta } from "./email";
+import { canRead, type Role } from "./roles";
 
 // Crea o actualiza una alerta y, si es realmente nueva (no existía ya abierta),
 // dispara el email a la casilla configurada en Configuración (si hay una cargada).
@@ -373,6 +374,98 @@ export async function proponerDistribucionJornada(jornadaId: number) {
   }
 
   return propuestas;
+}
+
+/**
+ * Fase 11 del Plan Maestro — ampliar el buscador global (/buscar y el
+ * atajo Ctrl+K). Antes cubría solo 5 fuentes (obra, compras, documentos,
+ * jornadas, incidentes) y buscaba en TODAS sin fijarse en el rol de quien
+ * pregunta — un socio sin acceso a Compras igual veía resultados de
+ * Compras. Se suman Comisiones, Reuniones, Socios y Proveedores, y cada
+ * fuente ahora se salta directamente si el rol no puede leer ese módulo
+ * (mismo criterio que ya usa cada pantalla con canRead()).
+ */
+export type ResultadoBusqueda = {
+  tipo: string;
+  id: number;
+  titulo: string;
+  modulo: string;
+  estado: string | null;
+  fecha?: string | null;
+  href: string;
+};
+
+export async function buscarGlobal(q: string, rol: Role): Promise<ResultadoBusqueda[]> {
+  const like = `%${q}%`;
+  const fuentes: Promise<ResultadoBusqueda[]>[] = [];
+
+  if (canRead(rol, "obra")) {
+    fuentes.push(
+      all<any>(
+        `SELECT id, nombre as titulo, estado FROM tareas_obra WHERE nombre LIKE ? OR descripcion LIKE ? LIMIT 10`,
+        [like, like]
+      ).then((rows) => rows.map((r) => ({ tipo: "obra", id: r.id, titulo: r.titulo, modulo: "Obra", estado: r.estado, href: `/obra/${r.id}` })))
+    );
+  }
+  if (canRead(rol, "compras")) {
+    fuentes.push(
+      all<any>(
+        `SELECT id, material as titulo, estado FROM solicitudes_compra WHERE material LIKE ? OR especificacion LIKE ? LIMIT 10`,
+        [like, like]
+      ).then((rows) => rows.map((r) => ({ tipo: "compra", id: r.id, titulo: r.titulo, modulo: "Compras", estado: r.estado, href: `/compras/${r.id}` }))),
+      all<any>(
+        `SELECT id, nombre as titulo, rubro FROM proveedores WHERE nombre LIKE ? OR rubro LIKE ? LIMIT 10`,
+        [like, like]
+      ).then((rows) => rows.map((r) => ({ tipo: "proveedor", id: r.id, titulo: r.titulo, modulo: "Proveedores", estado: r.rubro, href: `/proveedores/${r.id}` })))
+    );
+  }
+  if (canRead(rol, "documentos")) {
+    fuentes.push(
+      all<any>(
+        `SELECT id, nombre as titulo, categoria FROM documentos WHERE nombre LIKE ? OR descripcion LIKE ? LIMIT 10`,
+        [like, like]
+      ).then((rows) => rows.map((r) => ({ tipo: "documento", id: r.id, titulo: r.titulo, modulo: "Documentos", estado: r.categoria, href: `/documentos` })))
+    );
+  }
+  if (canRead(rol, "trabajo")) {
+    fuentes.push(
+      all<any>(
+        `SELECT id, descripcion as titulo, estado FROM jornadas_trabajo WHERE descripcion LIKE ? LIMIT 10`,
+        [like]
+      ).then((rows) => rows.map((r) => ({ tipo: "jornada", id: r.id, titulo: r.titulo, modulo: "Trabajo", estado: r.estado, href: `/trabajo/${r.id}` })))
+    );
+  }
+  if (canRead(rol, "seguridad")) {
+    fuentes.push(
+      all<any>(
+        `SELECT id, descripcion as titulo, estado FROM incidentes_seguridad WHERE descripcion LIKE ? LIMIT 10`,
+        [like]
+      ).then((rows) => rows.map((r) => ({ tipo: "incidente", id: r.id, titulo: r.titulo, modulo: "Seguridad", estado: r.estado, href: `/seguridad` })))
+    );
+  }
+  if (canRead(rol, "comisiones")) {
+    fuentes.push(
+      all<any>(
+        `SELECT id, nombre as titulo, activa FROM comisiones WHERE nombre LIKE ? OR descripcion LIKE ? LIMIT 10`,
+        [like, like]
+      ).then((rows) => rows.map((r) => ({ tipo: "comision", id: r.id, titulo: r.titulo, modulo: "Comisiones", estado: r.activa ? "activa" : "archivada", href: `/comisiones` }))),
+      all<any>(
+        `SELECT id, titulo, tipo, estado FROM reuniones WHERE titulo LIKE ? OR orden_del_dia LIKE ? LIMIT 10`,
+        [like, like]
+      ).then((rows) => rows.map((r) => ({ tipo: "reunion", id: r.id, titulo: r.titulo, modulo: "Reuniones", estado: r.estado, href: `/reuniones/${r.id}` })))
+    );
+  }
+  if (canRead(rol, "socios")) {
+    fuentes.push(
+      all<any>(
+        `SELECT id, nombre as titulo, estado FROM socios WHERE nombre LIKE ? OR documento LIKE ? LIMIT 10`,
+        [like, like]
+      ).then((rows) => rows.map((r) => ({ tipo: "socio", id: r.id, titulo: r.titulo, modulo: "Socios", estado: r.estado, href: `/socios/${r.id}` })))
+    );
+  }
+
+  const resultados = (await Promise.all(fuentes)).flat();
+  return resultados;
 }
 
 export async function historialProveedor(proveedorId: number) {

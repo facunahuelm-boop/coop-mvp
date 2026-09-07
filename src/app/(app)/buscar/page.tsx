@@ -1,8 +1,20 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { all } from "@/lib/db";
+import { buscarGlobal } from "@/lib/logic";
 import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
 import dayjs from "dayjs";
+
+const BADGE_POR_TIPO: Record<string, "brand" | "verde" | "amarillo" | "rojo" | "gray"> = {
+  obra: "brand",
+  compra: "verde",
+  proveedor: "verde",
+  documento: "amarillo",
+  jornada: "amarillo",
+  incidente: "rojo",
+  comision: "brand",
+  reunion: "brand",
+  socio: "gray",
+};
 
 export default async function BuscarPage({
   searchParams,
@@ -21,49 +33,22 @@ export default async function BuscarPage({
 
   const { q: qParam } = await searchParams;
   const q = qParam?.trim() || "";
-  const resultados: any[] = [];
-
-  if (q && q.length >= 2) {
-    const [tareas, compras, docs, jornadas, incidentes] = await Promise.all([
-      // Buscar en tareas de obra
-      all<any>(
-        `SELECT 'obra' as tipo, id, nombre as titulo, 'Obra' as modulo, estado FROM tareas_obra WHERE nombre LIKE ? OR descripcion LIKE ? LIMIT 10`,
-        [`%${q}%`, `%${q}%`]
-      ),
-      // Buscar en compras
-      all<any>(
-        `SELECT 'compra' as tipo, id, material as titulo, 'Compras' as modulo, estado FROM solicitudes_compra WHERE material LIKE ? OR especificacion LIKE ? LIMIT 10`,
-        [`%${q}%`, `%${q}%`]
-      ),
-      // Buscar en documentos
-      all<any>(
-        `SELECT 'documento' as tipo, id, nombre as titulo, 'Documentos' as modulo, categoria as estado FROM documentos WHERE nombre LIKE ? OR descripcion LIKE ? LIMIT 10`,
-        [`%${q}%`, `%${q}%`]
-      ),
-      // Buscar en jornadas
-      all<any>(
-        `SELECT 'jornada' as tipo, id, descripcion as titulo, 'Trabajo' as modulo, estado FROM jornadas_trabajo WHERE descripcion LIKE ? LIMIT 10`,
-        [`%${q}%`]
-      ),
-      // Buscar en incidentes de seguridad
-      all<any>(
-        `SELECT 'incidente' as tipo, id, descripcion as titulo, 'Seguridad' as modulo, estado FROM incidentes_seguridad WHERE descripcion LIKE ? LIMIT 10`,
-        [`%${q}%`]
-      ),
-    ]);
-
-    resultados.push(...tareas.map((t) => ({ ...t, href: `/obra/${t.id}` })));
-    resultados.push(...compras.map((c) => ({ ...c, href: `/compras/${c.id}` })));
-    resultados.push(...docs.map((d) => ({ ...d, href: `/documentos#${d.id}` })));
-    resultados.push(...jornadas.map((j) => ({ ...j, href: `/trabajo/${j.id}` })));
-    resultados.push(...incidentes.map((i) => ({ ...i, href: `/seguridad#${i.id}` })));
-  }
+  // Fase 11 del Plan Maestro: la búsqueda ahora vive en buscarGlobal()
+  // (lib/logic.ts) — se comparte con el atajo Ctrl+K (ver CommandPalette y
+  // /api/buscar) para no mantener la misma lógica de fuentes y permisos en
+  // dos lugares distintos.
+  const resultados = q && q.length >= 2 ? await buscarGlobal(q, user.rol) : [];
 
   return (
     <div>
       <PageHeader
         title="Búsqueda global"
-        subtitle="Encuentra tareas, compras, documentos y más"
+        subtitle="Obra, compras, proveedores, documentos, comisiones, reuniones y socios"
+        action={
+          <span className="hidden sm:inline text-xs text-black/40">
+            Atajo: <kbd className="border border-black/10 rounded px-1.5 py-0.5">Ctrl</kbd> + <kbd className="border border-black/10 rounded px-1.5 py-0.5">K</kbd>
+          </span>
+        }
       />
 
       <form method="get" className="mb-6">
@@ -71,7 +56,7 @@ export default async function BuscarPage({
           <input
             type="text"
             name="q"
-            placeholder="Buscar tareas, compras, documentos..."
+            placeholder="Buscar tareas, compras, socios, documentos..."
             defaultValue={q}
             className="flex-1 rounded-xl border border-black/10 px-4 py-2 text-sm"
             autoFocus
@@ -101,21 +86,7 @@ export default async function BuscarPage({
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Badge
-                        color={
-                          r.tipo === "obra"
-                            ? "azul"
-                            : r.tipo === "compra"
-                              ? "verde"
-                              : r.tipo === "documento"
-                                ? "amarillo"
-                                : r.tipo === "jornada"
-                                  ? "naranja"
-                                  : "rojo"
-                        }
-                      >
-                        {r.modulo}
-                      </Badge>
+                      <Badge color={BADGE_POR_TIPO[r.tipo] || "gray"}>{r.modulo}</Badge>
                       <p className="text-sm font-semibold">{r.titulo}</p>
                     </div>
                     {r.fecha && (
@@ -124,9 +95,11 @@ export default async function BuscarPage({
                       </p>
                     )}
                   </div>
-                  <Badge color={r.estado === "completada" ? "verde" : r.estado === "resuelto" ? "verde" : "amarillo"}>
-                    {r.estado}
-                  </Badge>
+                  {r.estado && (
+                    <Badge color={r.estado === "completada" || r.estado === "resuelto" ? "verde" : "amarillo"}>
+                      {r.estado}
+                    </Badge>
+                  )}
                 </div>
               </Card>
             </a>
