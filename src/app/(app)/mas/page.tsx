@@ -17,13 +17,13 @@ export default async function MasPage() {
       <div className="space-y-4">
         {groups.map((g) => (
           <div key={g.label}>
-            <div className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-black/40">
+            <div className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
               {g.label}
             </div>
-            <div className="bg-white rounded-2xl border border-black/5 divide-y divide-black/5 overflow-hidden">
+            <div className="bg-surface rounded-2xl border border-border divide-y divide-border overflow-hidden">
               {g.items.map((i) => (
-                <Link key={i.href} href={i.href} className="flex items-center gap-3 px-4 py-3.5 text-sm text-[#123240] hover:bg-black/[.02]">
-                  <span className="text-lg">{i.icon}</span>
+                <Link key={i.href} href={i.href} className="flex items-center gap-3 px-4 py-3.5 text-sm text-ink hover:bg-black/[.02]">
+                  <span className="shrink-0 text-ink-muted">{i.icon}</span>
                   {i.label}
                 </Link>
               ))}
@@ -32,7 +32,7 @@ export default async function MasPage() {
         ))}
       </div>
       <form action={logoutAction} className="mt-4">
-        <button className="w-full rounded-xl border border-black/10 bg-white py-2.5 text-sm font-medium text-[#b3261e]">Cerrar sesión</button>
+        <button className="w-full rounded-xl border border-border bg-surface py-2.5 text-sm font-medium text-[var(--color-rojo)]">Cerrar sesión</button>
       </form>
     </div>
   );

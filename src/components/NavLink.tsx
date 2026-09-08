@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 
 /**
  * Fase 03 del Plan Maestro (Personalización). El campo color_secundario ya
@@ -22,7 +23,7 @@ export function NavLink({
   variant = "sidebar",
 }: {
   href: string;
-  icon: string;
+  icon: ReactNode;
   label: string;
   accentColor: string;
   variant?: "sidebar" | "bottom";
@@ -37,7 +38,7 @@ export function NavLink({
         className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px] transition-colors"
         style={{ color: isActive ? accentColor : undefined }}
       >
-        <span className="text-lg leading-none">{icon}</span>
+        <span className="leading-none">{icon}</span>
         {label}
       </Link>
     );
@@ -59,7 +60,7 @@ export function NavLink({
         if (!isActive) e.currentTarget.style.backgroundColor = "transparent";
       }}
     >
-      <span>{icon}</span>
+      <span className="shrink-0">{icon}</span>
       <span>{label}</span>
     </Link>
   );

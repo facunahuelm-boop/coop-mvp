@@ -1,77 +1,114 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { SessionUser } from "@/lib/auth";
 import { canRead, ROLE_LABELS, type Module } from "@/lib/roles";
 import { logoutAction } from "@/lib/actions/auth";
 import { NavLink } from "./NavLink";
+import { NavGroupSection } from "./NavGroupSection";
+import {
+  Home,
+  Bell,
+  ShoppingCart,
+  Truck,
+  Wallet,
+  HardHat,
+  Handshake,
+  ShieldCheck,
+  Users,
+  Compass,
+  CalendarDays,
+  FileText,
+  Search,
+  Sparkles,
+  BarChart3,
+  Settings,
+  History,
+  Menu,
+} from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: string; mod?: Module };
+type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
 type NavGroup = { label: string; items: NavItem[] };
 
-// Navegación agrupada (Fase 2 del plan de transformación a plataforma).
-// Antes, el menú listaba cada módulo suelto en una sola lista larga; ahora
-// se agrupan por función, igual que en la estructura de referencia acordada
-// (Inicio / Gestión / Organización / Documentos / Comunicación / Herramientas
-// / Configuración). Todavía sólo aparecen acá los módulos que YA existen en
-// el sistema — a medida que se construyan Socios, Comisiones, Reuniones,
-// etc. (próximas fases), se agregan como una entrada más en el grupo que
-// corresponda, sin tener que rediseñar el menú de nuevo.
+// Navegación agrupada (Fase 2 del plan de transformación a plataforma;
+// iconos e íconos de Comisiones/Reuniones revisados en la Fase B del
+// rediseño UI/UX). Antes, el menú listaba cada módulo suelto en una sola
+// lista larga; ahora se agrupan por función (Inicio / Gestión / Obra /
+// Organización / Documentos / Herramientas / Configuración). Los íconos
+// eran emojis puestos directo en el código — se ven distinto según
+// dispositivo/SO, algo especialmente riesgoso para alguien que necesita
+// reconocer símbolos con claridad. Ahora son íconos SVG de una sola
+// librería (lucide-react), con el mismo trazo y grosor en todos lados.
 //
 // El grupo "Obra" agrupa lo específico de la etapa de construcción — no
 // todas las cooperativas están en esa etapa. Por ahora se muestra siempre
-// (como hoy), y en la Fase de personalización va a poder ocultarse cuando
-// la cooperativa configure su etapa como "habitada".
+// (como hoy), y en la Fase D (etapas de cooperativa) va a poder ocultarse
+// automáticamente cuando la cooperativa configure su etapa como "habitada",
+// con la posibilidad de que un admin lo reactive a mano si lo necesita.
+const ICON_SIZE = 18;
+
 const GROUPS: NavGroup[] = [
   {
     label: "Inicio",
     items: [
-      { href: "/dashboard", label: "Inicio", icon: "🏠" },
-      { href: "/alertas", label: "Alertas", icon: "🔔" },
+      { href: "/dashboard", label: "Inicio", icon: <Home size={ICON_SIZE} /> },
+      { href: "/alertas", label: "Alertas", icon: <Bell size={ICON_SIZE} /> },
     ],
   },
   {
     label: "Gestión",
     items: [
-      { href: "/compras", label: "Compras", icon: "🛒", mod: "compras" },
-      { href: "/proveedores", label: "Proveedores", icon: "🚚", mod: "compras" },
-      { href: "/finanzas", label: "Finanzas", icon: "💰", mod: "finanzas" },
+      { href: "/compras", label: "Compras", icon: <ShoppingCart size={ICON_SIZE} />, mod: "compras" },
+      { href: "/proveedores", label: "Proveedores", icon: <Truck size={ICON_SIZE} />, mod: "compras" },
+      { href: "/finanzas", label: "Finanzas", icon: <Wallet size={ICON_SIZE} />, mod: "finanzas" },
     ],
   },
   {
     label: "Obra",
     items: [
-      { href: "/obra", label: "Obra", icon: "🏗️", mod: "obra" },
-      { href: "/trabajo", label: "Trabajo", icon: "🤝", mod: "trabajo" },
-      { href: "/seguridad", label: "Seguridad", icon: "🦺", mod: "seguridad" },
+      { href: "/obra", label: "Obra", icon: <HardHat size={ICON_SIZE} />, mod: "obra" },
+      { href: "/trabajo", label: "Trabajo", icon: <Handshake size={ICON_SIZE} />, mod: "trabajo" },
+      { href: "/seguridad", label: "Seguridad", icon: <ShieldCheck size={ICON_SIZE} />, mod: "seguridad" },
     ],
   },
   {
     label: "Organización",
     items: [
-      { href: "/socios", label: "Socios", icon: "🏘️", mod: "socios" },
-      { href: "/comisiones", label: "Comisiones", icon: "🧭", mod: "comisiones" },
-      { href: "/reuniones", label: "Reuniones", icon: "🗓️", mod: "comisiones" },
+      { href: "/socios", label: "Socios", icon: <Users size={ICON_SIZE} />, mod: "socios" },
+      { href: "/comisiones", label: "Comisiones", icon: <Compass size={ICON_SIZE} />, mod: "comisiones" },
+      { href: "/reuniones", label: "Reuniones", icon: <CalendarDays size={ICON_SIZE} />, mod: "comisiones" },
     ],
   },
   {
     label: "Documentos",
-    items: [{ href: "/documentos", label: "Documentos", icon: "📄", mod: "documentos" }],
+    items: [{ href: "/documentos", label: "Documentos", icon: <FileText size={ICON_SIZE} />, mod: "documentos" }],
   },
   {
     label: "Herramientas",
     items: [
-      { href: "/buscar", label: "Buscador", icon: "🔍" },
-      { href: "/ia", label: "Asistente IA", icon: "✨" },
-      { href: "/reportes", label: "Reportes", icon: "📊" },
+      { href: "/buscar", label: "Buscador", icon: <Search size={ICON_SIZE} /> },
+      { href: "/ia", label: "Asistente IA", icon: <Sparkles size={ICON_SIZE} /> },
+      { href: "/reportes", label: "Reportes", icon: <BarChart3 size={ICON_SIZE} /> },
     ],
   },
   {
     label: "Configuración",
     items: [
-      { href: "/configuracion", label: "Configuración", icon: "⚙️" },
-      { href: "/auditoria", label: "Auditoría", icon: "🔎", mod: "auditoria" },
+      { href: "/configuracion", label: "Configuración", icon: <Settings size={ICON_SIZE} /> },
+      { href: "/auditoria", label: "Auditoría", icon: <History size={ICON_SIZE} />, mod: "auditoria" },
     ],
   },
 ];
+
+// Dentro de "Organización", Comisiones y Reuniones se muestran plegadas por
+// defecto (se usan con mucha menos frecuencia que Socios) — ver
+// NavGroupSection. Socios queda siempre visible porque es lo que se
+// consulta día a día.
+const GRUPO_COLAPSABLE = {
+  grupo: "Organización",
+  hrefsColapsados: ["/comisiones", "/reuniones"],
+  label: "Comisiones y reuniones",
+  icon: <Compass size={ICON_SIZE} />,
+};
 
 const ALL_ITEMS: NavItem[] = GROUPS.flatMap((g) => g.items);
 
@@ -119,18 +156,33 @@ export function Sidebar({ user }: { user: SessionUser }) {
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-        {groups.map((g) => (
-          <div key={g.label}>
-            <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-white/40">
-              {g.label}
+        {groups.map((g) => {
+          const colapsados =
+            g.label === GRUPO_COLAPSABLE.grupo
+              ? g.items.filter((i) => GRUPO_COLAPSABLE.hrefsColapsados.includes(i.href))
+              : [];
+          const sueltos = g.items.filter((i) => !colapsados.includes(i));
+          return (
+            <div key={g.label}>
+              <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-white/40">
+                {g.label}
+              </div>
+              <div className="space-y-0.5">
+                {sueltos.map((i) => (
+                  <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} />
+                ))}
+                {colapsados.length > 0 && (
+                  <NavGroupSection
+                    label={GRUPO_COLAPSABLE.label}
+                    icon={GRUPO_COLAPSABLE.icon}
+                    items={colapsados}
+                    accentColor={acento}
+                  />
+                )}
+              </div>
             </div>
-            <div className="space-y-0.5">
-              {g.items.map((i) => (
-                <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} />
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
       <div className="px-4 py-4 border-t border-white/10">
         <div className="text-xs text-white/60">{user.nombre}</div>
@@ -177,7 +229,7 @@ export function BottomNav({ user }: { user: SessionUser }) {
           <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} variant="bottom" />
         ))}
         <Link href="/mas" className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px]">
-          <span className="text-lg leading-none">☰</span>
+          <Menu size={ICON_SIZE} className="mx-auto" />
           Más
         </Link>
       </div>
