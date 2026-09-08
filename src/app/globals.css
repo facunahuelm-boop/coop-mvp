@@ -1,6 +1,24 @@
 @import "tailwindcss";
 
+/* ============================================================
+   Fase A del rediseño UI/UX (ver Plan Maestro) — fundamentos del
+   sistema de diseño. Objetivo: que cambiar look & feel de toda la
+   app sea cuestión de tocar ESTE archivo, no de editar hex sueltos
+   en 30 pantallas distintas (así es como estaba antes: el audit
+   encontró #123240, #1f4e5f, etc. repetidos a mano en decenas de
+   archivos, y las variables de --color-brand-* de acá abajo sin
+   usar en ningún lado).
+
+   Los componentes de src/components/ui.tsx ya consumen los tokens
+   semánticos (--color-ink, --color-surface, --color-border, etc.)
+   en vez de hex. El resto de las pantallas se va migrando pantalla
+   por pantalla (Fase B/C) — mientras tanto, el hex viejo sigue
+   funcionando igual que antes: este cambio es aditivo, no rompe
+   nada existente.
+   ============================================================ */
+
 :root {
+  /* --- Paleta de marca por defecto de COOVA --- */
   --color-brand-900: #123240;
   --color-brand-800: #1f4e5f;
   --color-brand-700: #2e6b80;
@@ -8,16 +26,68 @@
   --color-brand-100: #e7eff1;
   --color-brand-50: #f2f5f6;
 
+  /* --- Semáforo de estado. Regla del sistema: el color nunca es la
+     única señal — siempre va acompañado de texto o ícono (ver Badge
+     en ui.tsx), para que no dependa de poder distinguir colores. --- */
   --color-verde: #1e7d4a;
   --color-verde-bg: #e6f4ec;
   --color-amarillo: #a15c00;
   --color-amarillo-bg: #fdf1dc;
   --color-rojo: #b3261e;
   --color-rojo-bg: #fbe9e7;
+
+  /* --- Tokens semánticos: de esto dependen los componentes,
+     no de hex sueltos. Cambiar la identidad visual de la app
+     (o el contraste, por accesibilidad) se hace acá. --- */
+  --color-ink: var(--color-brand-900);            /* texto principal / títulos */
+  --color-ink-muted: rgba(18, 50, 64, 0.62);      /* texto secundario */
+  --color-ink-faint: rgba(18, 50, 64, 0.45);      /* texto terciario / ayudas */
+  --color-surface: #ffffff;                       /* tarjetas, modales, menús */
+  --color-surface-sunken: var(--color-brand-50);  /* bloques dentro de una tarjeta */
+  --color-page-bg: #f4f6f7;                       /* fondo de página */
+  --color-border: rgba(18, 50, 64, 0.08);
+  --color-border-strong: rgba(18, 50, 64, 0.16);
+  --color-focus-ring: var(--color-brand-700);
+
+  /* --- Elevación: 3 niveles nada más, para no terminar con una
+     sombra distinta por pantalla. sm = tarjetas, md = menús/popovers
+     flotantes, lg = modales. --- */
+  --shadow-sm: 0 1px 2px rgba(18, 50, 64, 0.06), 0 1px 1px rgba(18, 50, 64, 0.04);
+  --shadow-md: 0 4px 12px rgba(18, 50, 64, 0.10), 0 2px 4px rgba(18, 50, 64, 0.06);
+  --shadow-lg: 0 16px 40px rgba(18, 50, 64, 0.20), 0 4px 10px rgba(18, 50, 64, 0.08);
+
+  /* --- Radios: uno chico (inputs, badges, chips), uno grande
+     (tarjetas, modales, botones). --- */
+  --radius-sm: 0.5rem;
+  --radius-lg: 1rem;
 }
 
 @theme inline {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Registramos los tokens de arriba como colores de Tailwind, así se
+     pueden usar directamente como clases: bg-ink, text-ink-muted,
+     border-border, bg-surface, shadow-[var(--shadow-md)], etc. */
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-ink-faint: var(--color-ink-faint);
+  --color-surface: var(--color-surface);
+  --color-surface-sunken: var(--color-surface-sunken);
+  --color-page-bg: var(--color-page-bg);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-brand-900: var(--color-brand-900);
+  --color-brand-800: var(--color-brand-800);
+  --color-brand-700: var(--color-brand-700);
+  --color-brand-600: var(--color-brand-600);
+  --color-brand-100: var(--color-brand-100);
+  --color-brand-50: var(--color-brand-50);
+  --color-verde: var(--color-verde);
+  --color-verde-bg: var(--color-verde-bg);
+  --color-amarillo: var(--color-amarillo);
+  --color-amarillo-bg: var(--color-amarillo-bg);
+  --color-rojo: var(--color-rojo);
+  --color-rojo-bg: var(--color-rojo-bg);
 }
 
 html, body {
@@ -25,10 +95,37 @@ html, body {
 }
 
 body {
-  background: #f4f6f7;
-  color: #1c1f21;
+  /* Base un poco más grande que el default del navegador (16px): la
+     app la usan sobre todo personas grandes, y letra chica es el
+     problema #1 que reportó el audit. No es un cambio agresivo —
+     sigue siendo "texto normal", sólo un poco más generoso. */
+  font-size: 16.5px;
+  line-height: 1.5;
+  background: var(--color-page-bg);
+  color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Estado de foco visible y consistente en toda la app — antes no
+   había ninguno definido, así que navegar con teclado no mostraba
+   dónde estabas parado. Sólo aparece con teclado (:focus-visible),
+   no al hacer click con mouse, para no agregar ruido visual. */
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Quien pidió "reducir movimiento" en su sistema operativo no debería
+   ver las animaciones que vayamos sumando (loaders, transiciones). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .safe-bottom {
