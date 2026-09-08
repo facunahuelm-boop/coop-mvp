@@ -36,11 +36,11 @@ export default async function TrabajoPage() {
 
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-[#123240]">Próxima jornada</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)]">Próxima jornada</h3>
           {proximaJornada && puedeEditar && (
             <form action={proponerDistribucionAction}>
               <input type="hidden" name="jornada_id" value={proximaJornada.id} />
-              <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-1.5 text-xs font-semibold">✨ Proponer distribución con IA</button>
+              <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">✨ Proponer distribución con IA</button>
             </form>
           )}
         </div>
@@ -49,21 +49,21 @@ export default async function TrabajoPage() {
 
         {proximaJornada && (
           <>
-            <p className="text-sm text-black/70 mb-3">{dayjs(proximaJornada.fecha).format("dddd DD [de] MMMM")} — {proximaJornada.descripcion}</p>
-            {proximaJornada.herramientas_necesarias && <p className="text-xs text-black/50 mb-3">Herramientas: {proximaJornada.herramientas_necesarias}</p>}
+            <p className="text-sm text-ink/70 mb-3">{dayjs(proximaJornada.fecha).format("dddd DD [de] MMMM")} — {proximaJornada.descripcion}</p>
+            {proximaJornada.herramientas_necesarias && <p className="text-xs text-ink/50 mb-3">Herramientas: {proximaJornada.herramientas_necesarias}</p>}
             <div className="space-y-3">
               {tareasJornada.map((t) => {
                 const cubiertos = t.asignaciones.length;
                 const falta = t.personas_necesarias - cubiertos;
                 return (
-                  <div key={t.id} className="rounded-xl bg-[#f8fafa] p-3">
+                  <div key={t.id} className="rounded-xl bg-[var(--color-surface-sunken)] p-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-[#123240]">{t.nombre}{t.habilidad_requerida ? ` (${t.habilidad_requerida})` : ""}</p>
+                      <p className="text-sm font-semibold text-[var(--color-brand-900)]">{t.nombre}{t.habilidad_requerida ? ` (${t.habilidad_requerida})` : ""}</p>
                       <Badge color={falta > 0 ? "amarillo" : "verde"}>{cubiertos}/{t.personas_necesarias}</Badge>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {t.asignaciones.map((a: any) => (
-                        <span key={a.id} className={`text-xs rounded-full px-2 py-1 ${a.confirmado ? "bg-[var(--color-verde-bg)] text-[var(--color-verde)]" : "bg-black/5 text-black/60"}`}>
+                        <span key={a.id} className={`text-xs rounded-full px-2 py-1 ${a.confirmado ? "bg-[var(--color-verde-bg)] text-[var(--color-verde)]" : "bg-ink/5 text-ink/60"}`}>
                           {a.nucleo_nombre}{a.propuesta_por_ia && !a.confirmado ? " (propuesto por IA)" : ""}
                           {!a.confirmado && puedeEditar && (
                             <form action={confirmarAsignacionAction} className="inline">
@@ -78,7 +78,7 @@ export default async function TrabajoPage() {
                       <form action={anotarmeAction} className="mt-2">
                         <input type="hidden" name="jornada_id" value={proximaJornada.id} />
                         <input type="hidden" name="tarea_jornada_id" value={t.id} />
-                        <button className="text-xs text-[#1f4e5f] underline">Anotarme para esta tarea</button>
+                        <button className="text-xs text-[var(--color-brand-800)] underline">Anotarme para esta tarea</button>
                       </form>
                     )}
                   </div>
@@ -91,19 +91,19 @@ export default async function TrabajoPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
-          <h3 className="text-sm font-bold text-[#123240] mb-2">Jornadas anteriores</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Jornadas anteriores</h3>
           <div className="space-y-2">
             {pasadas.map((j) => <Link key={j.id} href={`/trabajo/${j.id}`}><Card className="hover:shadow-md text-sm">{dayjs(j.fecha).format("DD/MM/YYYY")} — {j.descripcion}</Card></Link>)}
             {pasadas.length === 0 && <EmptyState>Sin jornadas anteriores.</EmptyState>}
           </div>
         </div>
         <div>
-          <h3 className="text-sm font-bold text-[#123240] mb-2">Horas acumuladas por núcleo</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Horas acumuladas por núcleo</h3>
           <Card>
             <table className="w-full text-sm">
               <tbody>
                 {nucleos.map((n) => (
-                  <tr key={n.id} className={`border-b border-black/5 last:border-0 ${n.id === user.nucleo_id ? "font-semibold text-[#1f4e5f]" : ""}`}>
+                  <tr key={n.id} className={`border-b border-ink/5 last:border-0 ${n.id === user.nucleo_id ? "font-semibold text-[var(--color-brand-800)]" : ""}`}>
                     <td className="py-1.5">{n.nombre}</td>
                     <td className="py-1.5 text-right">{n.horas_acumuladas} hs</td>
                   </tr>
@@ -116,14 +116,14 @@ export default async function TrabajoPage() {
 
       {puedeEditar && (
         <details className="mt-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Planificar nueva jornada</summary>
+          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Planificar nueva jornada</summary>
           <Card className="mt-3">
             <form action={crearJornadaAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Fecha</Label><input type="date" name="fecha" required className={inputClass} /></div>
               <div><Label>Herramientas necesarias</Label><input name="herramientas_necesarias" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Tareas de la jornada (una por línea)</Label><textarea name="tareas" className={inputClass} rows={3} placeholder={"Encofrado de columnas\nOrden y limpieza"} /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Crear jornada</button></div>
+              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Crear jornada</button></div>
             </form>
           </Card>
         </details>

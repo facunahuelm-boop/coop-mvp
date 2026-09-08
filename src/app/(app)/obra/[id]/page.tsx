@@ -30,7 +30,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
         action={<Badge color={semColor[semaforo]}>{semaforo === "verde" ? "🟢 En hora" : semaforo === "amarillo" ? "🟡 Atención" : "🔴 Crítico"}</Badge>} />
 
       <Card className="mb-5">
-        <p className="text-sm text-black/70">{tarea.descripcion}</p>
+        <p className="text-sm text-ink/70">{tarea.descripcion}</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
           <div><Label>Estado</Label>{tarea.estado}</div>
           <div><Label>Prioridad</Label>{tarea.prioridad}</div>
@@ -43,19 +43,19 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
             <select name="estado" defaultValue={tarea.estado} className={inputClass + " max-w-[180px]"}>
               <option value="pendiente">Pendiente</option><option value="en_curso">En curso</option><option value="completada">Completada</option>
             </select>
-            <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-2 text-xs font-semibold">Actualizar estado</button>
+            <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold">Actualizar estado</button>
           </form>
         )}
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
-          <h3 className="text-sm font-bold text-[#123240] mb-2">Avances</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Avances</h3>
           <div className="space-y-2 mb-3">
             {avances.length === 0 && <EmptyState>Sin avances registrados.</EmptyState>}
             {avances.map((a) => (
               <Card key={a.id}>
-                <p className="text-xs text-black/40">{dayjs(a.fecha).format("DD/MM/YYYY")} · {a.autor_nombre}</p>
+                <p className="text-xs text-ink/40">{dayjs(a.fecha).format("DD/MM/YYYY")} · {a.autor_nombre}</p>
                 <p className="text-sm mt-1">{a.descripcion}</p>
                 {a.foto_url && <img src={a.foto_url} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
               </Card>
@@ -66,13 +66,13 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
               <input type="hidden" name="tarea_id" value={tarea.id} />
               <textarea name="descripcion" required placeholder="Describí el avance…" className={inputClass} rows={2} />
               <input type="file" name="foto" accept="image/*" className="text-xs" />
-              <button className="rounded-lg bg-[#1f4e5f] text-white px-3 py-2 text-xs font-semibold">Agregar avance</button>
+              <button className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold">Agregar avance</button>
             </form>
           )}
         </div>
 
         <div>
-          <h3 className="text-sm font-bold text-[#123240] mb-2">Problemas / observaciones</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Problemas / observaciones</h3>
           <div className="space-y-2 mb-3">
             {problemas.length === 0 && <EmptyState>Sin problemas registrados.</EmptyState>}
             {problemas.map((p) => (
@@ -81,14 +81,14 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
                   <p className="text-sm font-semibold">{p.titulo}</p>
                   <Badge color={p.estado === "abierto" ? (p.severidad === "critica" ? "rojo" : "amarillo") : "verde"}>{p.estado === "abierto" ? p.severidad : "resuelto"}</Badge>
                 </div>
-                <p className="text-xs text-black/60 mt-1">{p.descripcion}</p>
+                <p className="text-xs text-ink/60 mt-1">{p.descripcion}</p>
                 {p.resolucion && <p className="text-xs text-[var(--color-verde)] mt-1">Resolución: {p.resolucion}</p>}
                 {puedeEditar && p.estado === "abierto" && (
                   <form action={resolverProblemaAction} className="mt-2 flex gap-2">
                     <input type="hidden" name="id" value={p.id} />
                     <input type="hidden" name="tarea_id" value={tarea.id} />
                     <input name="resolucion" placeholder="¿Cómo se resolvió?" className={inputClass + " text-xs"} />
-                    <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-2 text-xs font-semibold whitespace-nowrap">Marcar resuelto</button>
+                    <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Marcar resuelto</button>
                   </form>
                 )}
               </Card>
@@ -102,7 +102,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
               <select name="severidad" className={inputClass} defaultValue="media">
                 <option value="baja">Baja</option><option value="media">Media</option><option value="critica">Crítica</option>
               </select>
-              <button className="rounded-lg bg-[#1f4e5f] text-white px-3 py-2 text-xs font-semibold">Registrar problema</button>
+              <button className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold">Registrar problema</button>
             </form>
           )}
         </div>

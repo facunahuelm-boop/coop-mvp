@@ -47,7 +47,7 @@ export default async function ReportesPage() {
     <div>
       <PageHeader title="Reportes" subtitle="Genera reportes en PDF o Excel" />
 
-      <h3 className="text-sm font-bold text-[#123240] mb-3">Generar nuevo reporte</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Generar nuevo reporte</h3>
       <div className="grid grid-cols-1 gap-3 mb-8">
         {reportesDisponibles
           .filter((r) => canRead(user.rol, r.modulo as any))
@@ -58,20 +58,20 @@ export default async function ReportesPage() {
                   <span className="text-2xl">{r.icon}</span>
                   <div>
                     <p className="text-sm font-semibold">{r.nombre}</p>
-                    <p className="text-xs text-black/60">{r.descripcion}</p>
+                    <p className="text-xs text-ink/60">{r.descripcion}</p>
                   </div>
                 </div>
               </div>
               <div className="flex gap-2 ml-4 flex-shrink-0">
                 <form action={r.action}>
                   <input type="hidden" name="formato" value="pdf" />
-                  <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-2 text-xs font-semibold whitespace-nowrap hover:bg-[#d0e3e7]">
+                  <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap hover:bg-[var(--color-brand-100)]/70">
                     📄 PDF
                   </button>
                 </form>
                 <form action={r.action}>
                   <input type="hidden" name="formato" value="xlsx" />
-                  <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-2 text-xs font-semibold whitespace-nowrap hover:bg-[#d0e3e7]">
+                  <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap hover:bg-[var(--color-brand-100)]/70">
                     📊 Excel
                   </button>
                 </form>
@@ -80,7 +80,7 @@ export default async function ReportesPage() {
           ))}
       </div>
 
-      <h3 className="text-sm font-bold text-[#123240] mb-3">Reportes recientes</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Reportes recientes</h3>
       <div className="space-y-2">
         {ultimosReportes.length === 0 && (
           <EmptyState>Aún no hay reportes generados.</EmptyState>
@@ -89,13 +89,13 @@ export default async function ReportesPage() {
           <Card key={r.id} className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold">{r.nombre_reporte}</p>
-              <p className="text-xs text-black/50">
+              <p className="text-xs text-ink/50">
                 {dayjs(r.creado_en).format("DD/MM/YYYY HH:mm")}
               </p>
             </div>
             <a
               href={`/api/descargar-reporte/${r.id}`}
-              className="rounded-lg bg-[#1f4e5f] text-white px-3 py-2 text-xs font-semibold"
+              className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold"
             >
               Descargar
             </a>

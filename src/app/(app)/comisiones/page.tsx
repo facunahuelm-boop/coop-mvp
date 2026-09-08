@@ -51,30 +51,30 @@ export default async function ComisionesPage() {
           return (
             <Card key={c.id}>
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-[#123240]">{c.nombre}</h3>
+                <h3 className="text-sm font-bold text-[var(--color-brand-900)]">{c.nombre}</h3>
                 {puedeEditar && (
                   <form action={archivarComisionAction}>
                     <input type="hidden" name="id" value={c.id} />
-                    <button className="text-xs text-black/40 hover:text-[var(--color-rojo)] underline underline-offset-2">Archivar</button>
+                    <button className="text-xs text-ink/40 hover:text-[var(--color-rojo)] underline underline-offset-2">Archivar</button>
                   </form>
                 )}
               </div>
-              {c.descripcion && <p className="text-xs text-black/50 mt-0.5">{c.descripcion}</p>}
+              {c.descripcion && <p className="text-xs text-ink/50 mt-0.5">{c.descripcion}</p>}
 
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {integrantes.map((m) => (
-                  <span key={m.id} className="inline-flex items-center gap-1.5 text-xs rounded-full bg-black/5 px-2.5 py-1">
+                  <span key={m.id} className="inline-flex items-center gap-1.5 text-xs rounded-full bg-ink/5 px-2.5 py-1">
                     {m.rol_en_comision === "coordinador" ? "⭐ " : ""}
                     {m.user_nombre}
                     {puedeEditar && (
                       <form action={quitarMiembroAction} className="inline">
                         <input type="hidden" name="id" value={m.id} />
-                        <button className="text-black/40 hover:text-[var(--color-rojo)]" title="Quitar de la comisión">✕</button>
+                        <button className="text-ink/40 hover:text-[var(--color-rojo)]" title="Quitar de la comisión">✕</button>
                       </form>
                     )}
                   </span>
                 ))}
-                {integrantes.length === 0 && <p className="text-xs text-black/40 italic">Sin integrantes todavía.</p>}
+                {integrantes.length === 0 && <p className="text-xs text-ink/40 italic">Sin integrantes todavía.</p>}
               </div>
 
               {puedeEditar && (
@@ -95,20 +95,20 @@ export default async function ComisionesPage() {
                       <option value="coordinador">Coordinador/a</option>
                     </select>
                   </div>
-                  <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-2 text-xs font-semibold whitespace-nowrap">Agregar</button>
+                  <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Agregar</button>
                 </form>
               )}
 
-              <div className="mt-4 pt-4 border-t border-black/5">
-                <p className="text-xs font-semibold text-black/60 mb-2">Tareas</p>
+              <div className="mt-4 pt-4 border-t border-ink/5">
+                <p className="text-xs font-semibold text-ink/60 mb-2">Tareas</p>
                 <div className="space-y-1.5">
                   {tareasPorComision(c.id).map((t) => (
                     <div key={t.id} className="flex items-center justify-between gap-2 text-xs">
                       <div className="min-w-0">
-                        <p className={`truncate font-medium ${t.estado === "completada" ? "text-black/40 line-through" : "text-[#123240]"}`}>
+                        <p className={`truncate font-medium ${t.estado === "completada" ? "text-ink/40 line-through" : "text-[var(--color-brand-900)]"}`}>
                           {t.titulo}
                         </p>
-                        <p className="text-black/40">
+                        <p className="text-ink/40">
                           {PRIORIDAD_LABEL[t.prioridad] ?? t.prioridad} · {t.responsable_nombre || "sin asignar"}
                           {t.fecha_vencimiento ? ` · vence ${dayjs(t.fecha_vencimiento).format("DD/MM")}` : ""}
                         </p>
@@ -120,7 +120,7 @@ export default async function ComisionesPage() {
                           name="estado"
                           defaultValue={t.estado}
                           options={Object.entries(ESTADO_TAREA_LABEL).map(([value, label]) => ({ value, label }))}
-                          className="rounded-md border border-black/10 bg-white px-1.5 py-1 text-xs whitespace-nowrap"
+                          className="rounded-md border border-ink/10 bg-surface px-1.5 py-1 text-xs whitespace-nowrap"
                         />
                       ) : (
                         <Badge color={ESTADO_TAREA_COLOR[t.estado] ?? "gray"}>{ESTADO_TAREA_LABEL[t.estado] ?? t.estado}</Badge>
@@ -128,13 +128,13 @@ export default async function ComisionesPage() {
                     </div>
                   ))}
                   {tareasPorComision(c.id).length === 0 && (
-                    <p className="text-xs text-black/40 italic">Sin tareas cargadas.</p>
+                    <p className="text-xs text-ink/40 italic">Sin tareas cargadas.</p>
                   )}
                 </div>
 
                 {puedeEditar && (
                   <details className="mt-2">
-                    <summary className="cursor-pointer text-xs font-semibold text-[#1f4e5f]">+ Agregar tarea</summary>
+                    <summary className="cursor-pointer text-xs font-semibold text-[var(--color-brand-800)]">+ Agregar tarea</summary>
                     <form action={crearTareaAction} className="mt-2 grid grid-cols-1 gap-2">
                       <input type="hidden" name="comision_id" value={c.id} />
                       <input name="titulo" required placeholder="Título de la tarea" className={inputClass} />
@@ -152,7 +152,7 @@ export default async function ComisionesPage() {
                         </select>
                       </div>
                       <input name="fecha_vencimiento" type="date" className={inputClass} />
-                      <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-2 text-xs font-semibold">Agregar tarea</button>
+                      <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold">Agregar tarea</button>
                     </form>
                   </details>
                 )}
@@ -165,12 +165,12 @@ export default async function ComisionesPage() {
 
       {puedeEditar && (
         <details className="mt-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Crear comisión</summary>
+          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Crear comisión</summary>
           <Card className="mt-3">
             <form action={crearComisionAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Nombre</Label><input name="nombre" required placeholder="Ej: Comisión de Educación" className={inputClass} /></div>
               <div><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Crear comisión</button></div>
+              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Crear comisión</button></div>
             </form>
           </Card>
         </details>

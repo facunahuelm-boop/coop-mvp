@@ -3,7 +3,7 @@ import Link from "next/link";
 
 // Fase A del rediseño UI/UX (ver Plan Maestro): estos componentes ahora usan
 // los tokens semánticos definidos en globals.css (--color-ink, --color-surface,
-// --color-border, etc.) en vez de hex sueltos como "#123240" repetidos a mano.
+// --color-border, etc.) en vez de hex sueltos como "var(--color-brand-900)" repetidos a mano.
 // El resto de las pantallas todavía tiene hex sueltos — se van migrando de a
 // una en las fases siguientes, así que este cambio no rompe nada existente.
 
@@ -119,7 +119,7 @@ export function Label({ children }: { children: ReactNode }) {
 }
 
 export const inputClass =
-  "w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1f4e5f]/30 focus:border-[#1f4e5f]";
+  "w-full rounded-lg border border-ink/10 bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-800)]/30 focus:border-[var(--color-brand-800)]";
 
 // ---------- Bloques de carga (loaders), para reemplazar "cargando..." a
 // texto plano por un placeholder que respeta la forma del contenido real.

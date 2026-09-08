@@ -23,7 +23,7 @@ export default async function LoginPage() {
     <LoginForm
       nombre={organizacion?.nombre || "COOVA"}
       logoUrl={organizacion?.logo_url || "/logo-coova.png"}
-      colorPrimario={organizacion?.color_primario || "#123240"}
+      colorPrimario={organizacion?.color_primario || "var(--color-brand-900)"}
     />
   );
 }

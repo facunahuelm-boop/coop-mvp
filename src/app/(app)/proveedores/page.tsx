@@ -41,7 +41,7 @@ export default async function ProveedoresPage() {
         title="Proveedores"
         subtitle="Contactos y a quién se le compró"
         action={
-          <Link href="/compras" className="text-xs font-semibold text-[#1f4e5f] underline underline-offset-2 whitespace-nowrap">
+          <Link href="/compras" className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap">
             ← Volver a Compras
           </Link>
         }
@@ -51,7 +51,7 @@ export default async function ProveedoresPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-black/50 border-b border-black/5">
+              <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
                 <th className="py-2 pr-3">Nombre</th>
                 <th className="py-2 pr-3">Rubro</th>
                 <th className="py-2 pr-3">Contacto</th>
@@ -62,15 +62,15 @@ export default async function ProveedoresPage() {
             </thead>
             <tbody>
               {proveedores.map((p) => (
-                <tr key={p.id} className="border-b border-black/5 last:border-0">
-                  <td className="py-2 pr-3 font-medium text-[#123240]">
+                <tr key={p.id} className="border-b border-ink/5 last:border-0">
+                  <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
                     <Link href={`/proveedores/${p.id}`} className="hover:underline underline-offset-2">{p.nombre}</Link>
                   </td>
-                  <td className="py-2 pr-3 text-black/60">{p.rubro || "—"}</td>
-                  <td className="py-2 pr-3 text-black/60">{p.contacto || "—"}</td>
+                  <td className="py-2 pr-3 text-ink/60">{p.rubro || "—"}</td>
+                  <td className="py-2 pr-3 text-ink/60">{p.contacto || "—"}</td>
                   <td className="py-2 pr-3 text-right">{p.compras_realizadas}</td>
                   <td className="py-2 pr-3 text-right font-medium">{Number(p.total_comprado) > 0 ? `$${Number(p.total_comprado).toLocaleString("es-UY")}` : "—"}</td>
-                  <td className="py-2 pr-3 text-black/60">{p.ultima_compra ? dayjs(p.ultima_compra).format("DD/MM/YYYY") : "—"}</td>
+                  <td className="py-2 pr-3 text-ink/60">{p.ultima_compra ? dayjs(p.ultima_compra).format("DD/MM/YYYY") : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -80,14 +80,14 @@ export default async function ProveedoresPage() {
 
         {puedeEditar && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Agregar proveedor</summary>
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar proveedor</summary>
             <form action={crearProveedorAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
               <div><Label>Rubro</Label><input name="rubro" placeholder="Materiales, ferretería, electricidad…" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Contacto</Label><input name="contacto" placeholder="Teléfono o email" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Agregar proveedor</button>
+                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agregar proveedor</button>
               </div>
             </form>
           </details>

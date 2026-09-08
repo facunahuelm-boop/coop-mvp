@@ -73,18 +73,18 @@ export default async function SociosPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
         <Card className="lg:col-span-1">
-          <div className="text-xs text-black/50">Socios activos</div>
-          <div className="text-2xl font-bold text-[#123240] mt-1">
+          <div className="text-xs text-ink/50">Socios activos</div>
+          <div className="text-2xl font-bold text-[var(--color-brand-900)] mt-1">
             {socios.filter((s) => s.estado === "activo").length}
           </div>
         </Card>
         <Card className="lg:col-span-1">
-          <div className="text-xs text-black/50">Viviendas</div>
-          <div className="text-2xl font-bold text-[#123240] mt-1">{viviendas.length}</div>
+          <div className="text-xs text-ink/50">Viviendas</div>
+          <div className="text-2xl font-bold text-[var(--color-brand-900)] mt-1">{viviendas.length}</div>
         </Card>
         <Card className="lg:col-span-1">
-          <div className="text-xs text-black/50">En lista de espera</div>
-          <div className="text-2xl font-bold text-[#123240] mt-1">
+          <div className="text-xs text-ink/50">En lista de espera</div>
+          <div className="text-2xl font-bold text-[var(--color-brand-900)] mt-1">
             {listaEspera.filter((l) => l.estado === "en_espera").length}
           </div>
         </Card>
@@ -96,7 +96,7 @@ export default async function SociosPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-black/50 border-b border-black/5">
+              <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
                 <th className="py-2 pr-3">Nombre</th>
                 <th className="py-2 pr-3">Vivienda</th>
                 <th className="py-2 pr-3">Núcleo familiar</th>
@@ -107,8 +107,8 @@ export default async function SociosPage() {
             </thead>
             <tbody>
               {socios.map((s) => (
-                <tr key={s.id} className="border-b border-black/5 last:border-0">
-                  <td className="py-2 pr-3 font-medium text-[#123240]">
+                <tr key={s.id} className="border-b border-ink/5 last:border-0">
+                  <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
                     <Link href={`/socios/${s.id}`} className="hover:underline underline-offset-2">
                       {s.nombre}
                     </Link>
@@ -121,14 +121,14 @@ export default async function SociosPage() {
                         name="vivienda_id"
                         defaultValue={s.vivienda_id || ""}
                         options={[{ value: "", label: "Sin asignar" }, ...viviendas.map((v) => ({ value: v.id, label: v.numero }))]}
-                        className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs"
+                        className="rounded-md border border-ink/10 bg-surface px-2 py-1 text-xs"
                       />
                     ) : (
-                      s.vivienda_numero || <span className="text-black/30">—</span>
+                      s.vivienda_numero || <span className="text-ink/30">—</span>
                     )}
                   </td>
-                  <td className="py-2 pr-3 text-black/60">{s.nucleo_nombre || "—"}</td>
-                  <td className="py-2 pr-3 text-black/60">
+                  <td className="py-2 pr-3 text-ink/60">{s.nucleo_nombre || "—"}</td>
+                  <td className="py-2 pr-3 text-ink/60">
                     {s.email || s.telefono ? (
                       <>
                         {s.email && <div>{s.email}</div>}
@@ -146,7 +146,7 @@ export default async function SociosPage() {
                         name="estado"
                         defaultValue={s.estado}
                         options={ESTADOS_SOCIO.map((e) => ({ value: e, label: e }))}
-                        className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs"
+                        className="rounded-md border border-ink/10 bg-surface px-2 py-1 text-xs"
                       />
                     ) : (
                       <Badge color={badgeSocio[s.estado] || "gray"}>{s.estado}</Badge>
@@ -161,7 +161,7 @@ export default async function SociosPage() {
 
         {puedeEditar && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Agregar socio</summary>
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar socio</summary>
             <form action={crearSocioAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
               <div><Label>Documento</Label><input name="documento" className={inputClass} /></div>
@@ -188,7 +188,7 @@ export default async function SociosPage() {
               <div><Label>Fecha de ingreso</Label><input name="fecha_ingreso" type="date" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Agregar socio</button>
+                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agregar socio</button>
               </div>
             </form>
           </details>
@@ -200,8 +200,8 @@ export default async function SociosPage() {
       <Card className="mb-6">
         <div className="flex flex-wrap gap-2">
           {viviendas.map((v) => (
-            <div key={v.id} className="rounded-xl bg-[#f2f5f6] px-3 py-2 flex items-center gap-2">
-              <span className="text-sm font-semibold text-[#123240]">{v.numero}</span>
+            <div key={v.id} className="rounded-xl bg-[var(--color-brand-50)] px-3 py-2 flex items-center gap-2">
+              <span className="text-sm font-semibold text-[var(--color-brand-900)]">{v.numero}</span>
               {puedeEditar ? (
                 <AutoSubmitSelect
                   action={actualizarViviendaEstadoAction}
@@ -209,7 +209,7 @@ export default async function SociosPage() {
                   name="estado"
                   defaultValue={v.estado}
                   options={ESTADOS_VIVIENDA.map((e) => ({ value: e, label: e }))}
-                  className="rounded-md border border-black/10 bg-white px-1.5 py-0.5 text-xs"
+                  className="rounded-md border border-ink/10 bg-surface px-1.5 py-0.5 text-xs"
                 />
               ) : (
                 <Badge color={badgeVivienda[v.estado] || "gray"}>{v.estado}</Badge>
@@ -221,7 +221,7 @@ export default async function SociosPage() {
 
         {puedeEditar && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Agregar vivienda</summary>
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar vivienda</summary>
             <form action={crearViviendaAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Número / identificador</Label><input name="numero" required placeholder="Ej: Casa 12" className={inputClass} /></div>
               <div>
@@ -234,7 +234,7 @@ export default async function SociosPage() {
               </div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Agregar vivienda</button>
+                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agregar vivienda</button>
               </div>
             </form>
           </details>
@@ -247,7 +247,7 @@ export default async function SociosPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-black/50 border-b border-black/5">
+              <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
                 <th className="py-2 pr-3">Orden</th>
                 <th className="py-2 pr-3">Nombre</th>
                 <th className="py-2 pr-3">Contacto</th>
@@ -260,8 +260,8 @@ export default async function SociosPage() {
                 const posicion = idsEnEspera.indexOf(l.id);
                 const puedeReordenar = puedeEditar && posicion !== -1;
                 return (
-                <tr key={l.id} className="border-b border-black/5 last:border-0">
-                  <td className="py-2 pr-3 text-black/60">
+                <tr key={l.id} className="border-b border-ink/5 last:border-0">
+                  <td className="py-2 pr-3 text-ink/60">
                     <div className="flex items-center gap-1">
                       <span>{l.orden}</span>
                       {puedeReordenar && (
@@ -272,7 +272,7 @@ export default async function SociosPage() {
                             <button
                               type="submit"
                               disabled={posicion === 0}
-                              className="block leading-none text-black/40 hover:text-[#1f4e5f] disabled:opacity-20 disabled:hover:text-black/40"
+                              className="block leading-none text-ink/40 hover:text-[var(--color-brand-800)] disabled:opacity-20 disabled:hover:text-ink/40"
                               title="Subir en la lista"
                             >
                               ▲
@@ -284,7 +284,7 @@ export default async function SociosPage() {
                             <button
                               type="submit"
                               disabled={posicion === idsEnEspera.length - 1}
-                              className="block leading-none text-black/40 hover:text-[#1f4e5f] disabled:opacity-20 disabled:hover:text-black/40"
+                              className="block leading-none text-ink/40 hover:text-[var(--color-brand-800)] disabled:opacity-20 disabled:hover:text-ink/40"
                               title="Bajar en la lista"
                             >
                               ▼
@@ -294,8 +294,8 @@ export default async function SociosPage() {
                       )}
                     </div>
                   </td>
-                  <td className="py-2 pr-3 font-medium text-[#123240]">{l.nombre}</td>
-                  <td className="py-2 pr-3 text-black/60">{l.contacto || "—"}</td>
+                  <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">{l.nombre}</td>
+                  <td className="py-2 pr-3 text-ink/60">{l.contacto || "—"}</td>
                   <td className="py-2 pr-3">
                     {puedeEditar ? (
                       <AutoSubmitSelect
@@ -304,7 +304,7 @@ export default async function SociosPage() {
                         name="estado"
                         defaultValue={l.estado}
                         options={ESTADOS_LISTA_ESPERA.map((e) => ({ value: e, label: e }))}
-                        className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs"
+                        className="rounded-md border border-ink/10 bg-surface px-2 py-1 text-xs"
                       />
                     ) : (
                       <Badge color={badgeListaEspera[l.estado] || "gray"}>{l.estado}</Badge>
@@ -314,13 +314,13 @@ export default async function SociosPage() {
                     <td className="py-2 pr-3">
                       <form action={incorporarDesdeListaEsperaAction} className="flex items-center gap-1.5">
                         <input type="hidden" name="id" value={l.id} />
-                        <select name="vivienda_id" defaultValue="" className="rounded-md border border-black/10 bg-white px-1.5 py-1 text-xs">
+                        <select name="vivienda_id" defaultValue="" className="rounded-md border border-ink/10 bg-surface px-1.5 py-1 text-xs">
                           <option value="">Sin vivienda</option>
                           {viviendasLibres.map((v) => (
                             <option key={v.id} value={v.id}>{v.numero}</option>
                           ))}
                         </select>
-                        <button className="text-xs font-semibold text-[#1f4e5f] underline underline-offset-2 whitespace-nowrap">
+                        <button className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap">
                           Incorporar como socio
                         </button>
                       </form>
@@ -336,14 +336,14 @@ export default async function SociosPage() {
 
         {puedeEditar && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Agregar aspirante</summary>
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar aspirante</summary>
             <form action={agregarListaEsperaAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
               <div><Label>Documento</Label><input name="documento" className={inputClass} /></div>
               <div><Label>Contacto</Label><input name="contacto" placeholder="Teléfono o email" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Agregar a la lista</button>
+                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agregar a la lista</button>
               </div>
             </form>
           </details>

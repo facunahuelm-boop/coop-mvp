@@ -44,14 +44,14 @@ export default async function ObraPage() {
       <div className="space-y-6">
         {etapas.map((etapa) => (
           <div key={etapa}>
-            <h3 className="text-sm font-bold text-[#123240]/70 uppercase tracking-wide mb-2">{etapa}</h3>
+            <h3 className="text-sm font-bold text-[var(--color-brand-900)]/70 uppercase tracking-wide mb-2">{etapa}</h3>
             <div className="space-y-2">
               {tareas.filter((t: any) => t.etapa === etapa).map((t: any) => (
                 <Link key={t.id} href={`/obra/${t.id}`}>
                   <Card className="flex items-center justify-between gap-3 hover:shadow-md transition-shadow">
                     <div>
-                      <p className="text-sm font-semibold text-[#123240]">{t.nombre}</p>
-                      <p className="text-xs text-black/50 mt-0.5">
+                      <p className="text-sm font-semibold text-[var(--color-brand-900)]">{t.nombre}</p>
+                      <p className="text-xs text-ink/50 mt-0.5">
                         {estadoLabel[t.estado]} · {t.responsable_nombre || "sin responsable"}
                         {t.fecha_fin_prevista && ` · vence ${dayjs(t.fecha_fin_prevista).format("DD/MM")}`}
                         {t.depende_de_nombre && ` · depende de "${t.depende_de_nombre}"`}
@@ -69,7 +69,7 @@ export default async function ObraPage() {
 
       {puedeEditar && (
         <details className="mt-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Agregar tarea</summary>
+          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar tarea</summary>
           <Card className="mt-3">
             <form action={crearTareaAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Etapa</Label><input name="etapa" required className={inputClass} placeholder="Ej: Estructura" /></div>
@@ -84,7 +84,7 @@ export default async function ObraPage() {
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Crear tarea</button>
+                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Crear tarea</button>
               </div>
             </form>
           </Card>

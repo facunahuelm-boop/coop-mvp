@@ -16,12 +16,12 @@ export default async function AuditoriaPage() {
     <div>
       <PageHeader title="Auditoría" subtitle="Registro de solo lectura: quién hizo qué, cuándo y qué cambió. No se puede editar ni borrar." />
       <Card>
-        <div className="divide-y divide-black/5">
+        <div className="divide-y divide-ink/5">
           {registros.map((r) => (
             <div key={r.id} className="py-2.5 text-sm">
-              <p><strong>{r.usuario_nombre || "sistema"}</strong> — {r.accion.replace(/_/g, " ")} en <span className="font-mono text-xs bg-black/5 rounded px-1">{r.entidad}</span>{r.entidad_id ? ` #${r.entidad_id}` : ""}</p>
-              <p className="text-xs text-black/40">{dayjs(r.fecha).format("DD/MM/YYYY HH:mm")}</p>
-              {r.valor_nuevo && <p className="text-xs text-black/50 mt-0.5 font-mono truncate">{r.valor_nuevo}</p>}
+              <p><strong>{r.usuario_nombre || "sistema"}</strong> — {r.accion.replace(/_/g, " ")} en <span className="font-mono text-xs bg-ink/5 rounded px-1">{r.entidad}</span>{r.entidad_id ? ` #${r.entidad_id}` : ""}</p>
+              <p className="text-xs text-ink/40">{dayjs(r.fecha).format("DD/MM/YYYY HH:mm")}</p>
+              {r.valor_nuevo && <p className="text-xs text-ink/50 mt-0.5 font-mono truncate">{r.valor_nuevo}</p>}
             </div>
           ))}
           {registros.length === 0 && <EmptyState>Sin registros de auditoría todavía.</EmptyState>}

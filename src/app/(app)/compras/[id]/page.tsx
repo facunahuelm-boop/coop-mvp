@@ -41,15 +41,15 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
           <div><Label>Necesario para</Label>{solicitud.fecha_necesaria ? dayjs(solicitud.fecha_necesaria).format("DD/MM/YYYY") : "—"}</div>
           <div><Label>Estimado</Label>{solicitud.presupuesto_estimado ? `$${solicitud.presupuesto_estimado.toLocaleString("es-UY")}` : "—"}</div>
         </div>
-        {solicitud.especificacion && <p className="text-black/60 mt-3">{solicitud.especificacion}</p>}
+        {solicitud.especificacion && <p className="text-ink/60 mt-3">{solicitud.especificacion}</p>}
         {puedeEditar && solicitud.estado === "aprobada" && (
           <form action={marcarPedidaAction} className="mt-3 inline-block mr-2"><input type="hidden" name="id" value={solicitud.id} />
-            <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-1.5 text-xs font-semibold">Marcar como pedida al proveedor</button>
+            <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">Marcar como pedida al proveedor</button>
           </form>
         )}
         {puedeEditar && (solicitud.estado === "aprobada" || solicitud.estado === "pedida") && (
           <form action={marcarEntregadaAction} className="mt-3 inline-block"><input type="hidden" name="id" value={solicitud.id} />
-            <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-1.5 text-xs font-semibold">Marcar como entregada</button>
+            <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">Marcar como entregada</button>
           </form>
         )}
         {puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
@@ -68,16 +68,16 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
         <Card className="mb-5 !border-[var(--color-verde)]/30 bg-[var(--color-verde-bg)]/40">
           <p className="text-sm font-semibold text-[var(--color-verde)]">Decisión registrada</p>
           <p className="text-sm mt-1">Se eligió a <Link href={`/proveedores/${decision.proveedor_id}`} className="font-semibold underline underline-offset-2">{decision.proveedor_nombre}</Link> por <strong>${decision.monto?.toLocaleString("es-UY")}</strong>, decidido por {decision.decidido_por} el {dayjs(decision.fecha).format("DD/MM/YYYY")}.</p>
-          {decision.motivo && <p className="text-xs text-black/60 mt-1">Motivo: {decision.motivo}</p>}
+          {decision.motivo && <p className="text-xs text-ink/60 mt-1">Motivo: {decision.motivo}</p>}
         </Card>
       )}
 
       <Card className="mb-5">
-        <h3 className="text-sm font-bold text-[#123240] mb-2">✨ Comparación asistida por IA</h3>
-        <pre className="text-sm text-black/70 whitespace-pre-wrap font-sans">{comparacion.texto}</pre>
+        <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">✨ Comparación asistida por IA</h3>
+        <pre className="text-sm text-ink/70 whitespace-pre-wrap font-sans">{comparacion.texto}</pre>
       </Card>
 
-      <h3 className="text-sm font-bold text-[#123240] mb-2">Presupuestos cargados</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Presupuestos cargados</h3>
       <div className="space-y-2 mb-4">
         {comparacion.presupuestos.length === 0 && <EmptyState>Todavía no hay presupuestos.</EmptyState>}
         {comparacion.presupuestos.map((p: any) => (
@@ -86,7 +86,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
               <Link href={`/proveedores/${p.proveedor_id}`} className="font-semibold hover:underline underline-offset-2">{p.proveedor_nombre}</Link>
               <p className="font-bold">${p.precio.toLocaleString("es-UY")}{p.costo_envio ? ` + $${p.costo_envio.toLocaleString("es-UY")} envío` : ""}</p>
             </div>
-            <p className="text-xs text-black/50 mt-1">
+            <p className="text-xs text-ink/50 mt-1">
               {p.plazo_entrega_dias != null && `Entrega en ${p.plazo_entrega_dias} días · `}
               {p.forma_pago && `Pago: ${p.forma_pago} · `}
               {p.garantia ? `Garantía: ${p.garantia}` : "Sin garantía informada"}
@@ -96,7 +96,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
                 <input type="hidden" name="solicitud_id" value={solicitud.id} />
                 <input type="hidden" name="presupuesto_id" value={p.id} />
                 <input name="motivo" placeholder="Motivo de la decisión" className={inputClass + " text-xs"} />
-                <button className="rounded-lg bg-[#1f4e5f] text-white px-3 py-2 text-xs font-semibold whitespace-nowrap">Elegir este proveedor</button>
+                <button className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold whitespace-nowrap">Elegir este proveedor</button>
               </form>
             )}
           </Card>
@@ -105,7 +105,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
 
       {puedeEditar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
         <details open={comparacion.presupuestos.length < 3}>
-          <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Cargar presupuesto</summary>
+          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Cargar presupuesto</summary>
           <Card className="mt-3">
             <form action={agregarPresupuestoAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input type="hidden" name="solicitud_id" value={solicitud.id} />
@@ -124,7 +124,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
               <div><Label>Forma de pago</Label><input name="forma_pago" className={inputClass} placeholder="contado, 30 días…" /></div>
               <div><Label>Garantía</Label><input name="garantia" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Guardar presupuesto</button></div>
+              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar presupuesto</button></div>
             </form>
           </Card>
         </details>

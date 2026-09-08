@@ -22,7 +22,7 @@ export default async function MasPage() {
             </div>
             <div className="bg-surface rounded-2xl border border-border divide-y divide-border overflow-hidden">
               {g.items.map((i) => (
-                <Link key={i.href} href={i.href} className="flex items-center gap-3 px-4 py-3.5 text-sm text-ink hover:bg-black/[.02]">
+                <Link key={i.href} href={i.href} className="flex items-center gap-3 px-4 py-3.5 text-sm text-ink hover:bg-ink/[.02]">
                   <span className="shrink-0 text-ink-muted">{i.icon}</span>
                   {i.label}
                 </Link>

@@ -32,17 +32,17 @@ export default async function AlertasPage() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <Badge color={SEV_COLOR[a.severidad]}>{SEV_LABEL[a.severidad]}</Badge>
-                  <span className="text-xs text-black/40">{MOD_LABEL[a.origen_modulo] || a.origen_modulo}</span>
+                  <span className="text-xs text-ink/40">{MOD_LABEL[a.origen_modulo] || a.origen_modulo}</span>
                 </div>
-                <p className="text-sm font-semibold text-[#123240]">{a.titulo}</p>
-                {a.descripcion && <p className="text-xs text-black/60 mt-0.5">{a.descripcion}</p>}
-                <p className="text-xs text-black/35 mt-1">
+                <p className="text-sm font-semibold text-[var(--color-brand-900)]">{a.titulo}</p>
+                {a.descripcion && <p className="text-xs text-ink/60 mt-0.5">{a.descripcion}</p>}
+                <p className="text-xs text-ink/35 mt-1">
                   {dayjs(a.fecha).format("DD/MM/YYYY")} {a.asignado_a_rol && `· asignada a ${ROLE_LABELS[a.asignado_a_rol as keyof typeof ROLE_LABELS] || a.asignado_a_rol}`}
                 </p>
               </div>
               {(user.rol === a.asignado_a_rol || ["consejo_directivo", "admin"].includes(user.rol)) && (
                 <form action={resolverAlertaAction}><input type="hidden" name="id" value={a.id} />
-                  <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-1.5 text-xs font-semibold whitespace-nowrap">Marcar resuelta</button>
+                  <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold whitespace-nowrap">Marcar resuelta</button>
                 </form>
               )}
             </div>
@@ -53,7 +53,7 @@ export default async function AlertasPage() {
 
       {resueltas.length > 0 && (
         <>
-          <h3 className="text-sm font-bold text-[#123240]/60 mb-2">Resueltas recientemente</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)]/60 mb-2">Resueltas recientemente</h3>
           <div className="space-y-1.5 opacity-60">
             {resueltas.map((a) => <Card key={a.id} className="text-xs">{a.titulo} — {dayjs(a.fecha).format("DD/MM")}</Card>)}
           </div>

@@ -39,7 +39,7 @@ export function InstallHint() {
   };
 
   return (
-    <div className="md:hidden mb-4 rounded-xl bg-[#e7eff1] px-4 py-3 text-xs text-[#1f4e5f] flex items-start gap-2">
+    <div className="md:hidden mb-4 rounded-xl bg-[var(--color-brand-100)] px-4 py-3 text-xs text-[var(--color-brand-800)] flex items-start gap-2">
       <span className="text-base leading-none">📲</span>
       <div className="flex-1">
         {plataforma === "ios" ? (
@@ -54,7 +54,7 @@ export function InstallHint() {
           </>
         )}
       </div>
-      <button onClick={cerrar} className="text-[#1f4e5f]/50 hover:text-[#1f4e5f] shrink-0" aria-label="Cerrar aviso">
+      <button onClick={cerrar} className="text-[var(--color-brand-800)]/50 hover:text-[var(--color-brand-800)] shrink-0" aria-label="Cerrar aviso">
         ✕
       </button>
     </div>

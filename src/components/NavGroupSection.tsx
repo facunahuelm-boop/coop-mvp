@@ -42,7 +42,7 @@ export function NavGroupSection({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/85 transition-colors hover:bg-white/10"
+        className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/85 transition-colors hover:bg-surface/10"
       >
         <span className="shrink-0">{icon}</span>
         <span className="flex-1 text-left">{label}</span>

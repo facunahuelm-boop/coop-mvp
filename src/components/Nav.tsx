@@ -223,8 +223,8 @@ export function BottomNav({ user }: { user: SessionUser }) {
   const items = itemsFor(user).filter((i) => primary.includes(i.href));
   const acento = user.organizacion.color_secundario || user.organizacion.color_primario;
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-white border-t border-black/10 safe-bottom">
-      <div className="flex text-black/45">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-surface border-t border-ink/10 safe-bottom">
+      <div className="flex text-ink/45">
         {items.map((i) => (
           <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} variant="bottom" />
         ))}

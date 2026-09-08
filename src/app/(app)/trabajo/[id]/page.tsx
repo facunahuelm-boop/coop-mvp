@@ -28,37 +28,37 @@ export default async function JornadaPage({ params }: { params: Promise<{ id: st
       <PageHeader title={`Jornada del ${dayjs(jornada.fecha).format("DD/MM/YYYY")}`} subtitle={jornada.descripcion}
         action={jornada.estado === "planificada" && puedeEditar ? (
           <form action={marcarJornadaRealizadaAction}><input type="hidden" name="id" value={jornada.id} />
-            <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-1.5 text-xs font-semibold">Marcar como realizada</button>
+            <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">Marcar como realizada</button>
           </form>
         ) : <Badge color={jornada.estado === "realizada" ? "verde" : "gray"}>{jornada.estado}</Badge>} />
 
       <Card className="mb-5 flex gap-6 text-sm">
-        <div><span className="text-black/50">Presentes:</span> <strong>{presentes}/{nucleos.length}</strong></div>
-        <div><span className="text-black/50">Horas totales:</span> <strong>{totalHoras}</strong></div>
+        <div><span className="text-ink/50">Presentes:</span> <strong>{presentes}/{nucleos.length}</strong></div>
+        <div><span className="text-ink/50">Horas totales:</span> <strong>{totalHoras}</strong></div>
       </Card>
 
       <Card>
         <table className="w-full text-sm">
-          <thead><tr className="text-left text-xs text-black/50 border-b border-black/10">
+          <thead><tr className="text-left text-xs text-ink/50 border-b border-ink/10">
             <th className="py-2">Núcleo</th><th>Presente</th><th>Horas</th><th>Justificación</th>{puedeEditar && <th></th>}
           </tr></thead>
           <tbody>
             {nucleos.map((n) => {
               const a = asistenciaPorNucleo[n.id];
               return (
-                <tr key={n.id} className="border-b border-black/5 last:border-0">
+                <tr key={n.id} className="border-b border-ink/5 last:border-0">
                   <td className="py-2">{n.nombre}</td>
                   <td>{a?.presente ? "✅" : "—"}</td>
                   <td>{a?.horas || 0}</td>
-                  <td className="text-black/50">{a?.justificacion || ""}</td>
+                  <td className="text-ink/50">{a?.justificacion || ""}</td>
                   {puedeEditar && (
                     <td>
                       <form action={registrarAsistenciaAction} className="flex items-center gap-1.5">
                         <input type="hidden" name="jornada_id" value={jornada.id} />
                         <input type="hidden" name="nucleo_id" value={n.id} />
                         <input type="checkbox" name="presente" defaultChecked={!!a?.presente} />
-                        <input type="number" name="horas" defaultValue={a?.horas || 3} step="0.5" className="w-14 rounded border border-black/10 px-1 py-0.5 text-xs" />
-                        <button className="text-xs text-[#1f4e5f] underline">Guardar</button>
+                        <input type="number" name="horas" defaultValue={a?.horas || 3} step="0.5" className="w-14 rounded border border-ink/10 px-1 py-0.5 text-xs" />
+                        <button className="text-xs text-[var(--color-brand-800)] underline">Guardar</button>
                       </form>
                     </td>
                   )}

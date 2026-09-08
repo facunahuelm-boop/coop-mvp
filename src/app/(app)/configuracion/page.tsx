@@ -41,9 +41,9 @@ export default async function ConfiguracionPage() {
     <div>
       <PageHeader title="Configuración" subtitle="Email, alertas y preferencias del sistema" />
 
-      <h3 className="text-sm font-bold text-[#123240] mb-3">Marca de la cooperativa</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Marca de la cooperativa</h3>
       <Card className="mb-6">
-        <p className="text-xs text-black/60 mb-4">
+        <p className="text-xs text-ink/60 mb-4">
           Estos datos reemplazan "COOVA" en el menú y la pantalla de inicio de sesión: nombre, logo
           y color principal se aplican en todo el sistema.
         </p>
@@ -63,8 +63,8 @@ export default async function ConfiguracionPage() {
             <input
               type="color"
               name="color_primario"
-              defaultValue={organizacion?.color_primario || "#123240"}
-              className="h-10 w-full rounded-lg border border-black/10 cursor-pointer"
+              defaultValue={organizacion?.color_primario || "var(--color-brand-900)"}
+              className="h-10 w-full rounded-lg border border-ink/10 cursor-pointer"
             />
           </div>
           <div>
@@ -72,8 +72,8 @@ export default async function ConfiguracionPage() {
             <input
               type="color"
               name="color_secundario"
-              defaultValue={organizacion?.color_secundario || organizacion?.color_primario || "#1f4e5f"}
-              className="h-10 w-full rounded-lg border border-black/10 cursor-pointer"
+              defaultValue={organizacion?.color_secundario || organizacion?.color_primario || "var(--color-brand-800)"}
+              className="h-10 w-full rounded-lg border border-ink/10 cursor-pointer"
             />
           </div>
           <div className="sm:col-span-2">
@@ -83,15 +83,15 @@ export default async function ConfiguracionPage() {
             )}
             <input type="file" name="logo" accept="image/*" className="text-xs" />
           </div>
-          <button type="submit" className="sm:col-span-2 rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">
+          <button type="submit" className="sm:col-span-2 rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
             Guardar marca
           </button>
         </form>
       </Card>
 
-      <h3 className="text-sm font-bold text-[#123240] mb-3">Etapa</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Etapa</h3>
       <Card className="mb-6">
-        <p className="text-xs text-black/60 mb-4">
+        <p className="text-xs text-ink/60 mb-4">
           La etapa de la cooperativa personaliza el menú: en "Habitada" se oculta automáticamente
           el grupo Obra (Obra, Trabajo y Seguridad), porque deja de ser relevante una vez terminada
           la construcción.
@@ -105,15 +105,15 @@ export default async function ConfiguracionPage() {
               ))}
             </select>
           </div>
-          <button type="submit" className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">
+          <button type="submit" className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
             Guardar etapa
           </button>
         </form>
       </Card>
 
-      <h3 className="text-sm font-bold text-[#123240] mb-3">Configuración de Email</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Configuración de Email</h3>
       <Card className="mb-6">
-        <p className="text-xs text-black/60 mb-4">
+        <p className="text-xs text-ink/60 mb-4">
           Configura el servidor SMTP para enviar alertas automáticas. Dejalos en blanco para desactivar email.
         </p>
         <form action={guardarConfigEmailAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -174,7 +174,7 @@ export default async function ConfiguracionPage() {
               className={inputClass}
             />
           </div>
-          <button type="submit" className="sm:col-span-2 rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">
+          <button type="submit" className="sm:col-span-2 rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
             Guardar configuración
           </button>
         </form>
@@ -185,9 +185,9 @@ export default async function ConfiguracionPage() {
         </div>
       </Card>
 
-      <h3 className="text-sm font-bold text-[#123240] mb-3">Alertas por Email</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Alertas por Email</h3>
       <Card className="mb-6">
-        <p className="text-xs text-black/60 mb-4">
+        <p className="text-xs text-ink/60 mb-4">
           Configura qué alertas se envían por email automáticamente.
         </p>
         <form action={actualizarAlertasEmailAction} className="space-y-3">
@@ -209,29 +209,29 @@ export default async function ConfiguracionPage() {
               Problemas críticos
             </label>
           </div>
-          <button type="submit" className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">
+          <button type="submit" className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
             Actualizar preferencias
           </button>
         </form>
       </Card>
 
-      <h3 className="text-sm font-bold text-[#123240] mb-3">Info del sistema</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Info del sistema</h3>
       <Card>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-black/60">Versión:</span>
+            <span className="text-ink/60">Versión:</span>
             <span className="font-semibold">MVP 1.0</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-black/60">Base de datos:</span>
+            <span className="text-ink/60">Base de datos:</span>
             <span className="font-semibold">PostgreSQL (Supabase)</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-black/60">Usuarios activos:</span>
+            <span className="text-ink/60">Usuarios activos:</span>
             <span className="font-semibold">{usuariosActivos}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-black/60">Email configurado:</span>
+            <span className="text-ink/60">Email configurado:</span>
             <Badge color={configObj.smtp_host ? "verde" : "amarillo"}>
               {configObj.smtp_host ? "Sí" : "No"}
             </Badge>

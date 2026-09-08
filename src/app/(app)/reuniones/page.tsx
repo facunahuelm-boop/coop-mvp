@@ -36,10 +36,10 @@ export default async function ReunionesPage() {
     <Link key={r.id} href={`/reuniones/${r.id}`}>
       <Card className="hover:shadow-md">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-[#123240]">{r.titulo}</p>
+          <p className="text-sm font-semibold text-[var(--color-brand-900)]">{r.titulo}</p>
           <Badge color={ESTADO_COLOR[r.estado] ?? "gray"}>{r.estado}</Badge>
         </div>
-        <p className="text-xs text-black/50 mt-0.5">
+        <p className="text-xs text-ink/50 mt-0.5">
           {dayjs(r.fecha).format("DD/MM/YYYY HH:mm")} · {TIPO_LABEL[r.tipo] ?? r.tipo}
           {r.comision_nombre ? ` — ${r.comision_nombre}` : ""}
           {r.lugar ? ` · ${r.lugar}` : ""}
@@ -52,13 +52,13 @@ export default async function ReunionesPage() {
     <div>
       <PageHeader title="Reuniones" subtitle="Agenda, asistencia y actas de asambleas y comisiones" />
 
-      <h3 className="text-sm font-bold text-[#123240] mb-2">Próximas</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Próximas</h3>
       <div className="space-y-2 mb-6">
         {proximas.map((r) => <Fila key={r.id} r={r} />)}
         {proximas.length === 0 && <EmptyState>No hay reuniones planificadas.</EmptyState>}
       </div>
 
-      <h3 className="text-sm font-bold text-[#123240] mb-2">Historial</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Historial</h3>
       <div className="space-y-2 mb-6">
         {pasadas.map((r) => <Fila key={r.id} r={r} />)}
         {pasadas.length === 0 && <EmptyState>Sin reuniones anteriores.</EmptyState>}
@@ -66,7 +66,7 @@ export default async function ReunionesPage() {
 
       {puedeEditar && (
         <details>
-          <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Agendar reunión</summary>
+          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agendar reunión</summary>
           <Card className="mt-3">
             <form action={crearReunionAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -88,7 +88,7 @@ export default async function ReunionesPage() {
               <div><Label>Fecha y hora</Label><input type="datetime-local" name="fecha" required className={inputClass} /></div>
               <div><Label>Lugar</Label><input name="lugar" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Orden del día</Label><textarea name="orden_del_dia" className={inputClass} rows={3} placeholder={"Un punto por línea"} /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Agendar reunión</button></div>
+              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agendar reunión</button></div>
             </form>
           </Card>
         </details>

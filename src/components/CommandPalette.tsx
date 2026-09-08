@@ -101,15 +101,15 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-[12vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-ink/40 px-4 pt-[12vh]"
       onClick={cerrar}
     >
       <div
-        className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden"
+        className="w-full max-w-lg rounded-2xl bg-surface shadow-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 border-b border-black/10 px-4 py-3">
-          <span className="text-black/40">🔍</span>
+        <div className="flex items-center gap-2 border-b border-ink/10 px-4 py-3">
+          <span className="text-ink/40">🔍</span>
           <input
             ref={inputRef}
             value={q}
@@ -118,14 +118,14 @@ export function CommandPalette() {
             placeholder="Buscar en toda la cooperativa…"
             className="flex-1 text-sm outline-none"
           />
-          <kbd className="text-[10px] text-black/30 border border-black/10 rounded px-1.5 py-0.5">Esc</kbd>
+          <kbd className="text-[10px] text-ink/30 border border-ink/10 rounded px-1.5 py-0.5">Esc</kbd>
         </div>
 
         {q.trim().length >= 2 && (
           <div className="max-h-80 overflow-y-auto py-1">
-            {cargando && <p className="px-4 py-3 text-xs text-black/40">Buscando…</p>}
+            {cargando && <p className="px-4 py-3 text-xs text-ink/40">Buscando…</p>}
             {!cargando && resultados.length === 0 && (
-              <p className="px-4 py-3 text-xs text-black/40">Sin resultados para &quot;{q}&quot;.</p>
+              <p className="px-4 py-3 text-xs text-ink/40">Sin resultados para &quot;{q}&quot;.</p>
             )}
             {!cargando &&
               resultados.map((r, i) => (
@@ -134,18 +134,18 @@ export function CommandPalette() {
                   onMouseEnter={() => setActivo(i)}
                   onClick={() => irA(r)}
                   className={`w-full flex items-center justify-between gap-3 px-4 py-2 text-left text-sm ${
-                    i === activo ? "bg-[#f2f5f6]" : ""
+                    i === activo ? "bg-[var(--color-brand-50)]" : ""
                   }`}
                 >
                   <span className="truncate">{r.titulo}</span>
-                  <span className="shrink-0 text-[11px] text-black/40">{r.modulo}</span>
+                  <span className="shrink-0 text-[11px] text-ink/40">{r.modulo}</span>
                 </button>
               ))}
           </div>
         )}
 
         {q.trim().length < 2 && (
-          <p className="px-4 py-3 text-xs text-black/40">Escribí al menos 2 caracteres para buscar.</p>
+          <p className="px-4 py-3 text-xs text-ink/40">Escribí al menos 2 caracteres para buscar.</p>
         )}
       </div>
     </div>

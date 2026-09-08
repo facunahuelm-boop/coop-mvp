@@ -67,8 +67,8 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
 
       {reunion.orden_del_dia && (
         <Card className="mb-5">
-          <h3 className="text-sm font-bold text-[#123240] mb-2">Orden del día</h3>
-          <p className="text-sm text-black/70 whitespace-pre-line">{reunion.orden_del_dia}</p>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Orden del día</h3>
+          <p className="text-sm text-ink/70 whitespace-pre-line">{reunion.orden_del_dia}</p>
         </Card>
       )}
 
@@ -76,20 +76,20 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
         <Card className="mb-5 flex flex-wrap items-center gap-2">
           <form action={cancelarReunionAction}>
             <input type="hidden" name="id" value={reunion.id} />
-            <button className="text-xs text-black/50 hover:text-[var(--color-rojo)] underline underline-offset-2">Cancelar reunión</button>
+            <button className="text-xs text-ink/50 hover:text-[var(--color-rojo)] underline underline-offset-2">Cancelar reunión</button>
           </form>
         </Card>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
-          <h3 className="text-sm font-bold text-[#123240] mb-2">Asistencia por núcleo ({presentes}/{nucleos.length})</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Asistencia por núcleo ({presentes}/{nucleos.length})</h3>
           <Card>
             <div className="space-y-1.5">
               {nucleos.map((n) => {
                 const a = asistenciaPorNucleo.get(n.id);
                 return (
-                  <form key={n.id} action={registrarAsistenciaAction} className="flex items-center gap-2 py-1 border-b border-black/5 last:border-0">
+                  <form key={n.id} action={registrarAsistenciaAction} className="flex items-center gap-2 py-1 border-b border-ink/5 last:border-0">
                     <input type="hidden" name="reunion_id" value={reunion.id} />
                     <input type="hidden" name="nucleo_id" value={n.id} />
                     <label className="flex items-center gap-2 text-sm flex-1">
@@ -99,10 +99,10 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                     {puedeEditar ? (
                       <>
                         <input name="justificacion" defaultValue={a?.justificacion ?? ""} placeholder="Justificación (opcional)" className={inputClass + " text-xs !py-1 max-w-[160px]"} />
-                        <button className="text-xs text-[#1f4e5f] underline whitespace-nowrap">Guardar</button>
+                        <button className="text-xs text-[var(--color-brand-800)] underline whitespace-nowrap">Guardar</button>
                       </>
                     ) : (
-                      a?.justificacion && <span className="text-xs text-black/40">{a.justificacion}</span>
+                      a?.justificacion && <span className="text-xs text-ink/40">{a.justificacion}</span>
                     )}
                   </form>
                 );
@@ -113,21 +113,21 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
         </div>
 
         <div>
-          <h3 className="text-sm font-bold text-[#123240] mb-2">Acta</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Acta</h3>
           {actaExistente ? (
             <Card>
-              <p className="text-sm text-black/70 whitespace-pre-line">{actaExistente.resumen}</p>
+              <p className="text-sm text-ink/70 whitespace-pre-line">{actaExistente.resumen}</p>
               {actaExistente.archivo_url ? (
                 <a
                   href={actaExistente.archivo_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1f4e5f] underline underline-offset-2 mt-3"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 mt-3"
                 >
                   📄 Descargar acta en PDF
                 </a>
               ) : (
-                <p className="text-xs text-black/40 mt-2">Guardada en Documentos → Actas y resoluciones.</p>
+                <p className="text-xs text-ink/40 mt-2">Guardada en Documentos → Actas y resoluciones.</p>
               )}
             </Card>
           ) : reunion.estado === "cancelada" ? (
@@ -141,12 +141,12 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                   <textarea name="resumen" required className={inputClass} rows={5} placeholder="Temas tratados, resoluciones, próximos pasos…" />
                 </div>
 
-                <div className="pt-2 border-t border-black/5">
+                <div className="pt-2 border-t border-ink/5">
                   <Label>Tareas resultantes (opcional)</Label>
-                  <p className="text-xs text-black/40 mb-2">Se cargan directo en Comisiones — no hace falta anotarlas también en el resumen.</p>
+                  <p className="text-xs text-ink/40 mb-2">Se cargan directo en Comisiones — no hace falta anotarlas también en el resumen.</p>
                   <div className="space-y-3">
                     {[0, 1, 2].map((i) => (
-                      <div key={i} className="space-y-1.5 pb-2 border-b border-black/5 last:border-0 last:pb-0">
+                      <div key={i} className="space-y-1.5 pb-2 border-b border-ink/5 last:border-0 last:pb-0">
                         <input name="tarea_titulo" placeholder={`Título de la tarea ${i + 1} (opcional)`} className={inputClass + " text-xs !py-1.5"} />
                         <div className="grid grid-cols-3 gap-1.5">
                           <select name="tarea_responsable_id" defaultValue="" className={inputClass + " text-xs !py-1.5"}>
@@ -167,7 +167,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                   </div>
                 </div>
 
-                <button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Cerrar reunión y generar acta</button>
+                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Cerrar reunión y generar acta</button>
               </form>
             </Card>
           ) : (
@@ -176,16 +176,16 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
 
           {tareas.length > 0 && (
             <div className="mt-4">
-              <h3 className="text-sm font-bold text-[#123240] mb-2">Tareas de esta reunión</h3>
+              <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Tareas de esta reunión</h3>
               <Card>
                 <div className="space-y-1.5">
                   {tareas.map((t) => (
                     <div key={t.id} className="flex items-center justify-between gap-2 text-xs">
                       <div className="min-w-0">
-                        <p className={`truncate font-medium ${t.estado === "completada" ? "text-black/40 line-through" : "text-[#123240]"}`}>
+                        <p className={`truncate font-medium ${t.estado === "completada" ? "text-ink/40 line-through" : "text-[var(--color-brand-900)]"}`}>
                           {t.titulo}
                         </p>
-                        <p className="text-black/40">
+                        <p className="text-ink/40">
                           {PRIORIDAD_LABEL[t.prioridad] ?? t.prioridad} · {t.responsable_nombre || "sin asignar"}
                           {t.fecha_vencimiento ? ` · vence ${dayjs(t.fecha_vencimiento).format("DD/MM")}` : ""}
                         </p>
@@ -197,7 +197,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                           name="estado"
                           defaultValue={t.estado}
                           options={Object.entries(ESTADO_TAREA_LABEL).map(([value, label]) => ({ value, label }))}
-                          className="rounded-md border border-black/10 bg-white px-1.5 py-1 text-xs whitespace-nowrap"
+                          className="rounded-md border border-ink/10 bg-surface px-1.5 py-1 text-xs whitespace-nowrap"
                         />
                       ) : (
                         <Badge color={ESTADO_TAREA_COLOR[t.estado] ?? "gray"}>{ESTADO_TAREA_LABEL[t.estado] ?? t.estado}</Badge>

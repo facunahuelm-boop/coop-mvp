@@ -24,7 +24,7 @@ export default async function SeguridadPage() {
     <div>
       <PageHeader title="Seguridad, Higiene y Prevención" subtitle="Documentación, inspecciones e incidentes" />
 
-      <h3 className="text-sm font-bold text-[#123240] mb-2">Documentación y vencimientos</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Documentación y vencimientos</h3>
       <div className="space-y-2 mb-6">
         {docs.map((d) => {
           const dias = d.fecha_vencimiento ? dayjs(d.fecha_vencimiento).diff(hoy, "day") : null;
@@ -33,7 +33,7 @@ export default async function SeguridadPage() {
             <Card key={d.id} className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold">{d.tipo}</p>
-                <p className="text-xs text-black/50">{d.descripcion}</p>
+                <p className="text-xs text-ink/50">{d.descripcion}</p>
               </div>
               <Badge color={color as any}>{dias == null ? "sin vencimiento" : dias < 0 ? `vencido hace ${-dias}d` : `vence en ${dias}d`}</Badge>
             </Card>
@@ -42,19 +42,19 @@ export default async function SeguridadPage() {
         {docs.length === 0 && <EmptyState>Sin documentos cargados.</EmptyState>}
       </div>
       {puedeEditar && (
-        <details className="mb-8"><summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Cargar documento</summary>
+        <details className="mb-8"><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Cargar documento</summary>
           <Card className="mt-3">
             <form action={crearDocumentoSeguridadAction} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div><Label>Tipo de documento</Label><input name="tipo" required className={inputClass} /></div>
               <div><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
               <div><Label>Fecha de vencimiento</Label><input type="date" name="fecha_vencimiento" className={inputClass} /></div>
-              <div className="sm:col-span-3"><button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Guardar</button></div>
+              <div className="sm:col-span-3"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar</button></div>
             </form>
           </Card>
         </details>
       )}
 
-      <h3 className="text-sm font-bold text-[#123240] mb-2">Incidentes, accidentes y observaciones</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Incidentes, accidentes y observaciones</h3>
       <div className="space-y-2 mb-4">
         {incidentes.map((i) => (
           <Card key={i.id} className={i.estado === "abierto" ? "!border-[var(--color-rojo)]/20" : ""}>
@@ -62,18 +62,18 @@ export default async function SeguridadPage() {
               <p className="text-sm font-semibold capitalize">{i.tipo} — {i.severidad}</p>
               <Badge color={i.estado === "resuelto" ? "verde" : i.severidad === "critica" ? "rojo" : "amarillo"}>{i.estado}</Badge>
             </div>
-            <p className="text-sm text-black/70 mt-1">{i.descripcion}</p>
+            <p className="text-sm text-ink/70 mt-1">{i.descripcion}</p>
             {i.foto_url && <img src={i.foto_url} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
-            <p className="text-xs text-black/40 mt-1">{dayjs(i.fecha).format("DD/MM/YYYY")} · {i.autor_nombre}</p>
+            <p className="text-xs text-ink/40 mt-1">{dayjs(i.fecha).format("DD/MM/YYYY")} · {i.autor_nombre}</p>
             {i.ia_observacion && (
-              <p className="text-xs text-[#1f4e5f] bg-[#e7eff1] rounded-lg p-2 mt-2">✨ {i.ia_observacion}</p>
+              <p className="text-xs text-[var(--color-brand-800)] bg-[var(--color-brand-100)] rounded-lg p-2 mt-2">✨ {i.ia_observacion}</p>
             )}
             {i.medidas && <p className="text-xs text-[var(--color-verde)] mt-1">Medidas: {i.medidas}</p>}
             {puedeEditar && i.estado === "abierto" && (
               <form action={resolverIncidenteAction} className="mt-2 flex gap-2">
                 <input type="hidden" name="id" value={i.id} />
                 <input name="medidas" placeholder="Medida correctiva aplicada" className={inputClass + " text-xs"} />
-                <button className="rounded-lg bg-[#e7eff1] text-[#1f4e5f] px-3 py-2 text-xs font-semibold whitespace-nowrap">Marcar resuelto</button>
+                <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Marcar resuelto</button>
               </form>
             )}
           </Card>
@@ -81,7 +81,7 @@ export default async function SeguridadPage() {
         {incidentes.length === 0 && <EmptyState>Sin incidentes registrados.</EmptyState>}
       </div>
       {puedeEditar && (
-        <details className="mb-8"><summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Registrar incidente / observación</summary>
+        <details className="mb-8"><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Registrar incidente / observación</summary>
           <Card className="mt-3">
             <form action={crearIncidenteAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -98,29 +98,29 @@ export default async function SeguridadPage() {
               </div>
               <div className="sm:col-span-2"><Label>Descripción</Label><textarea name="descripcion" required className={inputClass} rows={2} /></div>
               <div className="sm:col-span-2"><Label>Foto (opcional)</Label><input type="file" name="foto" accept="image/*" className="text-xs" /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Registrar</button></div>
+              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Registrar</button></div>
             </form>
           </Card>
         </details>
       )}
 
-      <h3 className="text-sm font-bold text-[#123240] mb-2">Inspecciones (checklist)</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Inspecciones (checklist)</h3>
       <div className="space-y-2 mb-4">
         {inspecciones.map((i) => {
           const items = JSON.parse(i.checklist_json) as { item: string; ok: boolean }[];
           const fallas = items.filter((x) => !x.ok);
           return (
             <Card key={i.id}>
-              <p className="text-xs text-black/40">{dayjs(i.fecha).format("DD/MM/YYYY")} · {i.autor_nombre}</p>
+              <p className="text-xs text-ink/40">{dayjs(i.fecha).format("DD/MM/YYYY")} · {i.autor_nombre}</p>
               <p className="text-sm mt-1">{fallas.length === 0 ? "🟢 Todos los puntos del checklist OK." : `🟠 ${fallas.length} punto(s) a corregir: ${fallas.map((f) => f.item).join(", ")}`}</p>
-              {i.hallazgos && <p className="text-xs text-black/60 mt-1">{i.hallazgos}</p>}
+              {i.hallazgos && <p className="text-xs text-ink/60 mt-1">{i.hallazgos}</p>}
             </Card>
           );
         })}
         {inspecciones.length === 0 && <EmptyState>Sin inspecciones registradas.</EmptyState>}
       </div>
       {puedeEditar && (
-        <details><summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Nueva inspección</summary>
+        <details><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Nueva inspección</summary>
           <Card className="mt-3">
             <form action={crearInspeccionAction} className="space-y-2">
               {CHECKLIST_BASE.map((item, i) => (
@@ -129,7 +129,7 @@ export default async function SeguridadPage() {
                 </label>
               ))}
               <div><Label>Hallazgos</Label><textarea name="hallazgos" className={inputClass} rows={2} /></div>
-              <button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Guardar inspección</button>
+              <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar inspección</button>
             </form>
           </Card>
         </details>

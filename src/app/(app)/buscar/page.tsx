@@ -45,8 +45,8 @@ export default async function BuscarPage({
         title="Búsqueda global"
         subtitle="Obra, compras, proveedores, documentos, comisiones, reuniones y socios"
         action={
-          <span className="hidden sm:inline text-xs text-black/40">
-            Atajo: <kbd className="border border-black/10 rounded px-1.5 py-0.5">Ctrl</kbd> + <kbd className="border border-black/10 rounded px-1.5 py-0.5">K</kbd>
+          <span className="hidden sm:inline text-xs text-ink/40">
+            Atajo: <kbd className="border border-ink/10 rounded px-1.5 py-0.5">Ctrl</kbd> + <kbd className="border border-ink/10 rounded px-1.5 py-0.5">K</kbd>
           </span>
         }
       />
@@ -58,10 +58,10 @@ export default async function BuscarPage({
             name="q"
             placeholder="Buscar tareas, compras, socios, documentos..."
             defaultValue={q}
-            className="flex-1 rounded-xl border border-black/10 px-4 py-2 text-sm"
+            className="flex-1 rounded-xl border border-ink/10 px-4 py-2 text-sm"
             autoFocus
           />
-          <button className="rounded-xl bg-[#1f4e5f] text-white px-6 py-2 text-sm font-semibold">
+          <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-6 py-2 text-sm font-semibold">
             Buscar
           </button>
         </div>
@@ -77,12 +77,12 @@ export default async function BuscarPage({
 
       {resultados.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs text-black/50 mb-3">
+          <p className="text-xs text-ink/50 mb-3">
             {resultados.length} resultado{resultados.length !== 1 ? "s" : ""}
           </p>
           {resultados.map((r, i) => (
             <a key={`${r.tipo}-${r.id}-${i}`} href={r.href || "#"}>
-              <Card className="cursor-pointer hover:bg-black/2">
+              <Card className="cursor-pointer hover:bg-ink/2">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
@@ -90,7 +90,7 @@ export default async function BuscarPage({
                       <p className="text-sm font-semibold">{r.titulo}</p>
                     </div>
                     {r.fecha && (
-                      <p className="text-xs text-black/40 mt-1">
+                      <p className="text-xs text-ink/40 mt-1">
                         {dayjs(r.fecha).format("DD/MM/YYYY")}
                       </p>
                     )}

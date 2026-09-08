@@ -28,7 +28,7 @@ export default async function ComprasPage() {
         title="Compras"
         subtitle="Solicitudes y presupuestos"
         action={
-          <Link href="/proveedores" className="text-xs font-semibold text-[#1f4e5f] underline underline-offset-2 whitespace-nowrap">
+          <Link href="/proveedores" className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap">
             Ver proveedores →
           </Link>
         }
@@ -40,8 +40,8 @@ export default async function ComprasPage() {
             <Card className="hover:shadow-md">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-[#123240]">{s.material} <span className="font-normal text-black/50">({s.cantidad} {s.unidad})</span></p>
-                  <p className="text-xs text-black/50 mt-0.5">{s.comision} · {s.solicitante_nombre} {s.fecha_necesaria && `· necesario para el ${dayjs(s.fecha_necesaria).format("DD/MM")}`}</p>
+                  <p className="text-sm font-semibold text-[var(--color-brand-900)]">{s.material} <span className="font-normal text-ink/50">({s.cantidad} {s.unidad})</span></p>
+                  <p className="text-xs text-ink/50 mt-0.5">{s.comision} · {s.solicitante_nombre} {s.fecha_necesaria && `· necesario para el ${dayjs(s.fecha_necesaria).format("DD/MM")}`}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <Badge color={estadoColor[s.estado]}>{estadoLabel[s.estado]}</Badge>
@@ -56,7 +56,7 @@ export default async function ComprasPage() {
 
       {puedeEditar && (
         <details className="mt-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Nueva solicitud de compra</summary>
+          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Nueva solicitud de compra</summary>
           <Card className="mt-3">
             <form action={crearSolicitudAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Comisión solicitante</Label><input name="comision" required className={inputClass} placeholder="Comisión de Obra" /></div>
@@ -73,7 +73,7 @@ export default async function ComprasPage() {
                 </select>
               </div>
               <div><Label>Presupuesto estimado</Label><input name="presupuesto_estimado" type="number" className={inputClass} /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Crear solicitud</button></div>
+              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Crear solicitud</button></div>
             </form>
           </Card>
         </details>

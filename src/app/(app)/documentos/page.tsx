@@ -58,14 +58,14 @@ export default async function DocumentosPage({
 
       {todasLasEtiquetas.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 mb-5">
-          <span className="text-xs text-black/40 mr-1">Etiquetas:</span>
+          <span className="text-xs text-ink/40 mr-1">Etiquetas:</span>
           {etiquetaFiltro && (
-            <a href="/documentos" className="text-xs rounded-full px-2.5 py-1 bg-[#1f4e5f] text-white font-medium">
+            <a href="/documentos" className="text-xs rounded-full px-2.5 py-1 bg-[var(--color-brand-800)] text-white font-medium">
               {etiquetaFiltro} ✕
             </a>
           )}
           {todasLasEtiquetas.filter((e) => e !== etiquetaFiltro).map((e) => (
-            <a key={e} href={`/documentos?etiqueta=${encodeURIComponent(e)}`} className="text-xs rounded-full px-2.5 py-1 bg-black/5 text-black/60 hover:bg-black/10 font-medium">
+            <a key={e} href={`/documentos?etiqueta=${encodeURIComponent(e)}`} className="text-xs rounded-full px-2.5 py-1 bg-ink/5 text-ink/60 hover:bg-ink/10 font-medium">
               {e}
             </a>
           ))}
@@ -74,7 +74,7 @@ export default async function DocumentosPage({
 
       {actas.length > 0 && !etiquetaFiltro && (
         <>
-          <h3 className="text-sm font-bold text-[#123240] mb-2">Actas y resoluciones</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Actas y resoluciones</h3>
           <div className="space-y-2 mb-6">
             {actas.map((a) => (
               <Card key={a.id}>
@@ -82,8 +82,8 @@ export default async function DocumentosPage({
                   <p className="text-sm font-semibold">{a.titulo}</p>
                   <Badge color="brand">{a.organo === "asamblea" ? "Asamblea" : "Consejo Directivo"}</Badge>
                 </div>
-                <p className="text-xs text-black/40 mt-0.5">{dayjs(a.fecha).format("DD/MM/YYYY")}</p>
-                <p className="text-sm text-black/70 mt-1.5">{a.resumen}</p>
+                <p className="text-xs text-ink/40 mt-0.5">{dayjs(a.fecha).format("DD/MM/YYYY")}</p>
+                <p className="text-sm text-ink/70 mt-1.5">{a.resumen}</p>
               </Card>
             ))}
           </div>
@@ -92,22 +92,22 @@ export default async function DocumentosPage({
 
       {porCategoria.map(({ c, docs: ds }) => (
         <div key={c} className="mb-6">
-          <h3 className="text-sm font-bold text-[#123240] mb-2">{CAT_LABEL[c]}</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">{CAT_LABEL[c]}</h3>
           <div className="space-y-2">
             {ds.map((d) => (
               <Card key={d.id} className="flex items-center justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">{d.nombre}</p>
-                  <p className="text-xs text-black/50">{d.descripcion} {d.subido_por && `· subido por ${d.subido_por}`} · {dayjs(d.fecha).format("DD/MM/YYYY")}</p>
+                  <p className="text-xs text-ink/50">{d.descripcion} {d.subido_por && `· subido por ${d.subido_por}`} · {dayjs(d.fecha).format("DD/MM/YYYY")}</p>
                   {etiquetasDe(d).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {etiquetasDe(d).map((e) => (
-                        <a key={e} href={`/documentos?etiqueta=${encodeURIComponent(e)}`} className="text-[11px] rounded-full px-2 py-0.5 bg-black/5 text-black/50 hover:bg-black/10">{e}</a>
+                        <a key={e} href={`/documentos?etiqueta=${encodeURIComponent(e)}`} className="text-[11px] rounded-full px-2 py-0.5 bg-ink/5 text-ink/50 hover:bg-ink/10">{e}</a>
                       ))}
                     </div>
                   )}
                 </div>
-                {d.archivo_url ? <a href={d.archivo_url} target="_blank" className="text-xs text-[#1f4e5f] underline whitespace-nowrap ml-3">Descargar</a> : <span className="text-xs text-black/30 ml-3">sin archivo</span>}
+                {d.archivo_url ? <a href={d.archivo_url} target="_blank" className="text-xs text-[var(--color-brand-800)] underline whitespace-nowrap ml-3">Descargar</a> : <span className="text-xs text-ink/30 ml-3">sin archivo</span>}
               </Card>
             ))}
           </div>
@@ -117,7 +117,7 @@ export default async function DocumentosPage({
 
       {puedeEditar && (
         <>
-          <details className="mt-6"><summary className="cursor-pointer text-sm font-semibold text-[#1f4e5f]">+ Subir documento</summary>
+          <details className="mt-6"><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Subir documento</summary>
             <Card className="mt-3">
               <form action={subirDocumentoAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
@@ -133,17 +133,17 @@ export default async function DocumentosPage({
                   <input name="etiquetas" placeholder="separadas por coma, ej: obra-etapa-2, urgente" className={inputClass} />
                 </div>
                 <div className="sm:col-span-2"><Label>Archivo</Label><input type="file" name="archivo" className="text-xs" /></div>
-                <div className="sm:col-span-2"><button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Subir</button></div>
+                <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Subir</button></div>
               </form>
             </Card>
           </details>
 
           <details className="mt-3">
-            <summary className="cursor-pointer text-xs text-black/40 hover:text-[#1f4e5f]">+ Crear una categoría nueva</summary>
+            <summary className="cursor-pointer text-xs text-ink/40 hover:text-[var(--color-brand-800)]">+ Crear una categoría nueva</summary>
             <Card className="mt-3">
               <form action={crearCategoriaDocumentoAction} className="flex items-end gap-2">
                 <div className="flex-1"><Label>Nombre de la categoría</Label><input name="nombre" required placeholder="ej: Estatuto, RRHH" className={inputClass} /></div>
-                <button className="rounded-xl bg-[#1f4e5f] text-white px-4 py-2 text-sm font-semibold">Crear</button>
+                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Crear</button>
               </form>
             </Card>
           </details>
