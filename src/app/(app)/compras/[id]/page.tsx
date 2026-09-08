@@ -7,6 +7,7 @@ import { compararPresupuestos, historialProveedor } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import { agregarPresupuestoAction, decidirCompraAction, marcarPedidaAction, marcarEntregadaAction, rechazarSolicitudAction } from "@/lib/actions/compras";
+import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 
 const ESTADO_LABEL: Record<string, string> = {
   pendiente_cotizacion: "pendiente de cotización", en_comparacion: "en comparación", aprobada: "aprobada",
@@ -36,8 +37,9 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
 
       <Card className="mb-5 text-sm">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div><Label>Categoría</Label>{CATEGORIA_COMPRA_LABEL[solicitud.categoria] || CATEGORIA_COMPRA_LABEL.obra}</div>
           <div><Label>Estado</Label>{ESTADO_LABEL[solicitud.estado] || solicitud.estado.replace(/_/g, " ")}</div>
-          <div><Label>Etapa</Label>{solicitud.etapa_obra || "—"}</div>
+          <div><Label>Etapa de obra</Label>{solicitud.etapa_obra || "—"}</div>
           <div><Label>Necesario para</Label>{solicitud.fecha_necesaria ? dayjs(solicitud.fecha_necesaria).format("DD/MM/YYYY") : "—"}</div>
           <div><Label>Estimado</Label>{solicitud.presupuesto_estimado ? `$${solicitud.presupuesto_estimado.toLocaleString("es-UY")}` : "—"}</div>
         </div>

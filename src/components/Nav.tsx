@@ -39,12 +39,18 @@ type NavGroup = { label: string; items: NavItem[] };
 // reconocer símbolos con claridad. Ahora son íconos SVG de una sola
 // librería (lucide-react), con el mismo trazo y grosor en todos lados.
 //
-// El grupo "Obra" agrupa lo específico de la etapa de construcción — no
-// todas las cooperativas están en esa etapa. Por ahora se muestra siempre
-// (como hoy), y en la Fase D (etapas de cooperativa) va a poder ocultarse
-// automáticamente cuando la cooperativa configure su etapa como "habitada",
-// con la posibilidad de que un admin lo reactive a mano si lo necesita.
+// El grupo "Obra" agrupa lo específico de la etapa de construcción. Fase D
+// (etapas de cooperativa + módulos, ver Configuración → Módulos): estos tres
+// módulos (obra, trabajo, seguridad) se ocultan solos mientras la
+// cooperativa todavía no arrancó a construir (pre_obra) o ya terminó y está
+// habitada — sólo tienen sentido día a día durante la etapa "obra". Un admin
+// puede forzar a mano que se muestren u oculten igual desde Configuración →
+// Módulos si su caso es distinto (por ejemplo, una cooperativa habitada que
+// igual quiere dejar Obra visible como archivo histórico).
 const ICON_SIZE = 18;
+
+/** Módulos cuyo default de visibilidad depende de la etapa de la cooperativa. */
+const MODULOS_POR_ETAPA: Module[] = ["obra", "trabajo", "seguridad"];
 
 const GROUPS: NavGroup[] = [
   {
@@ -112,27 +118,33 @@ const GRUPO_COLAPSABLE = {
 
 const ALL_ITEMS: NavItem[] = GROUPS.flatMap((g) => g.items);
 
-// Fase de personalización: una cooperativa "habitada" (ya no está en obra)
-// no necesita ver el grupo específico de construcción — se oculta entero,
-// no módulo por módulo, porque los tres (Obra, Trabajo, Seguridad) dejan de
-// tener sentido juntos una vez terminada la obra.
-function gruposVisiblesParaEtapa(etapa: string): NavGroup[] {
-  if (etapa === "habitada") return GROUPS.filter((g) => g.label !== "Obra");
-  return GROUPS;
+/**
+ * Decide si un módulo de los que dependen de la etapa (obra/trabajo/
+ * seguridad) se muestra. El override manual de Configuración → Módulos
+ * siempre gana; si no hay override, la etapa es el default: sólo se
+ * muestran mientras la cooperativa está "en obra".
+ */
+function moduloVisible(mod: Module | undefined, etapa: string, overrides: Record<string, string>): boolean {
+  if (!mod || !MODULOS_POR_ETAPA.includes(mod)) return true;
+  const forzado = overrides[mod];
+  if (forzado === "mostrar") return true;
+  if (forzado === "ocultar") return false;
+  return etapa === "obra";
 }
 
 function itemsFor(user: SessionUser) {
-  const visibles = gruposVisiblesParaEtapa(user.etapa).flatMap((g) => g.items);
-  return ALL_ITEMS.filter((i) => visibles.includes(i)).filter((i) => !i.mod || canRead(user.rol, i.mod));
+  return ALL_ITEMS.filter((i) => moduloVisible(i.mod, user.etapa, user.modulos_override)).filter(
+    (i) => !i.mod || canRead(user.rol, i.mod)
+  );
 }
 
 function groupsFor(user: SessionUser): NavGroup[] {
-  return gruposVisiblesParaEtapa(user.etapa)
-    .map((g) => ({
-      label: g.label,
-      items: g.items.filter((i) => !i.mod || canRead(user.rol, i.mod)),
-    }))
-    .filter((g) => g.items.length > 0);
+  return GROUPS.map((g) => ({
+    label: g.label,
+    items: g.items
+      .filter((i) => moduloVisible(i.mod, user.etapa, user.modulos_override))
+      .filter((i) => !i.mod || canRead(user.rol, i.mod)),
+  })).filter((g) => g.items.length > 0);
 }
 
 export function Sidebar({ user }: { user: SessionUser }) {
@@ -237,4 +249,4 @@ export function BottomNav({ user }: { user: SessionUser }) {
   );
 }
 
-export { ALL_ITEMS, itemsFor, groupsFor };
+export { ALL_ITEMS, itemsFor, groupsFor, moduloVisible };

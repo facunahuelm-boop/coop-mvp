@@ -35,6 +35,14 @@ export type SessionUser = {
    */
   etapa: string;
   /**
+   * Overrides manuales de visibilidad de módulos, por cooperativa (Fase D:
+   * etapas + módulos). Sólo tiene sentido para los módulos cuyo default sale
+   * de la etapa (hoy: obra, trabajo, seguridad) — "mostrar" u "ocultar"
+   * fuerzan el módulo más allá de lo que diría la etapa sola; si un módulo
+   * no aparece acá, manda el default automático (ver Nav.tsx).
+   */
+  modulos_override: Record<string, "mostrar" | "ocultar">;
+  /**
    * Datos de personalización de marca de la cooperativa (Fase de
    * personalización): nombre, logo y colores que reemplazan los valores
    * fijos "COOVA" / "/logo-coova.png" en Nav.tsx y el login.
@@ -102,6 +110,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     // se puede traer con un JOIN normal en la misma consulta.
     const row = await get<any>(
       `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, o.etapa,
+              o.modulos_override,
               o.nombre as org_nombre, o.logo_url as org_logo_url,
               o.color_primario as org_color_primario, o.color_secundario as org_color_secundario
        FROM users u JOIN organizations o ON o.id = u.organization_id
@@ -120,6 +129,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       nucleo_id: row.nucleo_id,
       organization_id: row.organization_id,
       etapa: row.etapa,
+      modulos_override: row.modulos_override || {},
       organizacion: {
         nombre: row.org_nombre,
         logo_url: row.org_logo_url,

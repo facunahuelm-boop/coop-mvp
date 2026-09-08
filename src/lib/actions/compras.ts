@@ -4,13 +4,16 @@ import { revalidatePath } from "next/cache";
 import { insert, update, get, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
+import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 
 export async function crearSolicitudAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
+  const categoria = String(formData.get("categoria") || "obra");
   const id = await insert("solicitudes_compra", {
     solicitante_id: user.id,
     comision: String(formData.get("comision") || ""),
+    categoria: categoria in CATEGORIA_COMPRA_LABEL ? categoria : "obra",
     material: String(formData.get("material") || ""),
     cantidad: Number(formData.get("cantidad") || 0),
     unidad: String(formData.get("unidad") || ""),

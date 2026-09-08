@@ -7,12 +7,22 @@ import {
   actualizarAlertasEmailAction,
   actualizarEtapaAction,
   actualizarBrandingAction,
+  actualizarModulosAction,
 } from "@/lib/actions/configuracion";
 
 const ETAPA_LABEL: Record<string, string> = {
   pre_obra: "Pre-obra (todavía no arrancó la construcción)",
   obra: "En obra (construcción en curso)",
   habitada: "Habitada (ya se mudaron, obra terminada)",
+};
+
+// Fase D: módulos cuyo default de visibilidad depende de la etapa (ver
+// moduloVisible() en components/Nav.tsx) — acá un admin puede forzarlos más
+// allá de lo que diría la etapa sola, sin tocar ningún dato existente.
+const MODULOS_LABEL: Record<string, string> = {
+  obra: "Obra (cronograma y avance de la construcción)",
+  trabajo: "Trabajo (jornadas de ayuda mutua)",
+  seguridad: "Seguridad e higiene",
 };
 
 export default async function ConfiguracionPage() {
@@ -107,6 +117,34 @@ export default async function ConfiguracionPage() {
           </div>
           <button type="submit" className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
             Guardar etapa
+          </button>
+        </form>
+      </Card>
+
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Módulos</h3>
+      <Card className="mb-6">
+        <p className="text-xs text-ink/60 mb-4">
+          Estos módulos se muestran u ocultan solos según la etapa de arriba. Si tu cooperativa es un
+          caso particular, podés forzarlos acá — nunca se borra nada: un módulo oculto sigue teniendo
+          toda su información guardada, sólo desaparece del menú.
+        </p>
+        <form action={actualizarModulosAction} className="space-y-4">
+          {Object.entries(MODULOS_LABEL).map(([mod, label]) => (
+            <div key={mod} className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-ink">{label}</span>
+              <select
+                name={mod}
+                defaultValue={organizacion?.modulos_override?.[mod] || "auto"}
+                className={inputClass + " sm:w-56"}
+              >
+                <option value="auto">Automático (según la etapa)</option>
+                <option value="mostrar">Mostrar siempre</option>
+                <option value="ocultar">Ocultar siempre</option>
+              </select>
+            </div>
+          ))}
+          <button type="submit" className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
+            Guardar módulos
           </button>
         </form>
       </Card>

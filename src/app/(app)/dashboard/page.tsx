@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { all, get } from "@/lib/db";
 import { tareasObraConSemaforo, resumenFinanciero, recalcularAlertas } from "@/lib/logic";
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
+import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, EmptyState, PageHeader, Button } from "@/components/ui";
 import { Saludo } from "@/components/Saludo";
 import { InstallHint } from "@/components/InstallHint";
@@ -48,6 +49,13 @@ export default async function DashboardPage() {
   await recalcularAlertas();
 
   const verFinanzasDetalle = ROLES_FINANZAS_DETALLE.includes(user.rol);
+  // Fase D: Obra/Trabajo/Seguridad quedan afuera del dashboard cuando la
+  // etapa (o un override manual desde Configuración → Módulos) los oculta
+  // del menú — mismo criterio en los dos lugares, para que no quede un
+  // módulo "escondido" de la nav pero igual destacado acá.
+  const verObra = canRead(user.rol, "obra") && moduloVisible("obra", user.etapa, user.modulos_override);
+  const verTrabajo = canRead(user.rol, "trabajo") && moduloVisible("trabajo", user.etapa, user.modulos_override);
+  const verSeguridad = canRead(user.rol, "seguridad") && moduloVisible("seguridad", user.etapa, user.modulos_override);
 
   const [
     tareas,
@@ -67,11 +75,11 @@ export default async function DashboardPage() {
     comisionesTareasRow,
     proximaReunion,
   ] = await Promise.all([
-    canRead(user.rol, "obra") ? tareasObraConSemaforo() : Promise.resolve([] as any[]),
-    canRead(user.rol, "obra")
+    verObra ? tareasObraConSemaforo() : Promise.resolve([] as any[]),
+    verObra
       ? get<{ n: number }>(`SELECT COUNT(*) as n FROM problemas_obra WHERE estado='abierto'`)
       : Promise.resolve(undefined),
-    canRead(user.rol, "trabajo")
+    verTrabajo
       ? get<any>(`SELECT * FROM jornadas_trabajo WHERE fecha >= CURRENT_DATE::text ORDER BY fecha ASC LIMIT 1`)
       : Promise.resolve(null),
     canRead(user.rol, "compras")
@@ -83,13 +91,13 @@ export default async function DashboardPage() {
     canRead(user.rol, "compras")
       ? get<{ n: number }>(`SELECT COUNT(*) as n FROM solicitudes_compra WHERE estado='aprobada'`)
       : Promise.resolve(undefined),
-    canRead(user.rol, "seguridad")
+    verSeguridad
       ? get<{ n: number }>(`SELECT COUNT(*) as n FROM documentos_seguridad WHERE fecha_vencimiento < CURRENT_DATE::text`)
       : Promise.resolve(undefined),
-    canRead(user.rol, "seguridad")
+    verSeguridad
       ? get<{ n: number }>(`SELECT COUNT(*) as n FROM documentos_seguridad WHERE fecha_vencimiento >= CURRENT_DATE::text AND fecha_vencimiento <= (CURRENT_DATE + 15)::text`)
       : Promise.resolve(undefined),
-    canRead(user.rol, "seguridad")
+    verSeguridad
       ? get<{ n: number }>(`SELECT COUNT(*) as n FROM incidentes_seguridad WHERE estado != 'resuelto'`)
       : Promise.resolve(undefined),
     canRead(user.rol, "finanzas") ? resumenFinanciero() : Promise.resolve(null),
@@ -148,10 +156,10 @@ export default async function DashboardPage() {
 
   // Accesos rápidos: solo se muestran las acciones que el rol del usuario puede editar.
   const accesos: { label: string; href: string; icon: ReactNode }[] = [];
-  if (canEdit(user.rol, "obra")) accesos.push({ label: "Registrar avance de obra", href: "/obra", icon: <HardHat size={16} /> });
-  if (canEdit(user.rol, "trabajo")) accesos.push({ label: "Gestionar jornada de trabajo", href: "/trabajo", icon: <Handshake size={16} /> });
+  if (verObra && canEdit(user.rol, "obra")) accesos.push({ label: "Registrar avance de obra", href: "/obra", icon: <HardHat size={16} /> });
+  if (verTrabajo && canEdit(user.rol, "trabajo")) accesos.push({ label: "Gestionar jornada de trabajo", href: "/trabajo", icon: <Handshake size={16} /> });
   if (canEdit(user.rol, "compras")) accesos.push({ label: "Nueva solicitud de compra", href: "/compras", icon: <ShoppingCart size={16} /> });
-  if (canEdit(user.rol, "seguridad")) accesos.push({ label: "Cargar inspección o incidente", href: "/seguridad", icon: <ShieldCheck size={16} /> });
+  if (verSeguridad && canEdit(user.rol, "seguridad")) accesos.push({ label: "Cargar inspección o incidente", href: "/seguridad", icon: <ShieldCheck size={16} /> });
   if (canEdit(user.rol, "finanzas")) accesos.push({ label: "Registrar movimiento", href: "/finanzas", icon: <Wallet size={16} /> });
   if (canEdit(user.rol, "documentos")) accesos.push({ label: "Subir documento", href: "/documentos", icon: <FileText size={16} /> });
 
@@ -161,7 +169,7 @@ export default async function DashboardPage() {
   // persona tenga que leer las ocho tarjetas para encontrarlo.
   const modulos: ModuloDashboard[] = [];
 
-  if (canRead(user.rol, "obra")) {
+  if (verObra) {
     modulos.push({
       key: "obra",
       urgente: atrasadas.length > 0 || problemasAbiertos > 0,
@@ -180,7 +188,7 @@ export default async function DashboardPage() {
     });
   }
 
-  if (canRead(user.rol, "trabajo")) {
+  if (verTrabajo) {
     modulos.push({
       key: "trabajo",
       urgente: false,
@@ -220,7 +228,7 @@ export default async function DashboardPage() {
     });
   }
 
-  if (canRead(user.rol, "seguridad")) {
+  if (verSeguridad) {
     modulos.push({
       key: "seguridad",
       urgente: docsVencidos > 0 || riesgosAbiertos > 0,

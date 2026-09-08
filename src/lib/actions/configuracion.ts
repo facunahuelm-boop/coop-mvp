@@ -31,6 +31,37 @@ export async function actualizarEtapaAction(formData: FormData) {
 }
 
 /**
+ * Fase D (etapas + módulos): guarda el override manual de visibilidad para
+ * los módulos que por defecto dependen de la etapa (obra, trabajo,
+ * seguridad) — ver moduloVisible() en components/Nav.tsx. "auto" borra el
+ * override de ese módulo (vuelve a depender de la etapa); "mostrar"/
+ * "ocultar" lo fuerzan. Nunca toca los datos de esos módulos: sólo cambia
+ * qué aparece en el menú.
+ */
+const MODULOS_CON_OVERRIDE = ["obra", "trabajo", "seguridad"] as const;
+const VALORES_OVERRIDE = ["auto", "mostrar", "ocultar"] as const;
+
+export async function actualizarModulosAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || !["admin", "consejo_directivo"].includes(user.rol)) {
+    redirect("/login");
+  }
+
+  const overrides: Record<string, "mostrar" | "ocultar"> = {};
+  for (const mod of MODULOS_CON_OVERRIDE) {
+    const valor = String(formData.get(mod) || "auto");
+    if (!VALORES_OVERRIDE.includes(valor as (typeof VALORES_OVERRIDE)[number])) {
+      throw new Error("Valor de módulo inválido");
+    }
+    if (valor === "mostrar" || valor === "ocultar") overrides[mod] = valor;
+  }
+
+  await update("organizations", user.organization_id, { modulos_override: overrides });
+  revalidatePath("/configuracion");
+  revalidatePath("/", "layout");
+}
+
+/**
  * Personalización de marca de la cooperativa: nombre, logo y colores que se
  * muestran en el menú (Nav.tsx) y en la pantalla de login. El logo se guarda
  * hoy en disco local (ver src/lib/upload.ts, igual que las fotos de Obra o

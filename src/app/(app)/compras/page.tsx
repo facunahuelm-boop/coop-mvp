@@ -6,6 +6,7 @@ import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/compon
 import Link from "next/link";
 import dayjs from "dayjs";
 import { crearSolicitudAction } from "@/lib/actions/compras";
+import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 
 const estadoColor: Record<string, "gray" | "amarillo" | "verde" | "brand" | "rojo"> = {
   pendiente_cotizacion: "gray", en_comparacion: "amarillo", aprobada: "brand", pedida: "amarillo", entregada: "verde", rechazada: "rojo",
@@ -41,7 +42,10 @@ export default async function ComprasPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-[var(--color-brand-900)]">{s.material} <span className="font-normal text-ink/50">({s.cantidad} {s.unidad})</span></p>
-                  <p className="text-xs text-ink/50 mt-0.5">{s.comision} · {s.solicitante_nombre} {s.fecha_necesaria && `· necesario para el ${dayjs(s.fecha_necesaria).format("DD/MM")}`}</p>
+                  <p className="text-xs text-ink/50 mt-0.5">
+                    {CATEGORIA_COMPRA_LABEL[s.categoria] || CATEGORIA_COMPRA_LABEL.obra} · {s.comision} · {s.solicitante_nombre}
+                    {s.fecha_necesaria && ` · necesario para el ${dayjs(s.fecha_necesaria).format("DD/MM")}`}
+                  </p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <Badge color={estadoColor[s.estado]}>{estadoLabel[s.estado]}</Badge>
@@ -59,12 +63,20 @@ export default async function ComprasPage() {
           <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Nueva solicitud de compra</summary>
           <Card className="mt-3">
             <form action={crearSolicitudAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label>Categoría de la compra</Label>
+                <select name="categoria" className={inputClass} defaultValue="obra">
+                  {Object.entries(CATEGORIA_COMPRA_LABEL).map(([valor, label]) => (
+                    <option key={valor} value={valor}>{label}</option>
+                  ))}
+                </select>
+              </div>
               <div><Label>Comisión solicitante</Label><input name="comision" required className={inputClass} placeholder="Comisión de Obra" /></div>
               <div><Label>Material</Label><input name="material" required className={inputClass} /></div>
               <div><Label>Cantidad</Label><input name="cantidad" type="number" step="0.01" required className={inputClass} /></div>
               <div><Label>Unidad</Label><input name="unidad" required className={inputClass} placeholder="kg, unidad, m2…" /></div>
               <div className="sm:col-span-2"><Label>Especificación</Label><input name="especificacion" className={inputClass} /></div>
-              <div><Label>Etapa de obra</Label><input name="etapa_obra" className={inputClass} /></div>
+              <div><Label>Etapa de obra (si corresponde)</Label><input name="etapa_obra" className={inputClass} /></div>
               <div><Label>Fecha necesaria</Label><input type="date" name="fecha_necesaria" className={inputClass} /></div>
               <div>
                 <Label>Prioridad</Label>
