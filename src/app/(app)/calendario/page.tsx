@@ -4,6 +4,7 @@ import { all } from "@/lib/db";
 import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
+import { MonthCalendar } from "@/components/MonthCalendar";
 import dayjs from "dayjs";
 import Link from "next/link";
 
@@ -59,23 +60,25 @@ export default async function CalendarioPage() {
   const verComisiones = canRead(user.rol, "comisiones");
   const verFinanzasDetalle = ROLES_FINANZAS_DETALLE.includes(user.rol);
 
-  const hoy = dayjs().format("YYYY-MM-DD");
+  // Arranca desde el inicio del mes en curso (no desde "hoy") para que la
+  // grilla visual del mes actual no le falten los días que ya pasaron.
+  const desde = dayjs().startOf("month").format("YYYY-MM-DD");
 
   const [reuniones, jornadas, hitosObra, pagos, docsSeguridad] = await Promise.all([
     verComisiones
-      ? all<any>(`SELECT * FROM reuniones WHERE estado='planificada' AND fecha >= ? ORDER BY fecha ASC LIMIT 30`, [hoy])
+      ? all<any>(`SELECT * FROM reuniones WHERE estado='planificada' AND fecha >= ? ORDER BY fecha ASC LIMIT 40`, [desde])
       : Promise.resolve([] as any[]),
     verTrabajo
-      ? all<any>(`SELECT * FROM jornadas_trabajo WHERE estado='planificada' AND fecha >= ? ORDER BY fecha ASC LIMIT 30`, [hoy])
+      ? all<any>(`SELECT * FROM jornadas_trabajo WHERE estado='planificada' AND fecha >= ? ORDER BY fecha ASC LIMIT 40`, [desde])
       : Promise.resolve([] as any[]),
     verObra
-      ? all<any>(`SELECT * FROM tareas_obra WHERE estado != 'completada' AND fecha_fin_prevista IS NOT NULL AND fecha_fin_prevista >= ? ORDER BY fecha_fin_prevista ASC LIMIT 30`, [hoy])
+      ? all<any>(`SELECT * FROM tareas_obra WHERE estado != 'completada' AND fecha_fin_prevista IS NOT NULL AND fecha_fin_prevista >= ? ORDER BY fecha_fin_prevista ASC LIMIT 40`, [desde])
       : Promise.resolve([] as any[]),
     verFinanzasDetalle
-      ? all<any>(`SELECT * FROM compromisos_futuros WHERE fecha_estimada >= ? ORDER BY fecha_estimada ASC LIMIT 30`, [hoy])
+      ? all<any>(`SELECT * FROM compromisos_futuros WHERE fecha_estimada >= ? ORDER BY fecha_estimada ASC LIMIT 40`, [desde])
       : Promise.resolve([] as any[]),
     verSeguridad
-      ? all<any>(`SELECT * FROM documentos_seguridad WHERE fecha_vencimiento IS NOT NULL AND fecha_vencimiento >= ? ORDER BY fecha_vencimiento ASC LIMIT 30`, [hoy])
+      ? all<any>(`SELECT * FROM documentos_seguridad WHERE fecha_vencimiento IS NOT NULL AND fecha_vencimiento >= ? ORDER BY fecha_vencimiento ASC LIMIT 40`, [desde])
       : Promise.resolve([] as any[]),
   ]);
 
@@ -123,18 +126,26 @@ export default async function CalendarioPage() {
   ].sort((a, b) => a.fecha.localeCompare(b.fecha));
 
   // Agrupado en lenguaje cotidiano en vez de fechas técnicas — más fácil de
-  // leer de un vistazo que una grilla de calendario.
+  // leer de un vistazo que una lista de fechas técnicas. Solo lo de hoy en
+  // adelante: lo que ya pasó este mes se ve en la grilla visual de arriba,
+  // no hace falta repetirlo acá abajo.
+  const hoy = dayjs().format("YYYY-MM-DD");
   const en7dias = dayjs().add(7, "day").format("YYYY-MM-DD");
   const en30dias = dayjs().add(30, "day").format("YYYY-MM-DD");
+  const eventosFuturos = eventos.filter((e) => e.fecha >= hoy);
   const grupos: { titulo: string; items: Evento[] }[] = [
-    { titulo: "Esta semana", items: eventos.filter((e) => e.fecha <= en7dias) },
-    { titulo: "Este mes", items: eventos.filter((e) => e.fecha > en7dias && e.fecha <= en30dias) },
-    { titulo: "Más adelante", items: eventos.filter((e) => e.fecha > en30dias) },
+    { titulo: "Esta semana", items: eventosFuturos.filter((e) => e.fecha <= en7dias) },
+    { titulo: "Este mes", items: eventosFuturos.filter((e) => e.fecha > en7dias && e.fecha <= en30dias) },
+    { titulo: "Más adelante", items: eventosFuturos.filter((e) => e.fecha > en30dias) },
   ].filter((g) => g.items.length > 0);
 
   return (
     <div>
       <PageHeader title="Calendario" subtitle="Reuniones, jornadas, obra y vencimientos, todo junto" />
+
+      <Card className="mb-6">
+        <MonthCalendar eventos={eventos} />
+      </Card>
 
       {grupos.length === 0 ? (
         <EmptyState>No hay nada agendado por ahora.</EmptyState>

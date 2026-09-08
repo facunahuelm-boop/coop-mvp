@@ -60,8 +60,9 @@ export async function tareasObraConSemaforo() {
 // ============ FINANZAS ============
 export async function resumenFinanciero() {
   const en30dias = dayjs().add(30, "day").format("YYYY-MM-DD");
+  const inicioMes = dayjs().startOf("month").format("YYYY-MM-DD");
 
-  const [ingresosRow, egresosRow, comprometidoRow, gastosProyectadosRow, porCategoria, presupuestoVsReal] =
+  const [ingresosRow, egresosRow, comprometidoRow, gastosProyectadosRow, ingresosMesRow, egresosMesRow, porCategoria, presupuestoVsReal] =
     await Promise.all([
       get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso'`),
       get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso'`),
@@ -69,6 +70,19 @@ export async function resumenFinanciero() {
       get<{ s: number }>(
         `SELECT COALESCE(SUM(monto),0) as s FROM compromisos_futuros WHERE fecha_estimada <= ?`,
         [en30dias]
+      ),
+      // Ingresos del mes en curso — a diferencia de "ingresos" (histórico
+      // acumulado desde siempre), esto es lo que entró desde el día 1 del mes
+      // actual. "fecha" es TEXT (puede ser una fecha simple o un timestamp
+      // completo según cómo se cargó el movimiento), por eso se compara
+      // convertida a fecha en vez de como texto crudo.
+      get<{ s: number }>(
+        `SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso' AND fecha::date >= ?::date`,
+        [inicioMes]
+      ),
+      get<{ s: number }>(
+        `SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso' AND fecha::date >= ?::date`,
+        [inicioMes]
       ),
       all<{ categoria: string; total: number }>(
         `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='egreso' GROUP BY categoria ORDER BY total DESC`
@@ -86,8 +100,21 @@ export async function resumenFinanciero() {
   const comprometido = comprometidoRow?.s ?? 0;
   const gastosProyectados = gastosProyectadosRow?.s ?? 0;
   const disponiblePrudencial = saldo - comprometido;
+  const ingresosMes = ingresosMesRow?.s ?? 0;
+  const egresosMes = egresosMesRow?.s ?? 0;
 
-  return { ingresos, egresos, saldo, comprometido, gastosProyectados, disponiblePrudencial, porCategoria, presupuestoVsReal };
+  return {
+    ingresos,
+    egresos,
+    saldo,
+    comprometido,
+    gastosProyectados,
+    disponiblePrudencial,
+    ingresosMes,
+    egresosMes,
+    porCategoria,
+    presupuestoVsReal,
+  };
 }
 
 /**

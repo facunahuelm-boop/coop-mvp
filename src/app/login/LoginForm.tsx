@@ -3,6 +3,14 @@
 import { useActionState } from "react";
 import { loginAction } from "@/lib/actions/auth";
 import { inputClass, Label } from "@/components/ui";
+import { Logo3D } from "@/components/Logo3D";
+
+// Logo por defecto de la plataforma cuando la cooperativa todavía no cargó
+// el suyo propio en Configuración → Marca (ver login/page.tsx). El lockup 3D
+// de COOVA reemplaza únicamente a ESE placeholder genérico — si una
+// cooperativa tiene su propia marca cargada, esta pantalla sigue mostrando
+// su logo tal cual, sin tocarlo.
+const LOGO_DEFAULT = "/logo-coova.png";
 
 const DEMO_USERS = [
   ["ana@coop.uy", "Socio/a"],
@@ -31,7 +39,11 @@ export function LoginForm({ nombre, logoUrl, colorPrimario }: Props) {
     <div className="min-h-full flex-1 flex items-center justify-center bg-[var(--color-page-bg)] px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-6 text-center">
-          <img src={logoUrl} alt={nombre} className="h-24 w-24 mb-3 drop-shadow-sm rounded-full object-cover" />
+          {logoUrl === LOGO_DEFAULT ? (
+            <Logo3D src="/coova-logo-vertical.png" width={140} height={178} className="mb-2" />
+          ) : (
+            <img src={logoUrl} alt={nombre} className="h-24 w-24 mb-3 drop-shadow-sm rounded-full object-cover" />
+          )}
           <h1 className="text-lg font-bold" style={{ color: colorPrimario }}>
             Sistema de gestión de la cooperativa
           </h1>

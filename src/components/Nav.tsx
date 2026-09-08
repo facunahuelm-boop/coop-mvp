@@ -5,6 +5,7 @@ import { canRead, ROLE_LABELS, type Module } from "@/lib/roles";
 import { logoutAction } from "@/lib/actions/auth";
 import { NavLink } from "./NavLink";
 import { NavGroupSection } from "./NavGroupSection";
+import { Logo3D } from "./Logo3D";
 import {
   Home,
   Bell,
@@ -176,6 +177,9 @@ export function Sidebar({ user }: { user: SessionUser }) {
       className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 text-white"
       style={{ backgroundColor: color_primario }}
     >
+      <div className="px-5 pt-4 pb-2 flex justify-center border-b border-white/5">
+        <Logo3D src="/coova-logo-horizontal.png" width={112} height={33} />
+      </div>
       <div className="px-5 py-5 flex items-center gap-2 border-b border-white/10">
         <img src={logo_url || "/logo-coova.png"} alt={nombre} className="h-9 w-9 rounded-full object-cover" />
         <div>

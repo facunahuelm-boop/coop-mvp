@@ -5,6 +5,7 @@ import { tareasObraConSemaforo, resumenFinanciero, cuentasPorCobrar, recalcularA
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
+import { MonthCalendar, type EventoCalendario } from "@/components/MonthCalendar";
 import { Saludo } from "@/components/Saludo";
 import { InstallHint } from "@/components/InstallHint";
 import dayjs from "dayjs";
@@ -67,17 +68,6 @@ function estadoFecha(fecha: string | null): { texto: string; color: "rojo" | "am
   return { texto: `Vence ${dayjs(fecha).format("DD/MM")}`, color: "verde" };
 }
 
-const MOD_HREF: Record<string, string> = {
-  obra: "/obra",
-  trabajo: "/trabajo",
-  compras: "/compras",
-  seguridad: "/seguridad",
-  finanzas: "/finanzas",
-  reclamos: "/reclamos",
-};
-
-type Chip = { color: "rojo" | "amarillo" | "brand"; texto: string; href: string };
-
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -100,6 +90,7 @@ export default async function DashboardPage() {
   // (aprueban/configuran todos los módulos) — para ellos, "Comisiones" y las
   // alertas por rol muestran una vista de conjunto en vez de solo lo propio.
   const esOversight = user.rol === "consejo_directivo" || user.rol === "admin";
+  const desdeMes = dayjs().startOf("month").format("YYYY-MM-DD");
 
   const [
     tareas,
@@ -123,6 +114,11 @@ export default async function DashboardPage() {
     proximosHitos,
     comunicados,
     actividad,
+    reunionesMes,
+    jornadasMes,
+    hitosObraMes,
+    pagosMes,
+    docsSeguridadMes,
   ] = await Promise.all([
     verObra ? tareasObraConSemaforo() : Promise.resolve([] as any[]),
     verObra
@@ -178,6 +174,23 @@ export default async function DashboardPage() {
       : Promise.resolve([] as any[]),
     verAuditoria
       ? all<any>(`SELECT a.*, u.nombre as usuario_nombre FROM auditoria a LEFT JOIN users u ON u.id = a.usuario_id ORDER BY a.fecha DESC LIMIT 5`)
+      : Promise.resolve([] as any[]),
+    // Mini-calendario visual: mismas fuentes que /calendario, acotadas al mes
+    // en curso — no hace falta traer todo lo que trae la pantalla completa.
+    verComisiones
+      ? all<any>(`SELECT * FROM reuniones WHERE estado='planificada' AND fecha >= ? ORDER BY fecha ASC LIMIT 40`, [desdeMes])
+      : Promise.resolve([] as any[]),
+    verTrabajo
+      ? all<any>(`SELECT * FROM jornadas_trabajo WHERE estado='planificada' AND fecha >= ? ORDER BY fecha ASC LIMIT 40`, [desdeMes])
+      : Promise.resolve([] as any[]),
+    verObra
+      ? all<any>(`SELECT * FROM tareas_obra WHERE estado != 'completada' AND fecha_fin_prevista IS NOT NULL AND fecha_fin_prevista >= ? ORDER BY fecha_fin_prevista ASC LIMIT 40`, [desdeMes])
+      : Promise.resolve([] as any[]),
+    verFinanzasDetalle
+      ? all<any>(`SELECT * FROM compromisos_futuros WHERE fecha_estimada >= ? ORDER BY fecha_estimada ASC LIMIT 40`, [desdeMes])
+      : Promise.resolve([] as any[]),
+    verSeguridad
+      ? all<any>(`SELECT * FROM documentos_seguridad WHERE fecha_vencimiento IS NOT NULL AND fecha_vencimiento >= ? ORDER BY fecha_vencimiento ASC LIMIT 40`, [desdeMes])
       : Promise.resolve([] as any[]),
   ]);
 
@@ -267,35 +280,7 @@ export default async function DashboardPage() {
   ]
     .sort((a, b) => (a.fecha || "9999-12-31").localeCompare(b.fecha || "9999-12-31"))
     .slice(0, 4);
-  const misVencidasComision = misTareasComisionRaw.filter((t: any) => t.fecha_vencimiento && t.fecha_vencimiento < dayjs().format("YYYY-MM-DD")).length;
-  const misVencidasObra = misTareasObraRaw.filter((t: any) => t.fecha_fin_prevista && t.fecha_fin_prevista < dayjs().format("YYYY-MM-DD")).length;
   const mostrarMisTareas = misTareas.length > 0 || user.rol !== "socio";
-
-  // "Necesita tu atención": reemplaza la barra roja de ancho completo. Se
-  // arma con lo más urgente y accionable para ESTA persona — sus propias
-  // tareas vencidas, más las alertas ya calculadas por el motor de reglas
-  // que le corresponden a su rol (o a cualquiera, si no tienen rol asignado,
-  // o todas si tiene alcance de conjunto) — nunca alertas informativas, que
-  // no piden ninguna acción.
-  const atencion: Chip[] = [];
-  if (misVencidasComision > 0) {
-    atencion.push({ color: "rojo", texto: `${misVencidasComision} tarea${misVencidasComision > 1 ? "s" : ""} tuya${misVencidasComision > 1 ? "s" : ""} vencida${misVencidasComision > 1 ? "s" : ""}`, href: "/comisiones" });
-  }
-  if (misVencidasObra > 0) {
-    atencion.push({ color: "rojo", texto: `${misVencidasObra} tarea${misVencidasObra > 1 ? "s" : ""} de obra vencida${misVencidasObra > 1 ? "s" : ""}`, href: "/obra" });
-  }
-  for (const a of alertas) {
-    if (a.severidad === "informativa") continue;
-    if (!esOversight && a.asignado_a_rol && a.asignado_a_rol !== user.rol) continue;
-    atencion.push({ color: a.severidad === "critica" ? "rojo" : "amarillo", texto: a.titulo, href: MOD_HREF[a.origen_modulo] || "/alertas" });
-    if (atencion.length >= 5) break;
-  }
-  if (atencion.length < 5 && proximaReunion) {
-    const dias = dayjs(proximaReunion.fecha).startOf("day").diff(dayjs().startOf("day"), "day");
-    if (dias === 0) atencion.push({ color: "brand", texto: "Reunión hoy", href: "/reuniones" });
-    else if (dias === 1) atencion.push({ color: "brand", texto: "Reunión mañana", href: "/reuniones" });
-  }
-  const atencionFinal = atencion.slice(0, 5);
 
   // "Próximamente": lo más cercano en el tiempo entre reunión, jornada y
   // vencimiento financiero — máximo 3, ordenado por fecha.
@@ -330,6 +315,46 @@ export default async function DashboardPage() {
     });
   }
   proximamente.sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+  // Mini-calendario visual del mes: mismo criterio de colores por tipo que
+  // /calendario (ver components/MonthCalendar.tsx).
+  const eventosCalendario: EventoCalendario[] = [
+    ...reunionesMes.map((r: any) => ({
+      id: `r${r.id}`,
+      fecha: r.fecha,
+      titulo: r.titulo,
+      tipo: r.tipo === "asamblea" ? "asamblea" : "reunion",
+      href: `/reuniones/${r.id}`,
+    })),
+    ...jornadasMes.map((j: any) => ({
+      id: `j${j.id}`,
+      fecha: j.fecha,
+      titulo: "Jornada de trabajo",
+      tipo: "jornada",
+      href: `/trabajo/${j.id}`,
+    })),
+    ...hitosObraMes.map((h: any) => ({
+      id: `o${h.id}`,
+      fecha: h.fecha_fin_prevista,
+      titulo: h.nombre,
+      tipo: "obra",
+      href: `/obra/${h.id}`,
+    })),
+    ...pagosMes.map((p: any) => ({
+      id: `f${p.id}`,
+      fecha: p.fecha_estimada,
+      titulo: p.descripcion,
+      tipo: "finanzas",
+      href: "/finanzas",
+    })),
+    ...docsSeguridadMes.map((d: any) => ({
+      id: `s${d.id}`,
+      fecha: d.fecha_vencimiento,
+      titulo: `Vence: ${d.tipo}`,
+      tipo: "seguridad",
+      href: "/seguridad",
+    })),
+  ];
 
   // Comunicaciones: documentos ya categorizados "comunicaciones" + la
   // próxima asamblea planificada, si hay una.
@@ -378,24 +403,6 @@ export default async function DashboardPage() {
         }
       />
 
-      {/* Necesita tu atención — reemplaza la franja roja de ancho completo. */}
-      <div className="mb-5">
-        <p className="text-xs font-semibold text-ink-faint uppercase tracking-wide mb-2">Necesita tu atención</p>
-        {atencionFinal.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {atencionFinal.map((c, i) => (
-              <Link key={i} href={c.href} className="hover:opacity-80 transition-opacity">
-                <Badge color={c.color}>{c.texto}</Badge>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <p className="flex items-center gap-1.5 text-sm text-[var(--color-verde)]">
-            <CheckCircle2 size={15} /> Todo en orden por ahora.
-          </p>
-        )}
-      </div>
-
       {accesos.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1 mb-5 -mx-1 px-1">
           {accesos.map((a) => (
@@ -418,16 +425,23 @@ export default async function DashboardPage() {
             <SectionTitle action={<Button href="/finanzas" variant="ghost" className="!px-2 !py-1 text-xs">Ver finanzas →</Button>}>
               {tituloConIcono(<Wallet size={17} />, "Finanzas")}
             </SectionTitle>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <StatTile
+                label="Balance total"
+                value={money(fin.saldo)}
+                color={fin.saldo < 0 ? "rojo" : "verde"}
+              />
               <StatTile
                 label="Saldo disponible"
                 value={money(fin.disponiblePrudencial)}
                 color={fin.disponiblePrudencial < 0 ? "rojo" : fin.disponiblePrudencial < fin.gastosProyectados ? "amarillo" : "verde"}
               />
+              <StatTile label="Ingresos del mes" value={money(fin.ingresosMes)} color="verde" />
               <StatTile label="Comprometido" value={money(fin.comprometido)} />
               <StatTile label="Pendiente de cobrar" value={money(pendienteCobrar?.totalACobrar ?? 0)} />
               <StatTile label="Próximos pagos" value={String(proximosPagosCountRow?.n ?? 0)} />
             </div>
+            <p className="text-xs text-ink-faint mt-2">Balance total: todo el dinero de la cooperativa a hoy (ingresos menos egresos, desde siempre).</p>
             {proximosPagos.length > 0 && (
               <ul className="mt-3 text-xs text-ink-muted space-y-1">
                 {proximosPagos.map((p) => (
@@ -496,6 +510,16 @@ export default async function DashboardPage() {
                 </li>
               ))}
             </ul>
+          </Card>
+        )}
+
+        {/* Calendario visual del mes */}
+        {eventosCalendario.length > 0 && (
+          <Card>
+            <SectionTitle action={<Button href="/calendario" variant="ghost" className="!px-2 !py-1 text-xs">Ver calendario completo →</Button>}>
+              {tituloConIcono(<CalendarClock size={17} />, "Calendario")}
+            </SectionTitle>
+            <MonthCalendar eventos={eventosCalendario} compact />
           </Card>
         )}
 
