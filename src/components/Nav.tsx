@@ -14,6 +14,7 @@ import {
   HardHat,
   Handshake,
   ShieldCheck,
+  Wrench,
   Users,
   Compass,
   CalendarDays,
@@ -49,8 +50,20 @@ type NavGroup = { label: string; items: NavItem[] };
 // igual quiere dejar Obra visible como archivo histórico).
 const ICON_SIZE = 18;
 
-/** Módulos cuyo default de visibilidad depende de la etapa de la cooperativa. */
-const MODULOS_POR_ETAPA: Module[] = ["obra", "trabajo", "seguridad"];
+// "reclamos" (Reclamos y Mantenimiento, ver roles.ts) es el caso opuesto a
+// obra/trabajo/seguridad: no tiene mucho sentido antes de que haya gente
+// viviendo ahí, así que su default por etapa se invierte (visible recién en
+// "habitada") en vez de sumarse a la lista de abajo con el mismo criterio.
+//
+/** Módulos cuyo default de visibilidad depende de la etapa de la cooperativa,
+ * y en qué etapa(s) se muestran por defecto (el override manual de
+ * Configuración → Módulos siempre gana, sea cual sea el default). */
+const ETAPA_DEFAULT: Partial<Record<Module, string[]>> = {
+  obra: ["obra"],
+  trabajo: ["obra"],
+  seguridad: ["obra"],
+  reclamos: ["habitada"],
+};
 
 const GROUPS: NavGroup[] = [
   {
@@ -58,6 +71,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard", label: "Inicio", icon: <Home size={ICON_SIZE} /> },
       { href: "/alertas", label: "Alertas", icon: <Bell size={ICON_SIZE} /> },
+      { href: "/calendario", label: "Calendario", icon: <CalendarDays size={ICON_SIZE} /> },
     ],
   },
   {
@@ -65,6 +79,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: "/compras", label: "Compras", icon: <ShoppingCart size={ICON_SIZE} />, mod: "compras" },
       { href: "/proveedores", label: "Proveedores", icon: <Truck size={ICON_SIZE} />, mod: "compras" },
+      { href: "/reclamos", label: "Reclamos", icon: <Wrench size={ICON_SIZE} />, mod: "reclamos" },
       { href: "/finanzas", label: "Finanzas", icon: <Wallet size={ICON_SIZE} />, mod: "finanzas" },
     ],
   },
@@ -125,11 +140,12 @@ const ALL_ITEMS: NavItem[] = GROUPS.flatMap((g) => g.items);
  * muestran mientras la cooperativa está "en obra".
  */
 function moduloVisible(mod: Module | undefined, etapa: string, overrides: Record<string, string>): boolean {
-  if (!mod || !MODULOS_POR_ETAPA.includes(mod)) return true;
+  const etapasDefault = mod ? ETAPA_DEFAULT[mod] : undefined;
+  if (!mod || !etapasDefault) return true;
   const forzado = overrides[mod];
   if (forzado === "mostrar") return true;
   if (forzado === "ocultar") return false;
-  return etapa === "obra";
+  return etapasDefault.includes(etapa);
 }
 
 function itemsFor(user: SessionUser) {

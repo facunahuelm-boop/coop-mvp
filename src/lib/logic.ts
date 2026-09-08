@@ -219,6 +219,23 @@ export async function recalcularAlertas() {
     }
   }
 
+  // Reclamos de alta prioridad todavía sin tomar (Reclamos y Mantenimiento)
+  const reclamosAltaPrioridad = await all<any>(
+    `SELECT * FROM reclamos WHERE estado='abierto' AND prioridad='alta'`
+  );
+  for (const r of reclamosAltaPrioridad) {
+    await crearAlerta({
+      tipo: "reclamo_alta_prioridad",
+      severidad: "importante",
+      origen_modulo: "reclamos",
+      titulo: `Reclamo de alta prioridad sin tomar: ${r.titulo}`,
+      descripcion: r.descripcion || "Sin descripción adicional.",
+      asignado_a_rol: "comision_seguridad",
+      ref_tabla: "reclamos",
+      ref_id: r.id,
+    });
+  }
+
   // Finanzas: disponible prudencial bajo o negativo
   const fin = await resumenFinanciero();
   if (fin.disponiblePrudencial < 0) {
@@ -453,6 +470,14 @@ export async function buscarGlobal(q: string, rol: Role): Promise<ResultadoBusqu
         `SELECT id, titulo, tipo, estado FROM reuniones WHERE titulo LIKE ? OR orden_del_dia LIKE ? LIMIT 10`,
         [like, like]
       ).then((rows) => rows.map((r) => ({ tipo: "reunion", id: r.id, titulo: r.titulo, modulo: "Reuniones", estado: r.estado, href: `/reuniones/${r.id}` })))
+    );
+  }
+  if (canRead(rol, "reclamos")) {
+    fuentes.push(
+      all<any>(
+        `SELECT id, titulo, estado FROM reclamos WHERE titulo LIKE ? OR descripcion LIKE ? LIMIT 10`,
+        [like, like]
+      ).then((rows) => rows.map((r) => ({ tipo: "reclamo", id: r.id, titulo: r.titulo, modulo: "Reclamos", estado: r.estado, href: `/reclamos` })))
     );
   }
   if (canRead(rol, "socios")) {

@@ -33,12 +33,12 @@ export async function actualizarEtapaAction(formData: FormData) {
 /**
  * Fase D (etapas + módulos): guarda el override manual de visibilidad para
  * los módulos que por defecto dependen de la etapa (obra, trabajo,
- * seguridad) — ver moduloVisible() en components/Nav.tsx. "auto" borra el
- * override de ese módulo (vuelve a depender de la etapa); "mostrar"/
+ * seguridad, reclamos) — ver moduloVisible() en components/Nav.tsx. "auto"
+ * borra el override de ese módulo (vuelve a depender de la etapa); "mostrar"/
  * "ocultar" lo fuerzan. Nunca toca los datos de esos módulos: sólo cambia
  * qué aparece en el menú.
  */
-const MODULOS_CON_OVERRIDE = ["obra", "trabajo", "seguridad"] as const;
+const MODULOS_CON_OVERRIDE = ["obra", "trabajo", "seguridad", "reclamos"] as const;
 const VALORES_OVERRIDE = ["auto", "mostrar", "ocultar"] as const;
 
 export async function actualizarModulosAction(formData: FormData) {

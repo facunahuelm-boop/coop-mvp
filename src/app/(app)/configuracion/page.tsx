@@ -23,6 +23,7 @@ const MODULOS_LABEL: Record<string, string> = {
   obra: "Obra (cronograma y avance de la construcción)",
   trabajo: "Trabajo (jornadas de ayuda mutua)",
   seguridad: "Seguridad e higiene",
+  reclamos: "Reclamos y mantenimiento (una vez habitada)",
 };
 
 export default async function ConfiguracionPage() {

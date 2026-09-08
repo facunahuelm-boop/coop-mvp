@@ -22,3 +22,23 @@ export const CATEGORIA_COMPRA_LABEL: Record<string, string> = {
   espacios_comunes: "Espacios comunes",
   otros: "Otros",
 };
+
+/**
+ * Reclamos y Mantenimiento (etapa habitada — ver moduloVisible() en Nav.tsx):
+ * categoriza el problema reportado, no reemplaza la vivienda/espacio común
+ * (eso es un campo aparte, opcional).
+ */
+export const CATEGORIA_RECLAMO_LABEL: Record<string, string> = {
+  filtracion: "Filtración / humedad",
+  electricidad: "Electricidad",
+  plomeria: "Plomería",
+  espacios_comunes: "Espacios comunes",
+  estructura: "Estructura / mampostería",
+  otros: "Otros",
+};
+
+export const PRIORIDAD_RECLAMO_LABEL: Record<string, string> = {
+  baja: "Baja",
+  media: "Media",
+  alta: "Alta",
+};

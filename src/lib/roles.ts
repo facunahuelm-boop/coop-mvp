@@ -31,7 +31,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 type Access = "none" | "read" | "edit" | "approve" | "config";
 
-export type Module = "obra" | "trabajo" | "compras" | "seguridad" | "finanzas" | "documentos" | "auditoria" | "comisiones" | "socios";
+export type Module = "obra" | "trabajo" | "compras" | "seguridad" | "finanzas" | "documentos" | "auditoria" | "comisiones" | "socios" | "reclamos";
 
 // Matriz de permisos (sección 7 del análisis). Punto de partida configurable,
 // no una definición legal ni estatutaria cerrada.
@@ -47,18 +47,27 @@ export type Module = "obra" | "trabajo" | "compras" | "seguridad" | "finanzas" |
 // básica), administración es quien día a día da de alta socios/viviendas y
 // gestiona la lista de espera, consejo directivo aprueba (ej: incorporar a
 // alguien de la lista de espera como socio pleno), fiscal solo mira.
+//
+// "reclamos" (Reclamos y Mantenimiento, etapa habitada — ver moduloVisible()
+// en Nav.tsx): a diferencia de compras, acá cualquier socio necesita poder
+// reportar un problema de su vivienda o de un espacio común sin depender de
+// que alguien de una comisión lo cargue por él, así que tiene "edit" (crear
+// + ver) en vez de "read". Administración y la Comisión de Seguridad (o el
+// técnico) son quienes día a día toman y resuelven los reclamos; consejo
+// directivo aprueba/cierra con más alcance; el resto de las comisiones (que
+// no tienen nada que ver con mantenimiento del edificio) solo miran.
 const MATRIX: Record<Role, Record<Module, Access>> = {
-  socio: { obra: "read", trabajo: "read", compras: "none", seguridad: "read", finanzas: "read", documentos: "read", auditoria: "none", comisiones: "read", socios: "read" },
-  comision_obra: { obra: "edit", trabajo: "read", compras: "edit", seguridad: "read", finanzas: "none", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read" },
-  comision_trabajo: { obra: "read", trabajo: "edit", compras: "edit", seguridad: "read", finanzas: "none", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read" },
-  comision_compras: { obra: "read", trabajo: "read", compras: "edit", seguridad: "read", finanzas: "read", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read" },
-  comision_seguridad: { obra: "read", trabajo: "read", compras: "edit", seguridad: "edit", finanzas: "none", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read" },
-  administracion: { obra: "read", trabajo: "read", compras: "read", seguridad: "read", finanzas: "edit", documentos: "edit", auditoria: "none", comisiones: "edit", socios: "edit" },
-  tesoreria: { obra: "read", trabajo: "read", compras: "approve", seguridad: "read", finanzas: "approve", documentos: "read", auditoria: "read", comisiones: "read", socios: "read" },
-  consejo_directivo: { obra: "approve", trabajo: "approve", compras: "approve", seguridad: "approve", finanzas: "approve", documentos: "edit", auditoria: "read", comisiones: "approve", socios: "approve" },
-  fiscal: { obra: "read", trabajo: "read", compras: "read", seguridad: "read", finanzas: "read", documentos: "read", auditoria: "read", comisiones: "read", socios: "read" },
-  tecnico: { obra: "edit", trabajo: "read", compras: "read", seguridad: "edit", finanzas: "none", documentos: "read", auditoria: "none", comisiones: "read", socios: "read" },
-  admin: { obra: "config", trabajo: "config", compras: "config", seguridad: "config", finanzas: "config", documentos: "config", auditoria: "read", comisiones: "config", socios: "config" },
+  socio: { obra: "read", trabajo: "read", compras: "none", seguridad: "read", finanzas: "read", documentos: "read", auditoria: "none", comisiones: "read", socios: "read", reclamos: "edit" },
+  comision_obra: { obra: "edit", trabajo: "read", compras: "edit", seguridad: "read", finanzas: "none", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read", reclamos: "read" },
+  comision_trabajo: { obra: "read", trabajo: "edit", compras: "edit", seguridad: "read", finanzas: "none", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read", reclamos: "read" },
+  comision_compras: { obra: "read", trabajo: "read", compras: "edit", seguridad: "read", finanzas: "read", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read", reclamos: "read" },
+  comision_seguridad: { obra: "read", trabajo: "read", compras: "edit", seguridad: "edit", finanzas: "none", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read", reclamos: "edit" },
+  administracion: { obra: "read", trabajo: "read", compras: "read", seguridad: "read", finanzas: "edit", documentos: "edit", auditoria: "none", comisiones: "edit", socios: "edit", reclamos: "edit" },
+  tesoreria: { obra: "read", trabajo: "read", compras: "approve", seguridad: "read", finanzas: "approve", documentos: "read", auditoria: "read", comisiones: "read", socios: "read", reclamos: "read" },
+  consejo_directivo: { obra: "approve", trabajo: "approve", compras: "approve", seguridad: "approve", finanzas: "approve", documentos: "edit", auditoria: "read", comisiones: "approve", socios: "approve", reclamos: "approve" },
+  fiscal: { obra: "read", trabajo: "read", compras: "read", seguridad: "read", finanzas: "read", documentos: "read", auditoria: "read", comisiones: "read", socios: "read", reclamos: "read" },
+  tecnico: { obra: "edit", trabajo: "read", compras: "read", seguridad: "edit", finanzas: "none", documentos: "read", auditoria: "none", comisiones: "read", socios: "read", reclamos: "edit" },
+  admin: { obra: "config", trabajo: "config", compras: "config", seguridad: "config", finanzas: "config", documentos: "config", auditoria: "read", comisiones: "config", socios: "config", reclamos: "config" },
 };
 
 export function accessTo(role: Role, mod: Module): Access {

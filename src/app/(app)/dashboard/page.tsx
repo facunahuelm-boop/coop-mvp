@@ -15,6 +15,7 @@ import {
   Handshake,
   ShoppingCart,
   ShieldCheck,
+  Wrench,
   Wallet,
   Bell,
   Compass,
@@ -38,10 +39,10 @@ import {
 //
 // Todo lo que se muestra sale de tablas que ya existen (tareas, tareas_obra,
 // alertas, comisiones, documentos categoría "comunicaciones", auditoría,
-// movimientos_cuenta_socio) — no se agregó ningún módulo nuevo. "Reclamos y
-// mantenimiento" y un calendario unificado no entran todavía porque esos
-// módulos no existen en el sistema (ver §02 del Plan Maestro); en cuanto se
-// construyan, alcanza con agregarles su sección acá.
+// movimientos_cuenta_socio, reclamos) — no se agregó ningún dato nuevo, sólo
+// se reorganizó cómo se presenta. El calendario unificado (/calendario) junta
+// las mismas fechas (reuniones, jornadas, hitos de obra, vencimientos) en una
+// sola pantalla para quien quiera ver más que lo más urgente de acá.
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
 
@@ -72,6 +73,7 @@ const MOD_HREF: Record<string, string> = {
   compras: "/compras",
   seguridad: "/seguridad",
   finanzas: "/finanzas",
+  reclamos: "/reclamos",
 };
 
 type Chip = { color: "rojo" | "amarillo" | "brand"; texto: string; href: string };
@@ -90,6 +92,7 @@ export default async function DashboardPage() {
   const verTrabajo = canRead(user.rol, "trabajo") && moduloVisible("trabajo", user.etapa, user.modulos_override);
   const verSeguridad = canRead(user.rol, "seguridad") && moduloVisible("seguridad", user.etapa, user.modulos_override);
   const verCompras = canRead(user.rol, "compras");
+  const verReclamos = canRead(user.rol, "reclamos") && moduloVisible("reclamos", user.etapa, user.modulos_override);
   const verComisiones = canRead(user.rol, "comisiones");
   const verDocumentos = canRead(user.rol, "documentos");
   const verAuditoria = canRead(user.rol, "auditoria");
@@ -108,6 +111,7 @@ export default async function DashboardPage() {
     docsVencidosRow,
     docsPorVencerRow,
     riesgosAbiertosRow,
+    reclamosRow,
     fin,
     proximosPagos,
     proximosPagosCountRow,
@@ -144,6 +148,11 @@ export default async function DashboardPage() {
       : Promise.resolve(undefined),
     verSeguridad
       ? get<{ n: number }>(`SELECT COUNT(*) as n FROM incidentes_seguridad WHERE estado != 'resuelto'`)
+      : Promise.resolve(undefined),
+    verReclamos
+      ? get<{ abiertos: number; en_proceso: number }>(
+          `SELECT COUNT(*) FILTER (WHERE estado='abierto')::int as abiertos, COUNT(*) FILTER (WHERE estado='en_proceso')::int as en_proceso FROM reclamos`
+        )
       : Promise.resolve(undefined),
     canRead(user.rol, "finanzas") ? resumenFinanciero() : Promise.resolve(null),
     verFinanzasDetalle ? all<any>(`SELECT * FROM compromisos_futuros ORDER BY fecha_estimada ASC LIMIT 3`) : Promise.resolve([] as any[]),
@@ -195,6 +204,8 @@ export default async function DashboardPage() {
   const docsVencidos = docsVencidosRow?.n ?? 0;
   const docsPorVencer = docsPorVencerRow?.n ?? 0;
   const riesgosAbiertos = riesgosAbiertosRow?.n ?? 0;
+  const reclamosAbiertos = reclamosRow?.abiertos ?? 0;
+  const reclamosEnProceso = reclamosRow?.en_proceso ?? 0;
 
   const criticas = alertas.filter((a) => a.severidad === "critica");
   const importantes = alertas.filter((a) => a.severidad === "importante");
@@ -336,6 +347,7 @@ export default async function DashboardPage() {
   if (verTrabajo && canEdit(user.rol, "trabajo")) accesos.push({ label: "Gestionar jornada de trabajo", href: "/trabajo", icon: <Handshake size={16} /> });
   if (canEdit(user.rol, "compras")) accesos.push({ label: "Nueva solicitud de compra", href: "/compras", icon: <ShoppingCart size={16} /> });
   if (verSeguridad && canEdit(user.rol, "seguridad")) accesos.push({ label: "Cargar inspección o incidente", href: "/seguridad", icon: <ShieldCheck size={16} /> });
+  if (verReclamos && canEdit(user.rol, "reclamos")) accesos.push({ label: "Reportar un problema", href: "/reclamos", icon: <Wrench size={16} /> });
   if (canEdit(user.rol, "finanzas")) accesos.push({ label: "Registrar movimiento", href: "/finanzas", icon: <Wallet size={16} /> });
   if (canEdit(user.rol, "documentos")) accesos.push({ label: "Subir documento", href: "/documentos", icon: <FileText size={16} /> });
 
@@ -468,7 +480,9 @@ export default async function DashboardPage() {
         {/* Próximamente */}
         {proximamente.length > 0 && (
           <Card>
-            <SectionTitle>{tituloConIcono(<CalendarClock size={17} />, "Próximamente")}</SectionTitle>
+            <SectionTitle action={<Button href="/calendario" variant="ghost" className="!px-2 !py-1 text-xs">Ver calendario →</Button>}>
+              {tituloConIcono(<CalendarClock size={17} />, "Próximamente")}
+            </SectionTitle>
             <ul className="space-y-2">
               {proximamente.slice(0, 3).map((p, i) => (
                 <li key={i}>
@@ -522,6 +536,31 @@ export default async function DashboardPage() {
               </Card>
             )}
           </div>
+        )}
+
+        {/* Reclamos y mantenimiento: solo si hay algo abierto o en proceso */}
+        {verReclamos && (
+          <Card>
+            <SectionTitle action={<Button href="/reclamos" variant="ghost" className="!px-2 !py-1 text-xs">Ver reclamos →</Button>}>
+              {tituloConIcono(<Wrench size={17} />, "Reclamos y mantenimiento")}
+            </SectionTitle>
+            {reclamosAbiertos > 0 || reclamosEnProceso > 0 ? (
+              <ul className="space-y-1.5">
+                {reclamosAbiertos > 0 && (
+                  <li className="flex items-center gap-1.5 text-sm text-ink">
+                    <span aria-hidden>🔴</span> {reclamosAbiertos} reclamo{reclamosAbiertos > 1 ? "s" : ""} pendiente{reclamosAbiertos > 1 ? "s" : ""}
+                  </li>
+                )}
+                {reclamosEnProceso > 0 && (
+                  <li className="flex items-center gap-1.5 text-sm text-ink">
+                    <span aria-hidden>🟠</span> {reclamosEnProceso} reparación{reclamosEnProceso > 1 ? "es" : ""} en proceso
+                  </li>
+                )}
+              </ul>
+            ) : (
+              <p className="text-sm text-ink-muted">Todo está al día.</p>
+            )}
+          </Card>
         )}
 
         {/* Trabajo de las comisiones: solo las que tienen algo pendiente */}
