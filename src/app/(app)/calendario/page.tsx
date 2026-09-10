@@ -4,7 +4,8 @@ import { all } from "@/lib/db";
 import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
-import { MonthCalendar } from "@/components/MonthCalendar";
+import { MonthCalendar, type EventoCalendario, type NotaCalendario } from "@/components/MonthCalendar";
+import { crearNotaCalendarioAction, editarNotaCalendarioAction, eliminarNotaCalendarioAction } from "@/lib/actions/calendarioNotas";
 import dayjs from "dayjs";
 import Link from "next/link";
 
@@ -30,6 +31,7 @@ type Evento = {
   sub?: string;
   tipo: Tipo;
   href: string;
+  hora?: string;
 };
 
 const TIPO_LABEL: Record<Tipo, string> = {
@@ -82,12 +84,30 @@ export default async function CalendarioPage() {
       : Promise.resolve([] as any[]),
   ]);
 
+  // Notas de calendario personalizadas (texto libre, cualquiera puede
+  // escribir una) — se guardan aparte de los eventos de cada módulo, ver
+  // migrations/0015_notas_calendario.sql.
+  const notasRaw = await all<any>(
+    `SELECT n.*, u.nombre as autor_nombre FROM notas_calendario n LEFT JOIN users u ON u.id = n.autor_id WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
+    [desde]
+  );
+  const notas: NotaCalendario[] = notasRaw.map((n: any) => ({
+    id: n.id,
+    fecha: n.fecha,
+    hora: n.hora,
+    titulo: n.titulo,
+    color: n.color,
+    autorNombre: n.autor_nombre || "—",
+    esPropia: n.autor_id === user.id || user.rol === "admin" || user.rol === "consejo_directivo",
+  }));
+
   const eventos: Evento[] = [
     ...reuniones.map((r: any) => ({
       id: `r${r.id}`,
       fecha: r.fecha,
       titulo: r.titulo,
       sub: dayjs(r.fecha).format("HH:mm"),
+      hora: dayjs(r.fecha).format("HH:mm"),
       tipo: (r.tipo === "asamblea" ? "asamblea" : "reunion") as Tipo,
       href: `/reuniones/${r.id}`,
     })),
@@ -144,7 +164,13 @@ export default async function CalendarioPage() {
       <PageHeader title="Calendario" subtitle="Reuniones, jornadas, obra y vencimientos, todo junto" />
 
       <Card className="mb-6">
-        <MonthCalendar eventos={eventos} />
+        <MonthCalendar
+          eventos={eventos}
+          notas={notas}
+          crearNota={crearNotaCalendarioAction}
+          editarNota={editarNotaCalendarioAction}
+          eliminarNota={eliminarNotaCalendarioAction}
+        />
       </Card>
 
       {grupos.length === 0 ? (

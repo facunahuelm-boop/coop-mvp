@@ -5,7 +5,8 @@ import { tareasObraConSemaforo, resumenFinanciero, cuentasPorCobrar, recalcularA
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
-import { MonthCalendar, type EventoCalendario } from "@/components/MonthCalendar";
+import { MonthCalendar, type EventoCalendario, type NotaCalendario } from "@/components/MonthCalendar";
+import { crearNotaCalendarioAction, editarNotaCalendarioAction, eliminarNotaCalendarioAction } from "@/lib/actions/calendarioNotas";
 import { InstallHint } from "@/components/InstallHint";
 import dayjs from "dayjs";
 import Link from "next/link";
@@ -119,6 +120,7 @@ export default async function DashboardPage() {
     hitosObraMes,
     pagosMes,
     docsSeguridadMes,
+    notasCalendarioMes,
   ] = await Promise.all([
     verObra ? tareasObraConSemaforo() : Promise.resolve([] as any[]),
     verObra
@@ -192,6 +194,12 @@ export default async function DashboardPage() {
     verSeguridad
       ? all<any>(`SELECT * FROM documentos_seguridad WHERE fecha_vencimiento IS NOT NULL AND fecha_vencimiento >= ? ORDER BY fecha_vencimiento ASC LIMIT 40`, [desdeMes])
       : Promise.resolve([] as any[]),
+    // Notas de calendario personalizadas (texto libre, cualquiera puede
+    // escribir una) — ver migrations/0015_notas_calendario.sql.
+    all<any>(
+      `SELECT n.*, u.nombre as autor_nombre FROM notas_calendario n LEFT JOIN users u ON u.id = n.autor_id WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
+      [desdeMes]
+    ),
   ]);
 
   const totalTareas = tareas.length;
@@ -325,6 +333,7 @@ export default async function DashboardPage() {
       titulo: r.titulo,
       tipo: r.tipo === "asamblea" ? "asamblea" : "reunion",
       href: `/reuniones/${r.id}`,
+      hora: dayjs(r.fecha).format("HH:mm"),
     })),
     ...jornadasMes.map((j: any) => ({
       id: `j${j.id}`,
@@ -355,6 +364,16 @@ export default async function DashboardPage() {
       href: "/seguridad",
     })),
   ];
+
+  const notasCalendario: NotaCalendario[] = notasCalendarioMes.map((n: any) => ({
+    id: n.id,
+    fecha: n.fecha,
+    hora: n.hora,
+    titulo: n.titulo,
+    color: n.color,
+    autorNombre: n.autor_nombre || "—",
+    esPropia: n.autor_id === user.id || user.rol === "admin" || user.rol === "consejo_directivo",
+  }));
 
   // Comunicaciones: documentos ya categorizados "comunicaciones" + la
   // próxima asamblea planificada, si hay una.
@@ -525,15 +544,22 @@ export default async function DashboardPage() {
           </Card>
         )}
 
-        {/* Calendario visual del mes */}
-        {eventosCalendario.length > 0 && (
-          <Card>
-            <SectionTitle action={<Button href="/calendario" variant="ghost" className="!px-2 !py-1 text-xs">Ver calendario completo →</Button>}>
-              {tituloConIcono(<CalendarClock size={17} />, "Calendario")}
-            </SectionTitle>
-            <MonthCalendar eventos={eventosCalendario} compact />
-          </Card>
-        )}
+        {/* Calendario visual de la semana: siempre visible (no solo cuando ya
+            hay algo cargado) porque ahora también sirve para agregar una nota
+            nueva — antes era solo de lectura. */}
+        <Card>
+          <SectionTitle action={<Button href="/calendario" variant="ghost" className="!px-2 !py-1 text-xs">Ver calendario completo →</Button>}>
+            {tituloConIcono(<CalendarClock size={17} />, "Calendario")}
+          </SectionTitle>
+          <MonthCalendar
+            eventos={eventosCalendario}
+            notas={notasCalendario}
+            compact
+            crearNota={crearNotaCalendarioAction}
+            editarNota={editarNotaCalendarioAction}
+            eliminarNota={eliminarNotaCalendarioAction}
+          />
+        </Card>
 
         {/* Compras y Seguridad: solo lo que necesita revisión */}
         {(verCompras || verSeguridad) && (
