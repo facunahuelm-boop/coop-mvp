@@ -177,13 +177,14 @@ export function Sidebar({ user }: { user: SessionUser }) {
       className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 text-white"
       style={{ backgroundColor: color_primario }}
     >
-      <div className="px-5 pt-4 pb-2 flex justify-center border-b border-white/5">
-        <Logo3D src="/coova-logo-horizontal.png" width={112} height={33} />
-      </div>
-      <div className="px-5 py-5 flex items-center gap-2 border-b border-white/10">
-        <img src={logo_url || "/logo-coova.png"} alt={nombre} className="h-9 w-9 rounded-full object-cover" />
-        <div>
-          <div className="text-sm font-bold leading-tight">{nombre}</div>
+      <div className="px-5 py-4 flex items-center gap-2.5 border-b border-white/10">
+        {logo_url ? (
+          <img src={logo_url} alt={nombre} className="h-9 w-9 rounded-full object-cover flex-shrink-0" />
+        ) : (
+          <Logo3D src="/coova-logo-horizontal.png" width={100} height={30} className="flex-shrink-0" />
+        )}
+        <div className="min-w-0">
+          <div className="text-sm font-bold leading-tight truncate">{nombre}</div>
           <div className="text-[11px] text-white/60 leading-tight">Sistema de gestión</div>
         </div>
       </div>
