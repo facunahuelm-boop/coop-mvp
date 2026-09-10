@@ -105,6 +105,54 @@ export async function enviarEmailAlerta(alerta: AlertaParaEmail): Promise<void> 
   }
 }
 
+/**
+ * Envía un mail "a mano" — la persona que lo escribe elige el destinatario
+ * (un usuario puntual o todos los integrantes de una comisión, ver
+ * actions/mails.ts) — a diferencia de enviarEmailAlerta, que dispara solo el
+ * motor de alertas. Usa la misma configuración SMTP de Configuración →
+ * Configuración de Email; si todavía no está cargada, tira un error claro
+ * en vez de fallar en silencio, porque acá sí hay alguien esperando una
+ * confirmación de que el mail salió.
+ *
+ * Los destinatarios reales van en CCO (bcc): así cada persona recibe el
+ * mensaje sin ver los emails de las demás. El campo "Para" queda con la
+ * casilla configurada de la cooperativa, para que el mail siempre tenga un
+ * destinatario visible aunque todo lo demás vaya en copia oculta.
+ */
+export async function enviarEmailPersonalizado(
+  destinatarios: string[],
+  asunto: string,
+  cuerpo: string,
+  deParte: string
+): Promise<void> {
+  const cfg = await getConfigEmail();
+  if (!cfg.smtp_host || !cfg.smtp_user) {
+    throw new Error('Todavía no se configuró el envío de emails — cargalo en Configuración → Configuración de Email.');
+  }
+
+  const transporter = getTransporter(cfg);
+  const remitenteNombre = cfg.email_remitente || "COOVA Sistema";
+
+  await transporter.sendMail({
+    from: `"${remitenteNombre}" <${cfg.smtp_user}>`,
+    to: cfg.smtp_user,
+    bcc: destinatarios.join(","),
+    subject: asunto,
+    text: `${cuerpo}\n\n— Enviado por ${deParte} desde COOVA`,
+    html: `
+      <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto;">
+        <div style="background:#123240;color:#fff;padding:14px 18px;border-radius:10px 10px 0 0;font-size:13px;letter-spacing:.03em;text-transform:uppercase;">
+          COOVA — Mensaje interno
+        </div>
+        <div style="border:1px solid #e5e5e5;border-top:none;padding:18px;border-radius:0 0 10px 10px;">
+          <p style="margin:0 0 14px;font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap;">${escapeHtml(cuerpo)}</p>
+          <p style="margin:0;font-size:11px;color:#999;">Enviado por ${escapeHtml(deParte)}</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
 function escapeHtml(s: string) {
   return s
     .replace(/&/g, "&amp;")

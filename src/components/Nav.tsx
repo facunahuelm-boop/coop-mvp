@@ -10,6 +10,7 @@ import { Logo3D } from "./Logo3D";
 import {
   Home,
   Bell,
+  Mail,
   ShoppingCart,
   Truck,
   Wallet,
@@ -109,6 +110,7 @@ const GROUPS: NavGroup[] = [
     label: "Herramientas",
     items: [
       { href: "/buscar", label: "Buscador", icon: <Search size={ICON_SIZE} /> },
+      { href: "/mails", label: "Mails", icon: <Mail size={ICON_SIZE} /> },
       { href: "/ia", label: "Asistente IA", icon: <Sparkles size={ICON_SIZE} /> },
       { href: "/reportes", label: "Reportes", icon: <BarChart3 size={ICON_SIZE} /> },
     ],
