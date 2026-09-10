@@ -1,9 +1,11 @@
 "use server";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, get, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
+import { parseForm, zId, zTexto, zTextoOpcional, zMontoPositivo, zFecha, zEnumSeguro } from "@/lib/validation";
 
 // Fase 10 del Plan Maestro — cuenta corriente por socio ("¿cuánto debo?").
 // Se gatea por el permiso de Finanzas (no el de Socios): registrar un cargo
@@ -11,20 +13,20 @@ import { canEdit } from "@/lib/roles";
 // registrarMovimientoAction en finanzas.ts (administración lo hace de forma
 // habitual, tesorería lo aprueba).
 
+const registrarMovimientoCuentaSocioSchema = z.object({
+  socio_id: zId,
+  tipo: zEnumSeguro(["cargo", "pago"], "cargo"),
+  concepto: zTexto(300),
+  monto: zMontoPositivo(),
+  fecha: zFecha,
+  notas: zTextoOpcional(1000),
+});
+
 export async function registrarMovimientoCuentaSocioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
 
-  const socio_id = Number(formData.get("socio_id"));
-  const tipo = String(formData.get("tipo") || "cargo"); // cargo | pago
-  const concepto = String(formData.get("concepto") || "").trim();
-  const monto = Number(formData.get("monto") || 0);
-  const fecha = String(formData.get("fecha") || "");
-  const notas = String(formData.get("notas") || "") || null;
-
-  if (!socio_id || !concepto || !monto || !fecha) {
-    throw new Error("Faltan datos obligatorios (concepto, monto y fecha)");
-  }
+  const { socio_id, tipo, concepto, monto, fecha, notas } = parseForm(registrarMovimientoCuentaSocioSchema, formData);
 
   const socio = await get<{ id: number }>(`SELECT id FROM socios WHERE id = ?`, [socio_id]);
   if (!socio) throw new Error("Socio no encontrado");

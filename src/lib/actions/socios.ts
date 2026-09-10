@@ -1,31 +1,50 @@
 "use server";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, update, get, all, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
+import {
+  parseForm,
+  zId,
+  zIdOpcional,
+  zTexto,
+  zTextoOpcional,
+  zEmailOpcional,
+  zFechaOpcional,
+  zEnumSeguro,
+} from "@/lib/validation";
+
+// Mismos valores que ofrecen los <select> de socios/page.tsx (ESTADOS_VIVIENDA,
+// ESTADOS_SOCIO, ESTADOS_LISTA_ESPERA) — se repiten acá porque son server
+// actions y no pueden importar desde un archivo de página; si alguna vez se
+// agrega un estado nuevo hay que sumarlo en los dos lugares.
+const ESTADOS_VIVIENDA = ["en_obra", "terminada", "ocupada"] as const;
+const ESTADOS_SOCIO = ["activo", "inactivo", "baja"] as const;
+const ESTADOS_LISTA_ESPERA = ["en_espera", "convocado", "incorporado", "retirado"] as const;
 
 // ---------- Viviendas ----------
+
+const crearViviendaSchema = z.object({
+  numero: zTexto(60),
+  estado: zEnumSeguro(ESTADOS_VIVIENDA, "en_obra"),
+  notas: zTextoOpcional(1000),
+});
 
 export async function crearViviendaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const numero = String(formData.get("numero") || "").trim();
-  if (!numero) throw new Error("Falta el número de vivienda");
-  const id = await insert("viviendas", {
-    numero,
-    estado: String(formData.get("estado") || "en_obra"),
-    notas: String(formData.get("notas") || "") || null,
-  });
-  await audit({ usuario_id: user.id, accion: "crear", entidad: "viviendas", entidad_id: id, valor_nuevo: { numero } });
+  const datos = parseForm(crearViviendaSchema, formData);
+  const id = await insert("viviendas", datos);
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "viviendas", entidad_id: id, valor_nuevo: { numero: datos.numero } });
   revalidatePath("/socios");
 }
 
 export async function actualizarViviendaEstadoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
-  const estado = String(formData.get("estado") || "");
+  const { id, estado } = parseForm(z.object({ id: zId, estado: zEnumSeguro(ESTADOS_VIVIENDA) }), formData);
   await update("viviendas", id, { estado });
   await audit({ usuario_id: user.id, accion: "actualizar_estado", entidad: "viviendas", entidad_id: id, valor_nuevo: { estado } });
   revalidatePath("/socios");
@@ -33,35 +52,31 @@ export async function actualizarViviendaEstadoAction(formData: FormData) {
 
 // ---------- Socios ----------
 
+const crearSocioSchema = z.object({
+  nombre: zTexto(200),
+  documento: zTextoOpcional(50),
+  email: zEmailOpcional,
+  telefono: zTextoOpcional(50),
+  vivienda_id: zIdOpcional,
+  nucleo_id: zIdOpcional,
+  fecha_ingreso: zFechaOpcional,
+  notas: zTextoOpcional(1000),
+});
+
 export async function crearSocioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const nombre = String(formData.get("nombre") || "").trim();
-  if (!nombre) throw new Error("Falta el nombre del socio");
+  const datos = parseForm(crearSocioSchema, formData);
 
-  const viviendaId = String(formData.get("vivienda_id") || "");
-  const nucleoId = String(formData.get("nucleo_id") || "");
-
-  const id = await insert("socios", {
-    nombre,
-    documento: String(formData.get("documento") || "") || null,
-    email: String(formData.get("email") || "") || null,
-    telefono: String(formData.get("telefono") || "") || null,
-    estado: "activo",
-    vivienda_id: viviendaId ? Number(viviendaId) : null,
-    nucleo_id: nucleoId ? Number(nucleoId) : null,
-    fecha_ingreso: String(formData.get("fecha_ingreso") || "") || null,
-    notas: String(formData.get("notas") || "") || null,
-  });
-  await audit({ usuario_id: user.id, accion: "crear", entidad: "socios", entidad_id: id, valor_nuevo: { nombre } });
+  const id = await insert("socios", { ...datos, estado: "activo" });
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "socios", entidad_id: id, valor_nuevo: { nombre: datos.nombre } });
   revalidatePath("/socios");
 }
 
 export async function actualizarSocioEstadoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
-  const estado = String(formData.get("estado") || "");
+  const { id, estado } = parseForm(z.object({ id: zId, estado: zEnumSeguro(ESTADOS_SOCIO) }), formData);
   await update("socios", id, { estado });
   await audit({ usuario_id: user.id, accion: "actualizar_estado", entidad: "socios", entidad_id: id, valor_nuevo: { estado } });
   revalidatePath("/socios");
@@ -70,10 +85,9 @@ export async function actualizarSocioEstadoAction(formData: FormData) {
 export async function asignarViviendaSocioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
-  const viviendaId = String(formData.get("vivienda_id") || "");
-  await update("socios", id, { vivienda_id: viviendaId ? Number(viviendaId) : null });
-  await audit({ usuario_id: user.id, accion: "asignar_vivienda", entidad: "socios", entidad_id: id, valor_nuevo: { vivienda_id: viviendaId || null } });
+  const { id, vivienda_id } = parseForm(z.object({ id: zId, vivienda_id: zIdOpcional }), formData);
+  await update("socios", id, { vivienda_id });
+  await audit({ usuario_id: user.id, accion: "asignar_vivienda", entidad: "socios", entidad_id: id, valor_nuevo: { vivienda_id } });
   revalidatePath("/socios");
 }
 
@@ -85,16 +99,18 @@ export async function asignarViviendaSocioAction(formData: FormData) {
  * (documento, email, teléfono, notas), igual que actualizarProveedorAction
  * en proveedores.ts.
  */
+const actualizarSocioSchema = z.object({
+  id: zId,
+  documento: zTextoOpcional(50),
+  email: zEmailOpcional,
+  telefono: zTextoOpcional(50),
+  notas: zTextoOpcional(1000),
+});
+
 export async function actualizarSocioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
-  const datos = {
-    documento: String(formData.get("documento") || "").trim() || null,
-    email: String(formData.get("email") || "").trim() || null,
-    telefono: String(formData.get("telefono") || "").trim() || null,
-    notas: String(formData.get("notas") || "").trim() || null,
-  };
+  const { id, ...datos } = parseForm(actualizarSocioSchema, formData);
   await update("socios", id, datos);
   await audit({ usuario_id: user.id, accion: "editar", entidad: "socios", entidad_id: id, valor_nuevo: datos });
   revalidatePath(`/socios/${id}`);
@@ -103,34 +119,32 @@ export async function actualizarSocioAction(formData: FormData) {
 
 // ---------- Lista de espera ----------
 
+const agregarListaEsperaSchema = z.object({
+  nombre: zTexto(200),
+  documento: zTextoOpcional(50),
+  contacto: zTextoOpcional(200),
+  notas: zTextoOpcional(1000),
+});
+
 export async function agregarListaEsperaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const nombre = String(formData.get("nombre") || "").trim();
-  if (!nombre) throw new Error("Falta el nombre del aspirante");
+  const datos = parseForm(agregarListaEsperaSchema, formData);
 
   const ultimo = await get<{ max_orden: number | null }>(
     `SELECT MAX(orden) as max_orden FROM lista_espera`
   );
   const orden = (ultimo?.max_orden || 0) + 1;
 
-  const id = await insert("lista_espera", {
-    nombre,
-    documento: String(formData.get("documento") || "") || null,
-    contacto: String(formData.get("contacto") || "") || null,
-    orden,
-    estado: "en_espera",
-    notas: String(formData.get("notas") || "") || null,
-  });
-  await audit({ usuario_id: user.id, accion: "crear", entidad: "lista_espera", entidad_id: id, valor_nuevo: { nombre, orden } });
+  const id = await insert("lista_espera", { ...datos, orden, estado: "en_espera" });
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "lista_espera", entidad_id: id, valor_nuevo: { nombre: datos.nombre, orden } });
   revalidatePath("/socios");
 }
 
 export async function actualizarListaEsperaEstadoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
-  const estado = String(formData.get("estado") || "");
+  const { id, estado } = parseForm(z.object({ id: zId, estado: zEnumSeguro(ESTADOS_LISTA_ESPERA) }), formData);
   await update("lista_espera", id, { estado });
   await audit({ usuario_id: user.id, accion: "actualizar_estado", entidad: "lista_espera", entidad_id: id, valor_nuevo: { estado } });
   revalidatePath("/socios");
@@ -148,8 +162,7 @@ export async function actualizarListaEsperaEstadoAction(formData: FormData) {
 export async function moverListaEsperaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
-  const direccion = String(formData.get("direccion") || "");
+  const { id, direccion } = parseForm(z.object({ id: zId, direccion: zEnumSeguro(["arriba", "abajo"]) }), formData);
 
   const activos = await all<{ id: number; orden: number }>(
     `SELECT id, orden FROM lista_espera WHERE estado = 'en_espera' ORDER BY orden ASC`
@@ -174,18 +187,16 @@ export async function moverListaEsperaAction(formData: FormData) {
 export async function incorporarDesdeListaEsperaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
+  const { id, vivienda_id } = parseForm(z.object({ id: zId, vivienda_id: zIdOpcional }), formData);
 
   const aspirante = await get<any>(`SELECT * FROM lista_espera WHERE id = ?`, [id]);
   if (!aspirante) throw new Error("No se encontró el aspirante");
-
-  const viviendaId = String(formData.get("vivienda_id") || "");
 
   const socioId = await insert("socios", {
     nombre: aspirante.nombre,
     documento: aspirante.documento,
     estado: "activo",
-    vivienda_id: viviendaId ? Number(viviendaId) : null,
+    vivienda_id,
     fecha_ingreso: new Date().toISOString().slice(0, 10),
     notas: aspirante.notas,
   });

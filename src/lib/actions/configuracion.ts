@@ -1,10 +1,13 @@
 "use server";
 
+import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { all, insert, update } from "@/lib/db";
-import { saveUploadedFile } from "@/lib/upload";
+import { saveUploadedFile, TIPOS_IMAGEN } from "@/lib/upload";
+import { cifrar } from "@/lib/crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { parseForm, zTexto, zTextoOpcional, zEmailOpcional } from "@/lib/validation";
 
 const ETAPAS = ["pre_obra", "obra", "habitada"] as const;
 
@@ -68,25 +71,37 @@ export async function actualizarModulosAction(formData: FormData) {
  * Seguridad) — la migración a Supabase Storage queda para la fase siguiente
  * del plan (aislamiento de archivos por cooperativa).
  */
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+const brandingSchema = z.object({
+  nombre: zTexto(200),
+  color_primario: z.string().trim().regex(HEX_COLOR, "Tiene que ser un color válido.").default("#123240"),
+  color_secundario: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : null))
+    .refine((v) => v === null || HEX_COLOR.test(v), "Tiene que ser un color válido."),
+});
+
 export async function actualizarBrandingAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || !["admin", "consejo_directivo"].includes(user.rol)) {
     redirect("/login");
   }
 
-  const nombre = String(formData.get("nombre") || "").trim();
-  if (!nombre) throw new Error("El nombre de la cooperativa es obligatorio");
-
-  const colorPrimario = String(formData.get("color_primario") || "#123240").trim();
-  const colorSecundario = String(formData.get("color_secundario") || "").trim();
+  const { nombre, color_primario: colorPrimario, color_secundario: colorSecundario } = parseForm(brandingSchema, formData);
 
   const datos: Record<string, any> = {
     nombre,
     color_primario: colorPrimario,
-    color_secundario: colorSecundario || null,
+    color_secundario: colorSecundario,
   };
 
-  const logoUrl = await saveUploadedFile(formData.get("logo") as File | null, user.organization_id, "marca");
+  const logoUrl = await saveUploadedFile(formData.get("logo") as File | null, user.organization_id, "marca", {
+    tiposPermitidos: TIPOS_IMAGEN,
+    maxBytes: 4 * 1024 * 1024,
+  });
   if (logoUrl) datos.logo_url = logoUrl;
 
   await update("organizations", user.organization_id, datos);
@@ -95,23 +110,38 @@ export async function actualizarBrandingAction(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
+const configEmailSchema = z.object({
+  smtp_host: zTextoOpcional(200).transform((v) => v || ""),
+  smtp_port: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => v || "587")
+    .refine((v) => /^\d{1,5}$/.test(v) && Number(v) > 0 && Number(v) <= 65535, "Puerto inválido."),
+  smtp_user: zTextoOpcional(200).transform((v) => v || ""),
+  smtp_password: z.string().max(500).optional().transform((v) => v || ""),
+  email_remitente: zTextoOpcional(200).transform((v) => v || ""),
+  email_alertas_criticas: zEmailOpcional.transform((v) => v || ""),
+});
+
 export async function guardarConfigEmailAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || !["admin", "consejo_directivo"].includes(user.rol)) {
     redirect("/login");
   }
 
-  const campos = [
-    "smtp_host",
-    "smtp_port",
-    "smtp_user",
-    "smtp_password",
-    "email_remitente",
-    "email_alertas_criticas",
-  ];
+  const datos = parseForm(configEmailSchema, formData);
 
-  for (const campo of campos) {
-    const valor = formData.get(campo) as string;
+  for (const [campo, valorPlano] of Object.entries(datos)) {
+    // La contraseña SMTP nunca se vuelve a mostrar en el formulario (por
+    // seguridad — ver configuracion/page.tsx), así que si el campo llega
+    // vacío significa "no la cambié", no "borrala": de lo contrario, cada
+    // vez que alguien guardara cualquier otro dato de esta pantalla (el
+    // remitente, por ejemplo) se perdería la contraseña ya cargada.
+    if (campo === "smtp_password" && !valorPlano) continue;
+
+    const valor = campo === "smtp_password" ? cifrar(valorPlano) : valorPlano;
     const existe = (
       await all<any>(`SELECT id FROM config_email WHERE clave = ?`, [campo])
     )[0];

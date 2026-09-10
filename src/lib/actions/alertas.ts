@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { get, update, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { parseForm, zId } from "@/lib/validation";
+import { z } from "zod";
 
 export async function resolverAlertaAction(formData: FormData) {
   const user = await requireUser();
-  const id = Number(formData.get("id"));
+  const { id } = parseForm(z.object({ id: zId }), formData);
   const alerta = await get<any>(`SELECT * FROM alertas WHERE id = ?`, [id]);
   if (!alerta) throw new Error("Alerta no encontrada");
   const autorizado = user.rol === alerta.asignado_a_rol || ["consejo_directivo", "admin"].includes(user.rol);

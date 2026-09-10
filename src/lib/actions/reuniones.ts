@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, update, get, all, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
@@ -7,40 +8,48 @@ import { canEdit } from "@/lib/roles";
 import { generarPdfBuffer } from "@/lib/pdf";
 import { saveGeneratedFile } from "@/lib/upload";
 import dayjs from "dayjs";
+import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaHora, zEnumSeguro, zCheckbox } from "@/lib/validation";
 
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",
   consejo_directivo: "Consejo Directivo",
   comision: "Comisión",
 };
+const TIPOS_REUNION = ["asamblea", "consejo_directivo", "comision"] as const;
+const PRIORIDAD_TAREA = ["alta", "media", "baja"] as const;
+
+const crearReunionSchema = z.object({
+  tipo: zEnumSeguro(TIPOS_REUNION, "comision"),
+  comision_id: zIdOpcional,
+  titulo: zTexto(200),
+  fecha: zFechaHora,
+  lugar: zTextoOpcional(200),
+  orden_del_dia: zTextoOpcional(3000),
+});
 
 export async function crearReunionAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
-  const tipo = String(formData.get("tipo") || "comision"); // asamblea | consejo_directivo | comision
-  const comisionIdRaw = String(formData.get("comision_id") || "");
-  const titulo = String(formData.get("titulo") || "").trim();
-  const fecha = String(formData.get("fecha") || "");
-  if (!titulo || !fecha) throw new Error("Faltan datos obligatorios (título y fecha)");
+  const datos = parseForm(crearReunionSchema, formData);
 
   const id = await insert("reuniones", {
-    tipo,
-    comision_id: tipo === "comision" && comisionIdRaw ? Number(comisionIdRaw) : null,
-    titulo,
-    fecha,
-    lugar: String(formData.get("lugar") || "") || null,
-    orden_del_dia: String(formData.get("orden_del_dia") || "") || null,
+    tipo: datos.tipo,
+    comision_id: datos.tipo === "comision" ? datos.comision_id : null,
+    titulo: datos.titulo,
+    fecha: datos.fecha,
+    lugar: datos.lugar,
+    orden_del_dia: datos.orden_del_dia,
     estado: "planificada",
     creado_por_id: user.id,
   });
-  await audit({ usuario_id: user.id, accion: "crear", entidad: "reuniones", entidad_id: id, valor_nuevo: { titulo, fecha, tipo } });
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "reuniones", entidad_id: id, valor_nuevo: { titulo: datos.titulo, fecha: datos.fecha, tipo: datos.tipo } });
   revalidatePath("/reuniones");
 }
 
 export async function cancelarReunionAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
+  const { id } = parseForm(z.object({ id: zId }), formData);
   await update("reuniones", id, { estado: "cancelada" });
   await audit({ usuario_id: user.id, accion: "cancelar", entidad: "reuniones", entidad_id: id });
   revalidatePath("/reuniones");
@@ -52,13 +61,18 @@ export async function cancelarReunionAction(formData: FormData) {
  * Mismo criterio que las asistencias de jornadas de trabajo: se guarda por
  * núcleo, no por persona individual.
  */
+const registrarAsistenciaSchema = z.object({
+  reunion_id: zId,
+  nucleo_id: zId,
+  presente: zCheckbox,
+  justificacion: zTextoOpcional(500),
+});
+
 export async function registrarAsistenciaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
-  const reunion_id = Number(formData.get("reunion_id"));
-  const nucleo_id = Number(formData.get("nucleo_id"));
-  const presente = formData.get("presente") === "on" ? 1 : 0;
-  const justificacion = String(formData.get("justificacion") || "") || null;
+  const { reunion_id, nucleo_id, presente: presenteBool, justificacion } = parseForm(registrarAsistenciaSchema, formData);
+  const presente = presenteBool ? 1 : 0;
 
   const existente = await get<{ id: number }>(
     `SELECT id FROM reunion_asistencias WHERE reunion_id = ? AND nucleo_id = ?`,
@@ -94,9 +108,7 @@ export async function registrarAsistenciaAction(formData: FormData) {
 export async function cerrarReunionAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
-  const reunion_id = Number(formData.get("id"));
-  const resumen = String(formData.get("resumen") || "").trim();
-  if (!resumen) throw new Error("Falta el resumen del acta");
+  const { id: reunion_id, resumen } = parseForm(z.object({ id: zId, resumen: zTexto(5000) }), formData);
 
   const reunion = await get<any>(`SELECT * FROM reuniones WHERE id = ?`, [reunion_id]);
   if (!reunion) throw new Error("Reunión no encontrada");
@@ -111,19 +123,28 @@ export async function cerrarReunionAction(formData: FormData) {
   const presentes = asistencias.filter((a: any) => a.presente).length;
 
   // Tareas resultantes cargadas en el formulario de cierre (filas paralelas,
-  // se descartan las filas sin título).
-  const titulos = formData.getAll("tarea_titulo").map((v) => String(v).trim());
+  // se descartan las filas sin título). Cada valor se sanitiza acá porque
+  // llegan como listas sueltas (formData.getAll), no como un objeto que
+  // pueda validarse con un solo esquema de Zod.
+  const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const titulos = formData.getAll("tarea_titulo").map((v) => String(v).trim().slice(0, 200));
   const responsables = formData.getAll("tarea_responsable_id").map((v) => String(v));
   const prioridades = formData.getAll("tarea_prioridad").map((v) => String(v || "media"));
   const vencimientos = formData.getAll("tarea_fecha_vencimiento").map((v) => String(v));
   const tareasResultantes = titulos
-    .map((titulo, i) => ({
-      titulo,
-      responsable_id: responsables[i] ? Number(responsables[i]) : null,
-      prioridad: prioridades[i] || "media",
-      fecha_vencimiento: vencimientos[i] || null,
-    }))
-    .filter((t) => t.titulo);
+    .map((titulo, i) => {
+      const respId = Number(responsables[i]);
+      const prio = PRIORIDAD_TAREA.includes(prioridades[i] as (typeof PRIORIDAD_TAREA)[number]) ? prioridades[i] : "media";
+      const venc = vencimientos[i] && FECHA_RE.test(vencimientos[i]) ? vencimientos[i] : null;
+      return {
+        titulo,
+        responsable_id: Number.isInteger(respId) && respId > 0 ? respId : null,
+        prioridad: prio,
+        fecha_vencimiento: venc,
+      };
+    })
+    .filter((t) => t.titulo)
+    .slice(0, 50); // techo razonable de tareas por acta
 
   let documentoId: number | null = null;
   try {

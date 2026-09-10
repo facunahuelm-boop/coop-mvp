@@ -59,13 +59,51 @@ function getAdminClient() {
  *   de cada cooperativa en su propia carpeta dentro del bucket.
  * @param carpeta Subcarpeta dentro de la cooperativa (ej: "obra", "seguridad",
  *   "documentos", "marca") — solo para mantener el bucket ordenado.
+ * @param opciones Límite de tamaño y tipos de archivo permitidos (ver
+ *   TIPOS_IMAGEN / TIPOS_DOCUMENTO abajo) — antes no había ninguno: cualquier
+ *   usuario con permiso para subir una foto podía en realidad subir un
+ *   archivo de cualquier tamaño y tipo, sin límite. El chequeo de tipo se
+ *   basa en el content-type que manda el navegador, que en teoría se puede
+ *   falsear — no reemplaza un antivirus, pero sí frena el caso normal (subir
+ *   por error, o a propósito, algo que no es lo que el formulario pide) y,
+ *   junto con el límite de tamaño, evita que el bucket se llene con archivos
+ *   gigantes.
  */
+const TIPOS_IMAGEN = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif", "image/heic", "image/heif"];
+const TIPOS_DOCUMENTO = [
+  ...TIPOS_IMAGEN,
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "text/csv",
+];
+export { TIPOS_IMAGEN, TIPOS_DOCUMENTO };
+
+type OpcionesUpload = { tiposPermitidos?: string[]; maxBytes?: number };
+const MAX_BYTES_DEFAULT = 10 * 1024 * 1024; // 10 MB
+
 export async function saveUploadedFile(
   file: File | null,
   organizationId: number,
-  carpeta: string = "general"
+  carpeta: string = "general",
+  opciones: OpcionesUpload = {}
 ): Promise<string | null> {
   if (!file || file.size === 0) return null;
+
+  const maxBytes = opciones.maxBytes ?? MAX_BYTES_DEFAULT;
+  if (file.size > maxBytes) {
+    throw new Error(`El archivo es demasiado grande (máximo ${Math.round(maxBytes / (1024 * 1024))} MB).`);
+  }
+  if (opciones.tiposPermitidos && opciones.tiposPermitidos.length > 0) {
+    const tipo = file.type || "";
+    const permitido = opciones.tiposPermitidos.includes(tipo);
+    if (!permitido) {
+      throw new Error("Tipo de archivo no permitido. Revisá el formato del archivo elegido.");
+    }
+  }
 
   const ext = (file.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
   const nombre = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}${ext ? `.${ext}` : ""}`;

@@ -1,56 +1,80 @@
 "use server";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, update, get, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
+import {
+  parseForm,
+  zId,
+  zTexto,
+  zTextoOpcional,
+  zMonto,
+  zMontoOpcional,
+  zEnteroOpcional,
+  zNumeroOpcionalConDefault,
+  zFechaOpcional,
+  zEnumSeguro,
+  clavesDe,
+} from "@/lib/validation";
+
+const PRIORIDAD_COMPRA = ["baja", "media", "alta", "critica"] as const;
+
+const crearSolicitudSchema = z.object({
+  comision: zTexto(200),
+  categoria: zEnumSeguro(clavesDe(CATEGORIA_COMPRA_LABEL), "obra"),
+  material: zTexto(300),
+  cantidad: zNumeroOpcionalConDefault(0),
+  unidad: zTexto(50),
+  especificacion: zTextoOpcional(1000),
+  prioridad: zEnumSeguro(PRIORIDAD_COMPRA, "media"),
+  etapa_obra: zTextoOpcional(200),
+  fecha_necesaria: zFechaOpcional,
+  presupuesto_estimado: zMontoOpcional(),
+});
 
 export async function crearSolicitudAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
-  const categoria = String(formData.get("categoria") || "obra");
+  const datos = parseForm(crearSolicitudSchema, formData);
   const id = await insert("solicitudes_compra", {
     solicitante_id: user.id,
-    comision: String(formData.get("comision") || ""),
-    categoria: categoria in CATEGORIA_COMPRA_LABEL ? categoria : "obra",
-    material: String(formData.get("material") || ""),
-    cantidad: Number(formData.get("cantidad") || 0),
-    unidad: String(formData.get("unidad") || ""),
-    especificacion: String(formData.get("especificacion") || "") || null,
-    prioridad: String(formData.get("prioridad") || "media"),
-    etapa_obra: String(formData.get("etapa_obra") || "") || null,
-    fecha_necesaria: String(formData.get("fecha_necesaria") || "") || null,
-    presupuesto_estimado: Number(formData.get("presupuesto_estimado") || 0) || null,
+    ...datos,
     estado: "pendiente_cotizacion",
   });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "solicitudes_compra", entidad_id: id });
   revalidatePath("/compras");
 }
 
+const agregarPresupuestoSchema = z.object({
+  solicitud_id: zId,
+  precio: zMonto(),
+  precio_unitario: zMontoOpcional(),
+  plazo_entrega_dias: zEnteroOpcional(3650),
+  forma_pago: zTextoOpcional(200),
+  garantia: zTextoOpcional(300),
+  costo_envio: zNumeroOpcionalConDefault(0),
+  notas: zTextoOpcional(1000),
+});
+
 export async function agregarPresupuestoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
-  const solicitudId = Number(formData.get("solicitud_id"));
+  const { solicitud_id: solicitudId, ...datos } = parseForm(agregarPresupuestoSchema, formData);
 
+  // proveedor_id / nuevo_proveedor tienen una lógica de "uno u otro" que no
+  // encaja en un campo Zod simple: se elige un proveedor ya cargado, o se
+  // escribe el nombre de uno nuevo y se crea acá mismo.
   let proveedorId = Number(formData.get("proveedor_id") || 0);
-  const nuevoProveedor = String(formData.get("nuevo_proveedor") || "").trim();
+  const nuevoProveedor = String(formData.get("nuevo_proveedor") || "").trim().slice(0, 200);
   if (!proveedorId && nuevoProveedor) {
     proveedorId = await insert("proveedores", { nombre: nuevoProveedor });
   }
   if (!proveedorId) throw new Error("Falta elegir o crear un proveedor.");
 
-  await insert("presupuestos_proveedor", {
-    solicitud_id: solicitudId,
-    proveedor_id: proveedorId,
-    precio: Number(formData.get("precio") || 0),
-    precio_unitario: Number(formData.get("precio_unitario") || 0) || null,
-    plazo_entrega_dias: Number(formData.get("plazo_entrega_dias") || 0) || null,
-    forma_pago: String(formData.get("forma_pago") || "") || null,
-    garantia: String(formData.get("garantia") || "") || null,
-    costo_envio: Number(formData.get("costo_envio") || 0) || 0,
-    notas: String(formData.get("notas") || "") || null,
-  });
+  await insert("presupuestos_proveedor", { solicitud_id: solicitudId, proveedor_id: proveedorId, ...datos });
   await update("solicitudes_compra", solicitudId, { estado: "en_comparacion" });
   revalidatePath(`/compras/${solicitudId}`);
 }
@@ -58,9 +82,10 @@ export async function agregarPresupuestoAction(formData: FormData) {
 export async function decidirCompraAction(formData: FormData) {
   const user = await requireUser();
   if (!canApprove(user.rol, "compras")) throw new Error("No autorizado: esta decisión requiere un rol con permiso de aprobación (Tesorería o Consejo Directivo).");
-  const solicitudId = Number(formData.get("solicitud_id"));
-  const presupuestoId = Number(formData.get("presupuesto_id"));
-  const motivo = String(formData.get("motivo") || "");
+  const { solicitud_id: solicitudId, presupuesto_id: presupuestoId, motivo } = parseForm(
+    z.object({ solicitud_id: zId, presupuesto_id: zId, motivo: zTextoOpcional(1000) }),
+    formData
+  );
   const presupuesto = await get<any>(`SELECT * FROM presupuestos_proveedor WHERE id = ?`, [presupuestoId]);
 
   await insert("decisiones_compra", {
@@ -85,7 +110,7 @@ export async function decidirCompraAction(formData: FormData) {
 export async function marcarPedidaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
+  const { id } = parseForm(z.object({ id: zId }), formData);
   await update("solicitudes_compra", id, { estado: "pedida" });
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
@@ -94,7 +119,7 @@ export async function marcarPedidaAction(formData: FormData) {
 export async function marcarEntregadaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
+  const { id } = parseForm(z.object({ id: zId }), formData);
   await update("solicitudes_compra", id, { estado: "entregada" });
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
@@ -112,8 +137,7 @@ export async function marcarEntregadaAction(formData: FormData) {
 export async function rechazarSolicitudAction(formData: FormData) {
   const user = await requireUser();
   if (!canApprove(user.rol, "compras")) throw new Error("No autorizado: esta decisión requiere un rol con permiso de aprobación (Tesorería o Consejo Directivo).");
-  const id = Number(formData.get("id"));
-  const motivo = String(formData.get("motivo") || "");
+  const { id, motivo } = parseForm(z.object({ id: zId, motivo: zTextoOpcional(1000) }), formData);
   await update("solicitudes_compra", id, { estado: "rechazada" });
   await audit({ usuario_id: user.id, accion: "rechazar_compra", entidad: "solicitudes_compra", entidad_id: id, valor_nuevo: { motivo } });
   revalidatePath("/compras");

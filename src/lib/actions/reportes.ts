@@ -17,7 +17,8 @@ export async function generarReporteObraAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const formato = formData.get("formato") as string;
+  const formatoRaw = String(formData.get("formato") || "json");
+  const formato = ["json", "pdf", "xlsx"].includes(formatoRaw) ? formatoRaw : "json";
 
   try {
     // Obtener datos de la obra
@@ -81,7 +82,8 @@ export async function generarReporteFinanzasAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const formato = formData.get("formato") as string;
+  const formatoRaw = String(formData.get("formato") || "json");
+  const formato = ["json", "pdf", "xlsx"].includes(formatoRaw) ? formatoRaw : "json";
 
   try {
     const [ingresos, egresos, compromisos, movimientos] = await Promise.all([
@@ -127,7 +129,8 @@ export async function generarReporteTrabajoAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const formato = formData.get("formato") as string;
+  const formatoRaw = String(formData.get("formato") || "json");
+  const formato = ["json", "pdf", "xlsx"].includes(formatoRaw) ? formatoRaw : "json";
 
   try {
     const [jornadas, asistencias] = await Promise.all([

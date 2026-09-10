@@ -1,9 +1,17 @@
 "use server";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, update, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
+import { parseForm, zId, zTexto, zTextoOpcional } from "@/lib/validation";
+
+const contactoSchema = {
+  contacto: zTextoOpcional(200),
+  rubro: zTextoOpcional(150),
+  notas: zTextoOpcional(1000),
+};
 
 /**
  * Fase 08 del Plan Maestro ("ficha de Proveedores independiente"): hasta acá
@@ -15,31 +23,24 @@ import { canEdit } from "@/lib/roles";
  * propia pantalla (/proveedores), sin necesidad de pasar por una solicitud
  * de compra primero.
  */
+const crearProveedorSchema = z.object({ nombre: zTexto(200), ...contactoSchema });
+
 export async function crearProveedorAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
-  const nombre = String(formData.get("nombre") || "").trim();
-  if (!nombre) throw new Error("Falta el nombre del proveedor");
-  const id = await insert("proveedores", {
-    nombre,
-    contacto: String(formData.get("contacto") || "").trim() || null,
-    rubro: String(formData.get("rubro") || "").trim() || null,
-    notas: String(formData.get("notas") || "").trim() || null,
-  });
-  await audit({ usuario_id: user.id, accion: "crear", entidad: "proveedores", entidad_id: id, valor_nuevo: { nombre } });
+  const datos = parseForm(crearProveedorSchema, formData);
+  const id = await insert("proveedores", datos);
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "proveedores", entidad_id: id, valor_nuevo: { nombre: datos.nombre } });
   revalidatePath("/proveedores");
 }
 
 /** Edita los datos de contacto de un proveedor ya existente (ficha, Fase 08). */
+const actualizarProveedorSchema = z.object({ id: zId, ...contactoSchema });
+
 export async function actualizarProveedorAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
-  const id = Number(formData.get("id"));
-  const datos = {
-    contacto: String(formData.get("contacto") || "").trim() || null,
-    rubro: String(formData.get("rubro") || "").trim() || null,
-    notas: String(formData.get("notas") || "").trim() || null,
-  };
+  const { id, ...datos } = parseForm(actualizarProveedorSchema, formData);
   await update("proveedores", id, datos);
   await audit({ usuario_id: user.id, accion: "editar", entidad: "proveedores", entidad_id: id, valor_nuevo: datos });
   revalidatePath(`/proveedores/${id}`);

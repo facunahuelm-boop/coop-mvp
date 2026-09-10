@@ -1,11 +1,17 @@
 import nodemailer from "nodemailer";
 import { all } from "./db";
+import { descifrar } from "./crypto";
 
 type ConfigEmail = Record<string, string>;
 
 async function getConfigEmail(): Promise<ConfigEmail> {
   const rows = await all<{ clave: string; valor: string }>(`SELECT clave, valor FROM config_email`);
-  return Object.fromEntries(rows.map((r) => [r.clave, r.valor]));
+  const cfg = Object.fromEntries(rows.map((r) => [r.clave, r.valor]));
+  // La contraseña SMTP se guarda cifrada (ver actions/configuracion.ts,
+  // guardarConfigEmailAction, y lib/crypto.ts) — acá es el único lugar que
+  // necesita el valor real, para autenticarse contra el servidor de correo.
+  if (cfg.smtp_password) cfg.smtp_password = descifrar(cfg.smtp_password);
+  return cfg;
 }
 
 // La pantalla de Configuración solo deja elegir 4 categorías amplias de alertas;
