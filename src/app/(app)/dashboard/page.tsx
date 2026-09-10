@@ -195,11 +195,15 @@ export default async function DashboardPage() {
       ? all<any>(`SELECT * FROM documentos_seguridad WHERE fecha_vencimiento IS NOT NULL AND fecha_vencimiento >= ? ORDER BY fecha_vencimiento ASC LIMIT 40`, [desdeMes])
       : Promise.resolve([] as any[]),
     // Notas de calendario personalizadas (texto libre, cualquiera puede
-    // escribir una) — ver migrations/0015_notas_calendario.sql.
+    // escribir una) — ver migrations/0015_notas_calendario.sql. Si esa
+    // migración todavía no se corrió en esta cooperativa, la tabla no
+    // existe: el .catch acá evita que ESO tire abajo todo el Dashboard —
+    // el resto de la pantalla sigue andando, solo sin notas hasta que se
+    // corra la migración.
     all<any>(
       `SELECT n.*, u.nombre as autor_nombre FROM notas_calendario n LEFT JOIN users u ON u.id = n.autor_id WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
       [desdeMes]
-    ),
+    ).catch(() => [] as any[]),
   ]);
 
   const totalTareas = tareas.length;

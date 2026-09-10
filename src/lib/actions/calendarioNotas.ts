@@ -30,10 +30,23 @@ function puedeModificar(user: SessionUser, autorId: number) {
   return autorId === user.id || user.rol === "admin" || user.rol === "consejo_directivo";
 }
 
+/** Mensaje claro cuando la tabla todavía no existe (falta correr
+ * migrations/0015_notas_calendario.sql) en vez del error crudo de Postgres. */
+function mensajeSiFaltaTabla(err: unknown): never {
+  if (err && typeof err === "object" && (err as { code?: string }).code === "42P01") {
+    throw new Error("Todavía no se activaron las notas de calendario en esta cooperativa — falta correr una actualización pendiente del sistema.");
+  }
+  throw err;
+}
+
 export async function crearNotaCalendarioAction(formData: FormData) {
   const user = await requireUser();
   const datos = parseForm(notaSchema, formData);
-  await insert("notas_calendario", { ...datos, autor_id: user.id });
+  try {
+    await insert("notas_calendario", { ...datos, autor_id: user.id });
+  } catch (err) {
+    mensajeSiFaltaTabla(err);
+  }
   revalidatePath("/calendario");
   revalidatePath("/dashboard");
 }
@@ -43,10 +56,14 @@ const notaConIdSchema = notaSchema.extend({ id: zId });
 export async function editarNotaCalendarioAction(formData: FormData) {
   const user = await requireUser();
   const { id, ...datos } = parseForm(notaConIdSchema, formData);
-  const nota = await get<{ autor_id: number }>(`SELECT autor_id FROM notas_calendario WHERE id = ?`, [id]);
-  if (!nota) throw new Error("Esa nota ya no existe — puede que alguien ya la haya borrado.");
-  if (!puedeModificar(user, nota.autor_id)) throw new Error("No podés editar una nota que no escribiste vos.");
-  await update("notas_calendario", id, datos);
+  try {
+    const nota = await get<{ autor_id: number }>(`SELECT autor_id FROM notas_calendario WHERE id = ?`, [id]);
+    if (!nota) throw new Error("Esa nota ya no existe — puede que alguien ya la haya borrado.");
+    if (!puedeModificar(user, nota.autor_id)) throw new Error("No podés editar una nota que no escribiste vos.");
+    await update("notas_calendario", id, datos);
+  } catch (err) {
+    mensajeSiFaltaTabla(err);
+  }
   revalidatePath("/calendario");
   revalidatePath("/dashboard");
 }
@@ -54,10 +71,14 @@ export async function editarNotaCalendarioAction(formData: FormData) {
 export async function eliminarNotaCalendarioAction(formData: FormData) {
   const user = await requireUser();
   const { id } = parseForm(z.object({ id: zId }), formData);
-  const nota = await get<{ autor_id: number }>(`SELECT autor_id FROM notas_calendario WHERE id = ?`, [id]);
-  if (!nota) return; // ya no está, no hay nada que borrar
-  if (!puedeModificar(user, nota.autor_id)) throw new Error("No podés borrar una nota que no escribiste vos.");
-  await run(`DELETE FROM notas_calendario WHERE id = ?`, [id]);
+  try {
+    const nota = await get<{ autor_id: number }>(`SELECT autor_id FROM notas_calendario WHERE id = ?`, [id]);
+    if (!nota) return; // ya no está, no hay nada que borrar
+    if (!puedeModificar(user, nota.autor_id)) throw new Error("No podés borrar una nota que no escribiste vos.");
+    await run(`DELETE FROM notas_calendario WHERE id = ?`, [id]);
+  } catch (err) {
+    mensajeSiFaltaTabla(err);
+  }
   revalidatePath("/calendario");
   revalidatePath("/dashboard");
 }

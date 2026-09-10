@@ -86,11 +86,13 @@ export default async function CalendarioPage() {
 
   // Notas de calendario personalizadas (texto libre, cualquiera puede
   // escribir una) — se guardan aparte de los eventos de cada módulo, ver
-  // migrations/0015_notas_calendario.sql.
+  // migrations/0015_notas_calendario.sql. Si esa migración todavía no se
+  // corrió, la tabla no existe todavía — el catch evita que la pantalla
+  // entera se rompa por eso; el resto del calendario sigue andando.
   const notasRaw = await all<any>(
     `SELECT n.*, u.nombre as autor_nombre FROM notas_calendario n LEFT JOIN users u ON u.id = n.autor_id WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
     [desde]
-  );
+  ).catch(() => [] as any[]);
   const notas: NotaCalendario[] = notasRaw.map((n: any) => ({
     id: n.id,
     fecha: n.fecha,
