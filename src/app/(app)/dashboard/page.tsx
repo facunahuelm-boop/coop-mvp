@@ -6,7 +6,6 @@ import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
 import { MonthCalendar, type EventoCalendario } from "@/components/MonthCalendar";
-import { Saludo } from "@/components/Saludo";
 import { InstallHint } from "@/components/InstallHint";
 import dayjs from "dayjs";
 import Link from "next/link";
@@ -25,6 +24,7 @@ import {
   Megaphone,
   ListChecks,
   CalendarClock,
+  Search,
 } from "lucide-react";
 
 // Fase "Dashboard: prioridad y simplicidad" del rediseño UI/UX.
@@ -381,25 +381,37 @@ export default async function DashboardPage() {
       <InstallHint />
 
       <PageHeader
-        title={<Saludo nombre={user.nombre.split(" ")[0]} />}
+        title="Inicio"
         subtitle={dayjs().format("dddd DD [de] MMMM, YYYY")}
         action={
-          alertasAbiertasCount > 0 ? (
+          <div className="flex items-center gap-2 shrink-0">
+            {/* El buscador ya no está en la barra lateral — se accede desde
+                acá, al lado de las alertas, en la pantalla que todos ven al
+                entrar. */}
             <Link
-              href="/alertas"
-              aria-label={`${alertasAbiertasCount} alertas abiertas`}
-              className="relative inline-flex items-center justify-center h-10 w-10 rounded-full bg-surface border border-border shadow-[var(--shadow-sm)] text-ink-muted hover:bg-brand-100 shrink-0"
+              href="/buscar"
+              aria-label="Buscar"
+              className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-surface border border-border shadow-[var(--shadow-sm)] text-ink-muted hover:bg-brand-100 shrink-0"
             >
-              <Bell size={18} />
-              <span
-                className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white ${
-                  criticas.length > 0 ? "bg-[var(--color-rojo)]" : "bg-[var(--color-amarillo)]"
-                }`}
-              >
-                {alertasAbiertasCount}
-              </span>
+              <Search size={18} />
             </Link>
-          ) : undefined
+            {alertasAbiertasCount > 0 && (
+              <Link
+                href="/alertas"
+                aria-label={`${alertasAbiertasCount} alertas abiertas`}
+                className="relative inline-flex items-center justify-center h-10 w-10 rounded-full bg-surface border border-border shadow-[var(--shadow-sm)] text-ink-muted hover:bg-brand-100 shrink-0"
+              >
+                <Bell size={18} />
+                <span
+                  className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white ${
+                    criticas.length > 0 ? "bg-[var(--color-rojo)]" : "bg-[var(--color-amarillo)]"
+                  }`}
+                >
+                  {alertasAbiertasCount}
+                </span>
+              </Link>
+            )}
+          </div>
         }
       />
 

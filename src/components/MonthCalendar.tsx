@@ -76,6 +76,84 @@ export function MonthCalendar({
 
   const eventosSeleccionado = seleccionado ? eventosPorDia.get(seleccionado) || [] : [];
 
+  // Versión compacta (Dashboard): la grilla del mes completo (5-6 filas)
+  // ocupaba mucho lugar en una pantalla que tiene que mostrar más cosas
+  // abajo — acá se ve solo la semana actual (lunes a domingo), sin flechas
+  // para cambiar de mes: para eso ya está el botón "Ver calendario
+  // completo" que lleva a /calendario, donde sigue estando la grilla
+  // mensual de siempre sin ningún cambio.
+  if (compact) {
+    const inicioSemana = hoy.subtract((hoy.day() + 6) % 7, "day");
+    const diasSemana = Array.from({ length: 7 }, (_, i) => inicioSemana.add(i, "day"));
+    return (
+      <div>
+        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-ink-faint uppercase mb-1">
+          {DIAS.map((d, i) => (
+            <div key={i}>{d}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {diasSemana.map((d, i) => {
+            const key = isoDate(d);
+            const evs = eventosPorDia.get(key) || [];
+            const esHoy = key === isoDate(hoy);
+            const esSeleccionado = key === seleccionado;
+            return (
+              <button
+                type="button"
+                key={i}
+                onClick={() => setSeleccionado(esSeleccionado ? null : key)}
+                className={`mx-auto h-9 w-9 rounded-lg flex flex-col items-center justify-center gap-0.5 text-xs transition-colors ${
+                  esSeleccionado
+                    ? "bg-[var(--color-brand-800)] text-white"
+                    : esHoy
+                    ? "bg-brand-100 text-[var(--color-brand-900)] font-bold"
+                    : "text-ink hover:bg-surface-sunken"
+                }`}
+              >
+                <span>{d.date()}</span>
+                {evs.length > 0 && (
+                  <span className="flex gap-0.5">
+                    {evs.slice(0, 3).map((e, j) => (
+                      <span key={j} className={`h-1.5 w-1.5 rounded-full ${esSeleccionado ? "bg-white" : TIPO_COLOR_DOT[e.tipo] || "bg-ink/30"}`} />
+                    ))}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-2 min-h-[1.75rem]">
+          {seleccionado && eventosSeleccionado.length > 0 ? (
+            <ul className="space-y-1">
+              {eventosSeleccionado.map((e) => (
+                <li key={e.id}>
+                  <Link href={e.href} className="flex items-center gap-2 text-xs text-ink hover:underline">
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${TIPO_COLOR_DOT[e.tipo] || "bg-ink/30"}`} />
+                    <span className="truncate">{e.titulo}</span>
+                    <span className="text-[10px] text-ink-faint shrink-0">· {TIPO_LABEL[e.tipo] || e.tipo}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : seleccionado ? (
+            <p className="text-xs text-ink-faint">Nada agendado para el {dayjs(seleccionado).format("D [de] MMMM")}.</p>
+          ) : null}
+        </div>
+
+        {verMasHref && (
+          <div className="mt-2 text-right">
+            <Link href={verMasHref} className="text-xs font-semibold text-[var(--color-brand-800)]">
+              Ver calendario completo →
+            </Link>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -156,14 +234,6 @@ export function MonthCalendar({
           <p className="text-sm text-ink-faint">Tocá un día para ver qué hay.</p>
         )}
       </div>
-
-      {compact && verMasHref && (
-        <div className="mt-3 text-right">
-          <Link href={verMasHref} className="text-xs font-semibold text-[var(--color-brand-800)]">
-            Ver calendario completo →
-          </Link>
-        </div>
-      )}
     </div>
   );
 }

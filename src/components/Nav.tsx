@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { SessionUser } from "@/lib/auth";
 import { canRead, ROLE_LABELS, type Module } from "@/lib/roles";
 import { logoutAction } from "@/lib/actions/auth";
-import { get } from "@/lib/db";
+import { Saludo } from "./Saludo";
 import { NavLink } from "./NavLink";
 import { NavGroupSection } from "./NavGroupSection";
 import { Logo3D } from "./Logo3D";
@@ -165,15 +165,16 @@ function groupsFor(user: SessionUser): NavGroup[] {
   })).filter((g) => g.items.length > 0);
 }
 
-export async function Sidebar({ user }: { user: SessionUser }) {
-  // La Sidebar (barra lateral de escritorio) ya no lista "Alertas" como un
-  // ítem más del menú — pedido explícito: que ocupe menos lugar y se acceda
-  // sólo desde el ícono de campana de acá arriba. Se sigue filtrando recién
-  // acá (no se saca de GROUPS/ALL_ITEMS) para no tocar el menú "Más" del
-  // celular ni la barra inferior (BottomNav), que sí la siguen mostrando tal
-  // cual estaban.
+export function Sidebar({ user }: { user: SessionUser }) {
+  // La Sidebar (barra lateral de escritorio) ya no lista "Alertas" ni
+  // "Buscador" como ítems del menú — pedido explícito: que la lista sea más
+  // corta. Alertas y Buscar ahora se acceden desde los íconos junto al
+  // saludo, arriba de la pantalla de Inicio. Se filtra recién acá (no se
+  // saca de GROUPS/ALL_ITEMS) para no tocar el menú "Más" del celular ni la
+  // barra inferior (BottomNav), que los siguen mostrando tal cual estaban.
+  const OCULTOS_EN_SIDEBAR = ["/alertas", "/buscar"];
   const groups = groupsFor(user)
-    .map((g) => ({ ...g, items: g.items.filter((i) => i.href !== "/alertas") }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => !OCULTOS_EN_SIDEBAR.includes(i.href)) }))
     .filter((g) => g.items.length > 0);
   const { nombre, logo_url, color_primario, color_secundario } = user.organizacion;
   // El acento del ítem activo usa el color secundario de la cooperativa si
@@ -181,15 +182,6 @@ export async function Sidebar({ user }: { user: SessionUser }) {
   // el resaltado nunca queda sin color aunque la cooperativa no haya
   // configurado un secundario todavía.
   const acento = color_secundario || color_primario;
-
-  // Cantidad de alertas abiertas para el numerito de la campana — misma
-  // consulta que usa alertas/page.tsx (sin filtro por rol: todos los
-  // usuarios de la cooperativa ven las mismas alertas abiertas).
-  const conteoAlertas = await get<{ cantidad: string }>(
-    `SELECT count(*)::text as cantidad FROM alertas WHERE estado = 'abierta'`
-  );
-  const totalAlertas = Number(conteoAlertas?.cantidad || 0);
-
   return (
     <aside
       className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 text-white"
@@ -201,21 +193,9 @@ export async function Sidebar({ user }: { user: SessionUser }) {
         ) : (
           <Logo3D src="/coova-logo-horizontal.png" width={100} height={30} className="flex-shrink-0" />
         )}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <div className="text-sm font-bold leading-tight truncate">{nombre}</div>
         </div>
-        <Link
-          href="/alertas"
-          className="relative flex-shrink-0 p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-          title="Alertas"
-        >
-          <Bell size={18} />
-          {totalAlertas > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[var(--color-rojo,#dc2626)] text-white text-[9px] font-bold flex items-center justify-center leading-none">
-              {totalAlertas > 9 ? "9+" : totalAlertas}
-            </span>
-          )}
-        </Link>
       </div>
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
         {groups.map((g) => {
@@ -247,7 +227,9 @@ export async function Sidebar({ user }: { user: SessionUser }) {
         })}
       </nav>
       <div className="px-4 py-4 border-t border-white/10">
-        <div className="text-xs text-white/60">{user.nombre}</div>
+        <div className="text-xs text-white/60">
+          <Saludo nombre={user.nombre.split(" ")[0]} />
+        </div>
         <div className="text-[11px] text-white/40">{ROLE_LABELS[user.rol]}</div>
         <form action={logoutAction}>
           <button className="mt-2 text-xs text-white/70 hover:text-white underline underline-offset-2">Cerrar sesión</button>
