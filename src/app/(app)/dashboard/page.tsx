@@ -150,7 +150,7 @@ export default async function DashboardPage() {
     verReclamos
       ? get<{ abiertos: number; en_proceso: number }>(
           `SELECT COUNT(*) FILTER (WHERE estado='abierto')::int as abiertos, COUNT(*) FILTER (WHERE estado='en_proceso')::int as en_proceso FROM reclamos`
-        )
+        ).catch(() => undefined)
       : Promise.resolve(undefined),
     canRead(user.rol, "finanzas") ? resumenFinanciero() : Promise.resolve(null),
     verFinanzasDetalle ? all<any>(`SELECT * FROM compromisos_futuros ORDER BY fecha_estimada ASC LIMIT 3`) : Promise.resolve([] as any[]),

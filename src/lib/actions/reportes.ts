@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { all, insert } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
 
@@ -16,6 +17,7 @@ dayjs.locale("es");
 export async function generarReporteObraAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (!canRead(user.rol, "obra")) throw new Error("No tenés permiso para generar el reporte de obra.");
 
   const formatoRaw = String(formData.get("formato") || "json");
   const formato = ["json", "pdf", "xlsx"].includes(formatoRaw) ? formatoRaw : "json";
@@ -81,6 +83,7 @@ export async function generarReporteObraAction(formData: FormData) {
 export async function generarReporteFinanzasAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (!ROLES_FINANZAS_DETALLE.includes(user.rol)) throw new Error("No tenés permiso para generar el reporte financiero.");
 
   const formatoRaw = String(formData.get("formato") || "json");
   const formato = ["json", "pdf", "xlsx"].includes(formatoRaw) ? formatoRaw : "json";
@@ -128,6 +131,7 @@ export async function generarReporteFinanzasAction(formData: FormData) {
 export async function generarReporteTrabajoAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (!canRead(user.rol, "trabajo")) throw new Error("No tenés permiso para generar el reporte de trabajo.");
 
   const formatoRaw = String(formData.get("formato") || "json");
   const formato = ["json", "pdf", "xlsx"].includes(formatoRaw) ? formatoRaw : "json";
