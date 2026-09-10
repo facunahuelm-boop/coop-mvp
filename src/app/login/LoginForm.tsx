@@ -44,9 +44,6 @@ export function LoginForm({ nombre, logoUrl, colorPrimario }: Props) {
           ) : (
             <img src={logoUrl} alt={nombre} className="h-24 w-24 mb-3 drop-shadow-sm rounded-full object-cover" />
           )}
-          <h1 className="text-lg font-bold" style={{ color: colorPrimario }}>
-            Sistema de gestión de la cooperativa
-          </h1>
           <p className="text-sm text-ink/55 mt-1">Ingresá con tu usuario para continuar</p>
         </div>
 
