@@ -25,8 +25,16 @@ export default async function ComisionesPage() {
   if (!canRead(user.rol, "comisiones")) redirect("/dashboard");
 
   const puedeEditar = canEdit(user.rol, "comisiones");
+  // Crear/archivar una comisión es una decisión estructural (agrega o quita
+  // un órgano entero) — se reserva a roles de conducción/finanzas, igual que
+  // ya exige el backend (ver actions/comisiones.ts). Gestionar los
+  // integrantes o tareas de una comisión puntual, en cambio, se ofrece según
+  // CUÁL comisión: cualquiera de conducción, o quien ya integra esa comisión
+  // específica — así el botón no aparece prometiendo algo que el servidor
+  // después va a rechazar por ser de otra comisión.
+  const esOversightComisiones = canEdit(user.rol, "finanzas");
 
-  const [comisiones, miembros, usuarios, tareas] = await Promise.all([
+  const [comisiones, miembros, usuarios, tareas, misComisiones] = await Promise.all([
     all<any>(`SELECT * FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`),
     all<any>(
       `SELECT m.*, u.nombre as user_nombre FROM comision_miembros m JOIN users u ON u.id = m.user_id WHERE m.activo = 1 ORDER BY m.rol_en_comision DESC, u.nombre ASC`
@@ -36,7 +44,11 @@ export default async function ComisionesPage() {
       `SELECT t.*, u.nombre as responsable_nombre FROM tareas t LEFT JOIN users u ON u.id = t.responsable_id
        ORDER BY (t.estado = 'completada'), CASE t.prioridad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, t.creado_en DESC`
     ),
+    all<{ comision_id: number }>(`SELECT comision_id FROM comision_miembros WHERE user_id = ? AND activo = 1`, [user.id]),
   ]);
+
+  const misComisionIds = new Set(misComisiones.map((m) => m.comision_id));
+  const puedeGestionarEstaComision = (comisionId: number) => puedeEditar && (esOversightComisiones || misComisionIds.has(comisionId));
 
   const miembrosPorComision = (comisionId: number) => miembros.filter((m) => m.comision_id === comisionId);
   const tareasPorComision = (comisionId: number) => tareas.filter((t) => t.comision_id === comisionId);
@@ -48,11 +60,12 @@ export default async function ComisionesPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {comisiones.map((c) => {
           const integrantes = miembrosPorComision(c.id);
+          const puedeGestionar = puedeGestionarEstaComision(c.id);
           return (
             <Card key={c.id}>
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-[var(--color-brand-900)]">{c.nombre}</h3>
-                {puedeEditar && (
+                {esOversightComisiones && (
                   <form action={archivarComisionAction}>
                     <input type="hidden" name="id" value={c.id} />
                     <button className="text-xs text-ink/40 hover:text-[var(--color-rojo)] underline underline-offset-2">Archivar</button>
@@ -66,7 +79,7 @@ export default async function ComisionesPage() {
                   <span key={m.id} className="inline-flex items-center gap-1.5 text-xs rounded-full bg-ink/5 px-2.5 py-1">
                     {m.rol_en_comision === "coordinador" ? "⭐ " : ""}
                     {m.user_nombre}
-                    {puedeEditar && (
+                    {puedeGestionar && (
                       <form action={quitarMiembroAction} className="inline">
                         <input type="hidden" name="id" value={m.id} />
                         <button className="text-ink/40 hover:text-[var(--color-rojo)]" title="Quitar de la comisión">✕</button>
@@ -77,7 +90,7 @@ export default async function ComisionesPage() {
                 {integrantes.length === 0 && <p className="text-xs text-ink/40 italic">Sin integrantes todavía.</p>}
               </div>
 
-              {puedeEditar && (
+              {puedeGestionar && (
                 <form action={agregarMiembroAction} className="mt-3 flex flex-wrap items-end gap-2">
                   <input type="hidden" name="comision_id" value={c.id} />
                   <div className="flex-1 min-w-[140px]">
@@ -113,7 +126,7 @@ export default async function ComisionesPage() {
                           {t.fecha_vencimiento ? ` · vence ${dayjs(t.fecha_vencimiento).format("DD/MM")}` : ""}
                         </p>
                       </div>
-                      {puedeEditar ? (
+                      {puedeGestionar ? (
                         <AutoSubmitSelect
                           action={cambiarEstadoTareaAction}
                           hiddenFields={{ id: t.id }}
@@ -132,7 +145,7 @@ export default async function ComisionesPage() {
                   )}
                 </div>
 
-                {puedeEditar && (
+                {puedeGestionar && (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-xs font-semibold text-[var(--color-brand-800)]">+ Agregar tarea</summary>
                     <form action={crearTareaAction} className="mt-2 grid grid-cols-1 gap-2">
@@ -163,7 +176,7 @@ export default async function ComisionesPage() {
         {comisiones.length === 0 && <EmptyState>Todavía no hay comisiones creadas.</EmptyState>}
       </div>
 
-      {puedeEditar && (
+      {esOversightComisiones && (
         <details className="mt-6">
           <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Crear comisión</summary>
           <Card className="mt-3">

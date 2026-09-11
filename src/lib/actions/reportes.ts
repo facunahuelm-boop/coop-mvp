@@ -5,6 +5,7 @@ import { all, insert } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
+import { resumenFinanciero } from "@/lib/logic";
 import { generarPdfBuffer, type SeccionPdf } from "@/lib/pdf";
 import { saveGeneratedFile } from "@/lib/upload";
 import dayjs from "dayjs";
@@ -101,16 +102,19 @@ export async function generarReporteFinanzasAction(formData: FormData) {
   if (!user) redirect("/login");
   if (!ROLES_FINANZAS_DETALLE.includes(user.rol)) throw new Error("No tenés permiso para generar el reporte financiero.");
 
-  const [ingresos, egresos, compromisos, movimientos] = await Promise.all([
-    all<any>(`SELECT SUM(monto) as total FROM movimientos_financieros WHERE tipo = 'ingreso'`),
-    all<any>(`SELECT SUM(monto) as total FROM movimientos_financieros WHERE tipo = 'egreso'`),
-    all<any>(`SELECT SUM(monto) as total_comprometido FROM compromisos_futuros`),
+  // Se reutiliza resumenFinanciero() (lib/logic.ts) en vez de recalcular
+  // ingresos/egresos/saldo con SQL propio acá — es la misma función que ya
+  // usan el Dashboard, /finanzas y /api/reportes/finanzas. Tener el cálculo
+  // en un solo lugar es justamente lo que evita que este PDF alguna vez
+  // muestre un número distinto al resto del sistema (sección 14 del pedido:
+  // "no permitir que un dashboard muestre un saldo diferente al módulo
+  // financiero").
+  const [fin, movimientos] = await Promise.all([
+    resumenFinanciero(),
     all<any>(`SELECT m.*, u.nombre as registrado_por FROM movimientos_financieros m LEFT JOIN users u ON u.id = m.registrado_por_id ORDER BY fecha DESC LIMIT 100`),
   ]);
 
   const money = (n: number) => `$${Math.round(n || 0).toLocaleString("es-UY")}`;
-  const saldoBancario = (ingresos[0]?.total || 0) - (egresos[0]?.total || 0);
-  const disponible = saldoBancario - (compromisos[0]?.total_comprometido || 0);
   const titulo = `Reporte Financiero — ${dayjs().format("MMMM YYYY")}`;
 
   const secciones: SeccionPdf[] = [
@@ -118,8 +122,8 @@ export async function generarReporteFinanzasAction(formData: FormData) {
       tipo: "texto",
       encabezado: "Resumen",
       parrafos: [
-        `Ingresos totales: ${money(ingresos[0]?.total)} · Egresos totales: ${money(egresos[0]?.total)}`,
-        `Saldo: ${money(saldoBancario)} · Comprometido: ${money(compromisos[0]?.total_comprometido)} · Disponible prudencial: ${money(disponible)}`,
+        `Ingresos totales: ${money(fin.ingresos)} · Egresos totales: ${money(fin.egresos)}`,
+        `Saldo: ${money(fin.saldo)} · Comprometido: ${money(fin.comprometido)} · Disponible prudencial: ${money(fin.disponiblePrudencial)}`,
       ],
     },
     {
