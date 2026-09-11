@@ -6,9 +6,11 @@ import { get, all } from "@/lib/db";
 import { Card, PageHeader, SectionTitle, EmptyState, Badge, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import { registrarMovimientoCuentaSocioAction } from "@/lib/actions/cuentaSocios";
-import { actualizarSocioAction } from "@/lib/actions/socios";
+import { actualizarSocioAction, agregarIntegranteAction, editarIntegranteAction, cambiarEstadoIntegranteAction } from "@/lib/actions/socios";
+import { RELACION_INTEGRANTE, RELACION_INTEGRANTE_LABEL, TIPO_INTEGRANTE } from "@/lib/constants";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
+const TIPO_INTEGRANTE_LABEL: Record<(typeof TIPO_INTEGRANTE)[number], string> = { adulto: "Adulto", menor: "Menor de edad" };
 
 const badgeSocio: Record<string, "verde" | "amarillo" | "rojo"> = {
   activo: "verde",
@@ -31,6 +33,15 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
     [id]
   );
   if (!socio) notFound();
+
+  // Integrantes del núcleo (pareja, hijos, etc.) colgando de este socio como
+  // titular — ver migrations/0019_socio_integrantes.sql. .catch(() => []):
+  // si esa migración todavía no se corrió en esta cooperativa, la sección se
+  // muestra vacía en vez de romper toda la ficha del socio.
+  const integrantes = await all<any>(
+    `SELECT * FROM socio_integrantes WHERE socio_id = ? ORDER BY (estado != 'activo'), CASE relacion WHEN 'titular' THEN 0 ELSE 1 END, nombre ASC`,
+    [id]
+  ).catch(() => [] as any[]);
 
   // La ficha básica (nombre, vivienda, contacto) ya es visible para cualquiera
   // que pueda leer el módulo Socios — es el mismo padrón que se ve en /socios.
@@ -82,6 +93,109 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" defaultValue={socio.notas || ""} className={inputClass} /></div>
               <div className="sm:col-span-2">
                 <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar</button>
+              </div>
+            </form>
+          </details>
+        )}
+      </Card>
+
+      {/* ---------- Integrantes del núcleo (pareja, hijos, etc.) ---------- */}
+      <SectionTitle>Integrantes del núcleo</SectionTitle>
+      <Card className="mb-6">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between rounded-lg bg-surface-sunken px-3 py-2">
+            <div>
+              <span className="text-sm font-semibold text-ink">{socio.nombre}</span>
+              <span className="text-xs text-ink-muted ml-2">Titular</span>
+            </div>
+          </div>
+          {integrantes.map((i) => (
+            <div key={i.id} className={`rounded-lg px-3 py-2 ${i.estado === "inactivo" ? "bg-surface-sunken/50 opacity-60" : "bg-surface border border-border"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-ink">{i.nombre} {i.apellido || ""}</span>
+                  <span className="text-xs text-ink-muted ml-2">
+                    {RELACION_INTEGRANTE_LABEL[i.relacion as (typeof RELACION_INTEGRANTE)[number]] || i.relacion}
+                    {i.tipo_integrante === "menor" && " · menor de edad"}
+                    {i.estado === "inactivo" && " · dado de baja"}
+                  </span>
+                  <p className="text-xs text-ink-faint mt-0.5">
+                    {i.documento && `Doc: ${i.documento} · `}
+                    {i.fecha_nacimiento && `Nac.: ${dayjs(i.fecha_nacimiento).format("DD/MM/YYYY")} · `}
+                    {i.telefono && `${i.telefono} · `}
+                    {i.email || ""}
+                  </p>
+                  {i.observaciones && <p className="text-xs text-ink-faint mt-0.5">{i.observaciones}</p>}
+                </div>
+                {puedeEditar && (
+                  <div className="flex flex-col items-end gap-1 shrink-0 text-right">
+                    <details>
+                      <summary className="cursor-pointer text-xs text-[var(--color-brand-800)] font-semibold">Editar</summary>
+                      <form action={editarIntegranteAction} className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 w-64 sm:w-80">
+                        <input type="hidden" name="id" value={i.id} />
+                        <div><Label>Nombre</Label><input name="nombre" defaultValue={i.nombre} required className={inputClass} /></div>
+                        <div><Label>Apellido</Label><input name="apellido" defaultValue={i.apellido || ""} className={inputClass} /></div>
+                        <div><Label>Documento</Label><input name="documento" defaultValue={i.documento || ""} className={inputClass} /></div>
+                        <div><Label>Fecha de nacimiento</Label><input type="date" name="fecha_nacimiento" defaultValue={i.fecha_nacimiento || ""} className={inputClass} /></div>
+                        <div><Label>Teléfono</Label><input name="telefono" defaultValue={i.telefono || ""} className={inputClass} /></div>
+                        <div><Label>Email</Label><input type="email" name="email" defaultValue={i.email || ""} className={inputClass} /></div>
+                        <div>
+                          <Label>Relación</Label>
+                          <select name="relacion" defaultValue={i.relacion} className={inputClass}>
+                            {RELACION_INTEGRANTE.map((r) => <option key={r} value={r}>{RELACION_INTEGRANTE_LABEL[r]}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <Label>Tipo</Label>
+                          <select name="tipo_integrante" defaultValue={i.tipo_integrante} className={inputClass}>
+                            {TIPO_INTEGRANTE.map((t) => <option key={t} value={t}>{TIPO_INTEGRANTE_LABEL[t]}</option>)}
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2"><Label>Observaciones</Label><input name="observaciones" defaultValue={i.observaciones || ""} className={inputClass} /></div>
+                        <div className="sm:col-span-2"><button className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-1.5 text-xs font-semibold">Guardar</button></div>
+                      </form>
+                    </details>
+                    <form action={cambiarEstadoIntegranteAction}>
+                      <input type="hidden" name="id" value={i.id} />
+                      <input type="hidden" name="estado" value={i.estado === "activo" ? "inactivo" : "activo"} />
+                      <button className="text-xs text-ink-faint hover:text-[var(--color-rojo)] underline underline-offset-2">
+                        {i.estado === "activo" ? "Dar de baja" : "Reactivar"}
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {integrantes.length === 0 && <p className="text-xs text-ink-faint">Sin otros integrantes cargados todavía.</p>}
+        </div>
+
+        {puedeEditar && (
+          <details className="mt-4">
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar integrante</summary>
+            <form action={agregarIntegranteAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input type="hidden" name="socio_id" value={socio.id} />
+              <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
+              <div><Label>Apellido</Label><input name="apellido" className={inputClass} /></div>
+              <div><Label>Documento</Label><input name="documento" className={inputClass} /></div>
+              <div><Label>Fecha de nacimiento</Label><input type="date" name="fecha_nacimiento" className={inputClass} /></div>
+              <div><Label>Teléfono</Label><input name="telefono" className={inputClass} /></div>
+              <div><Label>Email</Label><input type="email" name="email" className={inputClass} /></div>
+              <div>
+                <Label>Relación con el titular</Label>
+                <select name="relacion" className={inputClass} defaultValue="pareja">
+                  {RELACION_INTEGRANTE.filter((r) => r !== "titular").map((r) => <option key={r} value={r}>{RELACION_INTEGRANTE_LABEL[r]}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Tipo de integrante</Label>
+                <select name="tipo_integrante" className={inputClass} defaultValue="adulto">
+                  {TIPO_INTEGRANTE.map((t) => <option key={t} value={t}>{TIPO_INTEGRANTE_LABEL[t]}</option>)}
+                </select>
+              </div>
+              <div className="sm:col-span-2"><Label>Observaciones</Label><input name="observaciones" className={inputClass} /></div>
+              <div className="sm:col-span-2">
+                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agregar integrante</button>
               </div>
             </form>
           </details>

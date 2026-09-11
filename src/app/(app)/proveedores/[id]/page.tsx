@@ -4,9 +4,14 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { get } from "@/lib/db";
 import { historialProveedor } from "@/lib/logic";
-import { Card, PageHeader, EmptyState, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, EmptyState, Label, inputClass, Badge } from "@/components/ui";
 import dayjs from "dayjs";
 import { actualizarProveedorAction } from "@/lib/actions/proveedores";
+import { ESTADO_PROVEEDOR, ESTADO_PROVEEDOR_LABEL, TIPO_PROVEEDOR, TIPO_PROVEEDOR_LABEL } from "@/lib/constants";
+
+const ESTADO_COLOR: Record<string, "verde" | "amarillo" | "brand" | "gray"> = {
+  nuevo: "amarillo", habitual: "verde", en_evaluacion: "brand", inactivo: "gray",
+};
 
 /**
  * Ficha de proveedor (Fase 08 del Plan Maestro). historialProveedor() ya
@@ -26,10 +31,15 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
 
   const historial = await historialProveedor(Number(id));
   const totalComprado = historial.reduce((acc: number, h: any) => acc + Number(h.monto || 0), 0);
+  const estadoProveedor = (proveedor.estado || "nuevo") as (typeof ESTADO_PROVEEDOR)[number];
 
   return (
     <div>
-      <PageHeader title={proveedor.nombre} subtitle={proveedor.rubro || "Proveedor"} />
+      <PageHeader
+        title={proveedor.nombre}
+        subtitle={proveedor.rubro || "Proveedor"}
+        action={<Badge color={ESTADO_COLOR[estadoProveedor]}>{ESTADO_PROVEEDOR_LABEL[estadoProveedor]}</Badge>}
+      />
 
       <Link href="/proveedores" className="text-xs text-[var(--color-brand-800)] underline underline-offset-2">
         ← Volver a proveedores
@@ -37,18 +47,42 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
 
       <Card className="mt-4 mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div><span className="text-ink/50">RUT:</span> {proveedor.rut || "—"}</div>
+          <div><span className="text-ink/50">Tipo:</span> {TIPO_PROVEEDOR_LABEL[proveedor.tipo as typeof TIPO_PROVEEDOR[number]] || "—"}</div>
+          <div><span className="text-ink/50">Teléfono:</span> {proveedor.telefono || "—"}</div>
+          <div><span className="text-ink/50">Email:</span> {proveedor.email || "—"}</div>
+          <div><span className="text-ink/50">Dirección:</span> {proveedor.direccion || "—"}</div>
+          <div><span className="text-ink/50">Persona de contacto:</span> {proveedor.persona_contacto || "—"}</div>
           <div><span className="text-ink/50">Contacto:</span> {proveedor.contacto || "—"}</div>
           <div><span className="text-ink/50">Rubro:</span> {proveedor.rubro || "—"}</div>
+          <div><span className="text-ink/50">Alta:</span> {proveedor.creado_en ? dayjs(proveedor.creado_en).format("DD/MM/YYYY") : "—"}</div>
           {proveedor.notas && <div className="sm:col-span-2"><span className="text-ink/50">Notas:</span> {proveedor.notas}</div>}
         </div>
 
         {puedeEditar && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-brand-800)]">Editar datos de contacto</summary>
+            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-brand-800)]">Editar ficha</summary>
             <form action={actualizarProveedorAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input type="hidden" name="id" value={proveedor.id} />
-              <div><Label>Contacto</Label><input name="contacto" defaultValue={proveedor.contacto || ""} placeholder="Teléfono o email" className={inputClass} /></div>
+              <div><Label>RUT</Label><input name="rut" defaultValue={proveedor.rut || ""} className={inputClass} /></div>
               <div><Label>Rubro</Label><input name="rubro" defaultValue={proveedor.rubro || ""} className={inputClass} /></div>
+              <div>
+                <Label>Tipo</Label>
+                <select name="tipo" defaultValue={proveedor.tipo || "empresa"} className={inputClass}>
+                  {TIPO_PROVEEDOR.map((t) => <option key={t} value={t}>{TIPO_PROVEEDOR_LABEL[t]}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Estado</Label>
+                <select name="estado" defaultValue={proveedor.estado || "nuevo"} className={inputClass}>
+                  {ESTADO_PROVEEDOR.map((e) => <option key={e} value={e}>{ESTADO_PROVEEDOR_LABEL[e]}</option>)}
+                </select>
+              </div>
+              <div><Label>Teléfono</Label><input name="telefono" defaultValue={proveedor.telefono || ""} className={inputClass} /></div>
+              <div><Label>Email</Label><input type="email" name="email" defaultValue={proveedor.email || ""} className={inputClass} /></div>
+              <div><Label>Dirección</Label><input name="direccion" defaultValue={proveedor.direccion || ""} className={inputClass} /></div>
+              <div><Label>Persona de contacto</Label><input name="persona_contacto" defaultValue={proveedor.persona_contacto || ""} className={inputClass} /></div>
+              <div className="sm:col-span-2"><Label>Contacto (libre)</Label><input name="contacto" defaultValue={proveedor.contacto || ""} placeholder="Teléfono o email" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" defaultValue={proveedor.notas || ""} className={inputClass} /></div>
               <div className="sm:col-span-2">
                 <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar</button>

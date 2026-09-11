@@ -6,9 +6,11 @@ import { insert, update, get, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
+import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import {
   parseForm,
   zId,
+  zIdOpcional,
   zTexto,
   zTextoOpcional,
   zMonto,
@@ -22,8 +24,13 @@ import {
 
 const PRIORIDAD_COMPRA = ["baja", "media", "alta", "critica"] as const;
 
+// comision_id (nuevo, opcional): vínculo real con la tabla comisiones para
+// poder sumar "cuánto compró cada comisión" de manera confiable — ver
+// migrations/0020_compras_comision_id.sql. "comision" (texto) se sigue
+// completando igual, así ninguna pantalla vieja que la lea se rompe.
 const crearSolicitudSchema = z.object({
   comision: zTexto(200),
+  comision_id: zIdOpcional,
   categoria: zEnumSeguro(clavesDe(CATEGORIA_COMPRA_LABEL), "obra"),
   material: zTexto(300),
   cantidad: zNumeroOpcionalConDefault(0),
@@ -39,6 +46,9 @@ export async function crearSolicitudAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
   const datos = parseForm(crearSolicitudSchema, formData);
+  if (datos.comision_id && !(await puedeGestionarComision(user, datos.comision_id))) {
+    throw new Error(ERROR_SIN_PERMISO_COMISION);
+  }
   const id = await insert("solicitudes_compra", {
     solicitante_id: user.id,
     ...datos,
@@ -56,6 +66,7 @@ const agregarPresupuestoSchema = z.object({
   forma_pago: zTextoOpcional(200),
   garantia: zTextoOpcional(300),
   costo_envio: zNumeroOpcionalConDefault(0),
+  condiciones: zTextoOpcional(500),
   notas: zTextoOpcional(1000),
 });
 
@@ -74,8 +85,12 @@ export async function agregarPresupuestoAction(formData: FormData) {
   }
   if (!proveedorId) throw new Error("Falta elegir o crear un proveedor.");
 
-  await insert("presupuestos_proveedor", { solicitud_id: solicitudId, proveedor_id: proveedorId, ...datos });
+  const presupuestoId = await insert("presupuestos_proveedor", { solicitud_id: solicitudId, proveedor_id: proveedorId, ...datos });
   await update("solicitudes_compra", solicitudId, { estado: "en_comparacion" });
+  // Auditoría de presupuestos (pedido explícito, sección 8): esta acción no
+  // dejaba rastro de quién cargó cada presupuesto ni con qué condiciones —
+  // se agrega acá, sin tocar el resto del flujo.
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "presupuestos_proveedor", entidad_id: presupuestoId, valor_nuevo: { solicitudId, proveedorId, ...datos } });
   revalidatePath(`/compras/${solicitudId}`);
 }
 
@@ -87,6 +102,7 @@ export async function decidirCompraAction(formData: FormData) {
     formData
   );
   const presupuesto = await get<any>(`SELECT * FROM presupuestos_proveedor WHERE id = ?`, [presupuestoId]);
+  const solicitud = await get<any>(`SELECT * FROM solicitudes_compra WHERE id = ?`, [solicitudId]);
 
   await insert("decisiones_compra", {
     solicitud_id: solicitudId, presupuesto_id: presupuestoId, decidido_por_id: user.id,
@@ -94,8 +110,32 @@ export async function decidirCompraAction(formData: FormData) {
   });
   await update("solicitudes_compra", solicitudId, { estado: "aprobada" });
   await audit({ usuario_id: user.id, accion: "aprobar_compra", entidad: "solicitudes_compra", entidad_id: solicitudId, valor_nuevo: { presupuestoId, motivo, monto: presupuesto?.precio } });
+
+  // Cadena "Comisión → Gasto → Proveedor → Financiero" (pedido explícito):
+  // si la solicitud tiene una comisión real vinculada (comision_id, no solo
+  // el texto libre), aprobar la compra genera automáticamente el gasto
+  // correspondiente, ya asociado al proveedor elegido — queda "pendiente"
+  // (todavía no salió la plata) hasta que alguien lo marque como pagado
+  // desde /gastos, que es cuando recién se crea el movimiento financiero.
+  if (solicitud?.comision_id && presupuesto) {
+    await insert("gastos_comision", {
+      comision_id: solicitud.comision_id,
+      proveedor_id: presupuesto.proveedor_id,
+      solicitud_compra_id: solicitudId,
+      descripcion: solicitud.material,
+      categoria: solicitud.categoria || "otros",
+      fecha: new Date().toISOString().slice(0, 10),
+      importe: presupuesto.precio,
+      forma_pago: presupuesto.forma_pago || null,
+      estado: "pendiente",
+      observaciones: motivo || null,
+      creado_por_id: user.id,
+    });
+  }
+
   revalidatePath(`/compras/${solicitudId}`);
   revalidatePath("/compras");
+  revalidatePath("/gastos");
 }
 
 /**

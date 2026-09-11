@@ -15,6 +15,20 @@ import {
   zFechaOpcional,
   zEnumSeguro,
 } from "@/lib/validation";
+import { RELACION_INTEGRANTE, TIPO_INTEGRANTE, ESTADO_INTEGRANTE } from "@/lib/constants";
+
+// ---------- Núcleos / Integrantes ----------
+// Padrón de Socios y Núcleos (pedido explícito): un núcleo (grupo familiar)
+// puede tener varios integrantes (pareja, hijos, etc.) sin que cada uno sea
+// un socio independiente. Se reutiliza "socios" como el TITULAR del núcleo
+// (decisión ya tomada vía AskUserQuestion: "Reutilizar Socio como titular")
+// en vez de inventar una entidad Núcleo nueva — la ficha de socio de siempre
+// sigue siendo la unidad de vivienda/estado/lista de espera, y esta tabla
+// nueva (socio_integrantes) cuelga de ella. Ver
+// migrations/0019_socio_integrantes.sql para el detalle de la tabla.
+// Las constantes (RELACION_INTEGRANTE, TIPO_INTEGRANTE, ESTADO_INTEGRANTE)
+// viven en constants.ts: un archivo "use server" solo puede exportar
+// funciones async, no un array/objeto.
 
 // Mismos valores que ofrecen los <select> de socios/page.tsx (ESTADOS_VIVIENDA,
 // ESTADOS_SOCIO, ESTADOS_LISTA_ESPERA) — se repiten acá porque son server
@@ -204,4 +218,90 @@ export async function incorporarDesdeListaEsperaAction(formData: FormData) {
 
   await audit({ usuario_id: user.id, accion: "incorporar_desde_lista_espera", entidad: "socios", entidad_id: socioId, valor_nuevo: { desde_lista_espera_id: id } });
   revalidatePath("/socios");
+}
+
+/**
+ * Agrega un integrante al núcleo de un socio (pareja, hijo/a, etc.). El
+ * socio_id identifica al TITULAR — mismo criterio de permiso que el resto de
+ * la ficha de socios (canEdit "socios"): esto lo gestiona quien administra
+ * el padrón, no cada socio por sí mismo.
+ */
+const agregarIntegranteSchema = z.object({
+  socio_id: zId,
+  nombre: zTexto(200),
+  apellido: zTextoOpcional(200),
+  documento: zTextoOpcional(50),
+  fecha_nacimiento: zFechaOpcional,
+  telefono: zTextoOpcional(50),
+  email: zEmailOpcional,
+  relacion: zEnumSeguro(RELACION_INTEGRANTE, "otro"),
+  tipo_integrante: zEnumSeguro(TIPO_INTEGRANTE, "adulto"),
+  observaciones: zTextoOpcional(1000),
+});
+
+export async function agregarIntegranteAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
+  const { socio_id: socioId, ...datos } = parseForm(agregarIntegranteSchema, formData);
+
+  const socio = await get<{ id: number }>(`SELECT id FROM socios WHERE id = ?`, [socioId]);
+  if (!socio) throw new Error("Ese socio ya no existe.");
+
+  const id = await insert("socio_integrantes", {
+    socio_id: socioId,
+    ...datos,
+    estado: "activo",
+    creado_por_id: user.id,
+  });
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "socio_integrantes", entidad_id: id, valor_nuevo: { socio_id: socioId, nombre: datos.nombre, relacion: datos.relacion } });
+  revalidatePath(`/socios/${socioId}`);
+  revalidatePath("/socios");
+}
+
+/** Edita los datos de un integrante ya cargado. */
+const editarIntegranteSchema = z.object({
+  id: zId,
+  nombre: zTexto(200),
+  apellido: zTextoOpcional(200),
+  documento: zTextoOpcional(50),
+  fecha_nacimiento: zFechaOpcional,
+  telefono: zTextoOpcional(50),
+  email: zEmailOpcional,
+  relacion: zEnumSeguro(RELACION_INTEGRANTE, "otro"),
+  tipo_integrante: zEnumSeguro(TIPO_INTEGRANTE, "adulto"),
+  observaciones: zTextoOpcional(1000),
+});
+
+export async function editarIntegranteAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
+  const { id, ...datos } = parseForm(editarIntegranteSchema, formData);
+
+  const integrante = await get<{ socio_id: number }>(`SELECT socio_id FROM socio_integrantes WHERE id = ?`, [id]);
+  if (!integrante) throw new Error("Ese integrante ya no existe.");
+
+  await update("socio_integrantes", id, datos);
+  await audit({ usuario_id: user.id, accion: "editar", entidad: "socio_integrantes", entidad_id: id, valor_nuevo: datos });
+  revalidatePath(`/socios/${integrante.socio_id}`);
+}
+
+/**
+ * Da de baja (o reactiva) a un integrante sin borrarlo — "la estructura debe
+ * permitir agregar y quitar integrantes sin perder el historial" (pedido
+ * explícito). Mismo criterio que viviendas/socios/proveedores: estados,
+ * nunca DELETE.
+ */
+const cambiarEstadoIntegranteSchema = z.object({ id: zId, estado: zEnumSeguro(ESTADO_INTEGRANTE) });
+
+export async function cambiarEstadoIntegranteAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
+  const { id, estado } = parseForm(cambiarEstadoIntegranteSchema, formData);
+
+  const integrante = await get<{ socio_id: number }>(`SELECT socio_id FROM socio_integrantes WHERE id = ?`, [id]);
+  if (!integrante) throw new Error("Ese integrante ya no existe.");
+
+  await update("socio_integrantes", id, { estado });
+  await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "socio_integrantes", entidad_id: id, valor_nuevo: { estado } });
+  revalidatePath(`/socios/${integrante.socio_id}`);
 }

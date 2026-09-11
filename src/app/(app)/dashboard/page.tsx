@@ -26,6 +26,7 @@ import {
   ListChecks,
   CalendarClock,
   Search,
+  Receipt,
 } from "lucide-react";
 
 // Fase "Dashboard: prioridad y simplicidad" del rediseño UI/UX.
@@ -83,6 +84,10 @@ export default async function DashboardPage() {
   const verTrabajo = canRead(user.rol, "trabajo") && moduloVisible("trabajo", user.etapa, user.modulos_override);
   const verSeguridad = canRead(user.rol, "seguridad") && moduloVisible("seguridad", user.etapa, user.modulos_override);
   const verCompras = canRead(user.rol, "compras");
+  // Gastos por Comisión (pedido explícito, sección 9: tarjeta compacta, sin
+  // sobrecargar el dashboard) — mismo criterio de lectura amplia que la
+  // pantalla /gastos ("todos ven el resumen, cada uno edita solo lo suyo").
+  const verGastos = canRead(user.rol, "compras") || canRead(user.rol, "finanzas");
   const verReclamos = canRead(user.rol, "reclamos") && moduloVisible("reclamos", user.etapa, user.modulos_override);
   const verComisiones = canRead(user.rol, "comisiones");
   const verDocumentos = canRead(user.rol, "documentos");
@@ -121,6 +126,8 @@ export default async function DashboardPage() {
     pagosMes,
     docsSeguridadMes,
     notasCalendarioMes,
+    gastosResumen,
+    gastosPorComision,
   ] = await Promise.all([
     verObra ? tareasObraConSemaforo() : Promise.resolve([] as any[]),
     verObra
@@ -204,6 +211,30 @@ export default async function DashboardPage() {
       `SELECT n.*, u.nombre as autor_nombre FROM notas_calendario n LEFT JOIN users u ON u.id = n.autor_id WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
       [desdeMes]
     ).catch(() => [] as any[]),
+    // Gastos por Comisión (sección 9 del pedido: tarjeta compacta en el
+    // dashboard). .catch(...): ver nota de notas_calendario arriba — misma
+    // razón (migración 0017 y despliegue de código son dos pasos manuales
+    // separados, no algo atómico).
+    verGastos
+      ? get<any>(
+          `SELECT
+             COALESCE(SUM(importe) FILTER (WHERE estado != 'anulado' AND fecha >= ?), 0) as total_mes,
+             COUNT(*) FILTER (WHERE estado = 'pendiente') as cantidad_pendiente
+           FROM gastos_comision`,
+          [desdeMes]
+        ).catch(() => undefined)
+      : Promise.resolve(undefined),
+    verGastos
+      ? all<{ nombre: string; total: number }>(
+          `SELECT c.nombre, COALESCE(SUM(g.importe) FILTER (WHERE g.estado != 'anulado' AND g.fecha >= ?), 0) as total
+           FROM comisiones c LEFT JOIN gastos_comision g ON g.comision_id = c.id
+           WHERE c.activa = 1
+           GROUP BY c.nombre
+           HAVING COALESCE(SUM(g.importe) FILTER (WHERE g.estado != 'anulado' AND g.fecha >= ?), 0) > 0
+           ORDER BY total DESC LIMIT 3`,
+          [desdeMes, desdeMes]
+        ).catch(() => [] as any[])
+      : Promise.resolve([] as any[]),
   ]);
 
   const totalTareas = tareas.length;
@@ -497,6 +528,23 @@ export default async function DashboardPage() {
             ) : (
               <p className="text-sm text-[var(--color-verde)]">Estás al día.</p>
             )}
+          </Card>
+        )}
+
+        {/* Gastos por Comisión: tarjeta compacta (sección 9 del pedido — nunca
+            un dashboard sobrecargado). Solo aparece si ya hay algo cargado
+            este mes; una cooperativa recién empezando con esto no ve una
+            tarjeta en cero. */}
+        {verGastos && gastosResumen && (Number(gastosResumen.total_mes) > 0 || Number(gastosResumen.cantidad_pendiente) > 0) && (
+          <Card>
+            <SectionTitle action={<Button href="/gastos" variant="ghost" className="!px-2 !py-1 text-xs">Ver gastos →</Button>}>
+              {tituloConIcono(<Receipt size={17} />, "Gastos por comisión")}
+            </SectionTitle>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <StatTile label="Gastado este mes" value={money(gastosResumen.total_mes)} />
+              <StatTile label="Pendientes de pago" value={String(gastosResumen.cantidad_pendiente)} color={Number(gastosResumen.cantidad_pendiente) > 0 ? "amarillo" : "verde"} />
+              {gastosPorComision[0] && <StatTile label="Comisión que más gastó" value={gastosPorComision[0].nombre} hint={money(gastosPorComision[0].total)} />}
+            </div>
           </Card>
         )}
 

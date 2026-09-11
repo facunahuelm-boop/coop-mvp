@@ -21,7 +21,18 @@ export default async function ComprasPage() {
   if (!canRead(user.rol, "compras")) redirect("/dashboard");
 
   const puedeEditar = canEdit(user.rol, "compras");
-  const solicitudes = await all<any>(`SELECT sc.*, u.nombre as solicitante_nombre FROM solicitudes_compra sc LEFT JOIN users u ON u.id = sc.solicitante_id ORDER BY CASE prioridad WHEN 'critica' THEN 0 WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, sc.creado_en DESC`);
+  const esOversightFinanzas = canEdit(user.rol, "finanzas");
+  const [solicitudes, comisionesActivas, misComisiones] = await Promise.all([
+    all<any>(`SELECT sc.*, u.nombre as solicitante_nombre, c.nombre as comision_vinculada FROM solicitudes_compra sc LEFT JOIN users u ON u.id = sc.solicitante_id LEFT JOIN comisiones c ON c.id = sc.comision_id ORDER BY CASE prioridad WHEN 'critica' THEN 0 WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, sc.creado_en DESC`),
+    all<{ id: number; nombre: string }>(`SELECT id, nombre FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`).catch(() => []),
+    all<{ comision_id: number }>(`SELECT comision_id FROM comision_miembros WHERE user_id = ? AND activo = 1`, [user.id]).catch(() => []),
+  ]);
+  // Solo se ofrecen para "vincular" las comisiones que esta persona puede
+  // gestionar de verdad (integrante activo, u oversight de finanzas) — evita
+  // que elija una y el servidor le rechace crearSolicitudAction por
+  // puedeGestionarComision (mismo criterio que ya usa /gastos).
+  const misComisionIds = new Set(misComisiones.map((m) => m.comision_id));
+  const comisiones = esOversightFinanzas ? comisionesActivas : comisionesActivas.filter((c) => misComisionIds.has(c.id));
 
   return (
     <div>
@@ -43,7 +54,7 @@ export default async function ComprasPage() {
                 <div>
                   <p className="text-sm font-semibold text-[var(--color-brand-900)]">{s.material} <span className="font-normal text-ink/50">({s.cantidad} {s.unidad})</span></p>
                   <p className="text-xs text-ink/50 mt-0.5">
-                    {CATEGORIA_COMPRA_LABEL[s.categoria] || CATEGORIA_COMPRA_LABEL.obra} · {s.comision} · {s.solicitante_nombre}
+                    {CATEGORIA_COMPRA_LABEL[s.categoria] || CATEGORIA_COMPRA_LABEL.obra} · {s.comision_vinculada || s.comision} · {s.solicitante_nombre}
                     {s.fecha_necesaria && ` · necesario para el ${dayjs(s.fecha_necesaria).format("DD/MM")}`}
                   </p>
                 </div>
@@ -72,6 +83,14 @@ export default async function ComprasPage() {
                 </select>
               </div>
               <div><Label>Comisión solicitante</Label><input name="comision" required className={inputClass} placeholder="Comisión de Obra" /></div>
+              <div>
+                <Label>Vincular a una comisión real (opcional)</Label>
+                <select name="comision_id" className={inputClass} defaultValue="">
+                  <option value="">— sin vincular —</option>
+                  {comisiones.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+                <p className="text-[11px] text-ink-faint mt-1">Vinculada, la compra suma al gasto de esa comisión en /gastos cuando se apruebe.</p>
+              </div>
               <div><Label>Material</Label><input name="material" required className={inputClass} /></div>
               <div><Label>Cantidad</Label><input name="cantidad" type="number" step="0.01" required className={inputClass} /></div>
               <div><Label>Unidad</Label><input name="unidad" required className={inputClass} placeholder="kg, unidad, m2…" /></div>

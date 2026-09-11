@@ -50,11 +50,25 @@ export default async function SociosPage() {
 
   const [socios, viviendas, listaEspera, nucleos] = await Promise.all([
     all<any>(
-      `SELECT s.*, v.numero as vivienda_numero, n.nombre as nucleo_nombre
+      `SELECT s.*, v.numero as vivienda_numero, n.nombre as nucleo_nombre,
+         (SELECT COUNT(*) FROM socio_integrantes si WHERE si.socio_id = s.id AND si.estado = 'activo') as cantidad_integrantes
        FROM socios s
        LEFT JOIN viviendas v ON v.id = s.vivienda_id
        LEFT JOIN nucleos_familiares n ON n.id = s.nucleo_id
        ORDER BY s.nombre ASC`
+    ).catch(async () =>
+      // Igual criterio defensivo que /gastos: si la migración 0019 todavía no
+      // se corrió en esta cooperativa, se degrada mostrando el padrón sin la
+      // columna de integrantes en vez de romper toda la pantalla.
+      (
+        await all<any>(
+          `SELECT s.*, v.numero as vivienda_numero, n.nombre as nucleo_nombre
+           FROM socios s
+           LEFT JOIN viviendas v ON v.id = s.vivienda_id
+           LEFT JOIN nucleos_familiares n ON n.id = s.nucleo_id
+           ORDER BY s.nombre ASC`
+        )
+      ).map((s) => ({ ...s, cantidad_integrantes: 0 }))
     ),
     all<any>(`SELECT * FROM viviendas ORDER BY numero ASC`),
     all<any>(`SELECT * FROM lista_espera WHERE estado != 'incorporado' AND estado != 'retirado' ORDER BY orden ASC`),
@@ -97,7 +111,9 @@ export default async function SociosPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
-                <th className="py-2 pr-3">Nombre</th>
+                <th className="py-2 pr-3">N.º núcleo</th>
+                <th className="py-2 pr-3">Titular</th>
+                <th className="py-2 pr-3">Integrantes</th>
                 <th className="py-2 pr-3">Vivienda</th>
                 <th className="py-2 pr-3">Núcleo familiar</th>
                 <th className="py-2 pr-3">Contacto</th>
@@ -108,10 +124,14 @@ export default async function SociosPage() {
             <tbody>
               {socios.map((s) => (
                 <tr key={s.id} className="border-b border-ink/5 last:border-0">
+                  <td className="py-2 pr-3 text-ink/50">#{s.id}</td>
                   <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
                     <Link href={`/socios/${s.id}`} className="hover:underline underline-offset-2">
                       {s.nombre}
                     </Link>
+                  </td>
+                  <td className="py-2 pr-3 text-ink/60">
+                    {Number(s.cantidad_integrantes) > 0 ? `+${s.cantidad_integrantes}` : "—"}
                   </td>
                   <td className="py-2 pr-3">
                     {puedeEditar ? (

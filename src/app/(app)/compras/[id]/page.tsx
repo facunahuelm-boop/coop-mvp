@@ -93,6 +93,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
               {p.forma_pago && `Pago: ${p.forma_pago} · `}
               {p.garantia ? `Garantía: ${p.garantia}` : "Sin garantía informada"}
             </p>
+            {p.condiciones && <p className="text-xs text-ink/50 mt-0.5">Condiciones: {p.condiciones}</p>}
             {puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
               <form action={decidirCompraAction} className="mt-2 flex items-center gap-2">
                 <input type="hidden" name="solicitud_id" value={solicitud.id} />
@@ -125,6 +126,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
               <div><Label>Plazo de entrega (días)</Label><input name="plazo_entrega_dias" type="number" className={inputClass} /></div>
               <div><Label>Forma de pago</Label><input name="forma_pago" className={inputClass} placeholder="contado, 30 días…" /></div>
               <div><Label>Garantía</Label><input name="garantia" className={inputClass} /></div>
+              <div className="sm:col-span-2"><Label>Condiciones (calidad, entrega, etc.)</Label><input name="condiciones" className={inputClass} placeholder="Ej: material de primera calidad, entrega en obra incluida" /></div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
               <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar presupuesto</button></div>
             </form>

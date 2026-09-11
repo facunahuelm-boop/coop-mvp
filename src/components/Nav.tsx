@@ -28,6 +28,7 @@ import {
   Settings,
   History,
   Menu,
+  Receipt,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -82,6 +83,12 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: "/compras", label: "Compras", icon: <ShoppingCart size={ICON_SIZE} />, mod: "compras" },
       { href: "/proveedores", label: "Proveedores", icon: <Truck size={ICON_SIZE} />, mod: "compras" },
+      // Sin "mod": el resumen de Gastos por Comisión lo ve cualquier usuario
+      // autenticado (decisión confirmada: "todos ven el resumen, cada uno
+      // edita solo lo suyo") — el permiso real de editar/cargar/anular un
+      // gasto se valida en el servidor (puedeUsarGastos + puedeGestionarComision
+      // en actions/gastos.ts), acá solo se decide si el ítem del menú aparece.
+      { href: "/gastos", label: "Gastos", icon: <Receipt size={ICON_SIZE} /> },
       { href: "/reclamos", label: "Reclamos", icon: <Wrench size={ICON_SIZE} />, mod: "reclamos" },
       { href: "/finanzas", label: "Finanzas", icon: <Wallet size={ICON_SIZE} />, mod: "finanzas" },
     ],
