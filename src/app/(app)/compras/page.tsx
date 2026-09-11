@@ -22,8 +22,19 @@ export default async function ComprasPage() {
 
   const puedeEditar = canEdit(user.rol, "compras");
   const esOversightFinanzas = canEdit(user.rol, "finanzas");
+  // sc.comision_id (y el JOIN a comisiones) sólo existen desde la migración
+  // 0020 — si todavía no corrió en esta base, este SELECT explícito rompía
+  // con "column sc.comision_id does not exist" y tumbaba TODA la pantalla de
+  // Compras con un error 500 (a diferencia de un SELECT *, que simplemente no
+  // trae la columna si no existe). Se intenta primero con el vínculo nuevo, y
+  // si la columna no existe todavía se cae a la versión vieja (sin
+  // "comision_vinculada") en vez de romper la página entera — mismo criterio
+  // defensivo que ya se usa en /gastos y /socios para no depender de que la
+  // migración ya haya corrido.
+  const solicitudesConComisionId = `SELECT sc.*, u.nombre as solicitante_nombre, c.nombre as comision_vinculada FROM solicitudes_compra sc LEFT JOIN users u ON u.id = sc.solicitante_id LEFT JOIN comisiones c ON c.id = sc.comision_id ORDER BY CASE prioridad WHEN 'critica' THEN 0 WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, sc.creado_en DESC`;
+  const solicitudesSinComisionId = `SELECT sc.*, u.nombre as solicitante_nombre, NULL as comision_vinculada FROM solicitudes_compra sc LEFT JOIN users u ON u.id = sc.solicitante_id ORDER BY CASE prioridad WHEN 'critica' THEN 0 WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, sc.creado_en DESC`;
   const [solicitudes, comisionesActivas, misComisiones] = await Promise.all([
-    all<any>(`SELECT sc.*, u.nombre as solicitante_nombre, c.nombre as comision_vinculada FROM solicitudes_compra sc LEFT JOIN users u ON u.id = sc.solicitante_id LEFT JOIN comisiones c ON c.id = sc.comision_id ORDER BY CASE prioridad WHEN 'critica' THEN 0 WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, sc.creado_en DESC`),
+    all<any>(solicitudesConComisionId).catch(() => all<any>(solicitudesSinComisionId)),
     all<{ id: number; nombre: string }>(`SELECT id, nombre FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`).catch(() => []),
     all<{ comision_id: number }>(`SELECT comision_id FROM comision_miembros WHERE user_id = ? AND activo = 1`, [user.id]).catch(() => []),
   ]);
