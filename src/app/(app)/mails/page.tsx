@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Label, inputClass, EmptyState } from "@/components/ui";
+import { Card, PageHeader, Label, inputClass, EmptyState, Badge } from "@/components/ui";
 import { enviarMailAction } from "@/lib/actions/mails";
 import dayjs from "dayjs";
 import { Mail, Send, Users, User } from "lucide-react";
@@ -103,10 +103,15 @@ export default async function MailsPage() {
       </Card>
 
       <div className="mt-6">
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-1">
           <Mail size={16} className="text-[var(--color-brand-800)]" />
           <h2 className="text-sm sm:text-base font-bold text-ink">Enviados</h2>
         </div>
+        <p className="text-[11px] text-ink-faint mb-3">
+          &quot;Enviado&quot; significa que el servidor de correo aceptó el mensaje — no hay forma de confirmar,
+          con este tipo de configuración, que llegó a la casilla del destinatario. Los envíos automáticos de
+          alertas críticas también aparecen acá.
+        </p>
 
         {!historialDisponible ? (
           <EmptyState>El historial todavía no está activado en esta cooperativa — los mails que mandes igual salen bien.</EmptyState>
@@ -129,13 +134,22 @@ export default async function MailsPage() {
                           → {m.destinatario_nombre}
                           {m.cantidad_destinatarios > 1 ? ` (${m.cantidad_destinatarios})` : ""}
                         </span>
+                        {m.estado === "fallido" ? (
+                          <Badge color="rojo">Fallido</Badge>
+                        ) : (
+                          <Badge color="verde">Enviado</Badge>
+                        )}
+                        {m.origen === "alerta" && <Badge color="gray">Alerta automática</Badge>}
                       </span>
-                      <span className="block text-xs text-ink-faint truncate">{m.remitente_nombre || "—"} · {m.cuerpo}</span>
+                      <span className="block text-xs text-ink-faint truncate">{m.remitente_nombre || "Sistema (alerta automática)"} · {m.cuerpo}</span>
                     </span>
                     <span className="text-xs text-ink-faint shrink-0">{dayjs(m.creado_en).format("DD/MM/YYYY HH:mm")}</span>
                   </summary>
                   <div className="px-4 pb-4 pt-1 pl-[3.25rem] space-y-2">
                     <p className="text-sm text-ink whitespace-pre-wrap">{m.cuerpo}</p>
+                    {m.estado === "fallido" && m.error && (
+                      <p className="text-xs text-[var(--color-rojo)] bg-[var(--color-rojo-bg)] rounded-lg px-2.5 py-1.5">Motivo del fallo: {m.error}</p>
+                    )}
                     {destinatarios.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {destinatarios.map((d, i) => (

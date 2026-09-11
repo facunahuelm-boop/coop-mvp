@@ -78,12 +78,14 @@ export async function enviarMailAction(formData: FormData) {
     destinatarioNombre = `Comisión ${comision.nombre}`;
   }
 
-  // Esto es lo que de verdad le importa a la persona que manda el mail: que
-  // salga. Si después falla guardar el registro en el historial (por
-  // ejemplo, porque todavía no se corrió la migración de esta tabla), el
-  // mail YA salió — no tiene sentido mostrar un error como si no hubiera
-  // funcionado nada.
-  await enviarEmailPersonalizado(
+  // Antes, si el envío fallaba (SMTP caído, credenciales vencidas, etc.),
+  // enviarEmailPersonalizado tiraba una excepción y la función terminaba ahí:
+  // no quedaba ningún registro de que se había intentado, y la persona solo
+  // veía la pantalla de error genérica de Next.js, sin saber si el mail salió
+  // o no. Ahora SIEMPRE queda un registro en el historial — "enviado" o
+  // "fallido" con el motivo real — y recién después, si falló, se avisa con
+  // un mensaje claro (ver migrations/0021_mensajes_correo_estado.sql).
+  const resultado = await enviarEmailPersonalizado(
     destinatarios.map((d) => d.email),
     asunto,
     cuerpo,
@@ -100,16 +102,26 @@ export async function enviarMailAction(formData: FormData) {
       cuerpo,
       cantidad_destinatarios: destinatarios.length,
       destinatarios,
+      estado: resultado.ok ? "enviado" : "fallido",
+      error: resultado.error || null,
+      origen: "manual",
     });
     await audit({
       usuario_id: user.id,
-      accion: "enviar",
+      accion: resultado.ok ? "enviar" : "enviar_fallido",
       entidad: "mensajes_correo",
       entidad_id: id,
-      valor_nuevo: { destinatario: destinatarioNombre, asunto, cantidad_destinatarios: destinatarios.length },
+      valor_nuevo: { destinatario: destinatarioNombre, asunto, cantidad_destinatarios: destinatarios.length, error: resultado.error },
     });
   } catch (err) {
-    console.error("[mails] El mail se mandó pero no se pudo guardar en el historial:", err);
+    // Si esta tabla no existe todavía (migración sin correr), no debe tapar
+    // el resultado real del envío — solo se pierde el registro en el
+    // historial, no la información de si salió bien o mal.
+    console.error("[mails] No se pudo guardar el intento de envío en el historial:", err);
+  }
+
+  if (!resultado.ok) {
+    throw new Error(`No se pudo enviar el mail: ${resultado.error || "el servidor de correo rechazó el envío"}. Revisá la Configuración de Email, o intentá de nuevo más tarde — este intento ya quedó registrado como fallido en el historial.`);
   }
 
   revalidatePath("/mails");

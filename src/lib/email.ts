@@ -1,6 +1,11 @@
 import nodemailer from "nodemailer";
-import { all } from "./db";
+import { all, insert } from "./db";
 import { descifrar } from "./crypto";
+
+// Resultado real de un intento de envío — nunca "entregado": con SMTP común
+// solo se puede confirmar que el servidor aceptó el mensaje para enviarlo,
+// no que llegó a la casilla del destinatario (ver migrations/0021).
+export type ResultadoEnvio = { ok: boolean; error?: string; aceptados?: string[]; rechazados?: string[] };
 
 type ConfigEmail = Record<string, string>;
 
@@ -82,24 +87,54 @@ export async function enviarEmailAlerta(alerta: AlertaParaEmail): Promise<void> 
     const transporter = getTransporter(cfg);
     const remitenteNombre = cfg.email_remitente || "COOVA Sistema";
 
-    await transporter.sendMail({
-      from: `"${remitenteNombre}" <${cfg.smtp_user}>`,
-      to: cfg.email_alertas_criticas,
-      subject: `🔴 COOVA — ${alerta.titulo}`,
-      text: `${alerta.titulo}\n\n${alerta.descripcion || ""}\n\nMódulo: ${alerta.origen_modulo}`,
-      html: `
-        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto;">
-          <div style="background:#123240;color:#fff;padding:14px 18px;border-radius:10px 10px 0 0;font-size:13px;letter-spacing:.03em;text-transform:uppercase;">
-            COOVA — Alerta crítica
+    let resultado: ResultadoEnvio;
+    try {
+      const info = await transporter.sendMail({
+        from: `"${remitenteNombre}" <${cfg.smtp_user}>`,
+        to: cfg.email_alertas_criticas,
+        subject: `🔴 COOVA — ${alerta.titulo}`,
+        text: `${alerta.titulo}\n\n${alerta.descripcion || ""}\n\nMódulo: ${alerta.origen_modulo}`,
+        html: `
+          <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto;">
+            <div style="background:#123240;color:#fff;padding:14px 18px;border-radius:10px 10px 0 0;font-size:13px;letter-spacing:.03em;text-transform:uppercase;">
+              COOVA — Alerta crítica
+            </div>
+            <div style="border:1px solid #e5e5e5;border-top:none;padding:18px;border-radius:0 0 10px 10px;">
+              <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#123240;">${escapeHtml(alerta.titulo)}</p>
+              ${alerta.descripcion ? `<p style="margin:0 0 14px;font-size:13px;color:#555;line-height:1.5;">${escapeHtml(alerta.descripcion)}</p>` : ""}
+              <p style="margin:0;font-size:11px;color:#999;">Módulo: ${escapeHtml(alerta.origen_modulo)}</p>
+            </div>
           </div>
-          <div style="border:1px solid #e5e5e5;border-top:none;padding:18px;border-radius:0 0 10px 10px;">
-            <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#123240;">${escapeHtml(alerta.titulo)}</p>
-            ${alerta.descripcion ? `<p style="margin:0 0 14px;font-size:13px;color:#555;line-height:1.5;">${escapeHtml(alerta.descripcion)}</p>` : ""}
-            <p style="margin:0;font-size:11px;color:#999;">Módulo: ${escapeHtml(alerta.origen_modulo)}</p>
-          </div>
-        </div>
-      `,
+        `,
+      });
+      resultado = { ok: true, aceptados: (info.accepted || []).map(String), rechazados: (info.rejected || []).map(String) };
+    } catch (errEnvio: any) {
+      resultado = { ok: false, error: String(errEnvio?.message || errEnvio) };
+    }
+
+    // Registrar SIEMPRE el intento (antes no quedaba ningún rastro de los
+    // emails de alertas automáticas, ni siquiera cuando salían bien) — ver
+    // migrations/0021_mensajes_correo_estado.sql.
+    await insert("mensajes_correo", {
+      remitente_id: null,
+      destinatario_tipo: "alerta",
+      destinatario_id: null,
+      destinatario_nombre: cfg.email_alertas_criticas,
+      asunto: `🔴 ${alerta.titulo}`,
+      cuerpo: alerta.descripcion || "",
+      cantidad_destinatarios: 1,
+      destinatarios: [{ nombre: "Alertas críticas", email: cfg.email_alertas_criticas }],
+      estado: resultado.ok ? "enviado" : "fallido",
+      error: resultado.error || null,
+      origen: "alerta",
+    }).catch((errLog) => {
+      // Si esta tabla no existe todavía (migración 0014/0021 sin correr), no
+      // debe romper el envío de alertas — mismo criterio defensivo del resto
+      // del sistema.
+      console.error("[email] No se pudo registrar el email de alerta en el historial:", errLog);
     });
+
+    if (!resultado.ok) console.error("[email] No se pudo enviar el email de alerta:", resultado.error);
   } catch (err) {
     console.error("[email] No se pudo enviar el email de alerta:", err);
   }
@@ -124,7 +159,7 @@ export async function enviarEmailPersonalizado(
   asunto: string,
   cuerpo: string,
   deParte: string
-): Promise<void> {
+): Promise<ResultadoEnvio> {
   const cfg = await getConfigEmail();
   if (!cfg.smtp_host || !cfg.smtp_user) {
     throw new Error('Todavía no se configuró el envío de emails — cargalo en Configuración → Configuración de Email.');
@@ -133,24 +168,33 @@ export async function enviarEmailPersonalizado(
   const transporter = getTransporter(cfg);
   const remitenteNombre = cfg.email_remitente || "COOVA Sistema";
 
-  await transporter.sendMail({
-    from: `"${remitenteNombre}" <${cfg.smtp_user}>`,
-    to: cfg.smtp_user,
-    bcc: destinatarios.join(","),
-    subject: asunto,
-    text: `${cuerpo}\n\n— Enviado por ${deParte} desde COOVA`,
-    html: `
-      <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto;">
-        <div style="background:#123240;color:#fff;padding:14px 18px;border-radius:10px 10px 0 0;font-size:13px;letter-spacing:.03em;text-transform:uppercase;">
-          COOVA — Mensaje interno
+  // A diferencia de antes, ya no se deja que una falla de SMTP tire una
+  // excepción sin más: se devuelve un resultado real (ok/aceptados/error)
+  // para que quien llama pueda registrar el intento en el historial aunque
+  // haya fallado (ver migrations/0021 y actions/mails.ts).
+  try {
+    const info = await transporter.sendMail({
+      from: `"${remitenteNombre}" <${cfg.smtp_user}>`,
+      to: cfg.smtp_user,
+      bcc: destinatarios.join(","),
+      subject: asunto,
+      text: `${cuerpo}\n\n— Enviado por ${deParte} desde COOVA`,
+      html: `
+        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto;">
+          <div style="background:#123240;color:#fff;padding:14px 18px;border-radius:10px 10px 0 0;font-size:13px;letter-spacing:.03em;text-transform:uppercase;">
+            COOVA — Mensaje interno
+          </div>
+          <div style="border:1px solid #e5e5e5;border-top:none;padding:18px;border-radius:0 0 10px 10px;">
+            <p style="margin:0 0 14px;font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap;">${escapeHtml(cuerpo)}</p>
+            <p style="margin:0;font-size:11px;color:#999;">Enviado por ${escapeHtml(deParte)}</p>
+          </div>
         </div>
-        <div style="border:1px solid #e5e5e5;border-top:none;padding:18px;border-radius:0 0 10px 10px;">
-          <p style="margin:0 0 14px;font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap;">${escapeHtml(cuerpo)}</p>
-          <p style="margin:0;font-size:11px;color:#999;">Enviado por ${escapeHtml(deParte)}</p>
-        </div>
-      </div>
-    `,
-  });
+      `,
+    });
+    return { ok: true, aceptados: (info.accepted || []).map(String), rechazados: (info.rejected || []).map(String) };
+  } catch (err: any) {
+    return { ok: false, error: String(err?.message || err) };
+  }
 }
 
 function escapeHtml(s: string) {

@@ -45,7 +45,7 @@ export default async function ReportesPage() {
 
   return (
     <div>
-      <PageHeader title="Reportes" subtitle="Genera reportes en PDF o Excel" />
+      <PageHeader title="Reportes" subtitle="Genera reportes en PDF" />
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Generar nuevo reporte</h3>
       <div className="grid grid-cols-1 gap-3 mb-8">
@@ -62,19 +62,18 @@ export default async function ReportesPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex gap-2 ml-4 flex-shrink-0">
+              <div className="flex gap-2 ml-4 flex-shrink-0 items-center">
                 <form action={r.action}>
-                  <input type="hidden" name="formato" value="pdf" />
                   <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap hover:bg-[var(--color-brand-100)]/70">
-                    📄 PDF
+                    📄 Generar PDF
                   </button>
                 </form>
-                <form action={r.action}>
-                  <input type="hidden" name="formato" value="xlsx" />
-                  <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap hover:bg-[var(--color-brand-100)]/70">
-                    📊 Excel
-                  </button>
-                </form>
+                <span
+                  className="rounded-lg bg-ink/5 text-ink/30 px-3 py-2 text-xs font-semibold whitespace-nowrap cursor-not-allowed"
+                  title="Excel todavía no está disponible en esta versión"
+                >
+                  📊 Excel (próximamente)
+                </span>
               </div>
             </Card>
           ))}
@@ -93,12 +92,20 @@ export default async function ReportesPage() {
                 {dayjs(r.creado_en).format("DD/MM/YYYY HH:mm")}
               </p>
             </div>
-            <a
-              href={`/api/descargar-reporte/${r.id}`}
-              className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold"
-            >
-              Descargar
-            </a>
+            {r.archivo_url ? (
+              <a
+                href={r.archivo_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold"
+              >
+                Descargar
+              </a>
+            ) : (
+              <span className="rounded-lg bg-ink/5 text-ink/30 px-3 py-2 text-xs font-semibold" title="Este reporte se generó con una versión anterior que no guardaba el archivo — generalo de nuevo">
+                No disponible
+              </span>
+            )}
           </Card>
         ))}
       </div>
