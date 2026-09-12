@@ -281,7 +281,12 @@ export async function eliminarSolicitudAction(formData: FormData) {
     try {
       await run(`DELETE FROM gastos_comision WHERE solicitud_compra_id = ?`, [id]);
     } catch (err: any) {
-      if (err?.code !== "42703") throw err;
+      // AUDITORÍA INTEGRAL (hallazgo, 12/09): el primer intento real reveló
+      // que en esta base gastos_comision no solo le falta una columna —
+      // la tabla entera todavía no existe (Postgres 42P01, "relation ...
+      // does not exist": la migración 0017 nunca corrió). Mismo criterio que
+      // con una columna faltante: si no existe, no hay nada que borrar ahí.
+      if (err?.code !== "42703" && err?.code !== "42P01") throw err;
     }
     await run(`DELETE FROM solicitudes_compra WHERE id = ?`, [id]);
   } catch (err: any) {
