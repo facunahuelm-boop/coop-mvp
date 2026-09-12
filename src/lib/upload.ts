@@ -130,11 +130,31 @@ export async function saveUploadedFile(
  * devuelve su URL pública. A diferencia de saveUploadedFile, acá el archivo
  * no viene de un <input type="file"> — ya es un Buffer en memoria.
  *
+ * AUDITORÍA INTEGRAL (hallazgo de seguridad, testing E2E real, 12/09):
+ * probando "Generar PDF" en Reportes se confirmó que el bucket es público en
+ * lectura (ver el comentario al principio de este archivo) — cualquiera con
+ * la URL exacta puede descargar el archivo, sin sesión ni pertenecer a la
+ * cooperativa. Acá, a diferencia de saveUploadedFile (que ya usa un sufijo
+ * aleatorio de 4 bytes), el nombre del archivo era predecible: solo
+ * `Date.now()` + el nombre del reporte. organization_id es un entero chico y
+ * secuencial (1, 2, 3...), y el timestamp de un reporte recién generado es
+ * "ahora" con un margen de pocos segundos — en la práctica, adivinable.
+ * Combinado, alguien sin sesión podría intentar reconstruir la URL de
+ * reportes financieros o actas de OTRA cooperativa con relativamente pocos
+ * intentos. Se agrega el mismo sufijo aleatorio que ya usa saveUploadedFile
+ * para cerrar esto ahora mismo, sin esperar el cambio más grande y de mayor
+ * alcance (bucket privado + URLs firmadas con vencimiento, respetando el rol
+ * de quien pide el archivo) que corresponde evaluar aparte — ese cambio toca
+ * cómo se guardan y muestran los links en varias pantallas a la vez
+ * (Documentos, Seguridad, Reportes, Proveedores) y no es prudente meterlo de
+ * apuro en esta pasada.
+ *
  * @param buffer Contenido del archivo ya generado (ej: el PDF completo).
  * @param organizationId Cooperativa dueña del archivo.
  * @param carpeta Subcarpeta dentro de la cooperativa (ej: "actas", "reportes").
  * @param nombreArchivo Nombre descriptivo para el archivo (sin necesidad de
- *   ser único: se le antepone un timestamp para evitar colisiones).
+ *   ser único: se le antepone un timestamp + un sufijo aleatorio para evitar
+ *   colisiones Y para que la URL no se pueda adivinar).
  * @param contentType Tipo MIME del archivo (por defecto, PDF).
  */
 export async function saveGeneratedFile(
@@ -146,7 +166,8 @@ export async function saveGeneratedFile(
 ): Promise<string> {
   const carpetaSegura = carpeta.replace(/[^a-z0-9_-]/gi, "") || "general";
   const nombreSeguro = nombreArchivo.replace(/[^a-z0-9_.-]/gi, "_") || "documento";
-  const path = `${organizationId}/${carpetaSegura}/${Date.now()}-${nombreSeguro}`;
+  const sufijoAleatorio = crypto.randomBytes(4).toString("hex");
+  const path = `${organizationId}/${carpetaSegura}/${Date.now()}-${sufijoAleatorio}-${nombreSeguro}`;
 
   const supabase = getAdminClient();
   const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
