@@ -109,7 +109,7 @@ export default async function ConfiguracionPage() {
         </p>
         <form action={actualizarEtapaAction} className="flex flex-wrap items-end gap-3">
           <div className="min-w-[260px]">
-            <Label>Etapa actual: {organizacion?.nombre}</Label>
+            <Label>Etapa actual: {ETAPA_LABEL[organizacion?.etapa || "obra"]}</Label>
             <select name="etapa" defaultValue={organizacion?.etapa || "obra"} className={inputClass}>
               {Object.entries(ETAPA_LABEL).map(([valor, label]) => (
                 <option key={valor} value={valor}>{label}</option>
