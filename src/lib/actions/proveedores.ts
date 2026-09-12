@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, audit } from "@/lib/db";
+import { insert, update, get, run, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { parseForm, zId, zTexto, zTextoOpcional, zEmailOpcional, zEnumSeguro } from "@/lib/validation";
@@ -94,5 +94,59 @@ export async function cambiarEstadoProveedorAction(formData: FormData) {
   await update("proveedores", id, { estado });
   await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "proveedores", entidad_id: id, valor_nuevo: { estado } });
   revalidatePath(`/proveedores/${id}`);
+  revalidatePath("/proveedores");
+}
+
+/**
+ * AUDITORÍA INTEGRAL (testing E2E real, 12/09): hasta acá no había ninguna
+ * forma de borrar un proveedor cargado por error o de prueba — quedaba para
+ * siempre en la lista (así quedó, por ejemplo, un proveedor de prueba de esta
+ * misma auditoría). Mismo patrón que eliminarSolicitudAction en compras.ts
+ * (solo admin, escribir "ELIMINAR" para confirmar, error real a /auditoria
+ * antes de relanzarlo).
+ *
+ * A diferencia de una solicitud de compra individual, un proveedor puede
+ * tener historial real de compras (presupuestos_proveedor.proveedor_id es
+ * NOT NULL y referencia proveedores.id): borrarlo de golpe rompería ese
+ * historial y la ficha del proveedor que el asistente de IA ya cita como
+ * fuente. Por eso, si tiene aunque sea un presupuesto cargado, no se borra:
+ * se avisa y se sugiere pasarlo a estado "Inactivo" (ya existe como opción)
+ * en lugar de eliminarlo. Solo se permite el borrado físico cuando el
+ * proveedor nunca llegó a presupuestar nada — es decir, cuando es
+ * efectivamente un dato de prueba o un alta por error.
+ */
+const eliminarProveedorSchema = z.object({ id: zId, confirmacion: zTexto(50) });
+
+export async function eliminarProveedorAction(formData: FormData) {
+  const user = await requireUser();
+  if (user.rol !== "admin") throw new Error("Solo un administrador del sistema puede eliminar un proveedor.");
+  const { id, confirmacion } = parseForm(eliminarProveedorSchema, formData);
+  if (confirmacion.trim().toUpperCase() !== "ELIMINAR") {
+    throw new Error('Para eliminar, escribí exactamente "ELIMINAR" en el campo de confirmación.');
+  }
+  const proveedor = await get<any>(`SELECT * FROM proveedores WHERE id = ?`, [id]);
+  if (!proveedor) {
+    revalidatePath("/proveedores");
+    return; // ya no existe: nada que borrar
+  }
+  const enUso = await get<any>(`SELECT id FROM presupuestos_proveedor WHERE proveedor_id = ? LIMIT 1`, [id]);
+  if (enUso) {
+    throw new Error(
+      'Este proveedor ya tiene presupuestos o compras registradas: no se puede eliminar sin perder ese historial. Cambiá su estado a "Inactivo" desde su ficha en su lugar.'
+    );
+  }
+  try {
+    await run(`DELETE FROM proveedores WHERE id = ?`, [id]);
+  } catch (err: any) {
+    await audit({
+      usuario_id: user.id,
+      accion: "error_eliminar",
+      entidad: "proveedores",
+      entidad_id: Number(id),
+      valor_nuevo: { code: err?.code ?? null, message: String(err?.message ?? err) },
+    }).catch(() => {});
+    throw err;
+  }
+  await audit({ usuario_id: user.id, accion: "eliminar", entidad: "proveedores", entidad_id: Number(id), valor_anterior: proveedor });
   revalidatePath("/proveedores");
 }

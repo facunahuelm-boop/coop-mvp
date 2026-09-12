@@ -4,7 +4,7 @@ import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
-import { subirDocumentoAction, crearCategoriaDocumentoAction } from "@/lib/actions/documentos";
+import { subirDocumentoAction, crearCategoriaDocumentoAction, eliminarDocumentoAction } from "@/lib/actions/documentos";
 
 const CATEGORIAS_BASE = ["actas", "asambleas", "presupuestos", "facturas", "contratos", "tecnicos", "obra", "socios", "seguridad", "compras", "reglamentos", "informes", "comunicaciones"];
 const CAT_LABEL_BASE: Record<string, string> = {
@@ -107,7 +107,19 @@ export default async function DocumentosPage({
                     </div>
                   )}
                 </div>
-                {d.archivo_url ? <a href={d.archivo_url} target="_blank" className="text-xs text-[var(--color-brand-800)] underline whitespace-nowrap ml-3">Descargar</a> : <span className="text-xs text-ink/30 ml-3">sin archivo</span>}
+                <div className="flex flex-col items-end gap-1 ml-3">
+                  {d.archivo_url ? <a href={d.archivo_url} target="_blank" className="text-xs text-[var(--color-brand-800)] underline whitespace-nowrap">Descargar</a> : <span className="text-xs text-ink/30">sin archivo</span>}
+                  {user.rol === "admin" && (
+                    <details>
+                      <summary className="cursor-pointer text-[11px] text-[var(--color-rojo)]/70 hover:text-[var(--color-rojo)] whitespace-nowrap">Eliminar</summary>
+                      <form action={eliminarDocumentoAction} className="mt-1 flex items-center gap-1">
+                        <input type="hidden" name="id" value={d.id} />
+                        <input name="confirmacion" placeholder="ELIMINAR" className={inputClass + " text-[11px] !py-1 !px-2 !w-24"} required />
+                        <button className="rounded-md bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-2 py-1 text-[11px] font-semibold whitespace-nowrap">Confirmar</button>
+                      </form>
+                    </details>
+                  )}
+                </div>
               </Card>
             ))}
           </div>

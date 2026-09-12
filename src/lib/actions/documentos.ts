@@ -2,11 +2,11 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, audit } from "@/lib/db";
+import { insert, get, run, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
-import { parseForm, zTexto, zTextoOpcional } from "@/lib/validation";
+import { parseForm, zId, zTexto, zTextoOpcional } from "@/lib/validation";
 
 /**
  * Normaliza una lista de etiquetas escritas a mano ("obra, etapa 2 ,,urgente")
@@ -63,5 +63,48 @@ export async function crearCategoriaDocumentoAction(formData: FormData) {
   const { nombre } = parseForm(z.object({ nombre: zTexto(100) }), formData);
   const id = await insert("documento_categorias", { nombre, creado_por_id: user.id });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "documento_categorias", entidad_id: id, valor_nuevo: { nombre } });
+  revalidatePath("/documentos");
+}
+
+/**
+ * AUDITORÍA INTEGRAL (testing E2E real, 12/09): no había ninguna forma de
+ * borrar un documento cargado por error o de prueba (mismo hallazgo que en
+ * Proveedores y, antes, en Compras) — mismo patrón: solo admin, escribir
+ * "ELIMINAR" para confirmar. actas.documento_id referencia documentos(id)
+ * (nullable, pero la base igual rechaza el borrado si algo la referencia):
+ * si el documento es el PDF de un acta ya registrada, no se borra — se avisa
+ * para no dejar un acta con un link roto.
+ */
+const eliminarDocumentoSchema = z.object({ id: zId, confirmacion: zTexto(50) });
+
+export async function eliminarDocumentoAction(formData: FormData) {
+  const user = await requireUser();
+  if (user.rol !== "admin") throw new Error("Solo un administrador del sistema puede eliminar un documento.");
+  const { id, confirmacion } = parseForm(eliminarDocumentoSchema, formData);
+  if (confirmacion.trim().toUpperCase() !== "ELIMINAR") {
+    throw new Error('Para eliminar, escribí exactamente "ELIMINAR" en el campo de confirmación.');
+  }
+  const documento = await get<any>(`SELECT * FROM documentos WHERE id = ?`, [id]);
+  if (!documento) {
+    revalidatePath("/documentos");
+    return; // ya no existe: nada que borrar
+  }
+  const enUso = await get<any>(`SELECT id FROM actas WHERE documento_id = ? LIMIT 1`, [id]);
+  if (enUso) {
+    throw new Error("Este documento es el archivo de un acta ya registrada: no se puede eliminar sin dejar esa acta sin archivo. Subí un documento nuevo para reemplazarlo en su lugar.");
+  }
+  try {
+    await run(`DELETE FROM documentos WHERE id = ?`, [id]);
+  } catch (err: any) {
+    await audit({
+      usuario_id: user.id,
+      accion: "error_eliminar",
+      entidad: "documentos",
+      entidad_id: Number(id),
+      valor_nuevo: { code: err?.code ?? null, message: String(err?.message ?? err) },
+    }).catch(() => {});
+    throw err;
+  }
+  await audit({ usuario_id: user.id, accion: "eliminar", entidad: "documentos", entidad_id: Number(id), valor_anterior: documento });
   revalidatePath("/documentos");
 }

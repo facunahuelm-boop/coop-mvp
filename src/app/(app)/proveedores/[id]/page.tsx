@@ -6,7 +6,7 @@ import { get } from "@/lib/db";
 import { historialProveedor } from "@/lib/logic";
 import { Card, PageHeader, EmptyState, Label, inputClass, Badge } from "@/components/ui";
 import dayjs from "dayjs";
-import { actualizarProveedorAction } from "@/lib/actions/proveedores";
+import { actualizarProveedorAction, eliminarProveedorAction } from "@/lib/actions/proveedores";
 import { ESTADO_PROVEEDOR, ESTADO_PROVEEDOR_LABEL, TIPO_PROVEEDOR, TIPO_PROVEEDOR_LABEL } from "@/lib/constants";
 
 const ESTADO_COLOR: Record<string, "verde" | "amarillo" | "brand" | "gray"> = {
@@ -87,6 +87,19 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
               <div className="sm:col-span-2">
                 <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar</button>
               </div>
+            </form>
+          </details>
+        )}
+        {user.rol === "admin" && (
+          <details className="mt-4 pt-3 border-t border-ink/10">
+            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-rojo)]">Zona de administrador: eliminar este proveedor</summary>
+            <p className="text-xs text-ink/50 mt-2">
+              Esto borra el proveedor de forma permanente. Solo funciona si nunca presupuestó ninguna compra — si ya tiene historial, cambiá su estado a &quot;Inactivo&quot; más arriba en su lugar. Usalo solo para corregir un alta por error o limpiar datos de prueba.
+            </p>
+            <form action={eliminarProveedorAction} className="mt-2 flex items-center gap-2">
+              <input type="hidden" name="id" value={proveedor.id} />
+              <input name="confirmacion" placeholder='Escribí ELIMINAR para confirmar' className={inputClass + " text-xs"} required />
+              <button className="rounded-lg bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Eliminar definitivamente</button>
             </form>
           </details>
         )}
