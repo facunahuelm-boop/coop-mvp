@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, update, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { canEdit, canApprove } from "@/lib/roles";
+import { canEdit, canApprove, puedeGestionarReclamos } from "@/lib/roles";
 import { saveUploadedFile, TIPOS_IMAGEN } from "@/lib/upload";
 import { CATEGORIA_RECLAMO_LABEL, PRIORIDAD_RECLAMO_LABEL } from "@/lib/constants";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zEnumSeguro, clavesDe } from "@/lib/validation";
@@ -48,10 +48,12 @@ export async function crearReclamoAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
-/** Tomar un reclamo: alguien de mantenimiento/seguridad/técnico lo pasa a "en proceso" y se asigna. */
+/** Tomar un reclamo: alguien de mantenimiento/seguridad/técnico lo pasa a "en proceso" y se asigna.
+ * AUDITORÍA INTEGRAL (hallazgo de seguridad, 12/09): un socio no puede tomar
+ * reclamos (ver puedeGestionarReclamos en roles.ts) — solo reportarlos. */
 export async function tomarReclamoAction(formData: FormData) {
   const user = await requireUser();
-  if (!canEdit(user.rol, "reclamos")) throw new Error("No autorizado");
+  if (!puedeGestionarReclamos(user.rol)) throw new Error("No autorizado");
   const { id } = parseForm(z.object({ id: zId }), formData);
   await update("reclamos", id, { estado: "en_proceso", responsable_id: user.id });
   await audit({ usuario_id: user.id, accion: "tomar", entidad: "reclamos", entidad_id: id });
@@ -59,10 +61,14 @@ export async function tomarReclamoAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
-/** Resolver un reclamo, con qué se hizo para solucionarlo. */
+/** Resolver un reclamo, con qué se hizo para solucionarlo.
+ * AUDITORÍA INTEGRAL (hallazgo de seguridad, 12/09): mismo criterio que
+ * tomarReclamoAction — un socio no puede marcar un reclamo como resuelto,
+ * ni siquiera el suyo, porque quien lo soluciona en la práctica es
+ * mantenimiento/seguridad/técnico, no quien lo reportó. */
 export async function resolverReclamoAction(formData: FormData) {
   const user = await requireUser();
-  if (!canEdit(user.rol, "reclamos")) throw new Error("No autorizado");
+  if (!puedeGestionarReclamos(user.rol)) throw new Error("No autorizado");
   const { id, resolucion } = parseForm(z.object({ id: zId, resolucion: zTextoOpcional(2000) }), formData);
   await update("reclamos", id, {
     estado: "resuelto",

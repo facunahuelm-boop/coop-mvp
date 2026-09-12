@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, update, get, all, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { canEdit } from "@/lib/roles";
+import { canEdit, canApprove } from "@/lib/roles";
 import {
   parseForm,
   zId,
@@ -200,7 +200,14 @@ export async function moverListaEsperaAction(formData: FormData) {
  */
 export async function incorporarDesdeListaEsperaAction(formData: FormData) {
   const user = await requireUser();
-  if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
+  // AUDITORÍA INTEGRAL (hallazgo de seguridad, 12/09): la propia MATRIX de
+  // roles.ts documenta esto como una acción de "aprueba" (consejo directivo),
+  // distinta de que administración gestione la lista de espera día a día
+  // (canEdit) — la UI (socios/page.tsx) ya lo mostraba solo con puedeAprobar,
+  // pero el backend todavía aceptaba canEdit, así que administración podía
+  // incorporar a alguien como socio pleno llamando a esta acción directamente,
+  // saltándose la aprobación del consejo directivo.
+  if (!canApprove(user.rol, "socios")) throw new Error("No autorizado");
   const { id, vivienda_id } = parseForm(z.object({ id: zId, vivienda_id: zIdOpcional }), formData);
 
   const aspirante = await get<any>(`SELECT * FROM lista_espera WHERE id = ?`, [id]);

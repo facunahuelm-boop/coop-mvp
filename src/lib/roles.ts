@@ -84,5 +84,24 @@ export function canApprove(role: Role, mod: Module) {
   return ["approve", "config"].includes(accessTo(role, mod));
 }
 
+/**
+ * AUDITORÍA INTEGRAL (hallazgo de seguridad, 12/09): "reclamos" es el único
+ * módulo donde "edit" significa dos cosas distintas según el rol — para
+ * "socio" es "puede reportar un problema" (ver el comentario de la MATRIX de
+ * arriba), para administracion/comision_seguridad/tecnico es "puede además
+ * tomar y resolver reclamos". canEdit() por sí solo no distingue esto: un
+ * socio que llame a tomarReclamoAction/resolverReclamoAction directamente
+ * (sin pasar por la UI, que ya lo oculta) podía tomar o marcar como
+ * "resuelto" cualquier reclamo, incluso ajeno, sin que nadie de
+ * mantenimiento lo haya solucionado — se detectó tanto en el backend
+ * (actions/reclamos.ts) como en la UI (reclamos/page.tsx) que faltaba esta
+ * distinción. Esta función es la fuente única de verdad para "puede tomar o
+ * resolver un reclamo" — cualquier otro lugar que necesite esa regla debe
+ * usar esta función, no reimplementarla.
+ */
+export function puedeGestionarReclamos(role: Role) {
+  return role !== "socio" && canEdit(role, "reclamos");
+}
+
 // Roles que pueden ver montos financieros detallados
 export const ROLES_FINANZAS_DETALLE: Role[] = ["administracion", "tesoreria", "consejo_directivo", "fiscal", "admin"];

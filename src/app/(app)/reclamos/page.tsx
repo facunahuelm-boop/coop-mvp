@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { canRead, canEdit, canApprove } from "@/lib/roles";
+import { canRead, canApprove, puedeGestionarReclamos } from "@/lib/roles";
 import { all } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
@@ -12,7 +12,10 @@ export default async function ReclamosPage() {
   if (!user) redirect("/login");
   if (!canRead(user.rol, "reclamos")) redirect("/dashboard");
 
-  const puedeEditar = canEdit(user.rol, "reclamos");
+  // AUDITORÍA INTEGRAL (hallazgo de seguridad, 12/09): "Tomar reclamo" y
+  // "Marcar resuelto" no son para quien reporta (un socio) — ver
+  // puedeGestionarReclamos en roles.ts.
+  const puedeGestionar = puedeGestionarReclamos(user.rol);
   const puedeAprobar = canApprove(user.rol, "reclamos");
 
   const [reclamos, viviendas] = await Promise.all([
@@ -58,13 +61,13 @@ export default async function ReclamosPage() {
               {dayjs(r.fecha).format("DD/MM/YYYY")} · {r.reportado_por_nombre || "Sistema"}
               {r.responsable_nombre ? ` · a cargo de ${r.responsable_nombre}` : ""}
             </p>
-            {puedeEditar && r.estado === "abierto" && (
+            {puedeGestionar && r.estado === "abierto" && (
               <form action={tomarReclamoAction} className="mt-2">
                 <input type="hidden" name="id" value={r.id} />
                 <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold">Tomar reclamo</button>
               </form>
             )}
-            {puedeEditar && r.estado === "en_proceso" && (
+            {puedeGestionar && r.estado === "en_proceso" && (
               <form action={resolverReclamoAction} className="mt-2 flex gap-2">
                 <input type="hidden" name="id" value={r.id} />
                 <input name="resolucion" placeholder="¿Cómo se resolvió?" className={inputClass + " text-xs"} />
