@@ -69,6 +69,11 @@ export async function crearSolicitudAction(formData: FormData) {
   if (datos.comision_id && !(await puedeGestionarComision(user, datos.comision_id))) {
     throw new Error(ERROR_SIN_PERMISO_COMISION);
   }
+  // Si la migración 0020 (agrega esta columna) todavía no corrió en esta
+  // base, insert() en sí mismo reintenta sin comision_id en vez de romper
+  // toda la pantalla con un error 500 — ver el criterio centralizado en
+  // db.ts (hallazgo de testing E2E real: se rompía probando el flujo real
+  // de Diana, Comisión de Compras, con y sin vincular una comisión).
   const id = await insert("solicitudes_compra", {
     solicitante_id: user.id,
     ...datos,

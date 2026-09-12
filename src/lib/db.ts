@@ -136,6 +136,46 @@ function buildInsert(table: string, data: Record<string, any>) {
   return { sql, values };
 }
 
+// AUDITORÍA INTEGRAL (hallazgo, testing E2E real): se detectó probando el
+// flujo real de Compras que insert()/update() rompían con un error 500 sin
+// mensaje útil ("column X of relation Y does not exist" — Postgres 42703)
+// apenas una migración que agrega una columna nueva todavía no había
+// corrido en esta base — ver crearSolicitudAction en actions/compras.ts,
+// donde se encontró el primer caso concreto (comision_id, migración 0020).
+// El mismo riesgo existe en cualquier otra acción que guarde una columna
+// agregada por una migración reciente (ej: proveedores.ts con las columnas
+// de la migración 0018) — en vez de parchear cada acción una por una, se
+// centraliza acá: si el insert/update falla puntualmente por una columna
+// que no existe todavía, se reintenta sin esa columna en particular (nunca
+// se inventa un valor ni se ignoran otros errores). Es seguro porque toda
+// columna agregada por una migración con ADD COLUMN IF NOT EXISTS, o bien
+// es NULLABLE, o bien tiene un DEFAULT — nunca hay una fila válida que
+// dependa de que esa columna puntual llegue en este insert.
+const PG_COLUMNA_INEXISTENTE = "42703";
+
+function nombreColumnaFaltante(err: any): string | null {
+  if (err?.code !== PG_COLUMNA_INEXISTENTE) return null;
+  const m = /column "([^"]+)" of relation/.exec(String(err?.message || ""));
+  return m ? m[1] : null;
+}
+
+/** Ejecuta `ejecutar` con `payload`; si falla por una columna puntual que
+ * todavía no existe, la saca y reintenta (hasta 8 columnas faltantes). */
+async function conFallbackColumnaFaltante<T>(payload: Record<string, any>, ejecutar: (p: Record<string, any>) => Promise<T>): Promise<T> {
+  let intento = payload;
+  for (let i = 0; i < 8; i++) {
+    try {
+      return await ejecutar(intento);
+    } catch (err: any) {
+      const columna = nombreColumnaFaltante(err);
+      if (!columna || !(columna in intento)) throw err;
+      const { [columna]: _omitida, ...resto } = intento;
+      intento = resto;
+    }
+  }
+  throw new Error("No se pudo completar la operación: demasiadas columnas faltantes en la base.");
+}
+
 /**
  * Inserta y devuelve el id autogenerado.
  *
@@ -146,31 +186,37 @@ function buildInsert(table: string, data: Record<string, any>) {
  */
 export async function insert(table: string, data: Record<string, any>): Promise<number> {
   if (table === "organizations") {
-    const { sql, values } = buildInsert(table, data);
-    return withRootClient(async (client) => (await client.query(sql, values)).rows[0]?.id || 0);
+    return conFallbackColumnaFaltante(data, async (payload) => {
+      const { sql, values } = buildInsert(table, payload);
+      return withRootClient(async (client) => (await client.query(sql, values)).rows[0]?.id || 0);
+    });
   }
   const payload = data.organization_id !== undefined ? data : { ...data, organization_id: await requireOrgContext() };
-  const { sql, values } = buildInsert(table, payload);
-  return withTenantClient(async (client) => (await client.query(sql, values)).rows[0]?.id || 0);
+  return conFallbackColumnaFaltante(payload, async (p) => {
+    const { sql, values } = buildInsert(table, p);
+    return withTenantClient(async (client) => (await client.query(sql, values)).rows[0]?.id || 0);
+  });
 }
 
 /** Actualiza un registro. */
 export async function update(table: string, id: number, data: Record<string, any>): Promise<void> {
-  const keys = Object.keys(data);
-  const sets = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
-  const sql = `UPDATE ${table} SET ${sets} WHERE id = $${keys.length + 1}`;
-  const values = [
-    ...keys.map((k) => {
-      const v = data[k];
-      return v !== null && typeof v === "object" ? JSON.stringify(v) : v;
-    }),
-    id,
-  ];
-  if (table === "organizations") {
-    await withRootClient((client) => client.query(sql, values));
-    return;
-  }
-  await withTenantClient((client) => client.query(sql, values));
+  await conFallbackColumnaFaltante(data, async (payload) => {
+    const keys = Object.keys(payload);
+    const sets = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
+    const sql = `UPDATE ${table} SET ${sets} WHERE id = $${keys.length + 1}`;
+    const values = [
+      ...keys.map((k) => {
+        const v = payload[k];
+        return v !== null && typeof v === "object" ? JSON.stringify(v) : v;
+      }),
+      id,
+    ];
+    if (table === "organizations") {
+      await withRootClient((client) => client.query(sql, values));
+      return;
+    }
+    await withTenantClient((client) => client.query(sql, values));
+  });
 }
 
 // Auditoría (append-only): registra quién hizo qué y cuándo
