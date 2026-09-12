@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
@@ -78,7 +79,11 @@ export default async function ComisionesPage() {
                 {integrantes.map((m) => (
                   <span key={m.id} className="inline-flex items-center gap-1.5 text-xs rounded-full bg-ink/5 px-2.5 py-1">
                     {m.rol_en_comision === "coordinador" ? "⭐ " : ""}
-                    {m.user_nombre}
+                    {/* Fase 6 (perfil individual de usuario): el nombre ya se
+                        mostraba acá sin ningún link — ahora lleva a su ficha. */}
+                    <Link href={`/usuarios/${m.user_id}`} className="hover:underline underline-offset-2">
+                      {m.user_nombre}
+                    </Link>
                     {puedeGestionar && (
                       <form action={quitarMiembroAction} className="inline">
                         <input type="hidden" name="id" value={m.id} />

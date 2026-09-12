@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead } from "@/lib/roles";
 import { all } from "@/lib/db";
@@ -19,7 +20,20 @@ export default async function AuditoriaPage() {
         <div className="divide-y divide-ink/5">
           {registros.map((r) => (
             <div key={r.id} className="py-2.5 text-sm">
-              <p><strong>{r.usuario_nombre || "sistema"}</strong> — {r.accion.replace(/_/g, " ")} en <span className="font-mono text-xs bg-ink/5 rounded px-1">{r.entidad}</span>{r.entidad_id ? ` #${r.entidad_id}` : ""}</p>
+              <p>
+                <strong>
+                  {/* Fase 6 (perfil individual de usuario): antes era texto
+                      suelto, sin forma de ver quién es esa persona. */}
+                  {r.usuario_id ? (
+                    <Link href={`/usuarios/${r.usuario_id}`} className="hover:underline underline-offset-2">
+                      {r.usuario_nombre || "usuario eliminado"}
+                    </Link>
+                  ) : (
+                    r.usuario_nombre || "sistema"
+                  )}
+                </strong>{" "}
+                — {r.accion.replace(/_/g, " ")} en <span className="font-mono text-xs bg-ink/5 rounded px-1">{r.entidad}</span>{r.entidad_id ? ` #${r.entidad_id}` : ""}
+              </p>
               <p className="text-xs text-ink/40">{dayjs(r.fecha).format("DD/MM/YYYY HH:mm")}</p>
               {r.valor_nuevo && <p className="text-xs text-ink/50 mt-0.5 font-mono truncate">{r.valor_nuevo}</p>}
             </div>

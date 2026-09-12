@@ -98,4 +98,17 @@ Antes de seguir con la Fase 3, el usuario pidió resolver primero los dos hallaz
 
 **Archivos afectados**: `src/lib/contactos.ts` (nuevo), `src/components/ContactosLista.tsx` (nuevo), `src/app/(app)/contactos/page.tsx` (nuevo), `src/components/Nav.tsx`. Sin cambios de base de datos — fase 100% de lectura. `npx tsc --noEmit` sin errores.
 
-**Pendiente**: verificación en vivo contra producción (login, búsqueda, chips de filtro, links a `/socios/[id]` y `/proveedores/[id]`, y confirmar que un rol `socio` no ve proveedores en esta pantalla); después, seguir con la Fase 6 (perfil individual de usuario).
+**Verificación en vivo (12/09, actualización)**: probado en producción como `admin` (7 contactos: 1 socio + 6 proveedores, buscador y chips de filtro funcionando, links a `/socios/1` y `/proveedores/[id]` correctos) y como `ana@coop.uy` (rol `socio`): la pantalla muestra solo su propio dato de socio, con "Proveedores (0)" y sin ninguna fila de proveedor — confirmado que el aislamiento por rol funciona también del lado del servidor, no solo ocultando la pestaña.
+
+## Fase 6 — Perfil individual de usuario (12/09)
+
+**Qué se hizo**: siguiendo el orden de fases y la segunda mitad del hallazgo H-13 (`REQUIREMENTS.md` sección 5.6) — ya existía `socios/[id]` como ficha sólida, pero ninguna cuenta de `users` (comisión, administración, admin) tenía página de detalle propia.
+
+- **`src/app/(app)/usuarios/[id]/page.tsx`** (nuevo): ficha de usuario — nombre, rol, email, fecha de alta, comisiones que integra (`comision_miembros`) y actividad reciente (`auditoria`). Visible a cualquier usuario autenticado (mismo criterio de transparencia que ya tiene `/comisiones`, donde estos nombres ya se ven hoy); la actividad reciente queda detrás de `canRead(rol, "auditoria")` o de ser la propia persona.
+- **Cambiar contraseña** (`src/lib/actions/usuarios.ts` nuevo, `src/components/CambiarPasswordForm.tsx` nuevo): no existía ningún flujo de autogestión de contraseña en todo el sistema — se agregó porque es el hueco más evidente al construir una página de perfil, no una funcionalidad inventada aparte. Construida con la infraestructura de la Fase 3 (`useActionState`, `FormError`/`FieldError`/`SubmitButton`, `conEstadoDeAccion`). La acción siempre opera sobre `requireUser()` — nunca recibe un id de usuario por formulario, así que solo se puede cambiar la contraseña propia.
+- **Enlazado desde donde el nombre ya aparecía**: `/comisiones` (nombre de cada integrante) y `/auditoria` (autor de cada registro) ahora enlazan a `/usuarios/[id]` — sin esto la ficha de otra persona sería inalcanzable en la práctica. Acceso a la ficha propia agregado en el pie de la Sidebar de escritorio y como primer ítem en `/mas` (menú de celular).
+- **Decisión de alcance**: no se agregó edición de nombre/rol/estado de otra cuenta ni alta de usuarios nuevos (eso es "gestión de usuarios", una pantalla de administración aparte, de alcance mayor); tampoco se resolvió el resto de H-9 (reuniones, obra, gastos, mails sin enlace a persona) — queda para la Fase 7 (navegación transversal).
+
+**Archivos afectados**: `src/app/(app)/usuarios/[id]/page.tsx` (nuevo), `src/lib/actions/usuarios.ts` (nuevo), `src/components/CambiarPasswordForm.tsx` (nuevo), `src/components/Nav.tsx`, `src/app/(app)/mas/page.tsx`, `src/app/(app)/comisiones/page.tsx`, `src/app/(app)/auditoria/page.tsx`. Sin cambios de base de datos — usa tablas ya existentes (`users`, `comision_miembros`, `comisiones`, `auditoria`). `npx tsc --noEmit` sin errores.
+
+**Pendiente**: verificación en vivo contra producción (ficha propia y ajena, cambio de contraseña de punta a punta, links nuevos desde comisiones/auditoría); después, seguir con la Fase 7 (navegación transversal).

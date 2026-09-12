@@ -243,10 +243,15 @@ export function Sidebar({ user }: { user: SessionUser }) {
         })}
       </nav>
       <div className="px-4 py-4 border-t border-white/10">
-        <div className="text-xs text-white/60">
-          <Saludo nombre={user.nombre.split(" ")[0]} />
-        </div>
-        <div className="text-[11px] text-white/40">{ROLE_LABELS[user.rol]}</div>
+        {/* Fase 6 (perfil individual de usuario): el saludo + rol, acá abajo
+            del todo, es el lugar más natural para llegar a "mi perfil" sin
+            sumar un ítem más al menú de arriba. */}
+        <Link href={`/usuarios/${user.id}`} className="block hover:underline underline-offset-2">
+          <div className="text-xs text-white/60">
+            <Saludo nombre={user.nombre.split(" ")[0]} />
+          </div>
+          <div className="text-[11px] text-white/40">{ROLE_LABELS[user.rol]}</div>
+        </Link>
         <form action={logoutAction}>
           <button className="mt-2 text-xs text-white/70 hover:text-white underline underline-offset-2">Cerrar sesión</button>
         </form>

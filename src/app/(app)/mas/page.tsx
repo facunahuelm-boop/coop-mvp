@@ -14,6 +14,16 @@ export default async function MasPage() {
   return (
     <div>
       <PageHeader title="Menú" subtitle={`${user.nombre} · ${ROLE_LABELS[user.rol]}`} />
+      {/* Fase 6 (perfil individual de usuario): mismo criterio que la
+          Sidebar de escritorio — "Ver mi perfil" es el punto de entrada,
+          sin sumar un ítem más a los grupos de abajo. */}
+      <Link
+        href={`/usuarios/${user.id}`}
+        className="mb-4 flex items-center justify-between rounded-2xl border border-border bg-surface px-4 py-3.5 text-sm font-medium text-ink hover:bg-ink/[.02]"
+      >
+        Ver mi perfil
+        <span className="text-ink-muted">→</span>
+      </Link>
       <div className="space-y-4">
         {groups.map((g) => (
           <div key={g.label}>
