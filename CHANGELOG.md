@@ -66,3 +66,21 @@ Antes de seguir con la Fase 3, el usuario pidió resolver primero los dos hallaz
 **Archivos afectados**: `src/lib/validation.ts`, `src/lib/db.ts`, `src/lib/actionState.ts` (nuevo), `src/lib/actions/calendarioNotas.ts`, `src/lib/actions/gastos.ts`, `src/lib/actions/configuracion.ts`, `src/components/ui-client.tsx`, `src/components/MonthCalendar.tsx`, `src/app/(app)/layout.tsx`, `src/app/(app)/calendario/page.tsx`, `src/app/(app)/dashboard/page.tsx`. Sin cambios de base de datos. `npx tsc --noEmit` sin errores.
 
 **Pendiente**: convertir el resto de los formularios del sistema al mismo patrón (Documentos, Proveedores, Socios primero, según lo acordado); luego seguir con la Fase 4.
+
+## Fase 4 — Arquitectura de usuarios/roles/permisos (12/09)
+
+**Qué se hizo**: se implementó el diseño ya especificado en `REQUIREMENTS.md` sección 5.4 — una capa de permisos granulares (`recurso.accion`, ej. `"documentos.edit"`) construida *sobre* la matriz de roles existente (`src/lib/roles.ts`), sin tocar ni reemplazar `users.rol`, la `MATRIX`, ni los 6 helpers finos ya existentes (`puedeGestionarReclamos`, `puedeGestionarComision`, etc.).
+
+- **Migración `migrations/0022_roles_permissions.sql`** (pendiente de aplicar en producción — ver "Pendiente" abajo): tres tablas nuevas, **globales, sin `organization_id`/RLS** (mismo criterio que `organizations`: son catálogo del sistema, no datos de una cooperativa puntual):
+  - `roles` (id, nombre, etiqueta) — sembrada 1:1 con los 11 roles de `ROLES`.
+  - `permissions` (id, recurso, accion, nombre) — catálogo `recurso.accion`; solo se generaron los 37 permisos que la `MATRIX` realmente otorga a algún rol hoy (ej. no existe `auditoria.edit` porque ningún rol tiene ese nivel de acceso ahí).
+  - `role_permissions` (role_id, permission_id) — 167 filas, la relación completa rol↔permiso.
+  - El seed se generó programáticamente con `scripts/generar-seed-permisos.mjs` (nuevo) a partir de la `MATRIX` real del código — nunca transcripto a mano fila por fila, para que no pueda desincronizarse. El script lee `src/lib/roles.ts`, aplica la misma jerarquía que `canRead`/`canEdit`/`canApprove` (`config` incluye `approve`, que incluye `edit`, que incluye `read`) y queda en el repo por si `MATRIX` cambia y hay que regenerar el seed para una migración futura.
+- **`tienePermiso(role, "recurso.accion")`** (nuevo, en `src/lib/roles.ts`): resuelve un permiso granular **sin consultar las tablas nuevas** — sigue llamando a `canRead`/`canEdit`/`canApprove` por dentro, tal como especifica el punto 2 de la sección 5.4. Esto es intencional: las tablas son la base para permisos personalizados por cooperativa a futuro, pero mientras ese caso no exista, un chequeo de permiso granular no puede arriesgarse a dar un resultado distinto del que la matriz real aplica hoy en producción.
+- **Verificación cruzada**: se corrió un script de una sola vez que compara, para las 440 combinaciones posibles (11 roles × 10 módulos × 4 niveles), el resultado de `tienePermiso()` contra las filas insertadas en el seed de la migración — **coinciden exactamente en las 440**, cero discrepancias.
+
+**Decisión de enfoque**: no se creó una tabla `user_permissions` para permisos extra por usuario individual (punto 4 de la sección 5.4) — ese caso queda "a futuro" tal como lo especifica `REQUIREMENTS.md`, y agregar la tabla ahora sin un caso de uso real sería anticipar funcionalidad no pedida. Tampoco se migró ningún chequeo de permisos existente a usar `tienePermiso()` en esta pasada: los 20 archivos de actions siguen usando `canRead`/`canEdit`/`canApprove`/los helpers finos exactamente como antes (cero riesgo de regresión); `tienePermiso()` queda disponible para código nuevo y para una futura pantalla de administración de roles/permisos (fuera del alcance de esta fase).
+
+**Archivos afectados**: `migrations/0022_roles_permissions.sql` (nuevo), `scripts/generar-seed-permisos.mjs` (nuevo), `src/lib/roles.ts` (agrega `tienePermiso`, sin tocar lo existente). `npx tsc --noEmit` sin errores.
+
+**Pendiente**: aplicar la migración `0022` en producción (vía `/api/admin/migraciones`, la misma herramienta temporal usada para 0015/0017/0018/0020) y confirmar en vivo que las 3 tablas quedaron sembradas correctamente; después, seguir con la Fase 5 (Contactos).

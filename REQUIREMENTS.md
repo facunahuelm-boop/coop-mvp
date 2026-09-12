@@ -172,14 +172,15 @@ Agrupadas por dominio. `[T]` = tiene `organization_id` (tenant-scoped) y RLS. `[
 | `puedeModificar(user, autorId)` | dueño de una nota o admin/consejo | ownership |
 | `puedeUsarGastos(rol)` | unión de dos módulos (`compras` o `finanzas`) | unión de permisos de matriz |
 
-### 5.4 Diseño propuesto para el sistema de permisos granular (Fase 4 — no implementado aún, solo especificado acá)
+### 5.4 Sistema de permisos granular ✅ *(Fase 4, 12/09 — implementado según lo especificado acá)*
 
-Para no romper nada de lo anterior, el modelo de permisos granulares (`users.view`, `commissions.manage`, `documents.download`, etc.) debe **construirse como una capa nueva sobre la matriz actual, no como su reemplazo inmediato**:
+Igual que se planeó, el modelo de permisos granulares (`recurso.accion`, ej. `documentos.edit`) se construyó como una **capa nueva sobre la matriz actual, no como su reemplazo**:
 
-1. Entidades nuevas: `roles` (fila por rol, hoy implícitas como strings — pasar a tabla permite roles personalizados por cooperativa a futuro sin tocar código), `permissions` (catálogo de strings `recurso.accion`), `role_permissions` (rol↔permiso). Mantener `users.rol` como está (no se transforma a multi-rol todavía) para no romper la matriz ni los 6 helpers finos existentes.
-2. Cada permiso string se resuelve, en una primera etapa, **derivándolo de la MATRIX existente** (una función `tienePermiso(user, "documents.download")` que por dentro sigue llamando a `canRead/canEdit` según corresponda) — así el sistema queda "listo" para permisos independientes sin tener que migrar los 20 archivos de actions de una sola vez.
-3. Los 6 helpers finos de la sección 5.3 no desaparecen: representan reglas que un permiso plano no puede expresar solo (scoping por fila, por dueño, por comisión específica). El diseño final combina "¿tiene el permiso?" (nuevo, plano) + "¿sobre esta fila en particular?" (existente, fino) — igual que hoy combina MATRIX + helper.
-4. Un usuario podrá, a futuro, tener más de un permiso adicional a su rol base (ej. un `socio` con el permiso extra `documents.create` para una situación puntual) sin que eso implique multi-rol — eso resuelve el pedido de "extensible sin rehacer" sin inventar un sistema de roles compuestos que el resto del código no está preparado para consumir.
+1. ✅ Entidades nuevas creadas en `migrations/0022_roles_permissions.sql`: `roles` (11 filas, 1:1 con `ROLES`), `permissions` (37 filas — catálogo `recurso.accion`, solo los que la `MATRIX` realmente otorga a algún rol), `role_permissions` (167 filas, la relación completa). Las tres son tablas globales, sin `organization_id`/RLS (mismo criterio que `organizations`). `users.rol` queda exactamente como estaba. El seed se generó con `scripts/generar-seed-permisos.mjs`, a partir del código real (no transcripto a mano), para que quede regenerable si la `MATRIX` cambia.
+2. ✅ `tienePermiso(role, "documentos.edit")` (en `src/lib/roles.ts`) resuelve el permiso llamando a `canRead`/`canEdit`/`canApprove` por dentro — **no consulta las tablas nuevas**, a propósito: son la base para personalización futura, pero el chequeo real sigue siendo 100% la MATRIX, sin riesgo de divergencia. Verificado por script: coincide con el seed en las 440 combinaciones posibles (11 roles × 10 módulos × 4 niveles).
+3. Los 6 helpers finos de la sección 5.3 no cambiaron — nada de esta fase los toca.
+4. **Todavía no implementado, a propósito**: permisos extra por usuario individual (ej. un `socio` con el permiso extra `documents.create` puntual) requeriría una tabla `user_permissions` que no se creó — no hay todavía un caso de uso real que la necesite, y agregarla ahora sería anticipar funcionalidad no pedida. Se agrega cuando un caso concreto lo requiera.
+5. **Todavía no implementado, a propósito**: ningún código existente de los 20 archivos de `actions/*.ts` fue migrado a llamar `tienePermiso()` en lugar de `canRead`/`canEdit`/`canApprove` directamente — ambos caminos dan el mismo resultado hoy, así que no había necesidad de tocar 20 archivos que ya funcionan correctamente solo para usar la función nueva. `tienePermiso()` queda disponible para código nuevo y para una futura pantalla de administración de roles/permisos.
 
 ## 6. Hallazgos de la auditoría (por severidad)
 

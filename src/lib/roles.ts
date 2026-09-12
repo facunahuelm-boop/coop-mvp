@@ -85,6 +85,38 @@ export function canApprove(role: Role, mod: Module) {
 }
 
 /**
+ * Fase 4 del Prompt Maestro (arquitectura de permisos granulares,
+ * REQUIREMENTS.md sección 5.4): resuelve un permiso "recurso.accion" (ej.
+ * "documentos.edit") para un rol dado. A propósito NO consulta las tablas
+ * `roles`/`permissions`/`role_permissions` (migración 0022) — esas tablas
+ * son el catálogo/base para que a futuro una cooperativa pueda tener
+ * permisos personalizados sin tocar código (ver REQUIREMENTS.md), pero
+ * mientras ese caso no exista, cada chequeo de permiso granular tiene que
+ * dar EXACTAMENTE el mismo resultado que ya dan canRead/canEdit/canApprove
+ * hoy — cero riesgo de que un permiso granular quede desincronizado de la
+ * matriz real que efectivamente se aplica. El seed de esas tablas (ver
+ * scripts/generar-seed-permisos.mjs) se generó a partir de esta misma
+ * MATRIX, así que ambos caminos concuerdan por construcción.
+ */
+export function tienePermiso(role: Role, permiso: string): boolean {
+  const [recurso, accion] = permiso.split(".");
+  if (!recurso || !accion) return false;
+  const mod = recurso as Module;
+  switch (accion) {
+    case "read":
+      return canRead(role, mod);
+    case "edit":
+      return canEdit(role, mod);
+    case "approve":
+      return canApprove(role, mod);
+    case "config":
+      return accessTo(role, mod) === "config";
+    default:
+      return false;
+  }
+}
+
+/**
  * AUDITORÍA INTEGRAL (hallazgo de seguridad, 12/09): "reclamos" es el único
  * módulo donde "edit" significa dos cosas distintas según el rol — para
  * "socio" es "puede reportar un problema" (ver el comentario de la MATRIX de
