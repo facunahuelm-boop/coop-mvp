@@ -46,7 +46,26 @@ export async function crearProveedorAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
   const datos = parseForm(crearProveedorSchema, formData);
-  const id = await insert("proveedores", { ...datos, creado_por_id: user.id });
+  // AUDITORÍA INTEGRAL (testing E2E real, 12/09): probando esta acción como
+  // Carlos (Comisión de Trabajo) con los campos nuevos de la Fase 08
+  // (RUT, tipo, etc.) rompió con el error genérico de siempre. insert() ya
+  // tiene el fallback centralizado para columnas faltantes (ver db.ts), así
+  // que si esto falla es por otra razón — se registra el error real acá
+  // (mismo criterio que ya se usa en compras.ts y gastos.ts) para poder
+  // diagnosticarlo desde /auditoria en vez de adivinar.
+  let id: number | undefined;
+  try {
+    id = await insert("proveedores", { ...datos, creado_por_id: user.id });
+  } catch (err: any) {
+    await audit({
+      usuario_id: user.id,
+      accion: "error_crear",
+      entidad: "proveedores",
+      entidad_id: 0,
+      valor_nuevo: { code: err?.code ?? null, message: String(err?.message ?? err) },
+    }).catch(() => {});
+    throw err;
+  }
   await audit({ usuario_id: user.id, accion: "crear", entidad: "proveedores", entidad_id: id, valor_nuevo: { nombre: datos.nombre, estado: datos.estado } });
   revalidatePath("/proveedores");
 }
