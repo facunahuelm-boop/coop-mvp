@@ -9,6 +9,9 @@ import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 import { crearGastoAction, marcarGastoPagadoAction, anularGastoAction } from "@/lib/actions/gastos";
 import { UsuarioLink } from "@/components/EntidadLink";
 import { puedeUsarGastos } from "@/lib/comisionAuth";
+import { Pagination, paginaDe } from "@/components/Pagination";
+
+const POR_PAGINA = 30;
 
 // Gastos por Comisión (pedido explícito, sección 1 y 9 del pedido): resumen
 // agregado + detalle filtrable, en una sola pantalla — se evita una pantalla
@@ -36,6 +39,7 @@ type Filtros = {
   forma_pago?: string;
   desde?: string;
   hasta?: string;
+  page?: string;
 };
 
 export default async function GastosPage({ searchParams }: { searchParams: Promise<Filtros> }) {
@@ -44,6 +48,7 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
   if (!canRead(user.rol, "compras") && !canRead(user.rol, "finanzas")) redirect("/dashboard");
 
   const f = await searchParams;
+  const page = paginaDe(f);
   const puedeCargar = puedeUsarGastos(user.rol);
   const esOversight = canEdit(user.rol, "finanzas");
 
@@ -68,7 +73,11 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
   // antes de que se corra la migración, tiene que degradarse mostrando "sin
   // datos todavía" en vez de romper toda la página (mismo criterio que ya se
   // usa en el Dashboard con notas_calendario).
-  const [comisionesTotales, resumen, gastos, proveedores, comisionesActivas, misComisiones] = await Promise.all([
+  // Fase 8 (paginación/búsqueda/filtros), hallazgo H-10: tenía un LIMIT 200
+  // fijo — con los filtros ya existentes puestos a un lado, si el resultado
+  // filtrado pasaba de 200 filas los gastos más viejos quedaban invisibles
+  // sin ninguna forma de verlos. Se agrega COUNT + LIMIT/OFFSET reales.
+  const [comisionesTotales, resumen, totalGastosRow, gastos, proveedores, comisionesActivas, misComisiones] = await Promise.all([
     all<any>(
       `SELECT c.id, c.nombre,
          COALESCE(SUM(g.importe) FILTER (WHERE g.estado != 'anulado'), 0) as total,
@@ -91,6 +100,7 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
        FROM gastos_comision`,
       [desdeMes, hastaMes]
     ).catch(() => null),
+    get<{ total: string }>(`SELECT COUNT(*) as total FROM gastos_comision g ${where}`, params).catch(() => null),
     all<any>(
       `SELECT g.*, c.nombre as comision_nombre, p.nombre as proveedor_nombre, u.nombre as creado_por_nombre
        FROM gastos_comision g
@@ -99,8 +109,8 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
        LEFT JOIN users u ON u.id = g.creado_por_id
        ${where}
        ORDER BY g.fecha DESC, g.creado_en DESC
-       LIMIT 200`,
-      params
+       LIMIT ? OFFSET ?`,
+      [...params, POR_PAGINA, (page - 1) * POR_PAGINA]
     ).catch(() => [] as any[]),
     all<{ id: number; nombre: string }>(`SELECT id, nombre FROM proveedores ORDER BY nombre ASC`).catch(() => []),
     all<{ id: number; nombre: string }>(`SELECT id, nombre FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`).catch(() => []),
@@ -111,7 +121,9 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
   const comisionesQuePuedeCargar = esOversight ? comisionesActivas : comisionesActivas.filter((c) => misComisionIds.has(c.id));
   const puedeGestionarFila = (comisionId: number) => esOversight || misComisionIds.has(comisionId);
 
-  const hayFiltros = Object.values(f).some(Boolean);
+  const hayFiltros = Boolean(f.comision_id || f.categoria || f.proveedor_id || f.estado || f.forma_pago || f.desde || f.hasta);
+  const totalGastos = Number(totalGastosRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(totalGastos / POR_PAGINA));
 
   // Preserva los filtros ya elegidos cuando se toca una comisión desde el
   // resumen (drill-down): sólo cambia comision_id, el resto de la búsqueda
@@ -215,7 +227,7 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
         </form>
       </Card>
 
-      <SectionTitle>Últimos gastos</SectionTitle>
+      <SectionTitle>Gastos</SectionTitle>
       <div className="space-y-2 mb-6">
         {gastos.map((g) => {
           const puedeGestionar = puedeGestionarFila(g.comision_id);
@@ -262,6 +274,7 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
           </EmptyState>
         )}
       </div>
+      {gastos.length > 0 && <Pagination page={page} totalPages={totalPages} basePath="/gastos" searchParams={f} />}
 
       {puedeCargar && (
         comisionesQuePuedeCargar.length > 0 ? (

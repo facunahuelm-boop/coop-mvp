@@ -1,29 +1,48 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
-import { all } from "@/lib/db";
+import { all, get } from "@/lib/db";
 import { resumenFinanciero, cuentasPorCobrar } from "@/lib/logic";
 import { Card, PageHeader, StatTile, EmptyState, Label, inputClass, SectionTitle } from "@/components/ui";
 import Link from "next/link";
 import dayjs from "dayjs";
 import { registrarMovimientoAction, agregarCompromisoAction } from "@/lib/actions/finanzas";
+import { Pagination, paginaDe } from "@/components/Pagination";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
 const CATEGORY_COLORS = ["#1F4E5F", "#3A7A8C", "#7FA8B3", "#A15C00", "#B3261E", "#5B7553"];
+const POR_PAGINA = 20;
 
-export default async function FinanzasPage() {
+export default async function FinanzasPage({
+  searchParams,
+}: {
+  // Next.js 16: searchParams llega como Promise — ver la nota en
+  // documentos/page.tsx sobre el bug que esto causa si no se hace await.
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canRead(user.rol, "finanzas")) redirect("/dashboard");
 
   const detalle = ROLES_FINANZAS_DETALLE.includes(user.rol);
   const puedeEditar = canEdit(user.rol, "finanzas");
-  const [fin, movimientos, compromisos, cobrar] = await Promise.all([
+  const sp = await searchParams;
+  const page = paginaDe(sp);
+  // Fase 8 (paginación/búsqueda/filtros), hallazgo H-10: tenía un LIMIT 15
+  // fijo — se reemplaza por paginación real (COUNT + LIMIT/OFFSET), y la
+  // sección deja de llamarse "recientes" porque ahora sí se puede ver todo.
+  const [fin, totalMovimientosRow, movimientos, compromisos, cobrar] = await Promise.all([
     resumenFinanciero(),
-    all<any>(`SELECT m.*, u.nombre as registrado_por FROM movimientos_financieros m LEFT JOIN users u ON u.id = m.registrado_por_id ORDER BY fecha DESC LIMIT 15`),
+    get<{ total: string }>(`SELECT COUNT(*) as total FROM movimientos_financieros`),
+    all<any>(
+      `SELECT m.*, u.nombre as registrado_por FROM movimientos_financieros m LEFT JOIN users u ON u.id = m.registrado_por_id ORDER BY fecha DESC LIMIT ? OFFSET ?`,
+      [POR_PAGINA, (page - 1) * POR_PAGINA]
+    ),
     all<any>(`SELECT * FROM compromisos_futuros ORDER BY fecha_estimada ASC`),
     cuentasPorCobrar(),
   ]);
+  const totalMovimientos = Number(totalMovimientosRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(totalMovimientos / POR_PAGINA));
   const maxCategoria = Math.max(1, ...fin.porCategoria.map((c: any) => c.total));
 
   return (
@@ -147,7 +166,7 @@ export default async function FinanzasPage() {
             </div>
           </Card>
 
-          <SectionTitle>Movimientos recientes</SectionTitle>
+          <SectionTitle>Movimientos</SectionTitle>
           <Card>
             <table className="w-full text-sm">
               <thead><tr className="text-left text-xs text-ink/50 border-b border-ink/10"><th className="py-2">Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th className="text-right">Monto</th></tr></thead>
@@ -161,9 +180,13 @@ export default async function FinanzasPage() {
                     <td className="text-right font-medium">{money(m.monto)}</td>
                   </tr>
                 ))}
+                {movimientos.length === 0 && (
+                  <tr><td colSpan={5}><EmptyState>Sin movimientos registrados todavía.</EmptyState></td></tr>
+                )}
               </tbody>
             </table>
           </Card>
+          <Pagination page={page} totalPages={totalPages} basePath="/finanzas" searchParams={sp} />
           {puedeEditar && (
             <details className="mt-4"><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Registrar movimiento</summary>
               <Card className="mt-3">

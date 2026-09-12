@@ -17,6 +17,7 @@ import {
   moverListaEsperaAction,
 } from "@/lib/actions/socios";
 import { NucleoLink } from "@/components/EntidadLink";
+import { BuscadorFilas } from "@/components/BuscadorFilas";
 
 const ESTADOS_VIVIENDA = ["en_obra", "terminada", "ocupada"] as const;
 const ESTADOS_SOCIO = ["activo", "inactivo", "baja"] as const;
@@ -108,22 +109,18 @@ export default async function SociosPage() {
       {/* ---------- Socios ---------- */}
       <SectionTitle>Padrón de socios</SectionTitle>
       <Card className="mb-6">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
-                <th className="py-2 pr-3">N.º núcleo</th>
-                <th className="py-2 pr-3">Titular</th>
-                <th className="py-2 pr-3">Integrantes</th>
-                <th className="py-2 pr-3">Vivienda</th>
-                <th className="py-2 pr-3">Núcleo familiar</th>
-                <th className="py-2 pr-3">Contacto</th>
-                <th className="py-2 pr-3">Estado</th>
-                {puedeEditar && <th className="py-2 pr-3"></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {socios.map((s) => (
+        {socios.length === 0 ? (
+          <EmptyState>Todavía no hay socios cargados.</EmptyState>
+        ) : (
+          // Fase 8 (paginación/búsqueda/filtros): buscador client-side sobre
+          // las filas ya armadas por el servidor — ver BuscadorFilas.tsx
+          // sobre por qué acá conviene esto y no paginación real.
+          <BuscadorFilas
+            placeholder="Buscar socio por nombre, vivienda, núcleo, email o teléfono..."
+            sinResultadosTexto="No se encontró ningún socio con esa búsqueda."
+            filas={socios.map((s) => ({
+              clave: [s.nombre, s.vivienda_numero, s.nucleo_nombre, s.email, s.telefono].filter(Boolean).join(" "),
+              nodo: (
                 <tr key={s.id} className="border-b border-ink/5 last:border-0">
                   <td className="py-2 pr-3 text-ink/50">#{s.id}</td>
                   <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
@@ -174,11 +171,30 @@ export default async function SociosPage() {
                     )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {socios.length === 0 && <EmptyState>Todavía no hay socios cargados.</EmptyState>}
-        </div>
+              ),
+            }))}
+          >
+            {(filas) => (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
+                      <th className="py-2 pr-3">N.º núcleo</th>
+                      <th className="py-2 pr-3">Titular</th>
+                      <th className="py-2 pr-3">Integrantes</th>
+                      <th className="py-2 pr-3">Vivienda</th>
+                      <th className="py-2 pr-3">Núcleo familiar</th>
+                      <th className="py-2 pr-3">Contacto</th>
+                      <th className="py-2 pr-3">Estado</th>
+                      {puedeEditar && <th className="py-2 pr-3"></th>}
+                    </tr>
+                  </thead>
+                  <tbody>{filas}</tbody>
+                </table>
+              </div>
+            )}
+          </BuscadorFilas>
+        )}
 
         {puedeEditar && (
           <details className="mt-4">

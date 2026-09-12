@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
-import { all } from "@/lib/db";
+import { all, get } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import Link from "next/link";
 import { crearReunionAction } from "@/lib/actions/reuniones";
+import { Pagination, paginaDe } from "@/components/Pagination";
+
+const POR_PAGINA = 15;
 
 // AUDITORÍA INTEGRAL: la reunión de tipo "comision" ahora exige ser
 // integrante de esa comisión puntual (o rol de conducción) en el backend
@@ -26,20 +29,38 @@ const ESTADO_COLOR: Record<string, "verde" | "amarillo" | "rojo" | "brand" | "gr
   cancelada: "gray",
 };
 
-export default async function ReunionesPage() {
+export default async function ReunionesPage({
+  searchParams,
+}: {
+  // Next.js 16: searchParams llega como Promise — ver la nota en
+  // documentos/page.tsx sobre el bug que esto causa si no se hace await.
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canRead(user.rol, "comisiones")) redirect("/dashboard");
 
   const puedeEditar = canEdit(user.rol, "comisiones");
   const esOversightReuniones = canEdit(user.rol, "finanzas");
+  const sp = await searchParams;
+  const page = paginaDe(sp);
 
-  const [proximas, pasadas, comisionesActivas, misComisiones] = await Promise.all([
+  // Fase 8 (paginación/búsqueda/filtros), hallazgo H-10: el Historial tenía
+  // un LIMIT 15 fijo — se reemplaza por paginación real. "Próximas" queda
+  // sin cambios: es una lista naturalmente acotada (solo lo planificado a
+  // futuro), no un historial que crece sin límite.
+  const [proximas, totalPasadasRow, pasadas, comisionesActivas, misComisiones] = await Promise.all([
     all<any>(`SELECT r.*, c.nombre as comision_nombre FROM reuniones r LEFT JOIN comisiones c ON c.id = r.comision_id WHERE r.estado = 'planificada' ORDER BY r.fecha ASC`),
-    all<any>(`SELECT r.*, c.nombre as comision_nombre FROM reuniones r LEFT JOIN comisiones c ON c.id = r.comision_id WHERE r.estado != 'planificada' ORDER BY r.fecha DESC LIMIT 15`),
+    get<{ total: string }>(`SELECT COUNT(*) as total FROM reuniones WHERE estado != 'planificada'`),
+    all<any>(
+      `SELECT r.*, c.nombre as comision_nombre FROM reuniones r LEFT JOIN comisiones c ON c.id = r.comision_id WHERE r.estado != 'planificada' ORDER BY r.fecha DESC LIMIT ? OFFSET ?`,
+      [POR_PAGINA, (page - 1) * POR_PAGINA]
+    ),
     all<any>(`SELECT * FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`),
     all<{ comision_id: number }>(`SELECT comision_id FROM comision_miembros WHERE user_id = ? AND activo = 1`, [user.id]),
   ]);
+  const totalPasadas = Number(totalPasadasRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(totalPasadas / POR_PAGINA));
   const misComisionIds = new Set(misComisiones.map((m) => m.comision_id));
   // Igual que en /compras: la lista para vincular solo muestra las comisiones
   // que esta persona puede gestionar — el backend (verificarPermisoReunion)
@@ -73,10 +94,13 @@ export default async function ReunionesPage() {
         {proximas.length === 0 && <EmptyState>No hay reuniones planificadas.</EmptyState>}
       </div>
 
-      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Historial</h3>
-      <div className="space-y-2 mb-6">
-        {pasadas.map((r) => <Fila key={r.id} r={r} />)}
-        {pasadas.length === 0 && <EmptyState>Sin reuniones anteriores.</EmptyState>}
+      <div className="mb-6">
+        <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Historial</h3>
+        <div className="space-y-2">
+          {pasadas.map((r) => <Fila key={r.id} r={r} />)}
+          {pasadas.length === 0 && <EmptyState>Sin reuniones anteriores.</EmptyState>}
+        </div>
+        {pasadas.length > 0 && <Pagination page={page} totalPages={totalPages} basePath="/reuniones" searchParams={sp} />}
       </div>
 
       {puedeEditar && (

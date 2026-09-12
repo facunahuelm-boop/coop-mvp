@@ -103,7 +103,21 @@ export default async function UsuarioDetallePage({ params }: { params: Promise<{
 
       {puedeVerActividad && (
         <>
-          <SectionTitle>Actividad reciente</SectionTitle>
+          <SectionTitle
+            action={
+              // Fase 8 (paginación/búsqueda/filtros): antes esta lista se
+              // cortaba en los últimos 20 registros sin ninguna forma de ver
+              // más — ahora enlaza a /auditoria ya filtrada por esta persona,
+              // que tiene paginación real.
+              canRead(viewer.rol, "auditoria") ? (
+                <Link href={`/auditoria?usuario_id=${usuario.id}`} className="text-sm text-[var(--color-brand-800)] hover:underline underline-offset-2">
+                  Ver toda la actividad →
+                </Link>
+              ) : undefined
+            }
+          >
+            Actividad reciente
+          </SectionTitle>
           <Card>
             {actividad.length === 0 ? (
               <EmptyState>Sin actividad registrada todavía.</EmptyState>

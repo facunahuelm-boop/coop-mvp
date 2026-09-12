@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { all } from "@/lib/db";
+import { all, get } from "@/lib/db";
 import { Card, PageHeader, Label, inputClass, EmptyState, Badge } from "@/components/ui";
 import { enviarMailAction } from "@/lib/actions/mails";
 import dayjs from "dayjs";
 import { Mail, Send, Users, User } from "lucide-react";
 import { UsuarioLink } from "@/components/EntidadLink";
+import { Pagination, paginaDe } from "@/components/Pagination";
+
+const POR_PAGINA = 20;
 
 // Sección de Mails (pedido explícito): mandarle un mail por email a un
 // usuario puntual, a toda una comisión, o (Admin/Consejo Directivo) a todos
@@ -19,10 +22,18 @@ import { UsuarioLink } from "@/components/EntidadLink";
 // abrirlo) pero corriendo enteramente adentro del sistema — no hace falta
 // salir a Gmail/Outlook para ver qué se mandó.
 
-export default async function MailsPage() {
+export default async function MailsPage({
+  searchParams,
+}: {
+  // Next.js 16: searchParams llega como Promise — ver la nota en
+  // documentos/page.tsx sobre el bug que esto causa si no se hace await.
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const puedeATodos = user.rol === "admin" || user.rol === "consejo_directivo";
+  const sp = await searchParams;
+  const page = paginaDe(sp);
 
   const [usuarios, comisiones] = await Promise.all([
     all<{ id: number; nombre: string }>(`SELECT id, nombre FROM users WHERE activo = 1 AND id != ? ORDER BY nombre ASC`, [user.id]),
@@ -33,12 +44,23 @@ export default async function MailsPage() {
   // todavía no se corrió esa migración en esta cooperativa, la pantalla no
   // se rompe: el formulario de arriba sigue funcionando (los mails salen
   // igual), solo no hay historial para mostrar todavía.
+  //
+  // Fase 8 (paginación/búsqueda/filtros), hallazgo H-10: tenía un LIMIT 50
+  // fijo — se reemplaza por paginación real (COUNT + LIMIT/OFFSET) para que
+  // los envíos más viejos no queden inalcanzables.
   let historial: any[] = [];
   let historialDisponible = true;
+  let totalPages = 1;
   try {
-    historial = await all<any>(
-      `SELECT m.*, u.nombre as remitente_nombre FROM mensajes_correo m LEFT JOIN users u ON u.id = m.remitente_id ORDER BY m.creado_en DESC LIMIT 50`
-    );
+    const [totalRow, filas] = await Promise.all([
+      get<{ total: string }>(`SELECT COUNT(*) as total FROM mensajes_correo`),
+      all<any>(
+        `SELECT m.*, u.nombre as remitente_nombre FROM mensajes_correo m LEFT JOIN users u ON u.id = m.remitente_id ORDER BY m.creado_en DESC LIMIT ? OFFSET ?`,
+        [POR_PAGINA, (page - 1) * POR_PAGINA]
+      ),
+    ]);
+    historial = filas;
+    totalPages = Math.max(1, Math.ceil(Number(totalRow?.total || 0) / POR_PAGINA));
   } catch {
     historialDisponible = false;
   }
@@ -167,6 +189,9 @@ export default async function MailsPage() {
               );
             })}
           </div>
+        )}
+        {historialDisponible && historial.length > 0 && (
+          <Pagination page={page} totalPages={totalPages} basePath="/mails" searchParams={sp} />
         )}
       </div>
     </div>

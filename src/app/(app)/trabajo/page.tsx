@@ -7,18 +7,37 @@ import dayjs from "dayjs";
 import Link from "next/link";
 import { crearJornadaAction, proponerDistribucionAction, confirmarAsignacionAction, anotarmeAction } from "@/lib/actions/trabajo";
 import { NucleoLink } from "@/components/EntidadLink";
+import { Pagination, paginaDe } from "@/components/Pagination";
 
-export default async function TrabajoPage() {
+const POR_PAGINA = 10;
+
+export default async function TrabajoPage({
+  searchParams,
+}: {
+  // Next.js 16: searchParams llega como Promise — ver la nota en
+  // documentos/page.tsx sobre el bug que esto causa si no se hace await.
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canRead(user.rol, "trabajo")) redirect("/dashboard");
 
   const puedeEditar = canEdit(user.rol, "trabajo");
-  const [proximaJornada, pasadas, nucleos] = await Promise.all([
+  const sp = await searchParams;
+  const page = paginaDe(sp);
+  // Fase 8 (paginación/búsqueda/filtros), hallazgo H-10: "Jornadas
+  // anteriores" tenía un LIMIT 8 fijo — se reemplaza por paginación real.
+  const [proximaJornada, totalPasadasRow, pasadas, nucleos] = await Promise.all([
     get<any>(`SELECT * FROM jornadas_trabajo WHERE fecha >= CURRENT_DATE::text ORDER BY fecha ASC LIMIT 1`),
-    all<any>(`SELECT * FROM jornadas_trabajo WHERE fecha < CURRENT_DATE::text ORDER BY fecha DESC LIMIT 8`),
+    get<{ total: string }>(`SELECT COUNT(*) as total FROM jornadas_trabajo WHERE fecha < CURRENT_DATE::text`),
+    all<any>(
+      `SELECT * FROM jornadas_trabajo WHERE fecha < CURRENT_DATE::text ORDER BY fecha DESC LIMIT ? OFFSET ?`,
+      [POR_PAGINA, (page - 1) * POR_PAGINA]
+    ),
     all<any>(`SELECT * FROM nucleos_familiares ORDER BY horas_acumuladas DESC`),
   ]);
+  const totalPasadas = Number(totalPasadasRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(totalPasadas / POR_PAGINA));
 
   let tareasJornada: any[] = [];
   if (proximaJornada) {
@@ -97,6 +116,7 @@ export default async function TrabajoPage() {
             {pasadas.map((j) => <Link key={j.id} href={`/trabajo/${j.id}`}><Card className="hover:shadow-md text-sm">{dayjs(j.fecha).format("DD/MM/YYYY")} — {j.descripcion}</Card></Link>)}
             {pasadas.length === 0 && <EmptyState>Sin jornadas anteriores.</EmptyState>}
           </div>
+          {pasadas.length > 0 && <Pagination page={page} totalPages={totalPages} basePath="/trabajo" searchParams={sp} />}
         </div>
         <div>
           <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Horas acumuladas por núcleo</h3>

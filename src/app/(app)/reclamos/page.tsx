@@ -1,14 +1,23 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canApprove, puedeGestionarReclamos } from "@/lib/roles";
-import { all } from "@/lib/db";
+import { all, get } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import { crearReclamoAction, tomarReclamoAction, resolverReclamoAction, reabrirReclamoAction } from "@/lib/actions/reclamos";
 import { CATEGORIA_RECLAMO_LABEL, PRIORIDAD_RECLAMO_LABEL } from "@/lib/constants";
 import { UsuarioLink } from "@/components/EntidadLink";
+import { Pagination, paginaDe } from "@/components/Pagination";
 
-export default async function ReclamosPage() {
+const POR_PAGINA = 10;
+
+export default async function ReclamosPage({
+  searchParams,
+}: {
+  // Next.js 16: searchParams llega como Promise — ver la nota en
+  // documentos/page.tsx sobre el bug que esto causa si no se hace await.
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canRead(user.rol, "reclamos")) redirect("/dashboard");
@@ -18,21 +27,35 @@ export default async function ReclamosPage() {
   // puedeGestionarReclamos en roles.ts.
   const puedeGestionar = puedeGestionarReclamos(user.rol);
   const puedeAprobar = canApprove(user.rol, "reclamos");
+  const sp = await searchParams;
+  const page = paginaDe(sp);
 
-  const [reclamos, viviendas] = await Promise.all([
+  // Fase 8 (paginación/búsqueda/filtros), hallazgo H-10: "Resueltos" se
+  // armaba trayendo TODOS los reclamos (abiertos y resueltos juntos, sin
+  // límite en la consulta) y recién ahí se recortaba a 10 en memoria — el
+  // resto de los resueltos quedaba invisible y además se traía de la base
+  // cada vez sin necesidad. Se separa en dos consultas: "abiertos" (siempre
+  // completa — un reclamo sin resolver nunca se puede volver invisible) y
+  // "resueltos" con paginación real (COUNT + LIMIT/OFFSET).
+  const [abiertos, totalResueltosRow, resueltos, viviendas] = await Promise.all([
     all<any>(
       `SELECT r.*, v.numero as vivienda_numero, ur.nombre as reportado_por_nombre, ua.nombre as responsable_nombre
        FROM reclamos r
        LEFT JOIN viviendas v ON v.id = r.vivienda_id
        LEFT JOIN users ur ON ur.id = r.reportado_por_id
        LEFT JOIN users ua ON ua.id = r.responsable_id
-       ORDER BY CASE r.estado WHEN 'abierto' THEN 0 WHEN 'en_proceso' THEN 1 ELSE 2 END, r.fecha DESC`
+       WHERE r.estado != 'resuelto'
+       ORDER BY CASE r.estado WHEN 'abierto' THEN 0 ELSE 1 END, r.fecha DESC`
+    ),
+    get<{ total: string }>(`SELECT COUNT(*) as total FROM reclamos WHERE estado = 'resuelto'`),
+    all<any>(
+      `SELECT r.* FROM reclamos r WHERE r.estado = 'resuelto' ORDER BY r.resuelto_en DESC NULLS LAST, r.fecha DESC LIMIT ? OFFSET ?`,
+      [POR_PAGINA, (page - 1) * POR_PAGINA]
     ),
     all<any>(`SELECT id, numero FROM viviendas ORDER BY numero ASC`),
   ]);
-
-  const abiertos = reclamos.filter((r) => r.estado !== "resuelto");
-  const resueltos = reclamos.filter((r) => r.estado === "resuelto").slice(0, 10);
+  const totalResueltos = Number(totalResueltosRow?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(totalResueltos / POR_PAGINA));
 
   const badgeColorEstado = (estado: string) => (estado === "resuelto" ? "verde" : estado === "en_proceso" ? "amarillo" : "rojo");
   const badgeColorPrioridad = (p: string) => (p === "alta" ? "rojo" : p === "media" ? "amarillo" : "gray");
@@ -122,7 +145,7 @@ export default async function ReclamosPage() {
         </Card>
       </details>
 
-      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Resueltos recientes</h3>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Resueltos</h3>
       <div className="space-y-2">
         {resueltos.map((r) => (
           <Card key={r.id}>
@@ -142,6 +165,7 @@ export default async function ReclamosPage() {
         ))}
         {resueltos.length === 0 && <EmptyState>Todavía no hay reclamos resueltos.</EmptyState>}
       </div>
+      {resueltos.length > 0 && <Pagination page={page} totalPages={totalPages} basePath="/reclamos" searchParams={sp} />}
     </div>
   );
 }
