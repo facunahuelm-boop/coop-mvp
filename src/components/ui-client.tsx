@@ -11,6 +11,7 @@
 // por confirmaciones y avisos con palabras humanas.
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useFormStatus } from "react-dom";
 import { Button } from "./ui";
 
 export function Modal({
@@ -138,4 +139,62 @@ export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast debe usarse dentro de <ToastProvider>");
   return ctx;
+}
+
+// Fase 3 (sistema global de errores y validaciones): piezas chicas y
+// reutilizables para los formularios que se van convirtiendo a
+// `useActionState` (ver src/lib/actionState.ts). Antes de esto, cada
+// formulario que quisiera mostrar un error tenía que inventar su propio
+// mensaje suelto en rojo (o directamente no mostraba nada y el error se
+// perdía en la pantalla genérica de Next.js) — estos tres componentes le dan
+// una sola forma consistente en toda la app.
+
+/** Mensaje de error general de un formulario (regla de negocio, permiso,
+ * error de servidor) — no ligado a un campo puntual. Se ubica arriba del
+ * formulario o antes de los botones, según convenga a cada pantalla. */
+export function FormError({ message }: { message?: string | null }) {
+  if (!message) return null;
+  return (
+    <p
+      role="alert"
+      className="rounded-lg bg-[var(--color-rojo-bg)] px-3 py-2 text-sm font-medium text-[var(--color-rojo)]"
+    >
+      {message}
+    </p>
+  );
+}
+
+/** Error puntual de un campo (`fieldErrors` de ActionState) — va justo debajo
+ * del input al que corresponde, no mezclado con el resto. */
+export function FieldError({ message }: { message?: string | null }) {
+  if (!message) return null;
+  return (
+    <p role="alert" className="mt-1 text-sm font-medium text-[var(--color-rojo)]">
+      {message}
+    </p>
+  );
+}
+
+/** Botón de submit que se deshabilita solo y cambia de texto mientras la
+ * Server Action está en curso (useFormStatus lee el <form> padre, así que
+ * este componente tiene que vivir DENTRO del <form>, no al lado). Reemplaza
+ * al viejo patrón de "Button type=submit" suelto, que dejaba hacer doble
+ * click y mandar la acción dos veces mientras la primera todavía no volvía. */
+export function SubmitButton({
+  children,
+  pendingLabel,
+  variant,
+  className,
+}: {
+  children: ReactNode;
+  pendingLabel?: string;
+  variant?: "primary" | "secondary" | "ghost" | "danger";
+  className?: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" variant={variant} className={className} disabled={pending}>
+      {pending ? pendingLabel || "Guardando…" : children}
+    </Button>
+  );
 }

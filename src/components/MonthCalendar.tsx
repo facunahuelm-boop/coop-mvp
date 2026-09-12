@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import dayjs, { Dayjs } from "dayjs";
 import { ChevronLeft, ChevronRight, Pencil, Trash2, Plus } from "lucide-react";
+import { ESTADO_INICIAL, type ActionState } from "@/lib/actionState";
+import { FieldError, FormError, useToast } from "./ui-client";
 
 // Calendario visual, compartido entre /calendario (vista completa, con
 // navegación de mes) y el Dashboard (versión compacta, semana actual). No
@@ -35,7 +38,11 @@ export type NotaCalendario = {
   esPropia: boolean; // si la persona que mira puede editarla/borrarla
 };
 
-type AccionNota = (formData: FormData) => void;
+// Fase 3: las tres acciones ahora son las variantes "FormAction" pensadas
+// para useActionState (ver lib/actions/calendarioNotas.ts) — ya no un simple
+// `(formData) => void` que dejaba que cualquier error terminara en la
+// pantalla genérica de Next.js.
+type AccionNota = (prevState: ActionState, formData: FormData) => Promise<ActionState>;
 
 const TIPO_COLOR_DOT: Record<string, string> = {
   reunion: "bg-[var(--color-brand-700)]",
@@ -78,6 +85,126 @@ const DIAS = ["L", "M", "M", "J", "V", "S", "D"];
 
 function isoDate(d: Dayjs) {
   return d.format("YYYY-MM-DD");
+}
+
+// Fase 3: formulario de agregar/editar nota como componente aparte, para que
+// `useActionState` viva en su propia instancia — con `key` distinto por nota
+// (ver más abajo, donde se usa) React lo desmonta y remonta solo al cambiar
+// de "agregar" a "editar otra nota", así el estado (error, campo con foco)
+// nunca queda pegado de una nota a la siguiente.
+function NotaFormulario({
+  notaEnEdicion,
+  fecha,
+  crearNota,
+  editarNota,
+  onGuardado,
+  onCancelar,
+}: {
+  notaEnEdicion: NotaCalendario | null;
+  fecha: string;
+  crearNota: AccionNota;
+  editarNota: AccionNota;
+  onGuardado: () => void;
+  onCancelar: () => void;
+}) {
+  const [estado, formAction] = useActionState(notaEnEdicion ? editarNota : crearNota, ESTADO_INICIAL);
+
+  useEffect(() => {
+    if (estado.ok) onGuardado();
+    // Solo nos interesa reaccionar cuando cambia el resultado de un envío,
+    // no en cada re-render por otro motivo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form action={formAction} className="mt-2 rounded-lg border border-border bg-surface-sunken p-2.5 space-y-2">
+      <input type="hidden" name="fecha" value={fecha} />
+      {notaEnEdicion && <input type="hidden" name="id" value={notaEnEdicion.id} />}
+      <div>
+        <input
+          name="titulo"
+          required
+          maxLength={150}
+          placeholder="¿Qué hay este día? Ej: Asamblea de fin de año"
+          defaultValue={notaEnEdicion?.titulo ?? ""}
+          className="w-full rounded-md border border-ink/10 bg-surface px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-800)]/30"
+        />
+        <FieldError message={estado.fieldErrors?.titulo} />
+      </div>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <input
+          name="hora"
+          type="time"
+          defaultValue={notaEnEdicion?.hora ?? ""}
+          className="rounded-md border border-ink/10 bg-surface px-2 py-1.5 text-xs"
+        />
+        <div className="flex gap-1.5">
+          {COLOR_OPCIONES.map((c) => (
+            <label key={c.value} title={c.label} className="cursor-pointer">
+              <input
+                type="radio"
+                name="color"
+                value={c.value}
+                defaultChecked={(notaEnEdicion?.color ?? "brand") === c.value}
+                className="peer sr-only"
+              />
+              <span
+                className={`block h-5 w-5 rounded-full ${COLOR_DOT[c.value]} ring-2 ring-offset-1 ring-offset-surface-sunken ring-transparent peer-checked:ring-[var(--color-brand-900)]`}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+      {!estado.ok && <FormError message={estado.error} />}
+      <div className="flex items-center gap-3">
+        <BotonGuardarNota esEdicion={!!notaEnEdicion} />
+        <button type="button" onClick={onCancelar} className="text-xs text-ink-faint underline underline-offset-2">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// Mismo tamaño "chico" que ya tenía este botón antes de Fase 3 (el Button
+// compartido de ui.tsx es más grande, pensado para pantallas completas, no
+// para un formulario que vive adentro de la celda de un día). useFormStatus
+// lee el <form> padre — por eso este botón tiene que ser su propio
+// componente, separado de NotaFormulario, y no un simple <button> ahí mismo.
+function BotonGuardarNota({ esEdicion }: { esEdicion: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+    >
+      {pending ? "Guardando…" : esEdicion ? "Guardar cambios" : "Agregar"}
+    </button>
+  );
+}
+
+// Fase 3: mismo motivo que NotaFormulario — cada nota tiene su propio botón
+// de borrar con su propia instancia de useActionState, para que si falla
+// (por ejemplo, alguien intenta borrar una nota ajena por una condición de
+// carrera) el aviso salga como toast en vez de perderse.
+function NotaBorrarForm({ id, eliminarNota }: { id: number; eliminarNota: AccionNota }) {
+  const { show } = useToast();
+  const [estado, formAction] = useActionState(eliminarNota, ESTADO_INICIAL);
+
+  useEffect(() => {
+    if (!estado.ok && estado.error) show(estado.error, "error");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="id" value={id} />
+      <button type="submit" className="text-ink-faint hover:text-[var(--color-rojo)]" title="Borrar">
+        <Trash2 size={12} />
+      </button>
+    </form>
+  );
 }
 
 export function MonthCalendar({
@@ -169,12 +296,7 @@ export function MonthCalendar({
                           <button type="button" onClick={() => setNotaEditandoId(n.id)} className="text-ink-faint hover:text-[var(--color-brand-800)]" title="Editar">
                             <Pencil size={12} />
                           </button>
-                          <form action={eliminarNota}>
-                            <input type="hidden" name="id" value={n.id} />
-                            <button type="submit" className="text-ink-faint hover:text-[var(--color-rojo)]" title="Borrar">
-                              <Trash2 size={12} />
-                            </button>
-                          </form>
+                          {eliminarNota && <NotaBorrarForm id={n.id} eliminarNota={eliminarNota} />}
                         </span>
                       )}
                     </li>
@@ -185,55 +307,16 @@ export function MonthCalendar({
               <p className={`${txt} text-ink-faint`}>Nada agendado para el {dayjs(seleccionado).format("D [de] MMMM")}.</p>
             )}
 
-            {puedeEscribir && (mostrarForm || notaEnEdicion) && (
-              <form
-                action={notaEnEdicion ? editarNota : crearNota}
-                onSubmit={() => cerrarFormulario()}
-                className="mt-2 rounded-lg border border-border bg-surface-sunken p-2.5 space-y-2"
-              >
-                <input type="hidden" name="fecha" value={seleccionado} />
-                {notaEnEdicion && <input type="hidden" name="id" value={notaEnEdicion.id} />}
-                <input
-                  name="titulo"
-                  required
-                  maxLength={150}
-                  placeholder="¿Qué hay este día? Ej: Asamblea de fin de año"
-                  defaultValue={notaEnEdicion?.titulo ?? ""}
-                  className="w-full rounded-md border border-ink/10 bg-surface px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-800)]/30"
-                />
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <input
-                    name="hora"
-                    type="time"
-                    defaultValue={notaEnEdicion?.hora ?? ""}
-                    className="rounded-md border border-ink/10 bg-surface px-2 py-1.5 text-xs"
-                  />
-                  <div className="flex gap-1.5">
-                    {COLOR_OPCIONES.map((c) => (
-                      <label key={c.value} title={c.label} className="cursor-pointer">
-                        <input
-                          type="radio"
-                          name="color"
-                          value={c.value}
-                          defaultChecked={(notaEnEdicion?.color ?? "brand") === c.value}
-                          className="peer sr-only"
-                        />
-                        <span
-                          className={`block h-5 w-5 rounded-full ${COLOR_DOT[c.value]} ring-2 ring-offset-1 ring-offset-surface-sunken ring-transparent peer-checked:ring-[var(--color-brand-900)]`}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button type="submit" className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-1.5 text-xs font-semibold">
-                    {notaEnEdicion ? "Guardar cambios" : "Agregar"}
-                  </button>
-                  <button type="button" onClick={cerrarFormulario} className="text-xs text-ink-faint underline underline-offset-2">
-                    Cancelar
-                  </button>
-                </div>
-              </form>
+            {puedeEscribir && (mostrarForm || notaEnEdicion) && seleccionado && (
+              <NotaFormulario
+                key={notaEnEdicion ? `editar-${notaEnEdicion.id}` : "crear"}
+                notaEnEdicion={notaEnEdicion}
+                fecha={seleccionado}
+                crearNota={crearNota!}
+                editarNota={editarNota!}
+                onGuardado={cerrarFormulario}
+                onCancelar={cerrarFormulario}
+              />
             )}
 
             {puedeEscribir && !mostrarForm && !notaEnEdicion && (

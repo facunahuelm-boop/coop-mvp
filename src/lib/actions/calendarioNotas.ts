@@ -2,9 +2,10 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, run } from "@/lib/db";
+import { insert, update, get, run, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { parseForm, zId, zTexto, zFecha, zEnumSeguro } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // Notas de calendario personalizadas (pedido explícito): a diferencia del
 // resto del calendario (que solo muestra fechas que ya existen en otro
@@ -30,14 +31,8 @@ function puedeModificar(user: SessionUser, autorId: number) {
   return autorId === user.id || user.rol === "admin" || user.rol === "consejo_directivo";
 }
 
-/** Mensaje claro cuando la tabla todavía no existe (falta correr
- * migrations/0015_notas_calendario.sql) en vez del error crudo de Postgres. */
-function mensajeSiFaltaTabla(err: unknown): never {
-  if (err && typeof err === "object" && (err as { code?: string }).code === "42P01") {
-    throw new Error("Todavía no se activaron las notas de calendario en esta cooperativa — falta correr una actualización pendiente del sistema.");
-  }
-  throw err;
-}
+const MENSAJE_TABLA_FALTANTE =
+  "Todavía no se activaron las notas de calendario en esta cooperativa — falta correr una actualización pendiente del sistema.";
 
 export async function crearNotaCalendarioAction(formData: FormData) {
   const user = await requireUser();
@@ -45,10 +40,25 @@ export async function crearNotaCalendarioAction(formData: FormData) {
   try {
     await insert("notas_calendario", { ...datos, autor_id: user.id });
   } catch (err) {
-    mensajeSiFaltaTabla(err);
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
+      usuario_id: user.id,
+      accion: "crear",
+      entidad: "notas_calendario",
+      entidad_id: 0,
+    });
   }
   revalidatePath("/calendario");
   revalidatePath("/dashboard");
+}
+
+/**
+ * Fase 3 (sistema global de errores): variante de `crearNotaCalendarioAction`
+ * pensada para `useActionState` (ver components/MonthCalendar.tsx) — esta es
+ * la que se conecta al formulario. La acción original queda intacta y sigue
+ * pudiendo llamarse directo si hiciera falta en otro lado.
+ */
+export async function crearNotaCalendarioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearNotaCalendarioAction(formData));
 }
 
 const notaConIdSchema = notaSchema.extend({ id: zId });
@@ -62,10 +72,19 @@ export async function editarNotaCalendarioAction(formData: FormData) {
     if (!puedeModificar(user, nota.autor_id)) throw new Error("No podés editar una nota que no escribiste vos.");
     await update("notas_calendario", id, datos);
   } catch (err) {
-    mensajeSiFaltaTabla(err);
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
+      usuario_id: user.id,
+      accion: "editar",
+      entidad: "notas_calendario",
+      entidad_id: id,
+    });
   }
   revalidatePath("/calendario");
   revalidatePath("/dashboard");
+}
+
+export async function editarNotaCalendarioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => editarNotaCalendarioAction(formData));
 }
 
 export async function eliminarNotaCalendarioAction(formData: FormData) {
@@ -77,8 +96,17 @@ export async function eliminarNotaCalendarioAction(formData: FormData) {
     if (!puedeModificar(user, nota.autor_id)) throw new Error("No podés borrar una nota que no escribiste vos.");
     await run(`DELETE FROM notas_calendario WHERE id = ?`, [id]);
   } catch (err) {
-    mensajeSiFaltaTabla(err);
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
+      usuario_id: user.id,
+      accion: "eliminar",
+      entidad: "notas_calendario",
+      entidad_id: id,
+    });
   }
   revalidatePath("/calendario");
   revalidatePath("/dashboard");
+}
+
+export async function eliminarNotaCalendarioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => eliminarNotaCalendarioAction(formData));
 }

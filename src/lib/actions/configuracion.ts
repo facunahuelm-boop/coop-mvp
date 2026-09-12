@@ -18,6 +18,27 @@ import { parseForm, zTexto, zTextoOpcional, zEmailOpcional } from "@/lib/validat
 // plano en el registro (ni cifrada), solo si el campo fue tocado o no.
 
 const ETAPAS = ["pre_obra", "obra", "habitada"] as const;
+const ROLES_CONFIG = ["admin", "consejo_directivo"] as const;
+
+/**
+ * Fase 3 (H-7 de la auditoría): las cinco acciones de este archivo hacían
+ * `redirect("/login")` tanto si no había sesión COMO si el rol no alcanzaba
+ * — a un admin o socio de una cooperativa que entrara a /configuracion sin
+ * ser admin/consejo_directivo lo mandaba directo al login, como si se
+ * hubiera deslogueado, en vez de explicarle que le falta permiso. Separado
+ * en los dos casos reales, igual que ya hace el resto del sistema (ver
+ * reportes.ts): sin sesión → redirect al login; con sesión pero rol
+ * insuficiente → Error con mensaje claro, que además ahora puede mostrarse
+ * en el propio formulario en vez de la pantalla genérica (ver actionState.ts).
+ */
+async function requireAdminOConsejo() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (!ROLES_CONFIG.includes(user.rol as (typeof ROLES_CONFIG)[number])) {
+    throw new Error("No tenés permiso para cambiar la configuración de la cooperativa.");
+  }
+  return user;
+}
 
 /**
  * Cambia la etapa de la propia cooperativa (pre_obra | obra | habitada).
@@ -28,10 +49,7 @@ const ETAPAS = ["pre_obra", "obra", "habitada"] as const;
  * tocar la fila de otra.
  */
 export async function actualizarEtapaAction(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user || !["admin", "consejo_directivo"].includes(user.rol)) {
-    redirect("/login");
-  }
+  const user = await requireAdminOConsejo();
   const etapa = String(formData.get("etapa") || "");
   if (!ETAPAS.includes(etapa as (typeof ETAPAS)[number])) {
     throw new Error("Etapa inválida");
@@ -54,10 +72,7 @@ const MODULOS_CON_OVERRIDE = ["obra", "trabajo", "seguridad", "reclamos"] as con
 const VALORES_OVERRIDE = ["auto", "mostrar", "ocultar"] as const;
 
 export async function actualizarModulosAction(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user || !["admin", "consejo_directivo"].includes(user.rol)) {
-    redirect("/login");
-  }
+  const user = await requireAdminOConsejo();
 
   const overrides: Record<string, "mostrar" | "ocultar"> = {};
   for (const mod of MODULOS_CON_OVERRIDE) {
@@ -95,10 +110,7 @@ const brandingSchema = z.object({
 });
 
 export async function actualizarBrandingAction(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user || !["admin", "consejo_directivo"].includes(user.rol)) {
-    redirect("/login");
-  }
+  const user = await requireAdminOConsejo();
 
   const { nombre, color_primario: colorPrimario, color_secundario: colorSecundario } = parseForm(brandingSchema, formData);
 
@@ -143,10 +155,7 @@ const configEmailSchema = z.object({
 });
 
 export async function guardarConfigEmailAction(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user || !["admin", "consejo_directivo"].includes(user.rol)) {
-    redirect("/login");
-  }
+  const user = await requireAdminOConsejo();
 
   const datos = parseForm(configEmailSchema, formData);
   const camposActualizados: string[] = [];
@@ -192,10 +201,7 @@ export async function guardarConfigEmailAction(formData: FormData) {
 }
 
 export async function actualizarAlertasEmailAction(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user || !["admin", "consejo_directivo"].includes(user.rol)) {
-    redirect("/login");
-  }
+  const user = await requireAdminOConsejo();
 
   const tiposAlerta = [
     "tarea_atrasada",

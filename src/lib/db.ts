@@ -271,6 +271,39 @@ export async function audit(params: AuditParams) {
 // Alias retrocompatible
 export const registrarAuditoria = audit;
 
+// ---------- Fase 3 (sistema global de errores), hallazgo H-5 ----------
+// Antes existían dos versiones casi iguales de esta misma idea
+// (calendarioNotas.ts, gastos.ts) con comportamiento distinto entre sí (una
+// registraba el hallazgo en auditoría antes de relanzar, la otra no). Se
+// centraliza acá: si `err` es el error de Postgres "la tabla todavía no
+// existe" (42P01 — típico cuando una migración reciente no corrió todavía en
+// este entorno), registra el hallazgo en auditoría (si se pasó `contexto`) y
+// lanza un Error con `mensaje` (pensado para mostrarse tal cual en el
+// formulario, vía el sistema centralizado de errores — ver actionState.ts)
+// en vez del error crudo de Postgres. Si no es ese caso, relanza `err` sin
+// tocar nada.
+const PG_TABLA_INEXISTENTE = "42P01";
+
+export async function relanzarConMensajeSiFaltaTabla(
+  err: unknown,
+  mensaje: string,
+  contexto?: { usuario_id: number; accion: string; entidad: string; entidad_id: number }
+): Promise<never> {
+  if (err && typeof err === "object" && (err as { code?: string }).code === PG_TABLA_INEXISTENTE) {
+    if (contexto) {
+      await audit({
+        usuario_id: contexto.usuario_id,
+        accion: `error_${contexto.accion}`,
+        entidad: contexto.entidad,
+        entidad_id: contexto.entidad_id,
+        valor_nuevo: { code: PG_TABLA_INEXISTENTE, message: String((err as any)?.message ?? err) },
+      }).catch(() => {});
+    }
+    throw new Error(mensaje);
+  }
+  throw err;
+}
+
 // ---------- alertas ----------
 // Inserta una alerta nueva si no existe ya una abierta equivalente (mismo tipo +
 // referencia), o actualiza sus datos si ya existe. Evita duplicar alertas cada

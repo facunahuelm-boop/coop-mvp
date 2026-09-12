@@ -5,7 +5,11 @@ import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
 import { MonthCalendar, type EventoCalendario, type NotaCalendario } from "@/components/MonthCalendar";
-import { crearNotaCalendarioAction, editarNotaCalendarioAction, eliminarNotaCalendarioAction } from "@/lib/actions/calendarioNotas";
+import {
+  crearNotaCalendarioFormAction,
+  editarNotaCalendarioFormAction,
+  eliminarNotaCalendarioFormAction,
+} from "@/lib/actions/calendarioNotas";
 import dayjs from "dayjs";
 import Link from "next/link";
 
@@ -169,9 +173,9 @@ export default async function CalendarioPage() {
         <MonthCalendar
           eventos={eventos}
           notas={notas}
-          crearNota={crearNotaCalendarioAction}
-          editarNota={editarNotaCalendarioAction}
-          eliminarNota={eliminarNotaCalendarioAction}
+          crearNota={crearNotaCalendarioFormAction}
+          editarNota={editarNotaCalendarioFormAction}
+          eliminarNota={eliminarNotaCalendarioFormAction}
         />
       </Card>
 

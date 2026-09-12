@@ -28,10 +28,29 @@ function formToObject(formData: FormData): Record<string, string> {
 }
 
 /**
- * Valida un FormData contra un esquema Zod. Si algo no cumple, tira un Error
- * con un mensaje en español (mismo criterio que ya usa el resto del código:
- * `throw new Error("Falta el nombre del socio")`, etc.), así llega igual de
- * claro a la pantalla que ve la persona que cargó el formulario.
+ * Fase 3 (sistema global de errores, REQUIREMENTS.md): error de validación de
+ * UN campo puntual. `.message` queda exactamente igual que el Error genérico
+ * que se lanzaba antes (nada que ya capture `err.message` se rompe), pero
+ * ahora también viaja `.field` — el nombre del campo — para que quien atrapa
+ * el error (ver src/lib/actionState.ts) pueda mostrar el mensaje pegado al
+ * campo exacto en el formulario, no solo como un cartel general.
+ */
+export class ValidationError extends Error {
+  field: string;
+  constructor(field: string, message: string) {
+    super(message);
+    this.name = "ValidationError";
+    this.field = field;
+  }
+}
+
+/**
+ * Valida un FormData contra un esquema Zod. Si algo no cumple, tira un
+ * ValidationError con un mensaje en español (mismo criterio que ya usa el
+ * resto del código: `throw new Error("Falta el nombre del socio")`, etc.),
+ * así llega igual de claro a la pantalla que ve la persona que cargó el
+ * formulario — y, en los formularios ya migrados al sistema centralizado de
+ * errores (Fase 3), pegado al campo exacto en vez de solo un cartel general.
  */
 export function parseForm<T extends z.ZodTypeAny>(schema: T, formData: FormData): z.infer<T> {
   const result = schema.safeParse(formToObject(formData));
@@ -43,7 +62,8 @@ export function parseForm<T extends z.ZodTypeAny>(schema: T, formData: FormData)
     // español en vez del mensaje crudo de Zod.
     const generico = primero?.code === "invalid_type" || primero?.code === "invalid_format";
     const detalle = generico || !primero?.message ? "el valor no es válido" : primero.message;
-    throw new Error(campo ? `Dato inválido en "${campo}": ${detalle}` : "Datos inválidos.");
+    if (campo) throw new ValidationError(campo, `Dato inválido en "${campo}": ${detalle}`);
+    throw new Error("Datos inválidos.");
   }
   return result.data;
 }

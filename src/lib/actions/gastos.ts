@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, audit } from "@/lib/db";
+import { insert, update, get, audit, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION, puedeUsarGastos } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
@@ -44,36 +44,13 @@ import {
 // un mensaje honesto y específico en vez de dejar que un error crudo de
 // Postgres suba sin explicación.
 //
-// AUDITORÍA INTEGRAL (hallazgo #2, mismo día): se comprobó en vivo (probando
-// "Registrar gasto" como admin) que esto NO alcanza para que la persona que
-// usa el sistema vea ese mensaje: en este proyecto ninguna de las acciones de
-// servidor (salvo el login) usa useActionState/useFormState, así que
-// cualquier error que una acción lance —el mío incluido— lo intercepta el
-// error boundary global (src/app/error.tsx) y, por diseño de Next.js en
-// producción, el mensaje real se redacta: la persona solo ve "Ocurrió un
-// problema" + un código de referencia. Esto es un problema preexistente de
-// TODA la aplicación (no algo que haya introducido esta función), y arreglarlo
-// de raíz requeriría migrar cada formulario del sistema a ese patrón — un
-// cambio grande y riesgoso que no corresponde meter de apuro acá. Lo que sí
-// se puede hacer ahora, sin tocar la arquitectura de errores de toda la app,
-// es registrar el error real en auditoría (igual que ya se hace en
-// eliminarSolicitudAction) para que quede diagnosticable en /auditoria en vez
-// de perderse.
-async function comoErrorClaro(err: any, ctx: { usuarioId: number; accion: string; entidadId: number }): Promise<never> {
-  if (err?.code === "42P01") {
-    await audit({
-      usuario_id: ctx.usuarioId,
-      accion: `error_${ctx.accion}`,
-      entidad: "gastos_comision",
-      entidad_id: ctx.entidadId,
-      valor_nuevo: { code: err.code, message: String(err?.message ?? err) },
-    }).catch(() => {});
-    throw new Error(
-      "Los gastos por comisión todavía no están habilitados en este entorno: falta aplicar una actualización pendiente de la base de datos. Avisale a quien administra el sistema para que la ejecute."
-    );
-  }
-  throw err;
-}
+// Fase 3 (sistema global de errores): el mensaje ahora sí le llega a quien
+// usa el sistema (antes lo tapaba la pantalla genérica de error — ver
+// REQUIREMENTS.md hallazgo H-6). El registro en auditoría se centralizó junto
+// con calendarioNotas.ts en relanzarConMensajeSiFaltaTabla (src/lib/db.ts) en
+// vez de mantener dos versiones casi iguales de la misma idea.
+const MENSAJE_GASTOS_TABLA_FALTANTE =
+  "Los gastos por comisión todavía no están habilitados en este entorno: falta aplicar una actualización pendiente de la base de datos. Avisale a quien administra el sistema para que la ejecute.";
 
 const ESTADO_CREACION = ["pendiente", "pagado"] as const;
 
@@ -159,7 +136,7 @@ export async function crearGastoAction(formData: FormData) {
       movimiento_financiero_id: movimientoId,
     });
   } catch (err: any) {
-    await comoErrorClaro(err, { usuarioId: user.id, accion: "crear", entidadId: datos.comision_id });
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_GASTOS_TABLA_FALTANTE, { usuario_id: user.id, accion: "crear", entidad: "gastos_comision", entidad_id: datos.comision_id });
   }
   if (id === undefined) throw new Error("No se pudo registrar el gasto.");
   await audit({ usuario_id: user.id, accion: "crear", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { ...datos, comision: comision.nombre } });
@@ -191,7 +168,7 @@ export async function editarGastoAction(formData: FormData) {
   try {
     gasto = await get<{ comision_id: number; estado: string }>(`SELECT comision_id, estado FROM gastos_comision WHERE id = ?`, [id]);
   } catch (err: any) {
-    await comoErrorClaro(err, { usuarioId: user.id, accion: "editar", entidadId: id });
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_GASTOS_TABLA_FALTANTE, { usuario_id: user.id, accion: "editar", entidad: "gastos_comision", entidad_id: id });
   }
   if (!gasto) throw new Error("Ese gasto ya no existe.");
   if (!(await puedeGestionarComision(user, gasto.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
@@ -200,7 +177,7 @@ export async function editarGastoAction(formData: FormData) {
   try {
     await update("gastos_comision", id, datos);
   } catch (err: any) {
-    await comoErrorClaro(err, { usuarioId: user.id, accion: "editar", entidadId: id });
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_GASTOS_TABLA_FALTANTE, { usuario_id: user.id, accion: "editar", entidad: "gastos_comision", entidad_id: id });
   }
   await audit({ usuario_id: user.id, accion: "editar", entidad: "gastos_comision", entidad_id: id, valor_nuevo: datos });
   revalidatePath("/gastos");
@@ -218,7 +195,7 @@ export async function marcarGastoPagadoAction(formData: FormData) {
       [id]
     );
   } catch (err: any) {
-    await comoErrorClaro(err, { usuarioId: user.id, accion: "marcar_pagado", entidadId: id });
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_GASTOS_TABLA_FALTANTE, { usuario_id: user.id, accion: "marcar_pagado", entidad: "gastos_comision", entidad_id: id });
   }
   if (!gasto) throw new Error("Ese gasto ya no existe.");
   if (!(await puedeGestionarComision(user, gasto.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
@@ -236,7 +213,7 @@ export async function marcarGastoPagadoAction(formData: FormData) {
   try {
     await update("gastos_comision", id, { estado: "pagado", movimiento_financiero_id: movimientoId });
   } catch (err: any) {
-    await comoErrorClaro(err, { usuarioId: user.id, accion: "marcar_pagado", entidadId: id });
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_GASTOS_TABLA_FALTANTE, { usuario_id: user.id, accion: "marcar_pagado", entidad: "gastos_comision", entidad_id: id });
   }
   await audit({ usuario_id: user.id, accion: "marcar_pagado", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { movimientoId } });
   revalidatePath("/gastos");
@@ -260,7 +237,7 @@ export async function anularGastoAction(formData: FormData) {
       [id]
     );
   } catch (err: any) {
-    await comoErrorClaro(err, { usuarioId: user.id, accion: "anular", entidadId: id });
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_GASTOS_TABLA_FALTANTE, { usuario_id: user.id, accion: "anular", entidad: "gastos_comision", entidad_id: id });
   }
   if (!gasto) throw new Error("Ese gasto ya no existe.");
   if (!(await puedeGestionarComision(user, gasto.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
@@ -275,7 +252,7 @@ export async function anularGastoAction(formData: FormData) {
   try {
     await update("gastos_comision", id, { estado: "anulado", observaciones: observacionesFinal });
   } catch (err: any) {
-    await comoErrorClaro(err, { usuarioId: user.id, accion: "anular", entidadId: id });
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_GASTOS_TABLA_FALTANTE, { usuario_id: user.id, accion: "anular", entidad: "gastos_comision", entidad_id: id });
   }
   await audit({ usuario_id: user.id, accion: "anular", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { motivo } });
   revalidatePath("/gastos");
