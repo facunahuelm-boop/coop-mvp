@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, update, get, audit } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
@@ -23,6 +23,26 @@ import {
 } from "@/lib/validation";
 
 const PRIORIDAD_COMPRA = ["baja", "media", "alta", "critica"] as const;
+
+// AUDITORÍA INTEGRAL (hallazgo de seguridad, mismo patrón que comisiones.ts y
+// tareas.ts): crearSolicitudAction ya comprobaba puedeGestionarComision al
+// vincular una comisión real (comision_id), pero agregarPresupuestoAction,
+// marcarPedidaAction y marcarEntregadaAction solo comprobaban el permiso de
+// módulo canEdit(rol, "compras") — y en roles.ts, TODOS los roles de
+// comisión (Obra, Trabajo, Compras, Seguridad) tienen "compras: edit". En los
+// hechos, un integrante de la Comisión de Compras podía cargarle un
+// presupuesto, o marcarla como pedida/entregada, a una solicitud que
+// pertenece a la Comisión de Obra. decidirCompraAction y
+// rechazarSolicitudAction no necesitan este chequeo: ya exigen canApprove
+// (Tesorería/Consejo Directivo), roles de conducción que gestionan cualquier
+// comisión por diseño.
+async function verificarPermisoSobreSolicitud(user: SessionUser, solicitudId: number) {
+  const solicitud = await get<{ comision_id: number | null }>(`SELECT comision_id FROM solicitudes_compra WHERE id = ?`, [solicitudId]);
+  if (!solicitud) throw new Error("Esa solicitud ya no existe.");
+  if (solicitud.comision_id && !(await puedeGestionarComision(user, solicitud.comision_id))) {
+    throw new Error(ERROR_SIN_PERMISO_COMISION);
+  }
+}
 
 // comision_id (nuevo, opcional): vínculo real con la tabla comisiones para
 // poder sumar "cuánto compró cada comisión" de manera confiable — ver
@@ -74,6 +94,7 @@ export async function agregarPresupuestoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
   const { solicitud_id: solicitudId, ...datos } = parseForm(agregarPresupuestoSchema, formData);
+  await verificarPermisoSobreSolicitud(user, solicitudId);
 
   // proveedor_id / nuevo_proveedor tienen una lógica de "uno u otro" que no
   // encaja en un campo Zod simple: se elige un proveedor ya cargado, o se
@@ -151,6 +172,7 @@ export async function marcarPedidaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
   const { id } = parseForm(z.object({ id: zId }), formData);
+  await verificarPermisoSobreSolicitud(user, id);
   await update("solicitudes_compra", id, { estado: "pedida" });
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
@@ -160,6 +182,7 @@ export async function marcarEntregadaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
   const { id } = parseForm(z.object({ id: zId }), formData);
+  await verificarPermisoSobreSolicitud(user, id);
   await update("solicitudes_compra", id, { estado: "entregada" });
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);

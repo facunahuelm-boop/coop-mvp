@@ -7,6 +7,7 @@ import { compararPresupuestos, historialProveedor } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import { agregarPresupuestoAction, decidirCompraAction, marcarPedidaAction, marcarEntregadaAction, rechazarSolicitudAction } from "@/lib/actions/compras";
+import { puedeGestionarComision } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -27,8 +28,15 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
     get<any>(`SELECT dc.*, pp.proveedor_id, pv.nombre as proveedor_nombre, u.nombre as decidido_por FROM decisiones_compra dc JOIN presupuestos_proveedor pp ON pp.id = dc.presupuesto_id JOIN proveedores pv ON pv.id = pp.proveedor_id LEFT JOIN users u ON u.id = dc.decidido_por_id WHERE dc.solicitud_id = ? ORDER BY dc.fecha DESC LIMIT 1`, [id]),
   ]);
   if (!solicitud) notFound();
-  const puedeEditar = canEdit(user.rol, "compras");
   const puedeAprobar = canApprove(user.rol, "compras");
+  // AUDITORÍA INTEGRAL: mismo hallazgo que en compras.ts (agregarPresupuestoAction,
+  // marcarPedidaAction, marcarEntregadaAction) — si la solicitud está vinculada a
+  // una comisión real (comision_id), estos botones ahora se ofrecen solo a quien
+  // puede gestionar ESA comisión puntual, no a cualquiera con permiso de módulo,
+  // para no prometer una acción que el servidor va a rechazar.
+  const puedeEditar =
+    canEdit(user.rol, "compras") &&
+    (solicitud.comision_id ? await puedeGestionarComision(user, solicitud.comision_id) : true);
 
   return (
     <div>
