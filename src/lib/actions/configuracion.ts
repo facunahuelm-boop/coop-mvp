@@ -2,12 +2,20 @@
 
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
-import { all, insert, update } from "@/lib/db";
+import { all, insert, update, audit } from "@/lib/db";
 import { saveUploadedFile, TIPOS_IMAGEN } from "@/lib/upload";
 import { cifrar } from "@/lib/crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { parseForm, zTexto, zTextoOpcional, zEmailOpcional } from "@/lib/validation";
+
+// AUDITORÍA INTEGRAL (cobertura de auditoría, sección "trazabilidad"): las
+// cinco acciones de este archivo cambian configuración sensible de toda la
+// cooperativa (etapa, módulos visibles, marca, SMTP, alertas por email) pero
+// ninguna dejaba registro en la tabla "auditoria" — quedaban afuera del
+// historial que el resto del sistema sí lleva para cambios de este calibre.
+// Se agrega audit() en cada una; la contraseña SMTP nunca se guarda en texto
+// plano en el registro (ni cifrada), solo si el campo fue tocado o no.
 
 const ETAPAS = ["pre_obra", "obra", "habitada"] as const;
 
@@ -29,6 +37,7 @@ export async function actualizarEtapaAction(formData: FormData) {
     throw new Error("Etapa inválida");
   }
   await update("organizations", user.organization_id, { etapa });
+  await audit({ usuario_id: user.id, accion: "actualizar_etapa", entidad: "organizations", entidad_id: user.organization_id, valor_nuevo: { etapa } });
   revalidatePath("/configuracion");
   revalidatePath("/dashboard");
 }
@@ -60,6 +69,7 @@ export async function actualizarModulosAction(formData: FormData) {
   }
 
   await update("organizations", user.organization_id, { modulos_override: overrides });
+  await audit({ usuario_id: user.id, accion: "actualizar_modulos", entidad: "organizations", entidad_id: user.organization_id, valor_nuevo: overrides });
   revalidatePath("/configuracion");
   revalidatePath("/", "layout");
 }
@@ -105,6 +115,13 @@ export async function actualizarBrandingAction(formData: FormData) {
   if (logoUrl) datos.logo_url = logoUrl;
 
   await update("organizations", user.organization_id, datos);
+  await audit({
+    usuario_id: user.id,
+    accion: "actualizar_branding",
+    entidad: "organizations",
+    entidad_id: user.organization_id,
+    valor_nuevo: { nombre, color_primario: colorPrimario, color_secundario: colorSecundario, logo_cambiado: !!logoUrl },
+  });
   revalidatePath("/configuracion");
   revalidatePath("/dashboard");
   revalidatePath("/", "layout");
@@ -132,6 +149,7 @@ export async function guardarConfigEmailAction(formData: FormData) {
   }
 
   const datos = parseForm(configEmailSchema, formData);
+  const camposActualizados: string[] = [];
 
   for (const [campo, valorPlano] of Object.entries(datos)) {
     // La contraseña SMTP nunca se vuelve a mostrar en el formulario (por
@@ -157,8 +175,19 @@ export async function guardarConfigEmailAction(formData: FormData) {
         valor,
       });
     }
+    camposActualizados.push(campo);
   }
 
+  // Nunca se guarda el valor de smtp_password en el registro de auditoría
+  // (ni en texto plano ni cifrado) — solo si ese campo fue tocado o no, igual
+  // que ya hace el resto del sistema con cualquier dato sensible.
+  await audit({
+    usuario_id: user.id,
+    accion: "guardar_config_email",
+    entidad: "config_email",
+    entidad_id: user.organization_id,
+    valor_nuevo: { campos_actualizados: camposActualizados },
+  });
   revalidatePath("/configuracion");
 }
 
@@ -174,6 +203,7 @@ export async function actualizarAlertasEmailAction(formData: FormData) {
     "dinero_bajo",
     "problema_critico",
   ];
+  const estadoFinal: Record<string, number> = {};
 
   for (const tipo of tiposAlerta) {
     const habilitada = formData.get(tipo) ? 1 : 0;
@@ -192,7 +222,15 @@ export async function actualizarAlertasEmailAction(formData: FormData) {
         habilitada,
       });
     }
+    estadoFinal[tipo] = habilitada;
   }
 
+  await audit({
+    usuario_id: user.id,
+    accion: "actualizar_alertas_email",
+    entidad: "alertas_email",
+    entidad_id: user.organization_id,
+    valor_nuevo: estadoFinal,
+  });
   revalidatePath("/configuracion");
 }
