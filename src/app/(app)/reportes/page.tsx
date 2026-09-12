@@ -94,7 +94,7 @@ export default async function ReportesPage() {
             </div>
             {r.archivo_url ? (
               <a
-                href={r.archivo_url}
+                href={`/api/archivos/reporte/${r.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold"

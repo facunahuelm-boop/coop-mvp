@@ -108,7 +108,7 @@ export default async function DocumentosPage({
                   )}
                 </div>
                 <div className="flex flex-col items-end gap-1 ml-3">
-                  {d.archivo_url ? <a href={d.archivo_url} target="_blank" className="text-xs text-[var(--color-brand-800)] underline whitespace-nowrap">Descargar</a> : <span className="text-xs text-ink/30">sin archivo</span>}
+                  {d.archivo_url ? <a href={`/api/archivos/documento/${d.id}`} target="_blank" className="text-xs text-[var(--color-brand-800)] underline whitespace-nowrap">Descargar</a> : <span className="text-xs text-ink/30">sin archivo</span>}
                   {user.rol === "admin" && (
                     <details>
                       <summary className="cursor-pointer text-[11px] text-[var(--color-rojo)]/70 hover:text-[var(--color-rojo)] whitespace-nowrap">Eliminar</summary>

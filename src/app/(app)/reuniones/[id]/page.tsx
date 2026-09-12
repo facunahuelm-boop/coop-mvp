@@ -127,7 +127,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
               <p className="text-sm text-ink/70 whitespace-pre-line">{actaExistente.resumen}</p>
               {actaExistente.archivo_url ? (
                 <a
-                  href={actaExistente.archivo_url}
+                  href={`/api/archivos/documento/${actaExistente.documento_id}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 mt-3"

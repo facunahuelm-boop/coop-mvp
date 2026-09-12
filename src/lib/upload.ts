@@ -157,6 +157,45 @@ export async function saveUploadedFile(
  *   colisiones Y para que la URL no se pueda adivinar).
  * @param contentType Tipo MIME del archivo (por defecto, PDF).
  */
+function pathDelObjeto(storedUrl: string): string | null {
+  const marker = `/object/public/${BUCKET}/`;
+  const idx = storedUrl.indexOf(marker);
+  if (idx === -1) return null;
+  return decodeURIComponent(storedUrl.slice(idx + marker.length));
+}
+
+/**
+ * Fase 11 (Prompt Maestro), hallazgo H-SEC-2 de REQUIREMENTS.md: a partir de
+ * una URL ya guardada en la base (documentos.archivo_url, reportes_generados.
+ * archivo_url, actas vía documentos, etc.), genera una URL firmada de corta
+ * duración para servir ese archivo puntual.
+ *
+ * Paso intermedio, deliberado, hacia un bucket privado: hoy `uploads` sigue
+ * siendo público en lectura (ver comentario arriba de este archivo), así que
+ * esto todavía no cierra el hallazgo por completo — lo que sí cambia desde
+ * ahora es que ninguna pantalla imprime la URL directa y permanente en el
+ * HTML: cada descarga pasa por una ruta mediada (`/api/archivos/...`) que
+ * revisa sesión, cooperativa (la fila se busca con `get()`, que ya filtra por
+ * organization_id vía RLS — un id de otra cooperativa da "no encontrado", no
+ * el archivo ajeno) y permiso del módulo, y recién en ese momento genera este
+ * link temporal. El día que `uploads` pase a privado (pendiente — falta
+ * extender este mismo patrón a las fotos de Obra/Seguridad/Reclamos y a los
+ * comprobantes de Gastos antes de poder cerrar el bucket sin romper esas
+ * pantallas), este helper sigue funcionando sin ningún cambio adicional.
+ */
+export async function getSignedUrl(
+  storedUrl: string | null | undefined,
+  expiresInSeconds: number = 120
+): Promise<string | null> {
+  if (!storedUrl) return null;
+  const path = pathDelObjeto(storedUrl);
+  if (!path) return storedUrl; // formato inesperado (ej. legado): no romper, devolver tal cual
+  const supabase = getAdminClient();
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresInSeconds);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
+}
+
 export async function saveGeneratedFile(
   buffer: Buffer,
   organizationId: number,
