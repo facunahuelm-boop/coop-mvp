@@ -40,13 +40,34 @@ import {
 // (que puede simplemente no borrar nada si la tabla no existe), acá no hay
 // forma de "degradar con gracia" un alta/edición/pago/anulación sobre una
 // tabla inexistente — no se puede fabricar una funcionalidad que no puede
-// funcionar. Lo que sí podemos hacer sin inventar nada es convertir el error
-// genérico del boundary (mensaje "Ocurrió un problema" + un código) en un
-// mensaje honesto y específico, para que quien lo use sepa que es un tema de
-// actualización pendiente y no un error suyo. Se aplica a las 4 acciones de
-// este archivo que tocan gastos_comision.
-function comoErrorClaro(err: any): never {
+// funcionar. Lo que sí podemos hacer sin inventar nada es lanzar un error con
+// un mensaje honesto y específico en vez de dejar que un error crudo de
+// Postgres suba sin explicación.
+//
+// AUDITORÍA INTEGRAL (hallazgo #2, mismo día): se comprobó en vivo (probando
+// "Registrar gasto" como admin) que esto NO alcanza para que la persona que
+// usa el sistema vea ese mensaje: en este proyecto ninguna de las acciones de
+// servidor (salvo el login) usa useActionState/useFormState, así que
+// cualquier error que una acción lance —el mío incluido— lo intercepta el
+// error boundary global (src/app/error.tsx) y, por diseño de Next.js en
+// producción, el mensaje real se redacta: la persona solo ve "Ocurrió un
+// problema" + un código de referencia. Esto es un problema preexistente de
+// TODA la aplicación (no algo que haya introducido esta función), y arreglarlo
+// de raíz requeriría migrar cada formulario del sistema a ese patrón — un
+// cambio grande y riesgoso que no corresponde meter de apuro acá. Lo que sí
+// se puede hacer ahora, sin tocar la arquitectura de errores de toda la app,
+// es registrar el error real en auditoría (igual que ya se hace en
+// eliminarSolicitudAction) para que quede diagnosticable en /auditoria en vez
+// de perderse.
+async function comoErrorClaro(err: any, ctx: { usuarioId: number; accion: string; entidadId: number }): Promise<never> {
   if (err?.code === "42P01") {
+    await audit({
+      usuario_id: ctx.usuarioId,
+      accion: `error_${ctx.accion}`,
+      entidad: "gastos_comision",
+      entidad_id: ctx.entidadId,
+      valor_nuevo: { code: err.code, message: String(err?.message ?? err) },
+    }).catch(() => {});
     throw new Error(
       "Los gastos por comisión todavía no están habilitados en este entorno: falta aplicar una actualización pendiente de la base de datos. Avisale a quien administra el sistema para que la ejecute."
     );
@@ -128,7 +149,7 @@ export async function crearGastoAction(formData: FormData) {
     });
   }
 
-  let id: number;
+  let id: number | undefined;
   try {
     id = await insert("gastos_comision", {
       ...datos,
@@ -138,8 +159,9 @@ export async function crearGastoAction(formData: FormData) {
       movimiento_financiero_id: movimientoId,
     });
   } catch (err: any) {
-    comoErrorClaro(err);
+    await comoErrorClaro(err, { usuarioId: user.id, accion: "crear", entidadId: datos.comision_id });
   }
+  if (id === undefined) throw new Error("No se pudo registrar el gasto.");
   await audit({ usuario_id: user.id, accion: "crear", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { ...datos, comision: comision.nombre } });
   revalidatePath("/gastos");
   revalidatePath("/finanzas");
@@ -169,7 +191,7 @@ export async function editarGastoAction(formData: FormData) {
   try {
     gasto = await get<{ comision_id: number; estado: string }>(`SELECT comision_id, estado FROM gastos_comision WHERE id = ?`, [id]);
   } catch (err: any) {
-    comoErrorClaro(err);
+    await comoErrorClaro(err, { usuarioId: user.id, accion: "editar", entidadId: id });
   }
   if (!gasto) throw new Error("Ese gasto ya no existe.");
   if (!(await puedeGestionarComision(user, gasto.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
@@ -178,7 +200,7 @@ export async function editarGastoAction(formData: FormData) {
   try {
     await update("gastos_comision", id, datos);
   } catch (err: any) {
-    comoErrorClaro(err);
+    await comoErrorClaro(err, { usuarioId: user.id, accion: "editar", entidadId: id });
   }
   await audit({ usuario_id: user.id, accion: "editar", entidad: "gastos_comision", entidad_id: id, valor_nuevo: datos });
   revalidatePath("/gastos");
@@ -196,7 +218,7 @@ export async function marcarGastoPagadoAction(formData: FormData) {
       [id]
     );
   } catch (err: any) {
-    comoErrorClaro(err);
+    await comoErrorClaro(err, { usuarioId: user.id, accion: "marcar_pagado", entidadId: id });
   }
   if (!gasto) throw new Error("Ese gasto ya no existe.");
   if (!(await puedeGestionarComision(user, gasto.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
@@ -214,7 +236,7 @@ export async function marcarGastoPagadoAction(formData: FormData) {
   try {
     await update("gastos_comision", id, { estado: "pagado", movimiento_financiero_id: movimientoId });
   } catch (err: any) {
-    comoErrorClaro(err);
+    await comoErrorClaro(err, { usuarioId: user.id, accion: "marcar_pagado", entidadId: id });
   }
   await audit({ usuario_id: user.id, accion: "marcar_pagado", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { movimientoId } });
   revalidatePath("/gastos");
@@ -238,7 +260,7 @@ export async function anularGastoAction(formData: FormData) {
       [id]
     );
   } catch (err: any) {
-    comoErrorClaro(err);
+    await comoErrorClaro(err, { usuarioId: user.id, accion: "anular", entidadId: id });
   }
   if (!gasto) throw new Error("Ese gasto ya no existe.");
   if (!(await puedeGestionarComision(user, gasto.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
@@ -253,7 +275,7 @@ export async function anularGastoAction(formData: FormData) {
   try {
     await update("gastos_comision", id, { estado: "anulado", observaciones: observacionesFinal });
   } catch (err: any) {
-    comoErrorClaro(err);
+    await comoErrorClaro(err, { usuarioId: user.id, accion: "anular", entidadId: id });
   }
   await audit({ usuario_id: user.id, accion: "anular", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { motivo } });
   revalidatePath("/gastos");
