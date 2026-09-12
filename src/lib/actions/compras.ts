@@ -37,7 +37,25 @@ const PRIORIDAD_COMPRA = ["baja", "media", "alta", "critica"] as const;
 // (Tesorería/Consejo Directivo), roles de conducción que gestionan cualquier
 // comisión por diseño.
 async function verificarPermisoSobreSolicitud(user: SessionUser, solicitudId: number) {
-  const solicitud = await get<{ comision_id: number | null }>(`SELECT comision_id FROM solicitudes_compra WHERE id = ?`, [solicitudId]);
+  // AUDITORÍA INTEGRAL (hallazgo, testing E2E real): a diferencia de
+  // insert()/update() (que ya tienen el fallback centralizado en db.ts),
+  // este SELECT nombra la columna a mano — si la migración 0020 no corrió,
+  // "column comision_id does not exist" (Postgres 42703) rompía este
+  // chequeo antes de llegar a agregarPresupuestoAction/marcarPedidaAction/
+  // marcarEntregadaAction, aunque la solicitud existiera. Mismo criterio
+  // defensivo que /compras (page.tsx) al leer la lista: si falla
+  // puntualmente por esa columna, se confirma que la solicitud existe con
+  // un SELECT * (que nunca rompe por una columna faltante) y se la trata
+  // como sin comisión vinculada — no hay nada extra que comprobar sin ese
+  // vínculo.
+  const solicitud = await get<{ comision_id: number | null }>(
+    `SELECT comision_id FROM solicitudes_compra WHERE id = ?`,
+    [solicitudId]
+  ).catch(async (err: any) => {
+    if (err?.code !== "42703") throw err;
+    const existe = await get<{ id: number }>(`SELECT id FROM solicitudes_compra WHERE id = ?`, [solicitudId]);
+    return existe ? { comision_id: null } : undefined;
+  });
   if (!solicitud) throw new Error("Esa solicitud ya no existe.");
   if (solicitud.comision_id && !(await puedeGestionarComision(user, solicitud.comision_id))) {
     throw new Error(ERROR_SIN_PERMISO_COMISION);
