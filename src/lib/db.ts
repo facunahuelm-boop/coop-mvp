@@ -160,10 +160,28 @@ function nombreColumnaFaltante(err: any): string | null {
 }
 
 /** Ejecuta `ejecutar` con `payload`; si falla por una columna puntual que
- * todavía no existe, la saca y reintenta (hasta 8 columnas faltantes). */
+ * todavía no existe, la saca y reintenta (hasta 20 columnas faltantes).
+ *
+ * AUDITORÍA INTEGRAL (hallazgo, testing E2E real, 12/09): probando "Agregar
+ * proveedor" con los campos de la Fase 08 (RUT, tipo, etc. — ver
+ * migrations/0018_proveedores_extendido.sql) esto rompía con "demasiadas
+ * columnas faltantes" a pesar de que el límite decía "hasta 8". El motivo
+ * era un error de conteo: cada vuelta del `for` que encuentra una columna
+ * faltante la saca y listo — recién la VUELTA SIGUIENTE reintenta con esa
+ * columna afuera. Con el límite en 8 vueltas, 8 columnas faltantes (que es
+ * justo el caso real: rut, telefono, email, direccion, persona_contacto,
+ * tipo, estado, creado_por_id, si la migración 0018 no corrió) consumen las
+ * 8 vueltas sacando columnas y no queda ninguna vuelta libre para el
+ * reintento final que ya tendría que funcionar — en los hechos, el límite
+ * efectivo era 7, no 8. Subir el límite no es un parche cosmético: dado que
+ * cada tabla puede tener columnas nuevas pendientes de varias migraciones a
+ * la vez, y esta función existe justamente para tolerar esa situación sin
+ * romper la pantalla, un margen más generoso es lo consistente con su
+ * propio propósito. */
 async function conFallbackColumnaFaltante<T>(payload: Record<string, any>, ejecutar: (p: Record<string, any>) => Promise<T>): Promise<T> {
   let intento = payload;
-  for (let i = 0; i < 8; i++) {
+  const MAX_COLUMNAS_FALTANTES = 20;
+  for (let i = 0; i <= MAX_COLUMNAS_FALTANTES; i++) {
     try {
       return await ejecutar(intento);
     } catch (err: any) {
