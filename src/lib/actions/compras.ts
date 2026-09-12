@@ -265,14 +265,35 @@ export async function eliminarSolicitudAction(formData: FormData) {
     return; // ya no existe: nada que borrar
   }
 
-  await run(`DELETE FROM decisiones_compra WHERE solicitud_id = ?`, [id]);
-  await run(`DELETE FROM presupuestos_proveedor WHERE solicitud_id = ?`, [id]);
+  // AUDITORÍA INTEGRAL (testing E2E real, 12/09): el primer intento en vivo de
+  // esta acción falló a mitad de camino — decisiones_compra y
+  // presupuestos_proveedor se borraron, pero solicitudes_compra quedó, y el
+  // boundary de errores (error.tsx, por diseño) solo muestra un mensaje
+  // genérico al usuario y manda el detalle real a la consola del servidor, a
+  // la que no tenemos acceso directo. Para poder diagnosticar sin adivinar,
+  // se registra el error real (code + message de Postgres) en auditoría
+  // antes de relanzarlo — visible en /auditoria para quien tiene ese permiso
+  // (admin, tesorería, consejo directivo, fiscal). No cambia el
+  // comportamiento para el usuario: sigue viendo el mismo mensaje genérico.
   try {
-    await run(`DELETE FROM gastos_comision WHERE solicitud_compra_id = ?`, [id]);
+    await run(`DELETE FROM decisiones_compra WHERE solicitud_id = ?`, [id]);
+    await run(`DELETE FROM presupuestos_proveedor WHERE solicitud_id = ?`, [id]);
+    try {
+      await run(`DELETE FROM gastos_comision WHERE solicitud_compra_id = ?`, [id]);
+    } catch (err: any) {
+      if (err?.code !== "42703") throw err;
+    }
+    await run(`DELETE FROM solicitudes_compra WHERE id = ?`, [id]);
   } catch (err: any) {
-    if (err?.code !== "42703") throw err;
+    await audit({
+      usuario_id: user.id,
+      accion: "error_eliminar",
+      entidad: "solicitudes_compra",
+      entidad_id: Number(id),
+      valor_nuevo: { code: err?.code ?? null, message: String(err?.message ?? err) },
+    }).catch(() => {}); // si ni siquiera esto se puede guardar, no tapar el error original
+    throw err;
   }
-  await run(`DELETE FROM solicitudes_compra WHERE id = ?`, [id]);
 
   await audit({ usuario_id: user.id, accion: "eliminar", entidad: "solicitudes_compra", entidad_id: Number(id), valor_anterior: solicitud });
   revalidatePath("/compras");
