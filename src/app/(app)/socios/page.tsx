@@ -16,6 +16,7 @@ import {
   incorporarDesdeListaEsperaAction,
   moverListaEsperaAction,
 } from "@/lib/actions/socios";
+import { NucleoLink } from "@/components/EntidadLink";
 
 const ESTADOS_VIVIENDA = ["en_obra", "terminada", "ocupada"] as const;
 const ESTADOS_SOCIO = ["activo", "inactivo", "baja"] as const;
@@ -147,7 +148,7 @@ export default async function SociosPage() {
                       s.vivienda_numero || <span className="text-ink/30">—</span>
                     )}
                   </td>
-                  <td className="py-2 pr-3 text-ink/60">{s.nucleo_nombre || "—"}</td>
+                  <td className="py-2 pr-3 text-ink/60"><NucleoLink id={s.nucleo_id} nombre={s.nucleo_nombre} /></td>
                   <td className="py-2 pr-3 text-ink/60">
                     {s.email || s.telefono ? (
                       <>

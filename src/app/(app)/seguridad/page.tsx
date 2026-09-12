@@ -6,6 +6,7 @@ import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/compon
 import dayjs from "dayjs";
 import { crearDocumentoSeguridadAction, crearInspeccionAction, crearIncidenteAction, resolverIncidenteAction } from "@/lib/actions/seguridad";
 import { CHECKLIST_BASE } from "@/lib/constants";
+import { UsuarioLink } from "@/components/EntidadLink";
 
 export default async function SeguridadPage() {
   const user = await getCurrentUser();
@@ -64,7 +65,7 @@ export default async function SeguridadPage() {
             </div>
             <p className="text-sm text-ink/70 mt-1">{i.descripcion}</p>
             {i.foto_url && <img src={i.foto_url} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
-            <p className="text-xs text-ink/40 mt-1">{dayjs(i.fecha).format("DD/MM/YYYY")} · {i.autor_nombre}</p>
+            <p className="text-xs text-ink/40 mt-1">{dayjs(i.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={i.autor_id} nombre={i.autor_nombre} /></p>
             {i.ia_observacion && (
               <p className="text-xs text-[var(--color-brand-800)] bg-[var(--color-brand-100)] rounded-lg p-2 mt-2">✨ {i.ia_observacion}</p>
             )}
@@ -111,7 +112,7 @@ export default async function SeguridadPage() {
           const fallas = items.filter((x) => !x.ok);
           return (
             <Card key={i.id}>
-              <p className="text-xs text-ink/40">{dayjs(i.fecha).format("DD/MM/YYYY")} · {i.autor_nombre}</p>
+              <p className="text-xs text-ink/40">{dayjs(i.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={i.autor_id} nombre={i.autor_nombre} /></p>
               <p className="text-sm mt-1">{fallas.length === 0 ? "🟢 Todos los puntos del checklist OK." : `🟠 ${fallas.length} punto(s) a corregir: ${fallas.map((f) => f.item).join(", ")}`}</p>
               {i.hallazgos && <p className="text-xs text-ink/60 mt-1">{i.hallazgos}</p>}
             </Card>

@@ -6,6 +6,7 @@ import { semaforoTarea } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import { agregarAvanceAction, agregarProblemaAction, resolverProblemaAction, cambiarEstadoTareaAction } from "@/lib/actions/obra";
+import { UsuarioLink } from "@/components/EntidadLink";
 
 const semColor: Record<string, "verde" | "amarillo" | "rojo"> = { verde: "verde", amarillo: "amarillo", rojo: "rojo" };
 
@@ -26,7 +27,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
 
   return (
     <div>
-      <PageHeader title={tarea.nombre} subtitle={`Etapa: ${tarea.etapa} · Responsable: ${tarea.responsable_nombre || "—"}`}
+      <PageHeader title={tarea.nombre} subtitle={`Etapa: ${tarea.etapa}`}
         action={<Badge color={semColor[semaforo]}>{semaforo === "verde" ? "🟢 En hora" : semaforo === "amarillo" ? "🟡 Atención" : "🔴 Crítico"}</Badge>} />
 
       <Card className="mb-5">
@@ -36,6 +37,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
           <div><Label>Prioridad</Label>{tarea.prioridad}</div>
           <div><Label>Inicio</Label>{tarea.fecha_inicio ? dayjs(tarea.fecha_inicio).format("DD/MM/YYYY") : "—"}</div>
           <div><Label>Fin previsto</Label>{tarea.fecha_fin_prevista ? dayjs(tarea.fecha_fin_prevista).format("DD/MM/YYYY") : "—"}</div>
+          <div><Label>Responsable</Label><UsuarioLink id={tarea.responsable_id} nombre={tarea.responsable_nombre} /></div>
         </div>
         {puedeEditar && (
           <form action={cambiarEstadoTareaAction} className="mt-4 flex items-center gap-2">
@@ -55,7 +57,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
             {avances.length === 0 && <EmptyState>Sin avances registrados.</EmptyState>}
             {avances.map((a) => (
               <Card key={a.id}>
-                <p className="text-xs text-ink/40">{dayjs(a.fecha).format("DD/MM/YYYY")} · {a.autor_nombre}</p>
+                <p className="text-xs text-ink/40">{dayjs(a.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={a.autor_id} nombre={a.autor_nombre} /></p>
                 <p className="text-sm mt-1">{a.descripcion}</p>
                 {a.foto_url && <img src={a.foto_url} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
               </Card>
@@ -82,6 +84,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
                   <Badge color={p.estado === "abierto" ? (p.severidad === "critica" ? "rojo" : "amarillo") : "verde"}>{p.estado === "abierto" ? p.severidad : "resuelto"}</Badge>
                 </div>
                 <p className="text-xs text-ink/60 mt-1">{p.descripcion}</p>
+                <p className="text-xs text-ink/40 mt-1">{dayjs(p.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={p.autor_id} nombre={p.autor_nombre} fallback="sin autor" /></p>
                 {p.resolucion && <p className="text-xs text-[var(--color-verde)] mt-1">Resolución: {p.resolucion}</p>}
                 {puedeEditar && p.estado === "abierto" && (
                   <form action={resolverProblemaAction} className="mt-2 flex gap-2">

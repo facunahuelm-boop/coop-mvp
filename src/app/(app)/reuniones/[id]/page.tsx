@@ -4,6 +4,7 @@ import { canRead, canEdit } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
+import { UsuarioLink, NucleoLink } from "@/components/EntidadLink";
 import dayjs from "dayjs";
 import {
   registrarAsistenciaAction,
@@ -100,10 +101,10 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                   <form key={n.id} action={registrarAsistenciaAction} className="flex items-center gap-2 py-1 border-b border-ink/5 last:border-0">
                     <input type="hidden" name="reunion_id" value={reunion.id} />
                     <input type="hidden" name="nucleo_id" value={n.id} />
-                    <label className="flex items-center gap-2 text-sm flex-1">
+                    <div className="flex items-center gap-2 text-sm flex-1">
                       <input type="checkbox" name="presente" defaultChecked={!!a?.presente} disabled={!puedeGestionar} />
-                      {n.nombre}
-                    </label>
+                      <NucleoLink id={n.id} nombre={n.nombre} />
+                    </div>
                     {puedeGestionar ? (
                       <>
                         <input name="justificacion" defaultValue={a?.justificacion ?? ""} placeholder="Justificación (opcional)" className={inputClass + " text-xs !py-1 max-w-[160px]"} />
@@ -194,7 +195,8 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                           {t.titulo}
                         </p>
                         <p className="text-ink/40">
-                          {PRIORIDAD_LABEL[t.prioridad] ?? t.prioridad} · {t.responsable_nombre || "sin asignar"}
+                          {PRIORIDAD_LABEL[t.prioridad] ?? t.prioridad} ·{" "}
+                          <UsuarioLink id={t.responsable_id} nombre={t.responsable_nombre} fallback="sin asignar" />
                           {t.fecha_vencimiento ? ` · vence ${dayjs(t.fecha_vencimiento).format("DD/MM")}` : ""}
                         </p>
                       </div>

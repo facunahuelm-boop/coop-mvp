@@ -5,6 +5,7 @@ import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
 import { Card, PageHeader, EmptyState, Label, inputClass, Badge } from "@/components/ui";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
+import { UsuarioLink } from "@/components/EntidadLink";
 import dayjs from "dayjs";
 import {
   crearComisionAction,
@@ -127,7 +128,8 @@ export default async function ComisionesPage() {
                           {t.titulo}
                         </p>
                         <p className="text-ink/40">
-                          {PRIORIDAD_LABEL[t.prioridad] ?? t.prioridad} · {t.responsable_nombre || "sin asignar"}
+                          {PRIORIDAD_LABEL[t.prioridad] ?? t.prioridad} ·{" "}
+                          <UsuarioLink id={t.responsable_id} nombre={t.responsable_nombre} fallback="sin asignar" />
                           {t.fecha_vencimiento ? ` · vence ${dayjs(t.fecha_vencimiento).format("DD/MM")}` : ""}
                         </p>
                       </div>

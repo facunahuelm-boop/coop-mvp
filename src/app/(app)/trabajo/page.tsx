@@ -6,6 +6,7 @@ import { Card, PageHeader, Badge, EmptyState, Label, inputClass, Button } from "
 import dayjs from "dayjs";
 import Link from "next/link";
 import { crearJornadaAction, proponerDistribucionAction, confirmarAsignacionAction, anotarmeAction } from "@/lib/actions/trabajo";
+import { NucleoLink } from "@/components/EntidadLink";
 
 export default async function TrabajoPage() {
   const user = await getCurrentUser();
@@ -64,7 +65,7 @@ export default async function TrabajoPage() {
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {t.asignaciones.map((a: any) => (
                         <span key={a.id} className={`text-xs rounded-full px-2 py-1 ${a.confirmado ? "bg-[var(--color-verde-bg)] text-[var(--color-verde)]" : "bg-ink/5 text-ink/60"}`}>
-                          {a.nucleo_nombre}{a.propuesta_por_ia && !a.confirmado ? " (propuesto por IA)" : ""}
+                          <NucleoLink id={a.nucleo_id} nombre={a.nucleo_nombre} />{a.propuesta_por_ia && !a.confirmado ? " (propuesto por IA)" : ""}
                           {!a.confirmado && puedeEditar && (
                             <form action={confirmarAsignacionAction} className="inline">
                               <input type="hidden" name="id" value={a.id} />
@@ -104,7 +105,7 @@ export default async function TrabajoPage() {
               <tbody>
                 {nucleos.map((n) => (
                   <tr key={n.id} className={`border-b border-ink/5 last:border-0 ${n.id === user.nucleo_id ? "font-semibold text-[var(--color-brand-800)]" : ""}`}>
-                    <td className="py-1.5">{n.nombre}</td>
+                    <td className="py-1.5"><NucleoLink id={n.id} nombre={n.nombre} /></td>
                     <td className="py-1.5 text-right">{n.horas_acumuladas} hs</td>
                   </tr>
                 ))}

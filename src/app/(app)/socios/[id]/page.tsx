@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import { registrarMovimientoCuentaSocioAction } from "@/lib/actions/cuentaSocios";
 import { actualizarSocioAction, agregarIntegranteAction, editarIntegranteAction, cambiarEstadoIntegranteAction } from "@/lib/actions/socios";
 import { RELACION_INTEGRANTE, RELACION_INTEGRANTE_LABEL, TIPO_INTEGRANTE } from "@/lib/constants";
+import { NucleoLink } from "@/components/EntidadLink";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
 const TIPO_INTEGRANTE_LABEL: Record<(typeof TIPO_INTEGRANTE)[number], string> = { adulto: "Adulto", menor: "Menor de edad" };
@@ -65,7 +66,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
     <div>
       <PageHeader
         title={socio.nombre}
-        subtitle={`Socio${socio.vivienda_numero ? ` · Vivienda ${socio.vivienda_numero}` : ""}${socio.nucleo_nombre ? ` · Núcleo ${socio.nucleo_nombre}` : ""}`}
+        subtitle={`Socio${socio.vivienda_numero ? ` · Vivienda ${socio.vivienda_numero}` : ""}`}
         action={<Badge color={badgeSocio[socio.estado] || "gray"}>{socio.estado}</Badge>}
       />
 
@@ -79,6 +80,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
           <div><span className="text-ink/50">Fecha de ingreso:</span> {socio.fecha_ingreso ? dayjs(socio.fecha_ingreso).format("DD/MM/YYYY") : "—"}</div>
           <div><span className="text-ink/50">Email:</span> {socio.email || "—"}</div>
           <div><span className="text-ink/50">Teléfono:</span> {socio.telefono || "—"}</div>
+          <div><span className="text-ink/50">Núcleo:</span> <NucleoLink id={socio.nucleo_id} nombre={socio.nucleo_nombre} /></div>
           {socio.notas && <div className="sm:col-span-2"><span className="text-ink/50">Notas:</span> {socio.notas}</div>}
         </div>
 

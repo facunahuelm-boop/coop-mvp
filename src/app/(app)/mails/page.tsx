@@ -5,6 +5,7 @@ import { Card, PageHeader, Label, inputClass, EmptyState, Badge } from "@/compon
 import { enviarMailAction } from "@/lib/actions/mails";
 import dayjs from "dayjs";
 import { Mail, Send, Users, User } from "lucide-react";
+import { UsuarioLink } from "@/components/EntidadLink";
 
 // Sección de Mails (pedido explícito): mandarle un mail por email a un
 // usuario puntual, a toda una comisión, o (Admin/Consejo Directivo) a todos
@@ -141,7 +142,9 @@ export default async function MailsPage() {
                         )}
                         {m.origen === "alerta" && <Badge color="gray">Alerta automática</Badge>}
                       </span>
-                      <span className="block text-xs text-ink-faint truncate">{m.remitente_nombre || "Sistema (alerta automática)"} · {m.cuerpo}</span>
+                      <span className="block text-xs text-ink-faint truncate">
+                        <UsuarioLink id={m.remitente_id} nombre={m.remitente_nombre} fallback="Sistema (alerta automática)" /> · {m.cuerpo}
+                      </span>
                     </span>
                     <span className="text-xs text-ink-faint shrink-0">{dayjs(m.creado_en).format("DD/MM/YYYY HH:mm")}</span>
                   </summary>

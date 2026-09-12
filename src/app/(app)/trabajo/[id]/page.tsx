@@ -5,6 +5,7 @@ import { get, all } from "@/lib/db";
 import { Card, PageHeader, Badge, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import { registrarAsistenciaAction, marcarJornadaRealizadaAction } from "@/lib/actions/trabajo";
+import { NucleoLink } from "@/components/EntidadLink";
 
 export default async function JornadaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -47,7 +48,7 @@ export default async function JornadaPage({ params }: { params: Promise<{ id: st
               const a = asistenciaPorNucleo[n.id];
               return (
                 <tr key={n.id} className="border-b border-ink/5 last:border-0">
-                  <td className="py-2">{n.nombre}</td>
+                  <td className="py-2"><NucleoLink id={n.id} nombre={n.nombre} /></td>
                   <td>{a?.presente ? "✅" : "—"}</td>
                   <td>{a?.horas || 0}</td>
                   <td className="text-ink/50">{a?.justificacion || ""}</td>

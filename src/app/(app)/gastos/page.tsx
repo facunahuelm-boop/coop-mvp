@@ -7,6 +7,7 @@ import { all, get } from "@/lib/db";
 import { Card, PageHeader, SectionTitle, Badge, EmptyState, Label, inputClass, StatTile, Button } from "@/components/ui";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 import { crearGastoAction, marcarGastoPagadoAction, anularGastoAction } from "@/lib/actions/gastos";
+import { UsuarioLink } from "@/components/EntidadLink";
 import { puedeUsarGastos } from "@/lib/comisionAuth";
 
 // Gastos por Comisión (pedido explícito, sección 1 y 9 del pedido): resumen
@@ -226,6 +227,8 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
                   <p className="text-xs text-ink-muted mt-0.5">
                     {dayjs(g.fecha).format("DD/MM/YYYY")} · {g.comision_nombre} · {g.proveedor_nombre || "sin proveedor"} · {CATEGORIA_COMPRA_LABEL[g.categoria] || g.categoria}
                     {g.forma_pago && ` · ${g.forma_pago}`}
+                    {" · cargado por "}
+                    <UsuarioLink id={g.creado_por_id} nombre={g.creado_por_nombre} fallback="—" />
                   </p>
                   {g.observaciones && <p className="text-xs text-ink-faint mt-1">{g.observaciones}</p>}
                 </div>

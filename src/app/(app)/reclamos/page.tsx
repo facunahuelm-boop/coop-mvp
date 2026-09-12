@@ -6,6 +6,7 @@ import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/compon
 import dayjs from "dayjs";
 import { crearReclamoAction, tomarReclamoAction, resolverReclamoAction, reabrirReclamoAction } from "@/lib/actions/reclamos";
 import { CATEGORIA_RECLAMO_LABEL, PRIORIDAD_RECLAMO_LABEL } from "@/lib/constants";
+import { UsuarioLink } from "@/components/EntidadLink";
 
 export default async function ReclamosPage() {
   const user = await getCurrentUser();
@@ -58,8 +59,13 @@ export default async function ReclamosPage() {
             {r.descripcion && <p className="text-sm text-ink/70 mt-1">{r.descripcion}</p>}
             {r.foto_url && <img src={r.foto_url} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
             <p className="text-xs text-ink/40 mt-1">
-              {dayjs(r.fecha).format("DD/MM/YYYY")} · {r.reportado_por_nombre || "Sistema"}
-              {r.responsable_nombre ? ` · a cargo de ${r.responsable_nombre}` : ""}
+              {dayjs(r.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={r.reportado_por_id} nombre={r.reportado_por_nombre} fallback="Sistema" />
+              {r.responsable_id && (
+                <>
+                  {" · a cargo de "}
+                  <UsuarioLink id={r.responsable_id} nombre={r.responsable_nombre} />
+                </>
+              )}
             </p>
             {puedeGestionar && r.estado === "abierto" && (
               <form action={tomarReclamoAction} className="mt-2">

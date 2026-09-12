@@ -12,6 +12,7 @@ import {
   eliminarNotaCalendarioFormAction,
 } from "@/lib/actions/calendarioNotas";
 import { InstallHint } from "@/components/InstallHint";
+import { UsuarioLink } from "@/components/EntidadLink";
 import dayjs from "dayjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -768,7 +769,7 @@ export default async function DashboardPage() {
             <ul className="space-y-1.5 text-sm text-ink-muted">
               {actividad.map((r: any) => (
                 <li key={r.id}>
-                  <span className="text-ink font-medium">{r.usuario_nombre || "Sistema"}</span> — {r.accion.replace(/_/g, " ")} en {r.entidad}
+                  <span className="text-ink font-medium"><UsuarioLink id={r.usuario_id} nombre={r.usuario_nombre} fallback="Sistema" /></span> — {r.accion.replace(/_/g, " ")} en {r.entidad}
                   {r.entidad_id ? ` #${r.entidad_id}` : ""}
                 </li>
               ))}
