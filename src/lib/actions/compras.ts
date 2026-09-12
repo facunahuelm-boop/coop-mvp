@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, audit } from "@/lib/db";
+import { insert, update, get, run, audit } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
@@ -228,4 +228,52 @@ export async function rechazarSolicitudAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "rechazar_compra", entidad: "solicitudes_compra", entidad_id: id, valor_nuevo: { motivo } });
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
+}
+
+/**
+ * AUDITORÍA INTEGRAL (pedido explícito): eliminar una solicitud de compra es
+ * irreversible y solo tiene sentido para corregir un error de carga o limpiar
+ * datos de prueba — nunca como forma normal de "cancelar" una compra real
+ * (para eso ya existe rechazarSolicitudAction, que deja rastro). Por eso:
+ * - Solo el rol "admin" (administrador del sistema) puede usarla; ningún rol
+ *   de comisión ni de conducción la tiene, ni siquiera Consejo Directivo.
+ * - Exige escribir la palabra "ELIMINAR" en el formulario, para que no pueda
+ *   dispararse por accidente con un solo click.
+ * - Este esquema nunca usa ON DELETE CASCADE (criterio del proyecto: nada se
+ *   borra en cascada sin que quede explícito en el código), así que se borran
+ *   a mano, en el orden que respeta las referencias, los presupuestos y la
+ *   decisión asociados antes de borrar la solicitud; gastos_comision se
+ *   intenta también por si la migración 0020 ya corrió en esta base (si no
+ *   corrió, la columna no existe y no hay nada que borrar ahí — ver el mismo
+ *   criterio de columna-faltante que en db.ts).
+ * - Igual que cualquier otra escritura, corre dentro del contexto de la
+ *   cooperativa activa (withTenantClient + Row-Level Security): un admin
+ *   nunca puede borrar una solicitud de otra cooperativa aunque adivinara su id.
+ * - Queda un registro completo en auditoría (valor_anterior con la fila
+ *   entera) antes de borrar, para que el borrado en sí sea rastreable.
+ */
+export async function eliminarSolicitudAction(formData: FormData) {
+  const user = await requireUser();
+  if (user.rol !== "admin") throw new Error("Solo un administrador del sistema puede eliminar una solicitud de compra.");
+  const { id, confirmacion } = parseForm(z.object({ id: zId, confirmacion: zTexto(50) }), formData);
+  if (confirmacion.trim().toUpperCase() !== "ELIMINAR") {
+    throw new Error('Para eliminar, escribí exactamente "ELIMINAR" en el campo de confirmación.');
+  }
+  const solicitud = await get<any>(`SELECT * FROM solicitudes_compra WHERE id = ?`, [id]);
+  if (!solicitud) {
+    revalidatePath("/compras");
+    return; // ya no existe: nada que borrar
+  }
+
+  await run(`DELETE FROM decisiones_compra WHERE solicitud_id = ?`, [id]);
+  await run(`DELETE FROM presupuestos_proveedor WHERE solicitud_id = ?`, [id]);
+  try {
+    await run(`DELETE FROM gastos_comision WHERE solicitud_compra_id = ?`, [id]);
+  } catch (err: any) {
+    if (err?.code !== "42703") throw err;
+  }
+  await run(`DELETE FROM solicitudes_compra WHERE id = ?`, [id]);
+
+  await audit({ usuario_id: user.id, accion: "eliminar", entidad: "solicitudes_compra", entidad_id: Number(id), valor_anterior: solicitud });
+  revalidatePath("/compras");
 }
