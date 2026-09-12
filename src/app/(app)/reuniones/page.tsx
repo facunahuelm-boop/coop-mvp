@@ -7,6 +7,13 @@ import dayjs from "dayjs";
 import Link from "next/link";
 import { crearReunionAction } from "@/lib/actions/reuniones";
 
+// AUDITORÍA INTEGRAL: la reunión de tipo "comision" ahora exige ser
+// integrante de esa comisión puntual (o rol de conducción) en el backend
+// (verificarPermisoReunion, actions/reuniones.ts) — el formulario de acá
+// abajo ya solo ofrece, para vincular, las comisiones que la persona puede
+// gestionar, salvo que tenga rol de conducción, que las ve todas. Asamblea y
+// Consejo Directivo quedan reservadas a conducción por completo.
+
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",
   consejo_directivo: "Consejo Directivo",
@@ -25,12 +32,20 @@ export default async function ReunionesPage() {
   if (!canRead(user.rol, "comisiones")) redirect("/dashboard");
 
   const puedeEditar = canEdit(user.rol, "comisiones");
+  const esOversightReuniones = canEdit(user.rol, "finanzas");
 
-  const [proximas, pasadas, comisiones] = await Promise.all([
+  const [proximas, pasadas, comisionesActivas, misComisiones] = await Promise.all([
     all<any>(`SELECT r.*, c.nombre as comision_nombre FROM reuniones r LEFT JOIN comisiones c ON c.id = r.comision_id WHERE r.estado = 'planificada' ORDER BY r.fecha ASC`),
     all<any>(`SELECT r.*, c.nombre as comision_nombre FROM reuniones r LEFT JOIN comisiones c ON c.id = r.comision_id WHERE r.estado != 'planificada' ORDER BY r.fecha DESC LIMIT 15`),
     all<any>(`SELECT * FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`),
+    all<{ comision_id: number }>(`SELECT comision_id FROM comision_miembros WHERE user_id = ? AND activo = 1`, [user.id]),
   ]);
+  const misComisionIds = new Set(misComisiones.map((m) => m.comision_id));
+  // Igual que en /compras: la lista para vincular solo muestra las comisiones
+  // que esta persona puede gestionar — el backend (verificarPermisoReunion)
+  // ya rechaza vincular una ajena, esto evita ofrecer una opción que después
+  // se va a rechazar.
+  const comisiones = esOversightReuniones ? comisionesActivas : comisionesActivas.filter((c) => misComisionIds.has(c.id));
 
   const Fila = ({ r }: { r: any }) => (
     <Link key={r.id} href={`/reuniones/${r.id}`}>
@@ -72,8 +87,8 @@ export default async function ReunionesPage() {
               <div>
                 <Label>Tipo</Label>
                 <select name="tipo" className={inputClass} defaultValue="comision">
-                  <option value="asamblea">Asamblea</option>
-                  <option value="consejo_directivo">Consejo Directivo</option>
+                  {esOversightReuniones && <option value="asamblea">Asamblea</option>}
+                  {esOversightReuniones && <option value="consejo_directivo">Consejo Directivo</option>}
                   <option value="comision">Comisión</option>
                 </select>
               </div>

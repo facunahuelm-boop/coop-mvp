@@ -3,8 +3,9 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, update, get, all, audit } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
+import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { generarPdfBuffer } from "@/lib/pdf";
 import { saveGeneratedFile } from "@/lib/upload";
 import dayjs from "dayjs";
@@ -17,6 +18,33 @@ const TIPO_LABEL: Record<string, string> = {
 };
 const TIPOS_REUNION = ["asamblea", "consejo_directivo", "comision"] as const;
 const PRIORIDAD_TAREA = ["alta", "media", "baja"] as const;
+
+// AUDITORÍA INTEGRAL (mismo hallazgo que comisiones.ts, tareas.ts y
+// compras.ts): las cuatro acciones de este archivo solo comprobaban el
+// permiso de módulo canEdit(rol, "comisiones") — que en roles.ts es "edit"
+// para CUALQUIER rol de comisión. Una reunión de tipo "comision" puede estar
+// vinculada a una comisión puntual (comision_id): sin una segunda capa de
+// permiso, un integrante de la Comisión de Compras podía crear, cancelar,
+// tomar asistencia o incluso CERRAR (generando el acta en PDF y creando
+// tareas reales) una reunión de la Comisión de Obra. Además, "asamblea" y
+// "consejo_directivo" son reuniones de toda la cooperativa, no de una
+// comisión puntual — crearlas o tocarlas se reserva a roles de conducción,
+// igual que crear/archivar una comisión entera en comisiones.ts.
+function esOversightReuniones(rol: Parameters<typeof canEdit>[0]): boolean {
+  return canEdit(rol, "finanzas");
+}
+
+async function verificarPermisoReunion(user: SessionUser, tipo: string, comisionId: number | null) {
+  if (tipo !== "comision") {
+    if (!esOversightReuniones(user.rol)) {
+      throw new Error("Las reuniones de Asamblea o Consejo Directivo requieren un rol de conducción (Admin, Consejo Directivo, Tesorería o Administración).");
+    }
+    return;
+  }
+  if (comisionId && !(await puedeGestionarComision(user, comisionId))) {
+    throw new Error(ERROR_SIN_PERMISO_COMISION);
+  }
+}
 
 const crearReunionSchema = z.object({
   tipo: zEnumSeguro(TIPOS_REUNION, "comision"),
@@ -31,6 +59,7 @@ export async function crearReunionAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
   const datos = parseForm(crearReunionSchema, formData);
+  await verificarPermisoReunion(user, datos.tipo, datos.tipo === "comision" ? datos.comision_id ?? null : null);
 
   const id = await insert("reuniones", {
     tipo: datos.tipo,
@@ -50,6 +79,9 @@ export async function cancelarReunionAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
   const { id } = parseForm(z.object({ id: zId }), formData);
+  const reunion = await get<{ tipo: string; comision_id: number | null }>(`SELECT tipo, comision_id FROM reuniones WHERE id = ?`, [id]);
+  if (!reunion) throw new Error("Esa reunión ya no existe.");
+  await verificarPermisoReunion(user, reunion.tipo, reunion.comision_id);
   await update("reuniones", id, { estado: "cancelada" });
   await audit({ usuario_id: user.id, accion: "cancelar", entidad: "reuniones", entidad_id: id });
   revalidatePath("/reuniones");
@@ -72,6 +104,9 @@ export async function registrarAsistenciaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
   const { reunion_id, nucleo_id, presente: presenteBool, justificacion } = parseForm(registrarAsistenciaSchema, formData);
+  const reunion = await get<{ tipo: string; comision_id: number | null }>(`SELECT tipo, comision_id FROM reuniones WHERE id = ?`, [reunion_id]);
+  if (!reunion) throw new Error("Esa reunión ya no existe.");
+  await verificarPermisoReunion(user, reunion.tipo, reunion.comision_id);
   const presente = presenteBool ? 1 : 0;
 
   const existente = await get<{ id: number }>(
@@ -112,6 +147,7 @@ export async function cerrarReunionAction(formData: FormData) {
 
   const reunion = await get<any>(`SELECT * FROM reuniones WHERE id = ?`, [reunion_id]);
   if (!reunion) throw new Error("Reunión no encontrada");
+  await verificarPermisoReunion(user, reunion.tipo, reunion.comision_id);
 
   const asistencias = await all<any>(
     `SELECT ra.presente, ra.justificacion, n.nombre as nucleo_nombre

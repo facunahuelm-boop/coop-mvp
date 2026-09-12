@@ -11,6 +11,7 @@ import {
   cancelarReunionAction,
 } from "@/lib/actions/reuniones";
 import { cambiarEstadoTareaAction } from "@/lib/actions/tareas";
+import { puedeGestionarComision } from "@/lib/comisionAuth";
 
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",
@@ -32,8 +33,6 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
   if (!user) redirect("/login");
   if (!canRead(user.rol, "comisiones")) redirect("/dashboard");
 
-  const puedeEditar = canEdit(user.rol, "comisiones");
-
   const [reunion, nucleos, asistencias, usuarios, tareas] = await Promise.all([
     get<any>(`SELECT r.*, c.nombre as comision_nombre FROM reuniones r LEFT JOIN comisiones c ON c.id = r.comision_id WHERE r.id = ?`, [id]),
     all<any>(`SELECT * FROM nucleos_familiares ORDER BY nombre ASC`),
@@ -47,6 +46,15 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
     ),
   ]);
   if (!reunion) notFound();
+
+  // AUDITORÍA INTEGRAL: mismo criterio que verificarPermisoReunion en
+  // actions/reuniones.ts — Asamblea/Consejo Directivo quedan reservadas a
+  // conducción; una reunión de comisión vinculada (comision_id) exige ser
+  // integrante de ESA comisión puntual, no solo tener el permiso de módulo.
+  const esOversightReuniones = canEdit(user.rol, "finanzas");
+  const puedeGestionar =
+    canEdit(user.rol, "comisiones") &&
+    (reunion.tipo !== "comision" ? esOversightReuniones : reunion.comision_id ? await puedeGestionarComision(user, reunion.comision_id) : true);
 
   const actaExistente = reunion.acta_id
     ? await get<any>(
@@ -72,7 +80,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
         </Card>
       )}
 
-      {reunion.estado === "planificada" && puedeEditar && (
+      {reunion.estado === "planificada" && puedeGestionar && (
         <Card className="mb-5 flex flex-wrap items-center gap-2">
           <form action={cancelarReunionAction}>
             <input type="hidden" name="id" value={reunion.id} />
@@ -93,10 +101,10 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                     <input type="hidden" name="reunion_id" value={reunion.id} />
                     <input type="hidden" name="nucleo_id" value={n.id} />
                     <label className="flex items-center gap-2 text-sm flex-1">
-                      <input type="checkbox" name="presente" defaultChecked={!!a?.presente} disabled={!puedeEditar} />
+                      <input type="checkbox" name="presente" defaultChecked={!!a?.presente} disabled={!puedeGestionar} />
                       {n.nombre}
                     </label>
-                    {puedeEditar ? (
+                    {puedeGestionar ? (
                       <>
                         <input name="justificacion" defaultValue={a?.justificacion ?? ""} placeholder="Justificación (opcional)" className={inputClass + " text-xs !py-1 max-w-[160px]"} />
                         <button className="text-xs text-[var(--color-brand-800)] underline whitespace-nowrap">Guardar</button>
@@ -132,7 +140,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
             </Card>
           ) : reunion.estado === "cancelada" ? (
             <EmptyState>Reunión cancelada, sin acta.</EmptyState>
-          ) : puedeEditar ? (
+          ) : puedeGestionar ? (
             <Card>
               <form action={cerrarReunionAction} className="space-y-3">
                 <input type="hidden" name="id" value={reunion.id} />
@@ -190,7 +198,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                           {t.fecha_vencimiento ? ` · vence ${dayjs(t.fecha_vencimiento).format("DD/MM")}` : ""}
                         </p>
                       </div>
-                      {puedeEditar ? (
+                      {puedeGestionar ? (
                         <AutoSubmitSelect
                           action={cambiarEstadoTareaAction}
                           hiddenFields={{ id: t.id }}
