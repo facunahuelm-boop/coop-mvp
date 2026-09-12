@@ -93,7 +93,7 @@ Agrupadas por dominio. `[T]` = tiene `organization_id` (tenant-scoped) y RLS. `[
 - `lista_espera` `[T]` — aspirantes previos a convertirse en socio. `nombre, documento, contacto, orden, estado (en_espera|convocado|incorporado|retirado)`.
 - `movimientos_cuenta_socio` `[T]` — cuenta corriente por socio (cargo|pago), independiente de `movimientos_financieros` (la caja general).
 
-> **Nota de diseño importante**: `nucleos_familiares` (motor de Trabajo/ayuda mutua) y `socios`+`socio_integrantes` (padrón de personas) son **dos modelos de datos distintos que conviven**, cruzados solo opcionalmente vía `socios.nucleo_id`. Cualquier trabajo de la Fase 5 (Contactos) y Fase 7 (navegación transversal) tiene que decidir explícitamente cómo unificar la *vista* de estas dos fuentes sin fusionar los modelos de datos (que cumplen propósitos distintos: uno para asignar tareas de jornada, otro para membresía/padrón formal).
+> **Nota de diseño importante**: `nucleos_familiares` (motor de Trabajo/ayuda mutua) y `socios`+`socio_integrantes` (padrón de personas) son **dos modelos de datos distintos que conviven**, cruzados solo opcionalmente vía `socios.nucleo_id`. ✅ Resuelto para la vista de Contactos en la **Fase 5** (ver sección 5.5): se unifican solo en memoria, de solo lectura, sin fusionar las tablas. La **Fase 7** (navegación transversal) sigue pendiente y puede necesitar su propia decisión sobre este mismo punto.
 
 **Comisiones y gobierno**
 - `comisiones` `[T]` — órgano de trabajo (Obra, Compras, Seguridad, etc.). `nombre, descripcion, activa`.
@@ -181,6 +181,17 @@ Igual que se planeó, el modelo de permisos granulares (`recurso.accion`, ej. `d
 3. Los 6 helpers finos de la sección 5.3 no cambiaron — nada de esta fase los toca.
 4. **Todavía no implementado, a propósito**: permisos extra por usuario individual (ej. un `socio` con el permiso extra `documents.create` puntual) requeriría una tabla `user_permissions` que no se creó — no hay todavía un caso de uso real que la necesite, y agregarla ahora sería anticipar funcionalidad no pedida. Se agrega cuando un caso concreto lo requiera.
 5. **Todavía no implementado, a propósito**: ningún código existente de los 20 archivos de `actions/*.ts` fue migrado a llamar `tienePermiso()` en lugar de `canRead`/`canEdit`/`canApprove` directamente — ambos caminos dan el mismo resultado hoy, así que no había necesidad de tocar 20 archivos que ya funcionan correctamente solo para usar la función nueva. `tienePermiso()` queda disponible para código nuevo y para una futura pantalla de administración de roles/permisos.
+
+### 5.5 Sección Contactos ✅ *(Fase 5, 12/09 — implementado)*
+
+Resuelve la "Nota de diseño importante" de la sección 3 sobre unificar la vista de `nucleos_familiares` y `socios`+`socio_integrantes` sin fusionar los modelos:
+
+1. ✅ Página nueva `/contactos` (`src/app/(app)/contactos/page.tsx`), función de datos `obtenerContactos(rol)` (`src/lib/contactos.ts`) y componente cliente `ContactosLista` (`src/components/ContactosLista.tsx`) con buscador y chips de filtro por tipo, ambos 100% del lado del cliente (dataset chico por cooperativa).
+2. **Decisión sobre `nucleos_familiares`**: no se creó una fuente propia para esa tabla — no tiene ningún dato de contacto (nombre de persona, teléfono, email), solo cuota social y horas acumuladas (ver migración 0019). En vez de eso, cuando un socio pertenece a un núcleo, el nombre del núcleo aparece como referencia en el subtítulo de su tarjeta de contacto. Los dos modelos de datos siguen sin fusionarse — esto es una vista agregada en memoria, de solo lectura, no una tabla ni relación nueva.
+3. **Fuentes incluidas**, cada una gateada con el mismo permiso que su pantalla propia (no un módulo nuevo): socios y sus integrantes activos (`canRead(rol, "socios")` — todos los roles), proveedores no inactivos (`canRead(rol, "compras")` — excluye al rol `socio`, igual que en `/proveedores`).
+4. **Deliberadamente fuera de esta fase**: integrantes de comisiones / cuentas de `users` — no tienen teléfono/email propio en el modelo actual y ya son navegables por rol desde `/comisiones`; incluirlos acá duplicaría esa pantalla sin sumar un dato de contacto real.
+5. Es una fase de **solo lectura**: no se agregaron Server Actions ni mutaciones nuevas, ni cambios de esquema — las tres consultas son `SELECT` puros contra tablas ya protegidas por RLS.
+6. Ítem de menú "Contactos" agregado en Nav.tsx, grupo "Organización", sin `mod` (igual criterio que "Gastos": cada fuente interna decide su propio permiso, no hace falta ocultar el ítem entero).
 
 ## 6. Hallazgos de la auditoría (por severidad)
 

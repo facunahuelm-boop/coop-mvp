@@ -83,4 +83,19 @@ Antes de seguir con la Fase 3, el usuario pidió resolver primero los dos hallaz
 
 **Archivos afectados**: `migrations/0022_roles_permissions.sql` (nuevo), `scripts/generar-seed-permisos.mjs` (nuevo), `src/lib/roles.ts` (agrega `tienePermiso`, sin tocar lo existente). `npx tsc --noEmit` sin errores.
 
-**Pendiente**: aplicar la migración `0022` en producción (vía `/api/admin/migraciones`, la misma herramienta temporal usada para 0015/0017/0018/0020) y confirmar en vivo que las 3 tablas quedaron sembradas correctamente; después, seguir con la Fase 5 (Contactos).
+**Migración aplicada en producción (12/09, actualización)**: se corrió `/api/admin/migraciones` y se aplicaron, en una sola pasada, **todas** las migraciones que estaban pendientes — no solo la `0022` de esta fase, sino también `0013` a `0021` (9 migraciones que quedaron pendientes de fases anteriores; ver hallazgo H-4 en `REQUIREMENTS.md`, ahora **resuelto por completo**). `dry_run` posterior confirmó "Base de datos al día". Efecto secundario positivo: esto activó de golpe varias funcionalidades que ya estaban en el código pero inertes en la base (notas de calendario, gastos por comisión, proveedores extendido, integrantes de socio, `compras.comision_id`, intentos de login, estado/destinatarios de mensajes de correo) — verificado en vivo que las notas de calendario ahora crean/editan/borran de verdad.
+
+## Fase 5 — Sección Contactos (12/09)
+
+**Qué se hizo**: siguiendo el orden de fases y la nota de diseño de la sección 3 de `REQUIREMENTS.md` (unificar la vista de `nucleos_familiares` y `socios`+`socio_integrantes` sin fusionar los modelos), se construyó una pantalla nueva `/contactos` que agrega, de solo lectura, las fuentes que ya tienen datos de contacto reales.
+
+- **`src/lib/contactos.ts`** (nuevo): `obtenerContactos(rol)` — tres consultas (`socios` con `LEFT JOIN` a `viviendas`/`nucleos_familiares` para el subtítulo; `socio_integrantes` con `JOIN` a `socios`, defensivo con `.catch(() => [])` igual que `/socios`; `proveedores`), cada una gateada con el mismo permiso que ya usa su pantalla propia (`canRead(rol, "socios")` y `canRead(rol, "compras")` respectivamente — nada nuevo en `roles.ts`).
+- **`src/components/ContactosLista.tsx`** (nuevo, cliente): buscador de texto libre y chips de filtro por tipo (Socios/Integrantes/Proveedores), ambos sin ida y vuelta al servidor — dataset chico por cooperativa, mismo criterio que se documentó como decisión explícita (ver `REQUIREMENTS.md` 5.5) para no adelantarse a la Fase 8.
+- **`src/app/(app)/contactos/page.tsx`** (nuevo): server component que llama a `obtenerContactos()` y renderiza `ContactosLista`. Sin restricción de acceso adicional a estar autenticado — cada fuente ya se filtra sola por su propio permiso.
+- **Nav.tsx**: ítem "Contactos" agregado al grupo "Organización" (ícono `BookUser`), sin `mod` — mismo criterio que "Gastos".
+- **Decisión explícita sobre `nucleos_familiares`**: no se le creó una fuente propia (no tiene teléfono/email/nombre de persona, ver migración 0019) — su nombre aparece solo como referencia en el subtítulo del socio que pertenece a ese núcleo.
+- **Decisión explícita de alcance**: se dejó fuera integrantes de comisión / cuentas de `users` (sin dato de contacto propio en el modelo actual, ya navegables desde `/comisiones`).
+
+**Archivos afectados**: `src/lib/contactos.ts` (nuevo), `src/components/ContactosLista.tsx` (nuevo), `src/app/(app)/contactos/page.tsx` (nuevo), `src/components/Nav.tsx`. Sin cambios de base de datos — fase 100% de lectura. `npx tsc --noEmit` sin errores.
+
+**Pendiente**: verificación en vivo contra producción (login, búsqueda, chips de filtro, links a `/socios/[id]` y `/proveedores/[id]`, y confirmar que un rol `socio` no ve proveedores en esta pantalla); después, seguir con la Fase 6 (perfil individual de usuario).

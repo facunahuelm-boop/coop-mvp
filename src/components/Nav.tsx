@@ -29,6 +29,7 @@ import {
   History,
   Menu,
   Receipt,
+  BookUser,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -105,6 +106,12 @@ const GROUPS: NavGroup[] = [
     label: "Organización",
     items: [
       { href: "/socios", label: "Socios", icon: <Users size={ICON_SIZE} />, mod: "socios" },
+      // Sin "mod": Contactos combina socios/integrantes (todos los roles
+      // tienen al menos "read" en "socios") y proveedores (solo si el rol
+      // puede "compras") — cada fuente se filtra sola adentro de
+      // obtenerContactos() (lib/contactos.ts), mismo criterio que "Gastos"
+      // arriba. No hace falta ocultar el ítem del menú entero por rol.
+      { href: "/contactos", label: "Contactos", icon: <BookUser size={ICON_SIZE} /> },
       { href: "/comisiones", label: "Comisiones", icon: <Compass size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/reuniones", label: "Reuniones", icon: <CalendarDays size={ICON_SIZE} />, mod: "comisiones" },
     ],
