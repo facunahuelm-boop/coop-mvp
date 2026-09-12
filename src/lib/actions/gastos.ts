@@ -34,6 +34,26 @@ import {
 // — ver src/lib/comisionAuth.ts. Esto se valida siempre acá, en el servidor,
 // nunca solo ocultando el botón en la pantalla.
 
+// AUDITORÍA INTEGRAL (hallazgo, 12/09): en este entorno la tabla gastos_comision
+// todavía no existe (Postgres 42P01 — la migración 0017_gastos_comision.sql
+// nunca se ejecutó contra la base de producción). A diferencia de un borrado
+// (que puede simplemente no borrar nada si la tabla no existe), acá no hay
+// forma de "degradar con gracia" un alta/edición/pago/anulación sobre una
+// tabla inexistente — no se puede fabricar una funcionalidad que no puede
+// funcionar. Lo que sí podemos hacer sin inventar nada es convertir el error
+// genérico del boundary (mensaje "Ocurrió un problema" + un código) en un
+// mensaje honesto y específico, para que quien lo use sepa que es un tema de
+// actualización pendiente y no un error suyo. Se aplica a las 4 acciones de
+// este archivo que tocan gastos_comision.
+function comoErrorClaro(err: any): never {
+  if (err?.code === "42P01") {
+    throw new Error(
+      "Los gastos por comisión todavía no están habilitados en este entorno: falta aplicar una actualización pendiente de la base de datos. Avisale a quien administra el sistema para que la ejecute."
+    );
+  }
+  throw err;
+}
+
 const ESTADO_CREACION = ["pendiente", "pagado"] as const;
 
 const gastoSchema = z.object({
@@ -108,13 +128,18 @@ export async function crearGastoAction(formData: FormData) {
     });
   }
 
-  const id = await insert("gastos_comision", {
-    ...datos,
-    proveedor_id: proveedorId,
-    comprobante_url: comprobanteUrl,
-    creado_por_id: user.id,
-    movimiento_financiero_id: movimientoId,
-  });
+  let id: number;
+  try {
+    id = await insert("gastos_comision", {
+      ...datos,
+      proveedor_id: proveedorId,
+      comprobante_url: comprobanteUrl,
+      creado_por_id: user.id,
+      movimiento_financiero_id: movimientoId,
+    });
+  } catch (err: any) {
+    comoErrorClaro(err);
+  }
   await audit({ usuario_id: user.id, accion: "crear", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { ...datos, comision: comision.nombre } });
   revalidatePath("/gastos");
   revalidatePath("/finanzas");
@@ -140,12 +165,21 @@ export async function editarGastoAction(formData: FormData) {
   if (!puedeUsarGastos(user.rol)) throw new Error("No autorizado.");
   const { id, ...datos } = parseForm(editarGastoSchema, formData);
 
-  const gasto = await get<{ comision_id: number; estado: string }>(`SELECT comision_id, estado FROM gastos_comision WHERE id = ?`, [id]);
+  let gasto: { comision_id: number; estado: string } | undefined;
+  try {
+    gasto = await get<{ comision_id: number; estado: string }>(`SELECT comision_id, estado FROM gastos_comision WHERE id = ?`, [id]);
+  } catch (err: any) {
+    comoErrorClaro(err);
+  }
   if (!gasto) throw new Error("Ese gasto ya no existe.");
   if (!(await puedeGestionarComision(user, gasto.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
   if (gasto.estado === "anulado") throw new Error("Este gasto está anulado — no se puede editar.");
 
-  await update("gastos_comision", id, datos);
+  try {
+    await update("gastos_comision", id, datos);
+  } catch (err: any) {
+    comoErrorClaro(err);
+  }
   await audit({ usuario_id: user.id, accion: "editar", entidad: "gastos_comision", entidad_id: id, valor_nuevo: datos });
   revalidatePath("/gastos");
 }
@@ -155,10 +189,15 @@ export async function marcarGastoPagadoAction(formData: FormData) {
   if (!puedeUsarGastos(user.rol)) throw new Error("No autorizado.");
   const { id } = parseForm(z.object({ id: zId }), formData);
 
-  const gasto = await get<any>(
-    `SELECT g.*, c.nombre as comision_nombre FROM gastos_comision g JOIN comisiones c ON c.id = g.comision_id WHERE g.id = ?`,
-    [id]
-  );
+  let gasto: any;
+  try {
+    gasto = await get<any>(
+      `SELECT g.*, c.nombre as comision_nombre FROM gastos_comision g JOIN comisiones c ON c.id = g.comision_id WHERE g.id = ?`,
+      [id]
+    );
+  } catch (err: any) {
+    comoErrorClaro(err);
+  }
   if (!gasto) throw new Error("Ese gasto ya no existe.");
   if (!(await puedeGestionarComision(user, gasto.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
   if (gasto.estado !== "pendiente") throw new Error("Solo se puede marcar como pagado un gasto pendiente.");
@@ -172,7 +211,11 @@ export async function marcarGastoPagadoAction(formData: FormData) {
     fecha: gasto.fecha,
     comprobanteUrl: gasto.comprobante_url,
   });
-  await update("gastos_comision", id, { estado: "pagado", movimiento_financiero_id: movimientoId });
+  try {
+    await update("gastos_comision", id, { estado: "pagado", movimiento_financiero_id: movimientoId });
+  } catch (err: any) {
+    comoErrorClaro(err);
+  }
   await audit({ usuario_id: user.id, accion: "marcar_pagado", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { movimientoId } });
   revalidatePath("/gastos");
   revalidatePath("/finanzas");
@@ -188,10 +231,15 @@ export async function anularGastoAction(formData: FormData) {
   if (!puedeUsarGastos(user.rol)) throw new Error("No autorizado.");
   const { id, motivo } = parseForm(z.object({ id: zId, motivo: zTextoOpcional(500) }), formData);
 
-  const gasto = await get<{ comision_id: number; estado: string; observaciones: string | null }>(
-    `SELECT comision_id, estado, observaciones FROM gastos_comision WHERE id = ?`,
-    [id]
-  );
+  let gasto: { comision_id: number; estado: string; observaciones: string | null } | undefined;
+  try {
+    gasto = await get<{ comision_id: number; estado: string; observaciones: string | null }>(
+      `SELECT comision_id, estado, observaciones FROM gastos_comision WHERE id = ?`,
+      [id]
+    );
+  } catch (err: any) {
+    comoErrorClaro(err);
+  }
   if (!gasto) throw new Error("Ese gasto ya no existe.");
   if (!(await puedeGestionarComision(user, gasto.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
   if (gasto.estado === "pagado") {
@@ -202,7 +250,11 @@ export async function anularGastoAction(formData: FormData) {
   const observacionesFinal = motivo
     ? `${gasto.observaciones ? gasto.observaciones + " | " : ""}Anulado: ${motivo}`
     : gasto.observaciones;
-  await update("gastos_comision", id, { estado: "anulado", observaciones: observacionesFinal });
+  try {
+    await update("gastos_comision", id, { estado: "anulado", observaciones: observacionesFinal });
+  } catch (err: any) {
+    comoErrorClaro(err);
+  }
   await audit({ usuario_id: user.id, accion: "anular", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { motivo } });
   revalidatePath("/gastos");
 }
