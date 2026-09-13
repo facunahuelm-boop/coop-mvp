@@ -63,6 +63,27 @@ export function EstadoTag({ estado, texto }: { estado: EstadoVisual; texto?: str
   );
 }
 
+/** Acento de color por módulo (rediseño "Color secundario + Top Bar", ver
+ * globals.css). Sólo 4 tonos, reutilizados entre módulos afines — nunca la
+ * tarjeta entera de color, sólo el chip del ícono y, sutilmente, el dato
+ * principal. `accent` es opcional a propósito: cualquier `SummaryCard` que
+ * no lo pase mantiene el look plano de siempre (compatibilidad total con
+ * los llamados existentes). */
+export type CardAccent = "blue" | "violet" | "teal" | "amber";
+
+const ACCENT_FG: Record<CardAccent, string> = {
+  blue: "var(--accent-blue)",
+  violet: "var(--accent-violet)",
+  teal: "var(--accent-teal)",
+  amber: "var(--accent-amber)",
+};
+const ACCENT_BG: Record<CardAccent, string> = {
+  blue: "var(--accent-blue-bg)",
+  violet: "var(--accent-violet-bg)",
+  teal: "var(--accent-teal-bg)",
+  amber: "var(--accent-amber-bg)",
+};
+
 /**
  * Tarjeta compacta con jerarquía de 4 niveles: 1) título+ícono, 2) dato
  * principal, 3) estado/dato secundario, 4) acción. Todas las tarjetas del
@@ -78,6 +99,7 @@ export function SummaryCard({
   action = "Ver detalle →",
   loading,
   error,
+  accent,
 }: {
   icon: ReactNode;
   title: string;
@@ -87,6 +109,7 @@ export function SummaryCard({
   action?: string | null;
   loading?: boolean;
   error?: string;
+  accent?: CardAccent;
 }) {
   if (loading) {
     return (
@@ -99,15 +122,30 @@ export function SummaryCard({
   }
   return (
     <div className="rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)] p-4 h-full min-h-[132px] flex flex-col gap-1.5 transition-all group-hover:shadow-[var(--shadow-lg)] group-hover:border-[var(--color-brand-700)]/30 group-focus-visible:shadow-[var(--shadow-lg)]">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted uppercase tracking-wide">
-        <span className="text-[var(--color-brand-800)]" aria-hidden>{icon}</span>
+      <div className="flex items-center gap-2 text-xs font-semibold text-ink-muted uppercase tracking-wide">
+        {accent ? (
+          <span
+            className="inline-flex items-center justify-center w-7 h-7 rounded-lg shrink-0 text-sm"
+            style={{ background: ACCENT_BG[accent], color: ACCENT_FG[accent] }}
+            aria-hidden
+          >
+            {icon}
+          </span>
+        ) : (
+          <span className="text-[var(--color-brand-800)]" aria-hidden>{icon}</span>
+        )}
         <span className="truncate">{title}</span>
       </div>
       {error ? (
         <p className="text-xs text-[var(--color-rojo)] mt-1">No pudimos cargar esta información.</p>
       ) : (
         <>
-          <div className="text-xl sm:text-2xl font-bold text-ink leading-tight truncate">{value}</div>
+          <div
+            className={`text-xl sm:text-2xl font-bold leading-tight truncate ${accent ? "" : "text-ink"}`}
+            style={accent ? { color: ACCENT_FG[accent] } : undefined}
+          >
+            {value}
+          </div>
           {status && <div>{status}</div>}
           {hint && <p className="text-xs text-ink-faint truncate">{hint}</p>}
         </>

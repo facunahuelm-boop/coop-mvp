@@ -26,6 +26,14 @@ export type SessionUser = {
   email: string;
   rol: Role;
   nucleo_id: number | null;
+  /**
+   * URL pública de la foto de perfil (rediseño "Color secundario + Top
+   * Bar"), o null si el usuario no cargó ninguna — en ese caso el front
+   * muestra un ícono/inicial genérica (ver Nav.tsx / EntidadLink.tsx).
+   * Se resuelve acá para que la Top Bar la tenga disponible en cada
+   * página sin una consulta extra.
+   */
+  avatar_url: string | null;
   /** Cooperativa a la que pertenece este usuario (multi-tenant). */
   organization_id: number;
   /**
@@ -109,7 +117,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     // organizations no tiene organization_id (es la tabla raíz, sin RLS) —
     // se puede traer con un JOIN normal en la misma consulta.
     const row = await get<any>(
-      `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, o.etapa,
+      `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, u.avatar_url, o.etapa,
               o.modulos_override,
               o.nombre as org_nombre, o.logo_url as org_logo_url,
               o.color_primario as org_color_primario, o.color_secundario as org_color_secundario
@@ -127,6 +135,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       email: row.email,
       rol: row.rol,
       nucleo_id: row.nucleo_id,
+      avatar_url: row.avatar_url ?? null,
       organization_id: row.organization_id,
       etapa: row.etapa,
       modulos_override: row.modulos_override || {},

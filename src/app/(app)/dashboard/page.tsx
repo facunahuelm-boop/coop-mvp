@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { all, get } from "@/lib/db";
 import { tareasObraConSemaforo, resumenFinanciero, cuentasPorCobrar, recalcularAlertas } from "@/lib/logic";
-import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
+import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
 import { DashboardGrid, DashboardSection, SummaryCard, EstadoTag, DashboardCardLink, DashboardCardModal } from "@/components/DashboardCard";
@@ -31,7 +31,6 @@ import {
   Megaphone,
   ListChecks,
   CalendarClock,
-  Search,
   Receipt,
   History,
 } from "lucide-react";
@@ -470,69 +469,20 @@ export default async function DashboardPage() {
     comunicacionesItems.push({ texto: d.nombre, sub: dayjs(d.fecha).format("DD/MM"), href: "/documentos" });
   }
 
-  // Accesos rápidos: solo se muestran las acciones que el rol del usuario puede editar.
-  const accesos: { label: string; href: string; icon: ReactNode }[] = [];
-  if (verObra && canEdit(user.rol, "obra")) accesos.push({ label: "Registrar avance de obra", href: "/obra", icon: <HardHat size={16} /> });
-  if (verTrabajo && canEdit(user.rol, "trabajo")) accesos.push({ label: "Gestionar jornada de trabajo", href: "/trabajo", icon: <Handshake size={16} /> });
-  if (canEdit(user.rol, "compras")) accesos.push({ label: "Nueva solicitud de compra", href: "/compras", icon: <ShoppingCart size={16} /> });
-  if (verSeguridad && canEdit(user.rol, "seguridad")) accesos.push({ label: "Cargar inspección o incidente", href: "/seguridad", icon: <ShieldCheck size={16} /> });
-  if (verReclamos && canEdit(user.rol, "reclamos")) accesos.push({ label: "Reportar un problema", href: "/reclamos", icon: <Wrench size={16} /> });
-  if (canEdit(user.rol, "finanzas")) accesos.push({ label: "Registrar movimiento", href: "/finanzas", icon: <Wallet size={16} /> });
-  if (canEdit(user.rol, "documentos")) accesos.push({ label: "Subir documento", href: "/documentos", icon: <FileText size={16} /> });
+  // Rediseño "Color secundario + Top Bar": los accesos rápidos y los
+  // botones de Buscar/Alertas que vivían acá arriba (sólo en Inicio) ahora
+  // están en la Top Bar y la franja de Accesos rápidos globales, visibles
+  // en cualquier pantalla (ver components/Nav.tsx: accesosRapidosFor /
+  // AccesosRapidos, montada en (app)/layout.tsx) — se sacan de acá para no
+  // mostrar dos veces la misma fila de botones, uno debajo del otro, justo
+  // encima de este mismo título. La tarjeta "Alertas" del bloque
+  // "Información" más abajo sigue igual, con sus mismos datos.
 
   return (
     <div>
       <InstallHint />
 
-      <PageHeader
-        title="Inicio"
-        subtitle={dayjs().format("dddd DD [de] MMMM, YYYY")}
-        action={
-          <div className="flex items-center gap-2 shrink-0">
-            {/* El buscador ya no está en la barra lateral — se accede desde
-                acá, al lado de las alertas, en la pantalla que todos ven al
-                entrar. */}
-            <Link
-              href="/buscar"
-              aria-label="Buscar"
-              className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-surface border border-border shadow-[var(--shadow-sm)] text-ink-muted hover:bg-brand-100 shrink-0"
-            >
-              <Search size={18} />
-            </Link>
-            {alertasAbiertasCount > 0 && (
-              <Link
-                href="/alertas"
-                aria-label={`${alertasAbiertasCount} alertas abiertas`}
-                className="relative inline-flex items-center justify-center h-10 w-10 rounded-full bg-surface border border-border shadow-[var(--shadow-sm)] text-ink-muted hover:bg-brand-100 shrink-0"
-              >
-                <Bell size={18} />
-                <span
-                  className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white ${
-                    criticas.length > 0 ? "bg-[var(--color-rojo)]" : "bg-[var(--color-amarillo)]"
-                  }`}
-                >
-                  {alertasAbiertasCount}
-                </span>
-              </Link>
-            )}
-          </div>
-        }
-      />
-
-      {accesos.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 mb-5 -mx-1 px-1">
-          {accesos.map((a) => (
-            <Link
-              key={a.href}
-              href={a.href}
-              className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-surface border border-border shadow-[var(--shadow-sm)] px-3.5 py-2.5 text-xs font-semibold text-ink hover:bg-brand-100 whitespace-nowrap"
-            >
-              {a.icon}
-              {a.label}
-            </Link>
-          ))}
-        </div>
-      )}
+      <PageHeader title="Inicio" subtitle={dayjs().format("dddd DD [de] MMMM, YYYY")} />
 
       {/* Rediseño del Inicio — RESUMEN → CLICK → POP-UP → DETALLE. Cada
           módulo que antes era una <Card> larga y siempre desplegada ahora es
@@ -552,6 +502,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<ListChecks size={16} />}
                   title="Tareas"
+                  accent="blue"
                   value={misTareasTodas.length}
                   status={
                     tareaMasUrgente ? (
@@ -593,6 +544,7 @@ export default async function DashboardPage() {
               <SummaryCard
                 icon={<CalendarClock size={16} />}
                 title="Calendario"
+                accent="violet"
                 value={dayjs().format("DD/MM")}
                 status={
                   calendarioResumenTexto ? (
@@ -622,6 +574,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<Wallet size={16} />}
                   title="Finanzas"
+                  accent="teal"
                   value={money(fin.saldo)}
                   status={
                     <EstadoTag
@@ -665,6 +618,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<Wallet size={16} />}
                   title="Mi cuenta"
+                  accent="teal"
                   value={miSaldo > 0 ? money(miSaldo) : "Al día"}
                   status={miSaldo > 0 ? <EstadoTag estado="atencion" texto="Saldo pendiente" /> : <EstadoTag estado="ok" />}
                 />
@@ -696,6 +650,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<Compass size={16} />}
                   title={c.nombre}
+                  accent="violet"
                   value={c.pendientes}
                   status={
                     <EstadoTag
@@ -715,6 +670,7 @@ export default async function DashboardPage() {
                   <SummaryCard
                     icon={<HardHat size={16} />}
                     title="Obra"
+                    accent="violet"
                     value={`${pctAvance}%`}
                     status={
                       atrasadas.length > 0 ? (
@@ -752,6 +708,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<ShoppingCart size={16} />}
                   title="Compras"
+                  accent="violet"
                   value={comprasPendientes}
                   status={
                     hayComprasPendientes ? (
@@ -771,6 +728,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<ShieldCheck size={16} />}
                   title="Seguridad"
+                  accent="violet"
                   value={docsVencidos + docsPorVencer + riesgosAbiertos}
                   status={
                     docsVencidos > 0 ? (
@@ -791,6 +749,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<Wrench size={16} />}
                   title="Reclamos"
+                  accent="violet"
                   value={reclamosAbiertos + reclamosEnProceso}
                   status={
                     reclamosAbiertos > 0 ? (
@@ -811,6 +770,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<Handshake size={16} />}
                   title="Trabajo"
+                  accent="violet"
                   value={dayjs(proximaJornada.fecha).format("DD/MM")}
                   status={<EstadoTag estado={tareasJornadaPendientes > 0 ? "atencion" : "ok"} texto={`${personasAsignadas} núcleo(s), ${tareasJornadaPendientes} tarea(s)`} />}
                   hint="Próxima jornada"
@@ -824,6 +784,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<Receipt size={16} />}
                   title="Gastos por comisión"
+                  accent="violet"
                   value={money(gastosResumen.total_mes)}
                   status={
                     Number(gastosResumen.cantidad_pendiente) > 0 ? (
@@ -849,6 +810,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<Megaphone size={16} />}
                   title="Comunicaciones"
+                  accent="blue"
                   value={comunicacionesItems.length}
                   hint={comunicacionesItems[0]?.texto}
                   action="Ver comunicaciones →"
@@ -861,6 +823,7 @@ export default async function DashboardPage() {
                 <SummaryCard
                   icon={<FileText size={16} />}
                   title="Documentos"
+                  accent="amber"
                   value={documentosTotal}
                   status={
                     documentosNuevos > 0 ? (
@@ -881,6 +844,7 @@ export default async function DashboardPage() {
                   <SummaryCard
                     icon={<Bell size={16} />}
                     title="Alertas"
+                    accent="amber"
                     value={alertasAbiertasCount}
                     status={<EstadoTag estado={criticas.length > 0 ? "error" : "atencion"} texto={`${alertasAbiertasCount} pendiente${alertasAbiertasCount > 1 ? "s" : ""}`} />}
                   />

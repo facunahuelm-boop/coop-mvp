@@ -60,6 +60,50 @@
      (tarjetas, modales, botones). --- */
   --radius-sm: 0.5rem;
   --radius-lg: 1rem;
+
+  /* ============================================================
+     Rediseño "Color secundario + Top Bar" — sistema de color
+     secundario. Pedido explícito: el dashboard quedó bien
+     estructurado pero "demasiado blanco"; se agrega identidad con
+     color SIN saturar las tarjetas (nunca una tarjeta entera de un
+     color — sólo el fondo chico detrás de un ícono, un acento, un
+     número puntual). Se usan sólo 4 acentos (no uno por módulo,
+     para no terminar con una paleta de 10 colores distintos — pedido
+     explícito de "mantener una paleta coherente"), reutilizados a
+     propósito entre módulos afines:
+
+       --accent-blue   → Tareas, Comunicaciones
+       --accent-violet → Calendario, Comisiones
+       --accent-teal   → Finanzas, Estado de cuenta
+       --accent-amber  → Documentos, Alertas (mismo tono que ya usa
+                          el semáforo --color-amarillo, a propósito:
+                          "alerta" ya significa lo mismo ahí)
+
+     --color-secondary es el acento general (fuera de una tarjeta de
+     módulo puntual): el color de la Top Bar para buscador/campana/
+     estados interactivos secundarios — se eligió azul, el más
+     "neutro"/profesional de los 4, para no competir con el teal
+     oscuro de --color-brand-* que ya es la identidad primaria.
+     ============================================================ */
+  --color-secondary: #2f5fd6;
+  --color-secondary-bg: #eaf0fd;
+
+  --accent-blue: #2f5fd6;
+  --accent-blue-bg: #eaf0fd;
+  --accent-violet: #7c4fd1;
+  --accent-violet-bg: #f1ecfb;
+  --accent-teal: #0f7d72;
+  --accent-teal-bg: #e3f4f1;
+  --accent-amber: var(--color-amarillo);
+  --accent-amber-bg: var(--color-amarillo-bg);
+
+  /* "info" no existía como token semántico (sólo verde/amarillo/rojo
+     de estado) — se agrega porque el pedido lo nombra explícitamente
+     como parte del sistema (punto 2), y sirve para avisos neutros
+     ("dato informativo", no error/éxito/pendiente). Mismo azul que
+     --accent-blue: es literalmente el mismo significado ("info"). */
+  --color-info: var(--accent-blue);
+  --color-info-bg: var(--accent-blue-bg);
 }
 
 @theme inline {
@@ -88,6 +132,18 @@
   --color-amarillo-bg: var(--color-amarillo-bg);
   --color-rojo: var(--color-rojo);
   --color-rojo-bg: var(--color-rojo-bg);
+  --color-secondary: var(--color-secondary);
+  --color-secondary-bg: var(--color-secondary-bg);
+  --color-info: var(--color-info);
+  --color-info-bg: var(--color-info-bg);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-blue-bg: var(--accent-blue-bg);
+  --color-accent-violet: var(--accent-violet);
+  --color-accent-violet-bg: var(--accent-violet-bg);
+  --color-accent-teal: var(--accent-teal);
+  --color-accent-teal-bg: var(--accent-teal-bg);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-amber-bg: var(--accent-amber-bg);
 }
 
 html, body {

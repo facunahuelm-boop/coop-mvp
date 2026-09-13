@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCommandPalette } from "./ui-client";
 
 type Resultado = {
   tipo: string;
@@ -20,7 +21,12 @@ type Resultado = {
  * resultados, Enter para ir, Escape para cerrar.
  */
 export function CommandPalette() {
-  const [abierto, setAbierto] = useState(false);
+  // El abierto/cerrado ahora vive en un contexto compartido (ver
+  // CommandPaletteProvider en ui-client.tsx) para que el nuevo botón
+  // "Buscar" de la Top Bar pueda abrir este mismo buscador — el resto del
+  // comportamiento (debounce, teclado, resultados) sigue siendo enteramente
+  // local a este componente, sin cambios.
+  const { abierto, cerrar: cerrarContexto, toggle } = useCommandPalette();
   const [q, setQ] = useState("");
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -29,11 +35,11 @@ export function CommandPalette() {
   const router = useRouter();
 
   const cerrar = useCallback(() => {
-    setAbierto(false);
+    cerrarContexto();
     setQ("");
     setResultados([]);
     setActivo(0);
-  }, []);
+  }, [cerrarContexto]);
 
   // Atajo global: Ctrl+K / Cmd+K abre, Escape cierra. Vive en un solo
   // listener a nivel de documento en vez de en cada página.
@@ -41,14 +47,14 @@ export function CommandPalette() {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setAbierto((prev) => !prev);
+        toggle();
       } else if (e.key === "Escape") {
-        setAbierto(false);
+        cerrarContexto();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [toggle, cerrarContexto]);
 
   useEffect(() => {
     if (abierto) {

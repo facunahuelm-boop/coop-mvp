@@ -1,12 +1,14 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { SessionUser } from "@/lib/auth";
-import { canRead, ROLE_LABELS, type Module } from "@/lib/roles";
+import { canRead, canEdit, ROLE_LABELS, type Module } from "@/lib/roles";
 import { logoutAction } from "@/lib/actions/auth";
 import { Saludo } from "./Saludo";
 import { NavLink } from "./NavLink";
 import { NavGroupSection } from "./NavGroupSection";
 import { Logo3D } from "./Logo3D";
+import { Avatar } from "./EntidadLink";
+import { TopBarClient } from "./TopBarClient";
 import {
   Home,
   Bell,
@@ -271,10 +273,58 @@ export function TopBar({ user }: { user: SessionUser }) {
         <img src={logo_url || "/logo-coova.png"} alt={nombre} className="h-7 w-7 rounded-full object-cover" />
         <span className="text-sm font-bold">{nombre}</span>
       </div>
-      <div className="text-right leading-tight">
-        <div className="text-xs">{user.nombre.split(" ")[0]}</div>
-        <div className="text-[10px] text-white/50">{ROLE_LABELS[user.rol]}</div>
-      </div>
+      {/* Foto de perfil (rediseño "Color secundario + Top Bar", punto 13):
+          en celular no hay espacio para el menú desplegable completo de
+          escritorio (ver TopBarDesktop), pero sí para mostrar la foto y
+          llevar directo a "Mi perfil" con un toque — mismo Avatar
+          compartido que usa el resto de la app, nunca una imagen duplicada. */}
+      <Link href={`/usuarios/${user.id}`} className="flex items-center gap-2">
+        <div className="text-right leading-tight">
+          <div className="text-xs">{user.nombre.split(" ")[0]}</div>
+          <div className="text-[10px] text-white/50">{ROLE_LABELS[user.rol]}</div>
+        </div>
+        <Avatar url={user.avatar_url} nombre={user.nombre} size={30} className="border-white/30" />
+      </Link>
+    </header>
+  );
+}
+
+/**
+ * Rediseño "Color secundario + Top Bar" (puntos 7-18 del pedido): barra
+ * superior de escritorio, nueva — hasta ahora <TopBar> de arriba sólo
+ * existía para celular (`md:hidden`), en escritorio no había ninguna franja
+ * superior: la Sidebar ocupaba toda la identidad de marca y el resto de la
+ * pantalla era directamente el contenido de cada página. Deliberadamente
+ * `hidden md:flex` (sólo escritorio, ver la nota de alcance de esta fase en
+ * CHANGELOG.md): en celular ya existen accesos equivalentes (Buscar/Alertas
+ * están siempre visibles en BottomNav, y "Mi perfil"/"Cerrar sesión" están
+ * en el pie de la Sidebar/menú "Más") — meter buscador+notificaciones+menú
+ * de perfil en la franja angosta del celular hubiera significado o bien
+ * agrandarla mucho (compite con el pedido de "no hacerla excesivamente
+ * alta") o apretar demasiado los toques táctiles.
+ *
+ * `TopBarClient` (único "use client" de todo esto) recibe sólo datos ya
+ * resueltos — nunca queries ni lógica de negocio — y `logoutAction` como
+ * Server Action (el único tipo de función que puede cruzar ese límite, ver
+ * la nota grande en DashboardCardClient.tsx).
+ */
+export function TopBarDesktop({
+  user,
+  alertas,
+}: {
+  user: SessionUser;
+  alertas: { count: number; hayCriticas: boolean; items: { id: number; titulo: string; severidad: string; fecha: string }[] };
+}) {
+  return (
+    <header className="hidden md:flex items-center justify-end gap-4 px-4 sm:px-6 py-2.5 bg-surface border-b border-border">
+      <TopBarClient
+        nombre={user.nombre}
+        rolLabel={ROLE_LABELS[user.rol]}
+        avatarUrl={user.avatar_url}
+        perfilHref={`/usuarios/${user.id}`}
+        alertas={alertas}
+        logoutAction={logoutAction}
+      />
     </header>
   );
 }
@@ -299,6 +349,64 @@ export function BottomNav({ user }: { user: SessionUser }) {
         </Link>
       </div>
     </nav>
+  );
+}
+
+/**
+ * Rediseño "Color secundario + Top Bar" (puntos 19-21): zona de "Accesos
+ * rápidos" — antes vivía sólo adentro de dashboard/page.tsx (mismo cálculo,
+ * mismos ítems), visible únicamente al entrar a Inicio. Se saca a un
+ * helper compartido para poder mostrarla en la Top Bar global (visible en
+ * cualquier pantalla, no sólo en el Dashboard) sin duplicar la lista de
+ * condiciones por rol/etapa/permiso — dashboard/page.tsx ya no arma su
+ * propia versión, usa ésta (ver nota de alcance en CHANGELOG.md).
+ *
+ * A propósito son "acciones", no navegación pura: cada ítem ya existía tal
+ * cual en el Dashboard (mismos labels/hrefs/íconos/condiciones de canEdit),
+ * sólo cambia DÓNDE se muestran. Ningún permiso nuevo, ninguna lógica nueva.
+ */
+export function accesosRapidosFor(user: SessionUser): { label: string; href: string; icon: ReactNode }[] {
+  const verObra = canRead(user.rol, "obra") && moduloVisible("obra", user.etapa, user.modulos_override);
+  const verTrabajo = canRead(user.rol, "trabajo") && moduloVisible("trabajo", user.etapa, user.modulos_override);
+  const verSeguridad = canRead(user.rol, "seguridad") && moduloVisible("seguridad", user.etapa, user.modulos_override);
+  const verReclamos = canRead(user.rol, "reclamos") && moduloVisible("reclamos", user.etapa, user.modulos_override);
+
+  const accesos: { label: string; href: string; icon: ReactNode }[] = [];
+  if (verObra && canEdit(user.rol, "obra")) accesos.push({ label: "Registrar avance de obra", href: "/obra", icon: <HardHat size={16} /> });
+  if (verTrabajo && canEdit(user.rol, "trabajo")) accesos.push({ label: "Gestionar jornada de trabajo", href: "/trabajo", icon: <Handshake size={16} /> });
+  if (canEdit(user.rol, "compras")) accesos.push({ label: "Nueva solicitud de compra", href: "/compras", icon: <ShoppingCart size={16} /> });
+  if (verSeguridad && canEdit(user.rol, "seguridad")) accesos.push({ label: "Cargar inspección o incidente", href: "/seguridad", icon: <ShieldCheck size={16} /> });
+  if (verReclamos && canEdit(user.rol, "reclamos")) accesos.push({ label: "Reportar un problema", href: "/reclamos", icon: <Wrench size={16} /> });
+  if (canEdit(user.rol, "finanzas")) accesos.push({ label: "Registrar movimiento", href: "/finanzas", icon: <Wallet size={16} /> });
+  if (canEdit(user.rol, "documentos")) accesos.push({ label: "Subir documento", href: "/documentos", icon: <FileText size={16} /> });
+  return accesos;
+}
+
+/**
+ * Franja de accesos rápidos — se monta una sola vez a nivel de layout (ver
+ * (app)/layout.tsx), justo debajo de la Top Bar, así aparece en cualquier
+ * pantalla y no sólo en Inicio. Compacta y horizontal-scrollable a propósito
+ * ("no quiero 15-20 botones ni una fila gigante" — pedido explícito): son
+ * accesos a una ACCIÓN puntual, con nombre + ícono, nunca botones enormes.
+ */
+export function AccesosRapidos({ user }: { user: SessionUser }) {
+  const accesos = accesosRapidosFor(user);
+  if (accesos.length === 0) return null;
+  return (
+    <div className="px-4 sm:px-6 pt-3 md:pt-3.5">
+      <div className="max-w-5xl mx-auto flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        {accesos.map((a) => (
+          <Link
+            key={a.href}
+            href={a.href}
+            className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-surface border border-border shadow-[var(--shadow-sm)] px-3.5 py-2.5 text-xs font-semibold text-ink hover:bg-[var(--color-secondary-bg)] hover:border-[var(--color-secondary)]/30 transition-colors whitespace-nowrap"
+          >
+            <span className="text-[var(--color-secondary)]">{a.icon}</span>
+            {a.label}
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
 

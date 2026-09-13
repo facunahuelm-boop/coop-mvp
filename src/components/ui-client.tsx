@@ -171,6 +171,32 @@ export function useToast() {
   return ctx;
 }
 
+// Rediseño "Color secundario + Top Bar" (puntos 9-10 del pedido): la nueva
+// Top Bar necesita un botón "Buscar" visible que abra el buscador global que
+// YA EXISTÍA (CommandPalette, Fase 11) — hasta ahora sólo se podía abrir con
+// el atajo de teclado Ctrl+K, sin ningún control visible en la pantalla. En
+// vez de reconstruir el buscador (tiene su propia lógica de debounce,
+// teclado, resultados — ver CommandPalette.tsx), se saca únicamente el
+// abierto/cerrado a este contexto chico: CommandPalette seguirá
+// comportándose exactamente igual que antes (Ctrl+K, Escape, click afuera),
+// y el nuevo botón de la Top Bar sólo necesita poder abrirlo.
+type CommandPaletteContextValue = { abierto: boolean; abrir: () => void; cerrar: () => void; toggle: () => void };
+const CommandPaletteContext = createContext<CommandPaletteContextValue | null>(null);
+
+export function CommandPaletteProvider({ children }: { children: ReactNode }) {
+  const [abierto, setAbierto] = useState(false);
+  const abrir = useCallback(() => setAbierto(true), []);
+  const cerrar = useCallback(() => setAbierto(false), []);
+  const toggle = useCallback(() => setAbierto((v) => !v), []);
+  return <CommandPaletteContext.Provider value={{ abierto, abrir, cerrar, toggle }}>{children}</CommandPaletteContext.Provider>;
+}
+
+export function useCommandPalette() {
+  const ctx = useContext(CommandPaletteContext);
+  if (!ctx) throw new Error("useCommandPalette debe usarse dentro de <CommandPaletteProvider>");
+  return ctx;
+}
+
 // Fase 3 (sistema global de errores y validaciones): piezas chicas y
 // reutilizables para los formularios que se van convirtiendo a
 // `useActionState` (ver src/lib/actionState.ts). Antes de esto, cada

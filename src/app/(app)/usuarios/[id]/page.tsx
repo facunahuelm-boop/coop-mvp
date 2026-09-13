@@ -5,6 +5,8 @@ import { canRead, ROLE_LABELS } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { Card, PageHeader, SectionTitle, EmptyState, Badge } from "@/components/ui";
 import { CambiarPasswordForm } from "@/components/CambiarPasswordForm";
+import { CambiarFotoForm } from "@/components/CambiarFotoForm";
+import { Avatar } from "@/components/EntidadLink";
 import dayjs from "dayjs";
 
 /**
@@ -38,7 +40,7 @@ export default async function UsuarioDetallePage({ params }: { params: Promise<{
   const viewer = await getCurrentUser();
   if (!viewer) redirect("/login");
 
-  const usuario = await get<any>(`SELECT id, nombre, email, rol, activo, creado_en FROM users WHERE id = ?`, [id]);
+  const usuario = await get<any>(`SELECT id, nombre, email, rol, activo, creado_en, avatar_url FROM users WHERE id = ?`, [id]);
   if (!usuario) notFound();
 
   const esPropioPerfil = viewer.id === usuario.id;
@@ -62,7 +64,12 @@ export default async function UsuarioDetallePage({ params }: { params: Promise<{
   return (
     <div>
       <PageHeader
-        title={usuario.nombre}
+        title={
+          <span className="flex items-center gap-3">
+            <Avatar url={usuario.avatar_url} nombre={usuario.nombre} size={40} />
+            {usuario.nombre}
+          </span>
+        }
         subtitle={ROLE_LABELS[usuario.rol as keyof typeof ROLE_LABELS] || usuario.rol}
         action={<Badge color={badgeActivo[usuario.activo ? "activo" : "inactivo"]}>{usuario.activo ? "Activo" : "Inactivo"}</Badge>}
       />
@@ -94,6 +101,11 @@ export default async function UsuarioDetallePage({ params }: { params: Promise<{
 
       {esPropioPerfil && (
         <>
+          <SectionTitle>Foto de perfil</SectionTitle>
+          <Card className="mb-6">
+            <CambiarFotoForm avatarActual={usuario.avatar_url} nombre={usuario.nombre} />
+          </Card>
+
           <SectionTitle>Cambiar contraseña</SectionTitle>
           <Card className="mb-6">
             <CambiarPasswordForm />

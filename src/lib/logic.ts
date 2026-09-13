@@ -143,6 +143,30 @@ export async function cuentasPorCobrar() {
   return { filas, totalACobrar };
 }
 
+/**
+ * Rediseño "Color secundario + Top Bar" (puntos 11-12): datos para la
+ * campanita de notificaciones de la Top Bar — se muestra en CUALQUIER
+ * pantalla (vive en (app)/layout.tsx), a diferencia de recalcularAlertas()
+ * de abajo, que hoy sólo corre una vez por visita a /dashboard y hace un
+ * trabajo pesado (recorre documentos, incidentes, tareas, etc. y escribe en
+ * la tabla `alertas`). Llamar recalcularAlertas() en cada navegación de toda
+ * la app sería carísimo — esta función sólo LEE lo que ya quedó calculado
+ * la última vez que alguien entró a Inicio, igual que ya hacía el propio
+ * Dashboard con su bloque de alertas (mismo criterio, misma tabla, sin
+ * escribir nada nuevo).
+ */
+export async function alertasParaTopBar(limite: number = 5) {
+  const abiertas = await all<{ id: number; titulo: string; severidad: string; fecha: string }>(
+    `SELECT id, titulo, severidad, fecha FROM alertas WHERE estado = 'abierta'
+     ORDER BY CASE severidad WHEN 'critica' THEN 0 WHEN 'importante' THEN 1 ELSE 2 END, fecha DESC`
+  );
+  return {
+    count: abiertas.length,
+    hayCriticas: abiertas.some((a) => a.severidad === "critica"),
+    items: abiertas.slice(0, limite),
+  };
+}
+
 // ============ MOTOR DE ALERTAS ============
 // Recalcula alertas automáticas a partir de los datos actuales.
 // Los umbrales son un punto de partida configurable (ver sección 12 del análisis).
