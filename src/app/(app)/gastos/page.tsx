@@ -243,6 +243,16 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
                     <UsuarioLink id={g.creado_por_id} nombre={g.creado_por_nombre} fallback="—" />
                   </p>
                   {g.observaciones && <p className="text-xs text-ink-faint mt-1">{g.observaciones}</p>}
+                  {g.comprobante_url && (
+                    <a
+                      href={`/api/archivos/gasto/${g.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 mt-1 inline-block"
+                    >
+                      Ver comprobante →
+                    </a>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <p className="text-sm font-bold text-ink">{money(g.importe)}</p>

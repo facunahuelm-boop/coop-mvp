@@ -59,7 +59,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
               <Card key={a.id}>
                 <p className="text-xs text-ink/40">{dayjs(a.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={a.autor_id} nombre={a.autor_nombre} /></p>
                 <p className="text-sm mt-1">{a.descripcion}</p>
-                {a.foto_url && <img src={a.foto_url} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
+                {a.foto_url && <img src={`/api/archivos/avance-obra/${a.id}`} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
               </Card>
             ))}
           </div>

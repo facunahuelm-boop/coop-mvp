@@ -64,7 +64,7 @@ export default async function SeguridadPage() {
               <Badge color={i.estado === "resuelto" ? "verde" : i.severidad === "critica" ? "rojo" : "amarillo"}>{i.estado}</Badge>
             </div>
             <p className="text-sm text-ink/70 mt-1">{i.descripcion}</p>
-            {i.foto_url && <img src={i.foto_url} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
+            {i.foto_url && <img src={`/api/archivos/incidente-seguridad/${i.id}`} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
             <p className="text-xs text-ink/40 mt-1">{dayjs(i.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={i.autor_id} nombre={i.autor_nombre} /></p>
             {i.ia_observacion && (
               <p className="text-xs text-[var(--color-brand-800)] bg-[var(--color-brand-100)] rounded-lg p-2 mt-2">✨ {i.ia_observacion}</p>

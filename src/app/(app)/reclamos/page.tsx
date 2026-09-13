@@ -80,7 +80,7 @@ export default async function ReclamosPage({
               {r.vivienda_numero ? ` · Vivienda ${r.vivienda_numero}` : " · Espacio común"}
             </p>
             {r.descripcion && <p className="text-sm text-ink/70 mt-1">{r.descripcion}</p>}
-            {r.foto_url && <img src={r.foto_url} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
+            {r.foto_url && <img src={`/api/archivos/reclamo/${r.id}`} alt="" className="mt-2 rounded-lg max-h-48 object-cover" />}
             <p className="text-xs text-ink/40 mt-1">
               {dayjs(r.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={r.reportado_por_id} nombre={r.reportado_por_nombre} fallback="Sistema" />
               {r.responsable_id && (
