@@ -11,11 +11,14 @@ import { useMemo, useState, type ReactNode } from "react";
  * viviendas (decenas, no miles de filas) — no amerita un ida-y-vuelta al
  * servidor por cada letra tecleada.
  *
- * Como Server Components pueden pasar JSX ya renderizado (incluidas <form
- * action={serverAction}>) como prop a un Client Component, cada fila se arma
- * en el servidor (con sus propios Server Actions intactos) y acá solo se
- * decide cuáles mostrar según lo que la persona escribió — este componente
- * nunca ve ni necesita conocer la forma de esas filas.
+ * Las filas se pasan como `children` normales (un array de elementos ya
+ * armados por el Server Component que llama a este componente, cada uno con
+ * su propia `key` — incluidas sus <form action={serverAction}> intactas: es
+ * el patrón estándar de Next.js para pasar contenido renderizado en el
+ * servidor a un Client Component). `claves` es un array paralelo de texto
+ * plano (mismo orden, mismo largo que `children`) que este componente usa
+ * para decidir qué filas mostrar — nunca necesita conocer la forma de cada
+ * fila, solo el texto por el que se puede buscar.
  */
 
 function normalizar(s: string): string {
@@ -26,23 +29,27 @@ function normalizar(s: string): string {
 }
 
 export function BuscadorFilas({
-  filas,
+  claves,
+  children,
   placeholder = "Buscar...",
   sinResultadosTexto = "No se encontraron resultados para esa búsqueda.",
-  children,
+  envolver,
 }: {
-  filas: { clave: string; nodo: ReactNode }[];
+  claves: string[];
+  children: ReactNode[];
   placeholder?: string;
   sinResultadosTexto?: string;
-  children: (filasFiltradas: ReactNode[], cantidad: number) => ReactNode;
+  envolver: (filasFiltradas: ReactNode[]) => ReactNode;
 }) {
   const [busqueda, setBusqueda] = useState("");
 
-  const filtradas = useMemo(() => {
+  const filasFiltradas = useMemo(() => {
     const q = normalizar(busqueda.trim());
-    if (!q) return filas;
-    return filas.filter((f) => normalizar(f.clave).includes(q));
-  }, [filas, busqueda]);
+    if (!q) return children;
+    return claves
+      .map((clave, i) => (normalizar(clave).includes(q) ? children[i] : null))
+      .filter((f): f is ReactNode => f !== null);
+  }, [claves, children, busqueda]);
 
   return (
     <div>
@@ -53,13 +60,10 @@ export function BuscadorFilas({
         placeholder={placeholder}
         className="w-full rounded-xl border border-ink/10 px-4 py-3 text-base mb-3"
       />
-      {filtradas.length === 0 ? (
+      {filasFiltradas.length === 0 ? (
         <p className="text-sm text-ink-muted text-center py-6">{sinResultadosTexto}</p>
       ) : (
-        children(
-          filtradas.map((f) => f.nodo),
-          filtradas.length
-        )
+        envolver(filasFiltradas)
       )}
     </div>
   );

@@ -114,67 +114,15 @@ export default async function SociosPage() {
         ) : (
           // Fase 8 (paginación/búsqueda/filtros): buscador client-side sobre
           // las filas ya armadas por el servidor — ver BuscadorFilas.tsx
-          // sobre por qué acá conviene esto y no paginación real.
+          // sobre por qué acá conviene esto y no paginación real. Las filas
+          // se pasan como children normales (patrón estándar de Next.js
+          // para contenido renderizado en el servidor dentro de un Client
+          // Component) y las claves de búsqueda van aparte, en paralelo.
           <BuscadorFilas
             placeholder="Buscar socio por nombre, vivienda, núcleo, email o teléfono..."
             sinResultadosTexto="No se encontró ningún socio con esa búsqueda."
-            filas={socios.map((s) => ({
-              clave: [s.nombre, s.vivienda_numero, s.nucleo_nombre, s.email, s.telefono].filter(Boolean).join(" "),
-              nodo: (
-                <tr key={s.id} className="border-b border-ink/5 last:border-0">
-                  <td className="py-2 pr-3 text-ink/50">#{s.id}</td>
-                  <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
-                    <Link href={`/socios/${s.id}`} className="hover:underline underline-offset-2">
-                      {s.nombre}
-                    </Link>
-                  </td>
-                  <td className="py-2 pr-3 text-ink/60">
-                    {Number(s.cantidad_integrantes) > 0 ? `+${s.cantidad_integrantes}` : "—"}
-                  </td>
-                  <td className="py-2 pr-3">
-                    {puedeEditar ? (
-                      <AutoSubmitSelect
-                        action={asignarViviendaSocioAction}
-                        hiddenFields={{ id: s.id }}
-                        name="vivienda_id"
-                        defaultValue={s.vivienda_id || ""}
-                        options={[{ value: "", label: "Sin asignar" }, ...viviendas.map((v) => ({ value: v.id, label: v.numero }))]}
-                        className="rounded-md border border-ink/10 bg-surface px-2 py-1 text-xs"
-                      />
-                    ) : (
-                      s.vivienda_numero || <span className="text-ink/30">—</span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 text-ink/60"><NucleoLink id={s.nucleo_id} nombre={s.nucleo_nombre} /></td>
-                  <td className="py-2 pr-3 text-ink/60">
-                    {s.email || s.telefono ? (
-                      <>
-                        {s.email && <div>{s.email}</div>}
-                        {s.telefono && <div>{s.telefono}</div>}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="py-2 pr-3">
-                    {puedeEditar ? (
-                      <AutoSubmitSelect
-                        action={actualizarSocioEstadoAction}
-                        hiddenFields={{ id: s.id }}
-                        name="estado"
-                        defaultValue={s.estado}
-                        options={ESTADOS_SOCIO.map((e) => ({ value: e, label: e }))}
-                        className="rounded-md border border-ink/10 bg-surface px-2 py-1 text-xs"
-                      />
-                    ) : (
-                      <Badge color={badgeSocio[s.estado] || "gray"}>{s.estado}</Badge>
-                    )}
-                  </td>
-                </tr>
-              ),
-            }))}
-          >
-            {(filas) => (
+            claves={socios.map((s) => [s.nombre, s.vivienda_numero, s.nucleo_nombre, s.email, s.telefono].filter(Boolean).join(" "))}
+            envolver={(filas) => (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -193,6 +141,59 @@ export default async function SociosPage() {
                 </table>
               </div>
             )}
+          >
+            {socios.map((s) => (
+              <tr key={s.id} className="border-b border-ink/5 last:border-0">
+                <td className="py-2 pr-3 text-ink/50">#{s.id}</td>
+                <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
+                  <Link href={`/socios/${s.id}`} className="hover:underline underline-offset-2">
+                    {s.nombre}
+                  </Link>
+                </td>
+                <td className="py-2 pr-3 text-ink/60">
+                  {Number(s.cantidad_integrantes) > 0 ? `+${s.cantidad_integrantes}` : "—"}
+                </td>
+                <td className="py-2 pr-3">
+                  {puedeEditar ? (
+                    <AutoSubmitSelect
+                      action={asignarViviendaSocioAction}
+                      hiddenFields={{ id: s.id }}
+                      name="vivienda_id"
+                      defaultValue={s.vivienda_id || ""}
+                      options={[{ value: "", label: "Sin asignar" }, ...viviendas.map((v) => ({ value: v.id, label: v.numero }))]}
+                      className="rounded-md border border-ink/10 bg-surface px-2 py-1 text-xs"
+                    />
+                  ) : (
+                    s.vivienda_numero || <span className="text-ink/30">—</span>
+                  )}
+                </td>
+                <td className="py-2 pr-3 text-ink/60"><NucleoLink id={s.nucleo_id} nombre={s.nucleo_nombre} /></td>
+                <td className="py-2 pr-3 text-ink/60">
+                  {s.email || s.telefono ? (
+                    <>
+                      {s.email && <div>{s.email}</div>}
+                      {s.telefono && <div>{s.telefono}</div>}
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td className="py-2 pr-3">
+                  {puedeEditar ? (
+                    <AutoSubmitSelect
+                      action={actualizarSocioEstadoAction}
+                      hiddenFields={{ id: s.id }}
+                      name="estado"
+                      defaultValue={s.estado}
+                      options={ESTADOS_SOCIO.map((e) => ({ value: e, label: e }))}
+                      className="rounded-md border border-ink/10 bg-surface px-2 py-1 text-xs"
+                    />
+                  ) : (
+                    <Badge color={badgeSocio[s.estado] || "gray"}>{s.estado}</Badge>
+                  )}
+                </td>
+              </tr>
+            ))}
           </BuscadorFilas>
         )}
 
