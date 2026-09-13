@@ -195,4 +195,19 @@ Antes de seguir con la Fase 3, el usuario pidió resolver primero los dos hallaz
 
 **Archivos afectados**: `src/lib/db.ts`, `src/app/api/setup/route.ts`, `REQUIREMENTS.md`, `CHANGELOG.md`. Sin cambios de base de datos (las 24 tablas ya tenían la columna necesaria) ni de comportamiento visible para el usuario. `npx tsc --noEmit` sin errores; `npx eslint` sin errores nuevos.
 
-**Pendiente**: verificación en vivo de que `update()` sigue funcionando igual en un flujo real (editar algo en una pantalla común) antes de dar la fase por cerrada; después, seguir con la Fase 13 (QA completo).
+**Verificación en vivo**: hecha — se ejecutó `cambiarEstadoTareaAction` sobre una tarea real de Obra (mismo valor de estado, cambio idempotente para no tocar datos), la petición respondió 200 y el estado quedó exactamente igual que antes, confirmando que el nuevo `AND organization_id` de `update()` no rompe ningún flujo de escritura real; `/api/admin/diagnostico-rls` sigue confirmando `app_user`/`puede_saltar_rls: false`. Sigue la Fase 13 (QA completo), la última del Prompt Maestro.
+
+## Fase 13 — QA completo (13/09)
+
+**Qué se hizo**: revisión final de regresiones, inconsistencias y accesos indebidos antes de dar por terminado el Prompt Maestro (13 fases), sin repetir la verificación puntual ya hecha y documentada en cada fase individual. Detalle completo en `REQUIREMENTS.md` sección 5.13.
+
+- **Chequeo estático de todo el proyecto**: `npx tsc --noEmit` limpio en el proyecto completo, no solo en los archivos tocados en esta sesión.
+- **Aislamiento multi-tenant reconfirmado**: `/api/admin/diagnostico-rls` en producción sigue devolviendo `app_user`/`puede_saltar_rls: false` — ninguna fase, en particular el cambio a `update()` de la Fase 12, debilitó el aislamiento real entre cooperativas.
+- **Barrido en vivo de 13 pantallas principales** (`/dashboard`, `/finanzas`, `/documentos`, `/compras`, `/proveedores`, `/comisiones`, `/reuniones`, `/trabajo`, `/socios`, `/auditoria`, `/mails`, `/contactos`, `/configuracion`), sumadas a las 4 ya verificadas en la Fase 11 (`/gastos`, `/seguridad`, `/reclamos`, `/obra/[id]`) — las 17 cargan con status 200 y cero errores de consola o de red.
+- **Permisos por rol**: no se repitió la verificación con una segunda cuenta porque `roles.ts` no fue tocado por ninguna fase de este plan (salvo gates puntuales ya documentados por fase) desde que la Fase 4 verificó por script las 440 combinaciones rol×módulo×nivel.
+- **Estado final de los hallazgos**: de los 17 hallazgos originales de la Fase 1, quedan 3 deliberadamente sin resolver y documentados con su razón (H-2: dos motores de PDF en paralelo, bajo impacto; H-6: conversión a `useActionState` de ~19 formularios restantes, infraestructura lista, sin bugs activos detrás; H-8: falta de mensaje amigable en duplicados de email/RUT, bajo impacto) — más el paso manual del bucket de Supabase (H-SEC-2, fuera del alcance de este entorno) y H-SEC-4 (deliberadamente sin tocar, Fase 12). Ninguno es deuda oculta: todos están documentados con su justificación en `REQUIREMENTS.md`.
+- **Conclusión**: no se encontró ninguna vulnerabilidad, inconsistencia o acceso indebido generado por las 13 fases del plan.
+
+**Archivos afectados**: solo documentación (`REQUIREMENTS.md`, `CHANGELOG.md`) — esta fase fue de verificación, sin cambios de código.
+
+**Con esto se da por completo el "Prompt Maestro — Mejora Estructural del Sistema de Gestión de Cooperativas" (13 fases).** Queda un único pendiente operativo fuera del alcance de este entorno de trabajo: pasar el bucket `uploads` de Supabase Storage a privado (instrucciones exactas en `REQUIREMENTS.md` sección 5.11, punto 5) — el código ya lo soporta sin cambios adicionales.
