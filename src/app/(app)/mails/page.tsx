@@ -35,10 +35,29 @@ export default async function MailsPage({
   const sp = await searchParams;
   const page = paginaDe(sp);
 
-  const [usuarios, comisiones] = await Promise.all([
-    all<{ id: number; nombre: string }>(`SELECT id, nombre FROM users WHERE activo = 1 AND id != ? ORDER BY nombre ASC`, [user.id]),
-    all<{ id: number; nombre: string }>(`SELECT id, nombre FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`),
+  // Fase 9 (sistema de email reutilizable), hallazgo H-12: antes no había
+  // ninguna forma de saber, antes de enviar, a cuánta gente le iba a llegar
+  // el mail — acá se trae de una vez el email de cada usuario (para avisar
+  // en el propio <option> si a alguien no le va a llegar nada) y la cantidad
+  // de integrantes con email por comisión (para no tener que adivinar antes
+  // de mandar a una comisión entera).
+  const [usuarios, comisiones, totalConEmailRow] = await Promise.all([
+    all<{ id: number; nombre: string; email: string | null }>(
+      `SELECT id, nombre, email FROM users WHERE activo = 1 AND id != ? ORDER BY nombre ASC`,
+      [user.id]
+    ),
+    all<{ id: number; nombre: string; con_email: string }>(
+      `SELECT c.id, c.nombre, COUNT(u.id) FILTER (WHERE u.email IS NOT NULL AND u.activo = 1) as con_email
+       FROM comisiones c
+       LEFT JOIN comision_miembros m ON m.comision_id = c.id AND m.activo = 1
+       LEFT JOIN users u ON u.id = m.user_id
+       WHERE c.activa = 1
+       GROUP BY c.id, c.nombre
+       ORDER BY c.nombre ASC`
+    ),
+    get<{ total: string }>(`SELECT COUNT(*) as total FROM users WHERE activo = 1 AND email IS NOT NULL AND id != ?`, [user.id]),
   ]);
+  const totalConEmail = Number(totalConEmailRow?.total || 0);
 
   // El historial vive en una tabla nueva (migrations/0014 y 0016) — si
   // todavía no se corrió esa migración en esta cooperativa, la pantalla no
@@ -83,7 +102,7 @@ export default async function MailsPage({
               <select name="usuario_id" defaultValue="" className={inputClass}>
                 <option value="">— Elegir —</option>
                 {usuarios.map((u) => (
-                  <option key={u.id} value={u.id}>{u.nombre}</option>
+                  <option key={u.id} value={u.id}>{u.nombre}{!u.email ? " (sin email — no se le puede mandar)" : ""}</option>
                 ))}
               </select>
             </div>
@@ -94,7 +113,9 @@ export default async function MailsPage({
               <select name="comision_id" defaultValue="" className={inputClass}>
                 <option value="">— Elegir —</option>
                 {comisiones.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.nombre} ({c.con_email} con email)
+                  </option>
                 ))}
               </select>
             </div>
@@ -103,7 +124,7 @@ export default async function MailsPage({
                 <Label>...o a todos</Label>
                 <label className="flex items-center gap-2 rounded-lg border border-ink/10 bg-surface px-3 py-2 text-sm cursor-pointer">
                   <input type="checkbox" name="todos" className="h-4 w-4" />
-                  Todos los usuarios de la cooperativa
+                  Todos los usuarios de la cooperativa ({totalConEmail} con email)
                 </label>
               </div>
             )}

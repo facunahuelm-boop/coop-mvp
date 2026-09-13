@@ -60,6 +60,73 @@ function getTransporter(cfg: ConfigEmail) {
   return transporter;
 }
 
+/**
+ * Fase 9 del Prompt Maestro (H-12): antes, `enviarEmailAlerta` y
+ * `enviarEmailPersonalizado` armaban y mandaban el mail cada una por su
+ * cuenta — mismo `<div>` con la tarjeta de color, mismo try/catch alrededor
+ * de `sendMail` para convertir el resultado en `ResultadoEnvio`, todo
+ * duplicado dos veces. Ahora ese armado y envío vive en un solo lugar
+ * (`plantillaHtml` + `enviarEmailBase`), y cada función pública de más abajo
+ * solo arma el contenido específico de su caso (asunto, destinatarios,
+ * texto) y se lo pasa. Nuevos usos de email desde otros módulos del sistema
+ * pueden sumarse acá mismo, con su propia función pública que llame a
+ * `enviarEmailBase` — sin volver a duplicar la tarjeta HTML ni el manejo de
+ * errores.
+ */
+function plantillaHtml({
+  tituloTarjeta,
+  colorTarjeta = "#123240",
+  cuerpoHtml,
+  piePagina,
+}: {
+  tituloTarjeta: string;
+  colorTarjeta?: string;
+  cuerpoHtml: string;
+  piePagina?: string;
+}): string {
+  return `
+    <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto;">
+      <div style="background:${colorTarjeta};color:#fff;padding:14px 18px;border-radius:10px 10px 0 0;font-size:13px;letter-spacing:.03em;text-transform:uppercase;">
+        ${escapeHtml(tituloTarjeta)}
+      </div>
+      <div style="border:1px solid #e5e5e5;border-top:none;padding:18px;border-radius:0 0 10px 10px;">
+        ${cuerpoHtml}
+        ${piePagina ? `<p style="margin:0;font-size:11px;color:#999;">${escapeHtml(piePagina)}</p>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+async function enviarEmailBase(
+  cfg: ConfigEmail,
+  args: {
+    to: string;
+    bcc?: string;
+    subject: string;
+    textoPlano: string;
+    tituloTarjeta: string;
+    colorTarjeta?: string;
+    cuerpoHtml: string;
+    piePagina?: string;
+  }
+): Promise<ResultadoEnvio> {
+  const transporter = getTransporter(cfg);
+  const remitenteNombre = cfg.email_remitente || "COOVA Sistema";
+  try {
+    const info = await transporter.sendMail({
+      from: `"${remitenteNombre}" <${cfg.smtp_user}>`,
+      to: args.to,
+      bcc: args.bcc,
+      subject: args.subject,
+      text: args.textoPlano,
+      html: plantillaHtml(args),
+    });
+    return { ok: true, aceptados: (info.accepted || []).map(String), rechazados: (info.rejected || []).map(String) };
+  } catch (err: any) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+
 type AlertaParaEmail = {
   tipo: string;
   severidad: string;
@@ -84,33 +151,17 @@ export async function enviarEmailAlerta(alerta: AlertaParaEmail): Promise<void> 
     const habilitada = await categoriaHabilitada(alerta.tipo);
     if (!habilitada) return;
 
-    const transporter = getTransporter(cfg);
-    const remitenteNombre = cfg.email_remitente || "COOVA Sistema";
-
-    let resultado: ResultadoEnvio;
-    try {
-      const info = await transporter.sendMail({
-        from: `"${remitenteNombre}" <${cfg.smtp_user}>`,
-        to: cfg.email_alertas_criticas,
-        subject: `🔴 COOVA — ${alerta.titulo}`,
-        text: `${alerta.titulo}\n\n${alerta.descripcion || ""}\n\nMódulo: ${alerta.origen_modulo}`,
-        html: `
-          <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto;">
-            <div style="background:#123240;color:#fff;padding:14px 18px;border-radius:10px 10px 0 0;font-size:13px;letter-spacing:.03em;text-transform:uppercase;">
-              COOVA — Alerta crítica
-            </div>
-            <div style="border:1px solid #e5e5e5;border-top:none;padding:18px;border-radius:0 0 10px 10px;">
-              <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#123240;">${escapeHtml(alerta.titulo)}</p>
-              ${alerta.descripcion ? `<p style="margin:0 0 14px;font-size:13px;color:#555;line-height:1.5;">${escapeHtml(alerta.descripcion)}</p>` : ""}
-              <p style="margin:0;font-size:11px;color:#999;">Módulo: ${escapeHtml(alerta.origen_modulo)}</p>
-            </div>
-          </div>
-        `,
-      });
-      resultado = { ok: true, aceptados: (info.accepted || []).map(String), rechazados: (info.rejected || []).map(String) };
-    } catch (errEnvio: any) {
-      resultado = { ok: false, error: String(errEnvio?.message || errEnvio) };
-    }
+    const resultado = await enviarEmailBase(cfg, {
+      to: cfg.email_alertas_criticas,
+      subject: `🔴 COOVA — ${alerta.titulo}`,
+      textoPlano: `${alerta.titulo}\n\n${alerta.descripcion || ""}\n\nMódulo: ${alerta.origen_modulo}`,
+      tituloTarjeta: "COOVA — Alerta crítica",
+      cuerpoHtml: `
+        <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#123240;">${escapeHtml(alerta.titulo)}</p>
+        ${alerta.descripcion ? `<p style="margin:0 0 14px;font-size:13px;color:#555;line-height:1.5;">${escapeHtml(alerta.descripcion)}</p>` : ""}
+      `,
+      piePagina: `Módulo: ${alerta.origen_modulo}`,
+    });
 
     // Registrar SIEMPRE el intento (antes no quedaba ningún rastro de los
     // emails de alertas automáticas, ni siquiera cuando salían bien) — ver
@@ -165,36 +216,19 @@ export async function enviarEmailPersonalizado(
     throw new Error('Todavía no se configuró el envío de emails — cargalo en Configuración → Configuración de Email.');
   }
 
-  const transporter = getTransporter(cfg);
-  const remitenteNombre = cfg.email_remitente || "COOVA Sistema";
-
   // A diferencia de antes, ya no se deja que una falla de SMTP tire una
   // excepción sin más: se devuelve un resultado real (ok/aceptados/error)
   // para que quien llama pueda registrar el intento en el historial aunque
   // haya fallado (ver migrations/0021 y actions/mails.ts).
-  try {
-    const info = await transporter.sendMail({
-      from: `"${remitenteNombre}" <${cfg.smtp_user}>`,
-      to: cfg.smtp_user,
-      bcc: destinatarios.join(","),
-      subject: asunto,
-      text: `${cuerpo}\n\n— Enviado por ${deParte} desde COOVA`,
-      html: `
-        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto;">
-          <div style="background:#123240;color:#fff;padding:14px 18px;border-radius:10px 10px 0 0;font-size:13px;letter-spacing:.03em;text-transform:uppercase;">
-            COOVA — Mensaje interno
-          </div>
-          <div style="border:1px solid #e5e5e5;border-top:none;padding:18px;border-radius:0 0 10px 10px;">
-            <p style="margin:0 0 14px;font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap;">${escapeHtml(cuerpo)}</p>
-            <p style="margin:0;font-size:11px;color:#999;">Enviado por ${escapeHtml(deParte)}</p>
-          </div>
-        </div>
-      `,
-    });
-    return { ok: true, aceptados: (info.accepted || []).map(String), rechazados: (info.rejected || []).map(String) };
-  } catch (err: any) {
-    return { ok: false, error: String(err?.message || err) };
-  }
+  return enviarEmailBase(cfg, {
+    to: cfg.smtp_user,
+    bcc: destinatarios.join(","),
+    subject: asunto,
+    textoPlano: `${cuerpo}\n\n— Enviado por ${deParte} desde COOVA`,
+    tituloTarjeta: "COOVA — Mensaje interno",
+    cuerpoHtml: `<p style="margin:0 0 14px;font-size:13px;color:#333;line-height:1.6;white-space:pre-wrap;">${escapeHtml(cuerpo)}</p>`,
+    piePagina: `Enviado por ${deParte}`,
+  });
 }
 
 function escapeHtml(s: string) {
