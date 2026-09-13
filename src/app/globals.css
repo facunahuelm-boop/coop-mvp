@@ -131,3 +131,16 @@ body {
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* Rediseño del Inicio: microanimación de apertura de los modales de detalle
+   (Modal en ui-client.tsx) — sutil a propósito ("se debe sentir como
+   software administrativo profesional, no como una landing de marketing").
+   Ya queda cubierta por el @media de arriba (reduced motion). */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}

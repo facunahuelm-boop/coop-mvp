@@ -12,16 +12,34 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
+import { X } from "lucide-react";
 import { Button } from "./ui";
 
+// Rediseño del Inicio (dashboard): los nuevos modales de detalle (Finanzas,
+// Tareas, Calendario, una Comisión con muchos integrantes/tareas/gastos...)
+// necesitan más espacio que el `max-w-md` pensado originalmente para
+// confirmaciones cortas — "no hacer pop-ups innecesariamente pequeños"
+// (pedido explícito). `size` es opcional y con `showClose` en true por
+// default: quien no pasa ninguno de los dos (todo el código existente hoy,
+// vía ConfirmDialog) obtiene EXACTAMENTE el mismo `max-w-md` de antes; el
+// botón de cerrar es nuevo pero no interfiere con nada existente (Escape y
+// click afuera ya cerraban el modal igual).
+const MODAL_SIZES = {
+  md: "max-w-md",
+  lg: "max-w-2xl",
+  xl: "max-w-4xl",
+} as const;
+
 export function Modal({
-  open, onClose, title, children, footer,
+  open, onClose, title, children, footer, size = "md", showClose = true,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children?: ReactNode;
   footer?: ReactNode;
+  size?: keyof typeof MODAL_SIZES;
+  showClose?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -35,7 +53,7 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 animate-[fadeIn_0.15s_ease-out]"
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -43,8 +61,20 @@ export function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-md rounded-2xl bg-surface p-5 shadow-[var(--shadow-lg)]">
-        <h2 className="text-lg font-semibold text-ink mb-2">{title}</h2>
+      <div
+        className={`relative w-full ${MODAL_SIZES[size]} max-h-[85vh] overflow-y-auto rounded-2xl bg-surface p-5 shadow-[var(--shadow-lg)] animate-[scaleIn_0.15s_ease-out]`}
+      >
+        {showClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="absolute top-3.5 right-3.5 inline-flex items-center justify-center h-8 w-8 rounded-full text-ink-faint hover:bg-surface-sunken hover:text-ink"
+          >
+            <X size={17} />
+          </button>
+        )}
+        <h2 className="text-lg font-semibold text-ink mb-2 pr-8">{title}</h2>
         {children && <div className="text-sm text-ink-muted">{children}</div>}
         {footer && <div className="mt-5 flex justify-end gap-2">{footer}</div>}
       </div>

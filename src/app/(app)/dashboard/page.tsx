@@ -5,6 +5,7 @@ import { tareasObraConSemaforo, resumenFinanciero, cuentasPorCobrar, recalcularA
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
+import { DashboardGrid, DashboardSection, SummaryCard, EstadoTag, DashboardCardLink, DashboardCardModal } from "@/components/DashboardCard";
 import { MonthCalendar, type EventoCalendario, type NotaCalendario } from "@/components/MonthCalendar";
 import {
   crearNotaCalendarioFormAction,
@@ -32,6 +33,7 @@ import {
   CalendarClock,
   Search,
   Receipt,
+  History,
 } from "lucide-react";
 
 // Fase "Dashboard: prioridad y simplicidad" del rediseño UI/UX.
@@ -54,15 +56,6 @@ import {
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
 
-function tituloConIcono(icon: ReactNode, texto: string) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      {icon}
-      {texto}
-    </span>
-  );
-}
-
 // Cuán urgente es una fecha límite (vencida / vence pronto / con margen),
 // mismo criterio de color que ya usa el resto de la app (rojo/amarillo/verde).
 function estadoFecha(fecha: string | null): { texto: string; color: "rojo" | "amarillo" | "verde" } {
@@ -73,6 +66,21 @@ function estadoFecha(fecha: string | null): { texto: string; color: "rojo" | "am
   if (dias === 1) return { texto: "Vence mañana", color: "amarillo" };
   if (dias <= 6) return { texto: `Vence ${dayjs(fecha).format("dddd")}`, color: "amarillo" };
   return { texto: `Vence ${dayjs(fecha).format("DD/MM")}`, color: "verde" };
+}
+
+// Rediseño del Inicio: la tarjeta compacta de "Actividad" muestra sólo el
+// último registro + hace cuánto pasó, en vez de la lista completa (eso queda
+// para el modal) — cálculo manual en vez de sumar el plugin relativeTime de
+// dayjs, que no se usa en ningún otro lado del proyecto todavía.
+function haceTiempo(fecha: string): string {
+  const minutos = dayjs().diff(dayjs(fecha), "minute");
+  if (minutos < 1) return "recién";
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = dayjs().diff(dayjs(fecha), "hour");
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = dayjs().diff(dayjs(fecha), "day");
+  if (dias === 1) return "hace 1 día";
+  return `hace ${dias} días`;
 }
 
 export default async function DashboardPage() {
@@ -133,6 +141,7 @@ export default async function DashboardPage() {
     notasCalendarioMes,
     gastosResumen,
     gastosPorComision,
+    documentosCountRow,
   ] = await Promise.all([
     verObra ? tareasObraConSemaforo() : Promise.resolve([] as any[]),
     verObra
@@ -240,6 +249,21 @@ export default async function DashboardPage() {
           [desdeMes, desdeMes]
         ).catch(() => [] as any[])
       : Promise.resolve([] as any[]),
+    // Rediseño del Inicio (sección "Información"): el pedido original pide
+    // una tarjeta de Documentos separada de Comunicaciones, con "N nuevos" —
+    // el dashboard hasta ahora no traía esta cuenta. Es la única consulta
+    // nueva que agrega este rediseño (documentado acá y en REQUIREMENTS.md,
+    // punto #43 del pedido: "documentar antes de implementar" cualquier
+    // cambio funcional imprescindible para la UX) y es mínima a propósito —
+    // sólo dos COUNT(*), nunca trae las filas — mismo criterio que ya pide
+    // el propio pedido ("no consultar 5000 documentos para mostrar un
+    // número").
+    verDocumentos
+      ? get<{ total: number; nuevos: number }>(
+          `SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE fecha >= ?)::int as nuevos FROM documentos`,
+          [dayjs().subtract(7, "day").format("YYYY-MM-DD")]
+        ).catch(() => undefined)
+      : Promise.resolve(undefined),
   ]);
 
   const totalTareas = tareas.length;
@@ -322,13 +346,14 @@ export default async function DashboardPage() {
 
   // "Tus tareas": se combinan las de comisiones y las de obra asignadas a
   // esta persona puntual — nunca todas las tareas del sistema.
-  const misTareas = [
+  const misTareasTodas = [
     ...misTareasComisionRaw.map((t: any) => ({ id: `c${t.id}`, titulo: t.titulo, fecha: t.fecha_vencimiento as string | null, href: "/comisiones" })),
     ...misTareasObraRaw.map((t: any) => ({ id: `o${t.id}`, titulo: t.nombre, fecha: t.fecha_fin_prevista as string | null, href: "/obra" })),
-  ]
-    .sort((a, b) => (a.fecha || "9999-12-31").localeCompare(b.fecha || "9999-12-31"))
-    .slice(0, 4);
-  const mostrarMisTareas = misTareas.length > 0 || user.rol !== "socio";
+  ].sort((a, b) => (a.fecha || "9999-12-31").localeCompare(b.fecha || "9999-12-31"));
+  const mostrarMisTareas = misTareasTodas.length > 0 || user.rol !== "socio";
+  // Tarjeta compacta: sólo la más urgente (la que quedó primera tras
+  // ordenar por fecha) — el resto de la lista vive en el modal de detalle.
+  const tareaMasUrgente = misTareasTodas[0] ?? null;
 
   // "Próximamente": lo más cercano en el tiempo entre reunión, jornada y
   // vencimiento financiero — máximo 3, ordenado por fecha.
@@ -415,6 +440,26 @@ export default async function DashboardPage() {
     esPropia: n.autor_id === user.id || user.rol === "admin" || user.rol === "consejo_directivo",
   }));
 
+  // Tarjeta compacta de Calendario: cuenta + próximo evento entre lo que ya
+  // se armó para pintar el mini-calendario del mes — sin ninguna consulta
+  // adicional.
+  const hoyIso = dayjs().format("YYYY-MM-DD");
+  const eventosProximos = eventosCalendario
+    .filter((e) => e.fecha.slice(0, 10) >= hoyIso)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const proximoEvento = eventosProximos[0] ?? null;
+
+  const documentosTotal = documentosCountRow?.total ?? 0;
+  const documentosNuevos = documentosCountRow?.nuevos ?? 0;
+
+  // Texto de la tarjeta compacta de Calendario: prioriza lo más relevante
+  // para esta persona puntual (reunión/jornada/vencimiento propio, el mismo
+  // criterio que antes armaba la tarjeta "Próximamente"), y si no hay nada
+  // de eso cae en el próximo evento del mes que sea — así no se pierde
+  // ninguna de las dos señales que ya calculaba el Dashboard, sólo se
+  // muestran juntas en una sola tarjeta en vez de dos.
+  const calendarioResumenTexto = proximamente[0]?.texto ?? proximoEvento?.titulo ?? null;
+
   // Comunicaciones: documentos ya categorizados "comunicaciones" + la
   // próxima asamblea planificada, si hay una.
   const comunicacionesItems: { texto: string; sub?: string; href: string }[] = [];
@@ -489,294 +534,398 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="space-y-5">
-        {/* Resumen financiero (cooperativa) o estado de cuenta personal (socio) */}
-        {verFinanzasDetalle && fin && (
-          <Card>
-            <SectionTitle action={<Button href="/finanzas" variant="ghost" className="!px-2 !py-1 text-xs">Ver finanzas →</Button>}>
-              {tituloConIcono(<Wallet size={17} />, "Finanzas")}
-            </SectionTitle>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <StatTile
-                label="Balance total"
-                value={money(fin.saldo)}
-                color={fin.saldo < 0 ? "rojo" : "verde"}
+      {/* Rediseño del Inicio — RESUMEN → CLICK → POP-UP → DETALLE. Cada
+          módulo que antes era una <Card> larga y siempre desplegada ahora es
+          una tarjeta chica (SummaryCard) agrupada en 3 bloques: Resumen
+          personal, Comisiones y módulos, Información. Ni los datos ni los
+          permisos cambiaron — sólo cómo se presentan (ver comentario grande
+          al principio del archivo y REQUIREMENTS.md, sección del rediseño
+          del Inicio, para el detalle de qué se mantuvo igual y qué decisión
+          de alcance se tomó en cada caso). */}
+
+      <DashboardSection title="Resumen personal">
+        <DashboardGrid>
+          {mostrarMisTareas && (
+            <DashboardCardModal
+              title="Tus tareas"
+              trigger={
+                <SummaryCard
+                  icon={<ListChecks size={16} />}
+                  title="Tareas"
+                  value={misTareasTodas.length}
+                  status={
+                    tareaMasUrgente ? (
+                      <Badge color={estadoFecha(tareaMasUrgente.fecha).color}>{estadoFecha(tareaMasUrgente.fecha).texto}</Badge>
+                    ) : (
+                      <EstadoTag estado="ok" texto="Sin pendientes" />
+                    )
+                  }
+                  hint={tareaMasUrgente?.titulo}
+                />
+              }
+            >
+              {misTareasTodas.length > 0 ? (
+                <ul className="space-y-2">
+                  {misTareasTodas.map((t) => {
+                    const ef = estadoFecha(t.fecha);
+                    return (
+                      <li key={t.id}>
+                        <Link href={t.href} className="flex items-center justify-between gap-3 rounded-lg hover:bg-surface-sunken px-2 py-1.5 -mx-2">
+                          <span className="text-sm text-ink truncate">{t.titulo}</span>
+                          <Badge color={ef.color}>{ef.texto}</Badge>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="flex items-center gap-1.5 text-sm text-[var(--color-verde)]">
+                  <CheckCircle2 size={15} /> No tenés tareas pendientes.
+                </p>
+              )}
+            </DashboardCardModal>
+          )}
+
+          <DashboardCardModal
+            title="Calendario"
+            size="lg"
+            trigger={
+              <SummaryCard
+                icon={<CalendarClock size={16} />}
+                title="Calendario"
+                value={dayjs().format("DD/MM")}
+                status={
+                  calendarioResumenTexto ? (
+                    <span className="block truncate text-xs font-medium text-ink">{calendarioResumenTexto}</span>
+                  ) : (
+                    <EstadoTag estado="ok" texto="Sin eventos próximos" />
+                  )
+                }
+                hint={eventosProximos.length > 0 ? `${eventosProximos.length} evento${eventosProximos.length > 1 ? "s" : ""} próximo${eventosProximos.length > 1 ? "s" : ""}` : undefined}
               />
-              <StatTile
-                label="Saldo disponible"
-                value={money(fin.disponiblePrudencial)}
-                color={fin.disponiblePrudencial < 0 ? "rojo" : fin.disponiblePrudencial < fin.gastosProyectados ? "amarillo" : "verde"}
-              />
-              <StatTile label="Ingresos del mes" value={money(fin.ingresosMes)} color="verde" />
-              <StatTile label="Comprometido" value={money(fin.comprometido)} />
-              <StatTile label="Pendiente de cobrar" value={money(pendienteCobrar?.totalACobrar ?? 0)} />
-              <StatTile label="Próximos pagos" value={String(proximosPagosCountRow?.n ?? 0)} />
-            </div>
-            <p className="text-xs text-ink-faint mt-2">Balance total: todo el dinero de la cooperativa a hoy (ingresos menos egresos, desde siempre).</p>
-            {proximosPagos.length > 0 && (
-              <ul className="mt-3 text-xs text-ink-muted space-y-1">
-                {proximosPagos.map((p) => (
-                  <li key={p.id}>• {dayjs(p.fecha_estimada).format("DD/MM")} — {p.descripcion}: {money(p.monto)}</li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        )}
+            }
+          >
+            <MonthCalendar
+              eventos={eventosCalendario}
+              notas={notasCalendario}
+              crearNota={crearNotaCalendarioFormAction}
+              editarNota={editarNotaCalendarioFormAction}
+              eliminarNota={eliminarNotaCalendarioFormAction}
+            />
+          </DashboardCardModal>
 
-        {!verFinanzasDetalle && miSaldo !== null && (
-          <Card>
-            <SectionTitle>{tituloConIcono(<Wallet size={17} />, "Tu estado de cuenta")}</SectionTitle>
-            {miSaldo > 0 ? (
-              <p className="text-sm text-ink">Debés <span className="font-bold">{money(miSaldo)}</span>.</p>
-            ) : miSaldo < 0 ? (
-              <p className="text-sm text-[var(--color-verde)]">Estás al día — tenés un saldo a favor de {money(-miSaldo)}.</p>
-            ) : (
-              <p className="text-sm text-[var(--color-verde)]">Estás al día.</p>
-            )}
-          </Card>
-        )}
+          {verFinanzasDetalle && fin && (
+            <DashboardCardModal
+              title="Finanzas"
+              size="lg"
+              trigger={
+                <SummaryCard
+                  icon={<Wallet size={16} />}
+                  title="Finanzas"
+                  value={money(fin.saldo)}
+                  status={
+                    <EstadoTag
+                      estado={fin.disponiblePrudencial < 0 ? "error" : fin.disponiblePrudencial < fin.gastosProyectados ? "atencion" : "ok"}
+                      texto={`Disponible: ${money(fin.disponiblePrudencial)}`}
+                    />
+                  }
+                />
+              }
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <StatTile label="Balance total" value={money(fin.saldo)} color={fin.saldo < 0 ? "rojo" : "verde"} />
+                <StatTile
+                  label="Saldo disponible"
+                  value={money(fin.disponiblePrudencial)}
+                  color={fin.disponiblePrudencial < 0 ? "rojo" : fin.disponiblePrudencial < fin.gastosProyectados ? "amarillo" : "verde"}
+                />
+                <StatTile label="Ingresos del mes" value={money(fin.ingresosMes)} color="verde" />
+                <StatTile label="Comprometido" value={money(fin.comprometido)} />
+                <StatTile label="Pendiente de cobrar" value={money(pendienteCobrar?.totalACobrar ?? 0)} />
+                <StatTile label="Próximos pagos" value={String(proximosPagosCountRow?.n ?? 0)} />
+              </div>
+              <p className="text-xs text-ink-faint mt-2">Balance total: todo el dinero de la cooperativa a hoy (ingresos menos egresos, desde siempre).</p>
+              {proximosPagos.length > 0 && (
+                <ul className="mt-3 text-xs text-ink-muted space-y-1">
+                  {proximosPagos.map((p) => (
+                    <li key={p.id}>• {dayjs(p.fecha_estimada).format("DD/MM")} — {p.descripcion}: {money(p.monto)}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-4">
+                <Button href="/finanzas" variant="ghost" className="!px-2 !py-1 text-xs">Ir a Finanzas →</Button>
+              </div>
+            </DashboardCardModal>
+          )}
 
-        {/* Gastos por Comisión: tarjeta compacta (sección 9 del pedido — nunca
-            un dashboard sobrecargado). Solo aparece si ya hay algo cargado
-            este mes; una cooperativa recién empezando con esto no ve una
-            tarjeta en cero. */}
-        {verGastos && gastosResumen && (Number(gastosResumen.total_mes) > 0 || Number(gastosResumen.cantidad_pendiente) > 0) && (
-          <Card>
-            <SectionTitle action={<Button href="/gastos" variant="ghost" className="!px-2 !py-1 text-xs">Ver gastos →</Button>}>
-              {tituloConIcono(<Receipt size={17} />, "Gastos por comisión")}
-            </SectionTitle>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <StatTile label="Gastado este mes" value={money(gastosResumen.total_mes)} />
-              <StatTile label="Pendientes de pago" value={String(gastosResumen.cantidad_pendiente)} color={Number(gastosResumen.cantidad_pendiente) > 0 ? "amarillo" : "verde"} />
-              {gastosPorComision[0] && <StatTile label="Comisión que más gastó" value={gastosPorComision[0].nombre} hint={money(gastosPorComision[0].total)} />}
-            </div>
-          </Card>
-        )}
+          {!verFinanzasDetalle && miSaldo !== null && (
+            <DashboardCardModal
+              title="Tu estado de cuenta"
+              trigger={
+                <SummaryCard
+                  icon={<Wallet size={16} />}
+                  title="Mi cuenta"
+                  value={miSaldo > 0 ? money(miSaldo) : "Al día"}
+                  status={miSaldo > 0 ? <EstadoTag estado="atencion" texto="Saldo pendiente" /> : <EstadoTag estado="ok" />}
+                />
+              }
+            >
+              {miSaldo > 0 ? (
+                <p className="text-sm text-ink">Debés <span className="font-bold">{money(miSaldo)}</span>.</p>
+              ) : miSaldo < 0 ? (
+                <p className="text-sm text-[var(--color-verde)]">Estás al día — tenés un saldo a favor de {money(-miSaldo)}.</p>
+              ) : (
+                <p className="text-sm text-[var(--color-verde)]">Estás al día. No tenés pagos pendientes.</p>
+              )}
+            </DashboardCardModal>
+          )}
+        </DashboardGrid>
+      </DashboardSection>
 
-        {/* Tus tareas */}
-        {mostrarMisTareas && (
-          <Card>
-            <SectionTitle>{tituloConIcono(<ListChecks size={17} />, "Tus tareas")}</SectionTitle>
-            {misTareas.length > 0 ? (
-              <ul className="space-y-2">
-                {misTareas.map((t) => {
-                  const ef = estadoFecha(t.fecha);
-                  return (
-                    <li key={t.id}>
-                      <Link href={t.href} className="flex items-center justify-between gap-3 rounded-lg hover:bg-surface-sunken px-2 py-1.5 -mx-2">
-                        <span className="text-sm text-ink truncate">{t.titulo}</span>
-                        <Badge color={ef.color}>{ef.texto}</Badge>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="flex items-center gap-1.5 text-sm text-[var(--color-verde)]">
-                <CheckCircle2 size={15} /> No tenés tareas pendientes.
-              </p>
-            )}
-          </Card>
-        )}
+      {(comisionesTrabajo.length > 0 ||
+        verObra ||
+        verCompras ||
+        verSeguridad ||
+        verReclamos ||
+        (!verObra && verTrabajo && !!proximaJornada) ||
+        (verGastos && !!gastosResumen && (Number(gastosResumen.total_mes) > 0 || Number(gastosResumen.cantidad_pendiente) > 0))) && (
+        <DashboardSection title="Comisiones y módulos">
+          <DashboardGrid>
+            {comisionesTrabajo.map((c) => (
+              <DashboardCardLink key={c.id} href="/comisiones">
+                <SummaryCard
+                  icon={<Compass size={16} />}
+                  title={c.nombre}
+                  value={c.pendientes}
+                  status={
+                    <EstadoTag
+                      estado={c.vencidas > 0 ? "alerta" : "atencion"}
+                      texto={`${c.pendientes} tarea${c.pendientes > 1 ? "s" : ""} pendiente${c.pendientes > 1 ? "s" : ""}${c.vencidas > 0 ? ` (${c.vencidas} vencida${c.vencidas > 1 ? "s" : ""})` : ""}`}
+                    />
+                  }
+                  action="Ver comisión →"
+                />
+              </DashboardCardLink>
+            ))}
 
-        {/* Próximamente */}
-        {proximamente.length > 0 && (
-          <Card>
-            <SectionTitle action={<Button href="/calendario" variant="ghost" className="!px-2 !py-1 text-xs">Ver calendario →</Button>}>
-              {tituloConIcono(<CalendarClock size={17} />, "Próximamente")}
-            </SectionTitle>
-            <ul className="space-y-2">
-              {proximamente.slice(0, 3).map((p, i) => (
-                <li key={i}>
-                  <Link href={p.href} className="flex items-start gap-2.5 rounded-lg hover:bg-surface-sunken px-2 py-1.5 -mx-2">
-                    <span aria-hidden>{p.icon}</span>
-                    <span>
-                      <span className="block text-sm text-ink">{p.texto}</span>
-                      <span className="block text-xs text-ink-faint">{p.sub}</span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-
-        {/* Calendario visual de la semana: siempre visible (no solo cuando ya
-            hay algo cargado) porque ahora también sirve para agregar una nota
-            nueva — antes era solo de lectura. */}
-        <Card>
-          <SectionTitle action={<Button href="/calendario" variant="ghost" className="!px-2 !py-1 text-xs">Ver calendario completo →</Button>}>
-            {tituloConIcono(<CalendarClock size={17} />, "Calendario")}
-          </SectionTitle>
-          <MonthCalendar
-            eventos={eventosCalendario}
-            notas={notasCalendario}
-            compact
-            crearNota={crearNotaCalendarioFormAction}
-            editarNota={editarNotaCalendarioFormAction}
-            eliminarNota={eliminarNotaCalendarioFormAction}
-          />
-        </Card>
-
-        {/* Compras y Seguridad: solo lo que necesita revisión */}
-        {(verCompras || verSeguridad) && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {verCompras && (
-              <Card>
-                <SectionTitle action={<Button href="/compras" variant="ghost" className="!px-2 !py-1 text-xs">Ver compras →</Button>}>
-                  {tituloConIcono(<ShoppingCart size={17} />, "Compras")}
-                </SectionTitle>
-                {hayComprasPendientes ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    <StatTile label="Pendientes" value={String(comprasPendientes)} color={comprasPendientes ? "amarillo" : "verde"} />
-                    <StatTile label="A decidir" value={String(comparacionesListas)} color={comparacionesListas ? "amarillo" : undefined} />
-                    <StatTile label="Por entregar" value={String(entregasPendientes)} />
-                  </div>
-                ) : (
-                  <p className="text-sm text-ink-muted">No hay compras pendientes.</p>
+            {verObra && (
+              <DashboardCardModal
+                title="Obra"
+                trigger={
+                  <SummaryCard
+                    icon={<HardHat size={16} />}
+                    title="Obra"
+                    value={`${pctAvance}%`}
+                    status={
+                      atrasadas.length > 0 ? (
+                        <EstadoTag estado="alerta" texto={`${atrasadas.length} atrasada${atrasadas.length > 1 ? "s" : ""}`} />
+                      ) : problemasAbiertos > 0 ? (
+                        <EstadoTag estado="atencion" texto={`${problemasAbiertos} problema${problemasAbiertos > 1 ? "s" : ""}`} />
+                      ) : (
+                        <EstadoTag estado="ok" />
+                      )
+                    }
+                    hint="Avance de obra"
+                  />
+                }
+              >
+                <div className="grid grid-cols-3 gap-2">
+                  <StatTile label="Avance" value={`${pctAvance}%`} />
+                  <StatTile label="Atrasadas" value={String(atrasadas.length)} color={atrasadas.length ? "rojo" : "verde"} />
+                  <StatTile label="Problemas" value={String(problemasAbiertos)} color={problemasAbiertos ? "amarillo" : "verde"} />
+                </div>
+                {proximosHitos.length > 0 && (
+                  <ul className="mt-3 text-xs text-ink-muted space-y-1">
+                    {proximosHitos.map((h: any) => (
+                      <li key={h.id}>• {dayjs(h.fecha_fin_prevista).format("DD/MM")} — {h.nombre}</li>
+                    ))}
+                  </ul>
                 )}
-              </Card>
+                <div className="mt-4">
+                  <Button href="/obra" variant="ghost" className="!px-2 !py-1 text-xs">Ir a Obra →</Button>
+                </div>
+              </DashboardCardModal>
+            )}
+
+            {verCompras && (
+              <DashboardCardLink href="/compras">
+                <SummaryCard
+                  icon={<ShoppingCart size={16} />}
+                  title="Compras"
+                  value={comprasPendientes}
+                  status={
+                    hayComprasPendientes ? (
+                      <EstadoTag estado="atencion" texto={`${comprasPendientes} pendiente${comprasPendientes !== 1 ? "s" : ""}`} />
+                    ) : (
+                      <EstadoTag estado="ok" texto="Sin pendientes" />
+                    )
+                  }
+                  hint={comparacionesListas > 0 ? `${comparacionesListas} a decidir` : undefined}
+                  action="Ver compras →"
+                />
+              </DashboardCardLink>
             )}
 
             {verSeguridad && (
-              <Card>
-                <SectionTitle action={<Button href="/seguridad" variant="ghost" className="!px-2 !py-1 text-xs">Ver más →</Button>}>
-                  {tituloConIcono(<ShieldCheck size={17} />, "Seguridad")}
-                </SectionTitle>
-                {docsVencidos > 0 || docsPorVencer > 0 || riesgosAbiertos > 0 ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    <StatTile label="Vencidos" value={String(docsVencidos)} color={docsVencidos ? "rojo" : "verde"} />
-                    <StatTile label="Por vencer" value={String(docsPorVencer)} color={docsPorVencer ? "amarillo" : "verde"} />
-                    <StatTile label="Riesgos" value={String(riesgosAbiertos)} color={riesgosAbiertos ? "amarillo" : "verde"} />
-                  </div>
-                ) : (
-                  <p className="text-sm text-ink-muted">Todo está al día.</p>
-                )}
-              </Card>
+              <DashboardCardLink href="/seguridad">
+                <SummaryCard
+                  icon={<ShieldCheck size={16} />}
+                  title="Seguridad"
+                  value={docsVencidos + docsPorVencer + riesgosAbiertos}
+                  status={
+                    docsVencidos > 0 ? (
+                      <EstadoTag estado="error" texto={`${docsVencidos} vencido${docsVencidos > 1 ? "s" : ""}`} />
+                    ) : docsPorVencer > 0 || riesgosAbiertos > 0 ? (
+                      <EstadoTag estado="atencion" />
+                    ) : (
+                      <EstadoTag estado="ok" />
+                    )
+                  }
+                  action="Ver seguridad →"
+                />
+              </DashboardCardLink>
             )}
-          </div>
-        )}
 
-        {/* Reclamos y mantenimiento: solo si hay algo abierto o en proceso */}
-        {verReclamos && (
-          <Card>
-            <SectionTitle action={<Button href="/reclamos" variant="ghost" className="!px-2 !py-1 text-xs">Ver reclamos →</Button>}>
-              {tituloConIcono(<Wrench size={17} />, "Reclamos y mantenimiento")}
-            </SectionTitle>
-            {reclamosAbiertos > 0 || reclamosEnProceso > 0 ? (
-              <ul className="space-y-1.5">
-                {reclamosAbiertos > 0 && (
-                  <li className="flex items-center gap-1.5 text-sm text-ink">
-                    <span aria-hidden>🔴</span> {reclamosAbiertos} reclamo{reclamosAbiertos > 1 ? "s" : ""} pendiente{reclamosAbiertos > 1 ? "s" : ""}
-                  </li>
-                )}
-                {reclamosEnProceso > 0 && (
-                  <li className="flex items-center gap-1.5 text-sm text-ink">
-                    <span aria-hidden>🟠</span> {reclamosEnProceso} reparación{reclamosEnProceso > 1 ? "es" : ""} en proceso
-                  </li>
-                )}
-              </ul>
-            ) : (
-              <p className="text-sm text-ink-muted">Todo está al día.</p>
+            {verReclamos && (
+              <DashboardCardLink href="/reclamos">
+                <SummaryCard
+                  icon={<Wrench size={16} />}
+                  title="Reclamos"
+                  value={reclamosAbiertos + reclamosEnProceso}
+                  status={
+                    reclamosAbiertos > 0 ? (
+                      <EstadoTag estado="atencion" texto={`${reclamosAbiertos} sin tomar`} />
+                    ) : reclamosEnProceso > 0 ? (
+                      <EstadoTag estado="atencion" texto={`${reclamosEnProceso} en proceso`} />
+                    ) : (
+                      <EstadoTag estado="ok" />
+                    )
+                  }
+                  action="Ver reclamos →"
+                />
+              </DashboardCardLink>
             )}
-          </Card>
-        )}
 
-        {/* Trabajo de las comisiones: solo las que tienen algo pendiente */}
-        {comisionesTrabajo.length > 0 && (
-          <Card>
-            <SectionTitle action={<Button href="/comisiones" variant="ghost" className="!px-2 !py-1 text-xs">Ver comisiones →</Button>}>
-              {tituloConIcono(<Compass size={17} />, "Trabajo de las comisiones")}
-            </SectionTitle>
-            <ul className="space-y-2">
-              {comisionesTrabajo.map((c) => (
-                <li key={c.id}>
-                  <Link href="/comisiones" className="flex items-center justify-between gap-3 rounded-lg hover:bg-surface-sunken px-2 py-1.5 -mx-2">
-                    <span className="text-sm text-ink">{c.nombre}</span>
-                    <Badge color={c.vencidas > 0 ? "rojo" : "amarillo"}>
-                      {c.pendientes} tarea{c.pendientes > 1 ? "s" : ""} pendiente{c.pendientes > 1 ? "s" : ""}
-                      {c.vencidas > 0 ? ` (${c.vencidas} vencida${c.vencidas > 1 ? "s" : ""})` : ""}
-                    </Badge>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-
-        {/* Obra: tarjeta resumen, solo si la etapa actual la muestra */}
-        {verObra && (
-          <Card>
-            <SectionTitle action={<Button href="/obra" variant="ghost" className="!px-2 !py-1 text-xs">Ver obra →</Button>}>
-              {tituloConIcono(<HardHat size={17} />, "Obra")}
-            </SectionTitle>
-            <div className="grid grid-cols-3 gap-2">
-              <StatTile label="Avance" value={`${pctAvance}%`} />
-              <StatTile label="Atrasadas" value={String(atrasadas.length)} color={atrasadas.length ? "rojo" : "verde"} />
-              <StatTile label="Problemas" value={String(problemasAbiertos)} color={problemasAbiertos ? "amarillo" : "verde"} />
-            </div>
-            {proximosHitos.length > 0 && (
-              <ul className="mt-3 text-xs text-ink-muted space-y-1">
-                {proximosHitos.map((h: any) => (
-                  <li key={h.id}>• {dayjs(h.fecha_fin_prevista).format("DD/MM")} — {h.nombre}</li>
-                ))}
-              </ul>
+            {!verObra && verTrabajo && proximaJornada && (
+              <DashboardCardLink href="/trabajo">
+                <SummaryCard
+                  icon={<Handshake size={16} />}
+                  title="Trabajo"
+                  value={dayjs(proximaJornada.fecha).format("DD/MM")}
+                  status={<EstadoTag estado={tareasJornadaPendientes > 0 ? "atencion" : "ok"} texto={`${personasAsignadas} núcleo(s), ${tareasJornadaPendientes} tarea(s)`} />}
+                  hint="Próxima jornada"
+                  action="Ver trabajo →"
+                />
+              </DashboardCardLink>
             )}
-          </Card>
-        )}
 
-        {/* Trabajo: si la cooperativa ya no muestra Obra pero sí Trabajo
-            (etapa habitada con override, por ejemplo), la próxima jornada
-            igual aparece en "Próximamente" arriba — acá solo si hace falta
-            un lugar propio porque Obra está oculta. */}
-        {!verObra && verTrabajo && proximaJornada && (
-          <Card>
-            <SectionTitle action={<Button href="/trabajo" variant="ghost" className="!px-2 !py-1 text-xs">Ver más →</Button>}>
-              {tituloConIcono(<Handshake size={17} />, "Trabajo")}
-            </SectionTitle>
-            <div className="grid grid-cols-3 gap-2">
-              <StatTile label="Próxima jornada" value={dayjs(proximaJornada.fecha).format("DD/MM")} />
-              <StatTile label="Núcleos asignados" value={String(personasAsignadas)} />
-              <StatTile label="Tareas de la jornada" value={String(tareasJornadaPendientes)} />
-            </div>
-          </Card>
-        )}
+            {verGastos && gastosResumen && (Number(gastosResumen.total_mes) > 0 || Number(gastosResumen.cantidad_pendiente) > 0) && (
+              <DashboardCardLink href="/gastos">
+                <SummaryCard
+                  icon={<Receipt size={16} />}
+                  title="Gastos por comisión"
+                  value={money(gastosResumen.total_mes)}
+                  status={
+                    Number(gastosResumen.cantidad_pendiente) > 0 ? (
+                      <EstadoTag estado="atencion" texto={`${gastosResumen.cantidad_pendiente} pendiente(s) de pago`} />
+                    ) : (
+                      <EstadoTag estado="ok" />
+                    )
+                  }
+                  hint={gastosPorComision[0] ? `${gastosPorComision[0].nombre}: ${money(gastosPorComision[0].total)}` : undefined}
+                  action="Ver gastos →"
+                />
+              </DashboardCardLink>
+            )}
+          </DashboardGrid>
+        </DashboardSection>
+      )}
 
-        {/* Comunicaciones */}
-        {comunicacionesItems.length > 0 && (
-          <Card>
-            <SectionTitle action={<Button href="/documentos" variant="ghost" className="!px-2 !py-1 text-xs">Ver comunicaciones →</Button>}>
-              {tituloConIcono(<Megaphone size={17} />, "Comunicaciones")}
-            </SectionTitle>
-            <ul className="space-y-1.5">
-              {comunicacionesItems.map((c, i) => (
-                <li key={i}>
-                  <Link href={c.href} className="flex items-center gap-2 text-sm text-ink hover:underline">
-                    📢 {c.texto} {c.sub && <span className="text-xs text-ink-faint">· {c.sub}</span>}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
+      {(comunicacionesItems.length > 0 || (verDocumentos && documentosTotal > 0) || alertasAbiertasCount > 0 || (verAuditoria && actividad.length > 0)) && (
+        <DashboardSection title="Información">
+          <DashboardGrid>
+            {comunicacionesItems.length > 0 && (
+              <DashboardCardLink href="/documentos">
+                <SummaryCard
+                  icon={<Megaphone size={16} />}
+                  title="Comunicaciones"
+                  value={comunicacionesItems.length}
+                  hint={comunicacionesItems[0]?.texto}
+                  action="Ver comunicaciones →"
+                />
+              </DashboardCardLink>
+            )}
 
-        {/* Actividad reciente: mismos roles que ya pueden leer Auditoría */}
-        {verAuditoria && actividad.length > 0 && (
-          <Card>
-            <SectionTitle action={<Button href="/auditoria" variant="ghost" className="!px-2 !py-1 text-xs">Ver toda la actividad →</Button>}>
-              Actividad reciente
-            </SectionTitle>
-            <ul className="space-y-1.5 text-sm text-ink-muted">
-              {actividad.map((r: any) => (
-                <li key={r.id}>
-                  <span className="text-ink font-medium"><UsuarioLink id={r.usuario_id} nombre={r.usuario_nombre} fallback="Sistema" /></span> — {r.accion.replace(/_/g, " ")} en {r.entidad}
-                  {r.entidad_id ? ` #${r.entidad_id}` : ""}
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-      </div>
+            {verDocumentos && documentosTotal > 0 && (
+              <DashboardCardLink href="/documentos">
+                <SummaryCard
+                  icon={<FileText size={16} />}
+                  title="Documentos"
+                  value={documentosTotal}
+                  status={
+                    documentosNuevos > 0 ? (
+                      <EstadoTag estado="atencion" texto={`${documentosNuevos} nuevo${documentosNuevos > 1 ? "s" : ""}`} />
+                    ) : (
+                      <EstadoTag estado="ok" texto="Sin novedades" />
+                    )
+                  }
+                  action="Ver documentos →"
+                />
+              </DashboardCardLink>
+            )}
+
+            {alertasAbiertasCount > 0 && (
+              <DashboardCardModal
+                title="Alertas"
+                trigger={
+                  <SummaryCard
+                    icon={<Bell size={16} />}
+                    title="Alertas"
+                    value={alertasAbiertasCount}
+                    status={<EstadoTag estado={criticas.length > 0 ? "error" : "atencion"} texto={`${alertasAbiertasCount} pendiente${alertasAbiertasCount > 1 ? "s" : ""}`} />}
+                  />
+                }
+              >
+                <ul className="space-y-2">
+                  {[...criticas, ...importantes].map((a: any) => (
+                    <li key={a.id} className="flex items-start gap-2">
+                      <Badge color={a.severidad === "critica" ? "rojo" : "amarillo"}>{a.severidad === "critica" ? "Crítica" : "Importante"}</Badge>
+                      <span className="text-sm text-ink">{a.titulo}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-4">
+                  <Button href="/alertas" variant="ghost" className="!px-2 !py-1 text-xs">Ver todas las alertas →</Button>
+                </div>
+              </DashboardCardModal>
+            )}
+
+            {verAuditoria && actividad.length > 0 && (
+              <DashboardCardModal
+                title="Actividad reciente"
+                trigger={
+                  <SummaryCard
+                    icon={<History size={16} />}
+                    title="Actividad"
+                    value={actividad.length}
+                    hint={`Últ.: ${actividad[0].accion.replace(/_/g, " ")} (${haceTiempo(actividad[0].fecha)})`}
+                    action="Ver toda la actividad →"
+                  />
+                }
+              >
+                <ul className="space-y-1.5 text-sm text-ink-muted">
+                  {actividad.map((r: any) => (
+                    <li key={r.id}>
+                      <span className="text-ink font-medium"><UsuarioLink id={r.usuario_id} nombre={r.usuario_nombre} fallback="Sistema" /></span> — {r.accion.replace(/_/g, " ")} en {r.entidad}
+                      {r.entidad_id ? ` #${r.entidad_id}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </DashboardCardModal>
+            )}
+          </DashboardGrid>
+        </DashboardSection>
+      )}
 
       <div className="mt-6">
         <SectionTitle>Preguntale a la IA</SectionTitle>
