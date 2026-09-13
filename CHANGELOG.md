@@ -153,3 +153,17 @@ Antes de seguir con la Fase 3, el usuario pidió resolver primero los dos hallaz
 **Archivos afectados**: `src/lib/email.ts`, `src/app/(app)/mails/page.tsx`. Sin cambios de base de datos ni de comportamiento de envío (mismo SMTP, mismo diseño de mail, mismo registro en `mensajes_correo`). `npx tsc --noEmit` sin errores; `npx eslint` sin errores nuevos (solo el patrón preexistente `no-explicit-any`).
 
 **Pendiente**: verificación en vivo (recorrer `/mails` y confirmar que las nuevas cuentas de destinatarios se ven bien, sin mandar un email real de prueba para no generar ruido a usuarios reales de la cooperativa); después, seguir con la Fase 10 (rediseño UI/UX).
+
+**Verificación en vivo**: hecha — `/mails` muestra las cuentas correctas por comisión y el total de "Todos", cero errores de consola. Sigue la Fase 10.
+
+## Fase 10 — Confirmaciones de borrado con ConfirmDialog (13/09)
+
+**Qué se hizo**: resuelve H-11 (`REQUIREMENTS.md` sección 5.10) — `Modal`, `ConfirmDialog` y `ToastProvider` estaban construidos desde una fase anterior pero nunca conectados a ninguna pantalla. Se buscó el patrón "escribí ELIMINAR para confirmar" en todo el código: aparece en exactamente 3 lugares, los únicos borrados permanentes reales del sistema (todo lo demás es baja lógica).
+
+- **`src/components/ConfirmarEliminar.tsx`** (nuevo): wrapper cliente, mismo criterio que `AutoSubmitSelect.tsx` — un botón abre un `ConfirmDialog` con el nombre real de lo que se va a borrar, y recién al confirmar ahí adentro se manda el `<form>` de siempre.
+- Reemplazado en `/documentos`, `/compras/[id]` y `/proveedores/[id]`. Las 3 Server Actions (`eliminarDocumentoAction`, `eliminarSolicitudAction`, `eliminarProveedorAction`) no se tocaron — siguen validando server-side que `confirmacion === "ELIMINAR"`; el nuevo componente manda ese mismo valor fijo por un campo oculto, así que el control real de backend queda exactamente igual. La confirmación humana pasa de "escribir una palabra exacta" a "leer la consecuencia en un modal y hacer click en un botón rojo dedicado" — más simple para alguien sin conocimientos técnicos o en el celular, sin perder ningún paso de seguridad real.
+- **Decisión de alcance, explícita**: no se conectó `ToastProvider` a ningún layout — no hay hoy un flujo concreto que lo necesite sin inventar una funcionalidad nueva no pedida. Tampoco se tocó ningún otro aspecto visual del sistema — esta fase es puntualmente sobre estos tres componentes sin conectar.
+
+**Archivos afectados**: `src/components/ConfirmarEliminar.tsx` (nuevo), `src/app/(app)/documentos/page.tsx`, `src/app/(app)/compras/[id]/page.tsx`, `src/app/(app)/proveedores/[id]/page.tsx`. Sin cambios de base de datos ni de las Server Actions existentes. `npx tsc --noEmit` sin errores; `npx eslint` sin errores nuevos (solo patrones preexistentes: `no-explicit-any` y una entidad sin escapar en una línea de texto que ya existía antes de esta fase).
+
+**Pendiente**: verificación en vivo de los 3 modales (abrir, cancelar, confirmar) sin borrar ningún dato real de producción — probar contra un registro de prueba en cada pantalla; después, seguir con la Fase 11 (resto de descargas/documentos).

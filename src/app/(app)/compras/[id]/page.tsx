@@ -7,6 +7,7 @@ import { compararPresupuestos, historialProveedor } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import { agregarPresupuestoAction, decidirCompraAction, marcarPedidaAction, marcarEntregadaAction, rechazarSolicitudAction, eliminarSolicitudAction } from "@/lib/actions/compras";
+import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 
@@ -76,11 +77,15 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
           <details className="mt-4 pt-3 border-t border-ink/10">
             <summary className="cursor-pointer text-xs font-semibold text-[var(--color-rojo)]">Zona de administrador: eliminar esta solicitud</summary>
             <p className="text-xs text-ink/50 mt-2">Esto borra la solicitud y sus presupuestos/decisión asociados de forma permanente. Usalo solo para corregir un error de carga o limpiar datos de prueba — para una compra real que ya no corresponde, usá "Rechazar" en su lugar.</p>
-            <form action={eliminarSolicitudAction} className="mt-2 flex items-center gap-2">
-              <input type="hidden" name="id" value={solicitud.id} />
-              <input name="confirmacion" placeholder='Escribí ELIMINAR para confirmar' className={inputClass + " text-xs"} required />
-              <button className="rounded-lg bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Eliminar definitivamente</button>
-            </form>
+            <div className="mt-2">
+              <ConfirmarEliminar
+                action={eliminarSolicitudAction}
+                hiddenFields={{ id: solicitud.id, confirmacion: "ELIMINAR" }}
+                titulo="¿Eliminar esta solicitud de compra?"
+                descripcion={`Se va a borrar "${solicitud.material}" y sus presupuestos/decisión asociados de forma permanente. Esta acción no se puede deshacer.`}
+                className="rounded-lg bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-3 py-2 text-xs font-semibold whitespace-nowrap"
+              />
+            </div>
           </details>
         )}
       </Card>

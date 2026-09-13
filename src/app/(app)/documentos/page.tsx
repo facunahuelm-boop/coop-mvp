@@ -5,6 +5,7 @@ import { all } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import { subirDocumentoAction, crearCategoriaDocumentoAction, eliminarDocumentoAction } from "@/lib/actions/documentos";
+import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 
 const CATEGORIAS_BASE = ["actas", "asambleas", "presupuestos", "facturas", "contratos", "tecnicos", "obra", "socios", "seguridad", "compras", "reglamentos", "informes", "comunicaciones"];
 const CAT_LABEL_BASE: Record<string, string> = {
@@ -112,11 +113,16 @@ export default async function DocumentosPage({
                   {user.rol === "admin" && (
                     <details>
                       <summary className="cursor-pointer text-[11px] text-[var(--color-rojo)]/70 hover:text-[var(--color-rojo)] whitespace-nowrap">Eliminar</summary>
-                      <form action={eliminarDocumentoAction} className="mt-1 flex items-center gap-1">
-                        <input type="hidden" name="id" value={d.id} />
-                        <input name="confirmacion" placeholder="ELIMINAR" className={inputClass + " text-[11px] !py-1 !px-2 !w-24"} required />
-                        <button className="rounded-md bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-2 py-1 text-[11px] font-semibold whitespace-nowrap">Confirmar</button>
-                      </form>
+                      <div className="mt-1">
+                        <ConfirmarEliminar
+                          action={eliminarDocumentoAction}
+                          hiddenFields={{ id: d.id, confirmacion: "ELIMINAR" }}
+                          titulo="¿Eliminar este documento?"
+                          descripcion={`Se va a borrar "${d.nombre}" de forma permanente. Esta acción no se puede deshacer.`}
+                          textoBoton="Confirmar"
+                          className="rounded-md bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-2 py-1 text-[11px] font-semibold whitespace-nowrap"
+                        />
+                      </div>
                     </details>
                   )}
                 </div>
