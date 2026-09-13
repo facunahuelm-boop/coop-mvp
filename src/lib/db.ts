@@ -216,23 +216,53 @@ export async function insert(table: string, data: Record<string, any>): Promise<
   });
 }
 
-/** Actualiza un registro. */
+/**
+ * Actualiza un registro.
+ *
+ * Fase 12 (Prompt Maestro), hallazgo H-SEC-3 de REQUIREMENTS.md: hasta acá,
+ * el UPDATE de esta función solo filtraba por `id` — el aislamiento entre
+ * cooperativas dependía 100% de que la política de Row-Level Security de la
+ * tabla estuviera bien escrita y activa (confirmado real en producción por
+ * H-SEC-1, ver diagnóstico-rls). Sigue siendo así: RLS es y sigue siendo la
+ * defensa real. Lo que se agrega acá es una segunda barrera, a nivel de
+ * aplicación, además de esa — "defensa en profundidad": el propio UPDATE
+ * ahora nunca toca una fila que no sea de la cooperativa activa, aunque el
+ * día de mañana una política de RLS tuviera un error o quedara mal
+ * configurada. No cambia ningún comportamiento hoy: `organization_id` es
+ * NOT NULL con clave foránea en las 28 tablas originales (migración 0002) y
+ * en cada tabla agregada después (convención de la sección 7 de este
+ * documento), así que un `id` real de la cooperativa activa siempre matchea
+ * igual que antes — la única fila que este chequeo extra puede llegar a
+ * frenar es una que ya no debería haberse podido tocar. `organizations` es
+ * la única tabla que queda afuera (es la raíz, no pertenece a ninguna
+ * cooperativa — ver el resto de este archivo).
+ */
 export async function update(table: string, id: number, data: Record<string, any>): Promise<void> {
   await conFallbackColumnaFaltante(data, async (payload) => {
     const keys = Object.keys(payload);
     const sets = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
-    const sql = `UPDATE ${table} SET ${sets} WHERE id = $${keys.length + 1}`;
+    if (table === "organizations") {
+      const sql = `UPDATE ${table} SET ${sets} WHERE id = $${keys.length + 1}`;
+      const values = [
+        ...keys.map((k) => {
+          const v = payload[k];
+          return v !== null && typeof v === "object" ? JSON.stringify(v) : v;
+        }),
+        id,
+      ];
+      await withRootClient((client) => client.query(sql, values));
+      return;
+    }
+    const orgId = await requireOrgContext();
+    const sql = `UPDATE ${table} SET ${sets} WHERE id = $${keys.length + 1} AND organization_id = $${keys.length + 2}`;
     const values = [
       ...keys.map((k) => {
         const v = payload[k];
         return v !== null && typeof v === "object" ? JSON.stringify(v) : v;
       }),
       id,
+      orgId,
     ];
-    if (table === "organizations") {
-      await withRootClient((client) => client.query(sql, values));
-      return;
-    }
     await withTenantClient((client) => client.query(sql, values));
   });
 }

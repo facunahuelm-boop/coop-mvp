@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pool, insert, run, rootGet } from "@/lib/db";
+import { pool, insert, run, rootGet, get } from "@/lib/db";
 import { setOrgContext } from "@/lib/tenant";
 import bcrypt from "bcryptjs";
 
@@ -612,7 +612,21 @@ export async function GET(req: NextRequest) {
     }
     setOrgContext(coova.id);
 
-    const yaTieneDatos = await rootGet<{ count: string }>(
+    // Fase 12 (Prompt Maestro), hallazgo H-3 de REQUIREMENTS.md: esta consulta
+    // usaba rootGet() (sin RLS, conexión "prestada" del pool sin fijar
+    // app.current_org_id) sobre `users`, una tabla CON política RLS activa.
+    // Como app_user (el rol real de producción, ver H-SEC-1) no puede saltarse
+    // RLS, rootGet() acá no "ve más" — al contrario: sin la variable de sesión
+    // fijada, la política deniega todo por defecto, así que esta consulta
+    // podía devolver 0 aunque COOVA sí tuviera usuarios (falso negativo), o un
+    // conteo de otra cooperativa si la conexión reciclada del pool traía
+    // pegado el valor de un pedido anterior — en ambos casos, un conteo
+    // incorrecto que podía dejar sembrar datos de ejemplo duplicados sobre
+    // una cooperativa que ya los tenía. Se cambia a get() (usa
+    // withTenantClient, que sí fija app.current_org_id = coova.id, ya
+    // seteado arriba con setOrgContext) para que el conteo sea siempre el
+    // real de esta cooperativa.
+    const yaTieneDatos = await get<{ count: string }>(
       `SELECT count(*)::text FROM users WHERE organization_id = $1`,
       [coova.id]
     );
