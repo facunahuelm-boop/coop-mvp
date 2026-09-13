@@ -11,14 +11,19 @@ import { useMemo, useState, type ReactNode } from "react";
  * viviendas (decenas, no miles de filas) — no amerita un ida-y-vuelta al
  * servidor por cada letra tecleada.
  *
- * Las filas se pasan como `children` normales (un array de elementos ya
- * armados por el Server Component que llama a este componente, cada uno con
- * su propia `key` — incluidas sus <form action={serverAction}> intactas: es
- * el patrón estándar de Next.js para pasar contenido renderizado en el
- * servidor a un Client Component). `claves` es un array paralelo de texto
- * plano (mismo orden, mismo largo que `children`) que este componente usa
- * para decidir qué filas mostrar — nunca necesita conocer la forma de cada
- * fila, solo el texto por el que se puede buscar.
+ * Las filas se pasan como `children` normales, y el encabezado de la tabla
+ * como `encabezado` (ambos: elementos ya armados por el Server Component que
+ * llama a este componente, cada fila con su propia `key` — incluidas sus
+ * <form action={serverAction}> intactas). Este es el patrón oficial de
+ * Next.js para pasar contenido renderizado en el servidor a un Client
+ * Component: JSX ya armado (`children` u otra prop) sí puede cruzar ese
+ * límite, pero una FUNCIÓN no — por eso acá no hay ningún render-prop (ni
+ * `children` como función, ni un `envolver`/`render` aparte): eso es
+ * justamente lo que rompía esta pantalla antes de este arreglo ("Functions
+ * cannot be passed directly to Client Components..."). `claves` es un array
+ * paralelo de texto plano (mismo orden, mismo largo que `children`) que este
+ * componente usa para decidir qué filas mostrar — nunca necesita conocer la
+ * forma de cada fila, solo el texto por el que se puede buscar.
  */
 
 function normalizar(s: string): string {
@@ -31,15 +36,15 @@ function normalizar(s: string): string {
 export function BuscadorFilas({
   claves,
   children,
+  encabezado,
   placeholder = "Buscar...",
   sinResultadosTexto = "No se encontraron resultados para esa búsqueda.",
-  envolver,
 }: {
   claves: string[];
   children: ReactNode[];
+  encabezado: ReactNode;
   placeholder?: string;
   sinResultadosTexto?: string;
-  envolver: (filasFiltradas: ReactNode[]) => ReactNode;
 }) {
   const [busqueda, setBusqueda] = useState("");
 
@@ -63,7 +68,12 @@ export function BuscadorFilas({
       {filasFiltradas.length === 0 ? (
         <p className="text-sm text-ink-muted text-center py-6">{sinResultadosTexto}</p>
       ) : (
-        envolver(filasFiltradas)
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>{encabezado}</thead>
+            <tbody>{filasFiltradas}</tbody>
+          </table>
+        </div>
       )}
     </div>
   );

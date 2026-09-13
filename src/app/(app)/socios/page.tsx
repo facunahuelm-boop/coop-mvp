@@ -115,32 +115,26 @@ export default async function SociosPage() {
           // Fase 8 (paginación/búsqueda/filtros): buscador client-side sobre
           // las filas ya armadas por el servidor — ver BuscadorFilas.tsx
           // sobre por qué acá conviene esto y no paginación real. Las filas
-          // se pasan como children normales (patrón estándar de Next.js
-          // para contenido renderizado en el servidor dentro de un Client
-          // Component) y las claves de búsqueda van aparte, en paralelo.
+          // (y el encabezado) se pasan como JSX ya armado (patrón estándar
+          // de Next.js para contenido renderizado en el servidor dentro de
+          // un Client Component) y las claves de búsqueda van aparte, en
+          // paralelo — sin ninguna función cruzando ese límite.
           <BuscadorFilas
             placeholder="Buscar socio por nombre, vivienda, núcleo, email o teléfono..."
             sinResultadosTexto="No se encontró ningún socio con esa búsqueda."
             claves={socios.map((s) => [s.nombre, s.vivienda_numero, s.nucleo_nombre, s.email, s.telefono].filter(Boolean).join(" "))}
-            envolver={(filas) => (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
-                      <th className="py-2 pr-3">N.º núcleo</th>
-                      <th className="py-2 pr-3">Titular</th>
-                      <th className="py-2 pr-3">Integrantes</th>
-                      <th className="py-2 pr-3">Vivienda</th>
-                      <th className="py-2 pr-3">Núcleo familiar</th>
-                      <th className="py-2 pr-3">Contacto</th>
-                      <th className="py-2 pr-3">Estado</th>
-                      {puedeEditar && <th className="py-2 pr-3"></th>}
-                    </tr>
-                  </thead>
-                  <tbody>{filas}</tbody>
-                </table>
-              </div>
-            )}
+            encabezado={
+              <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
+                <th className="py-2 pr-3">N.º núcleo</th>
+                <th className="py-2 pr-3">Titular</th>
+                <th className="py-2 pr-3">Integrantes</th>
+                <th className="py-2 pr-3">Vivienda</th>
+                <th className="py-2 pr-3">Núcleo familiar</th>
+                <th className="py-2 pr-3">Contacto</th>
+                <th className="py-2 pr-3">Estado</th>
+                {puedeEditar && <th className="py-2 pr-3"></th>}
+              </tr>
+            }
           >
             {socios.map((s) => (
               <tr key={s.id} className="border-b border-ink/5 last:border-0">
