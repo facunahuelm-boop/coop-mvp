@@ -2,17 +2,17 @@ import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { get, all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState, inputClass } from "@/components/ui";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import { UsuarioLink, NucleoLink } from "@/components/EntidadLink";
 import dayjs from "dayjs";
 import {
   registrarAsistenciaAction,
-  cerrarReunionAction,
   cancelarReunionAction,
 } from "@/lib/actions/reuniones";
 import { cambiarEstadoTareaAction } from "@/lib/actions/tareas";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
+import { CerrarReunionForm } from "@/components/reuniones/ReunionesFormularios";
 
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",
@@ -142,43 +142,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
           ) : reunion.estado === "cancelada" ? (
             <EmptyState>Reunión cancelada, sin acta.</EmptyState>
           ) : puedeGestionar ? (
-            <Card>
-              <form action={cerrarReunionAction} className="space-y-3">
-                <input type="hidden" name="id" value={reunion.id} />
-                <div>
-                  <Label>Resumen del acta</Label>
-                  <textarea name="resumen" required className={inputClass} rows={5} placeholder="Temas tratados, resoluciones, próximos pasos…" />
-                </div>
-
-                <div className="pt-2 border-t border-ink/5">
-                  <Label>Tareas resultantes (opcional)</Label>
-                  <p className="text-xs text-ink/40 mb-2">Se cargan directo en Comisiones — no hace falta anotarlas también en el resumen.</p>
-                  <div className="space-y-3">
-                    {[0, 1, 2].map((i) => (
-                      <div key={i} className="space-y-1.5 pb-2 border-b border-ink/5 last:border-0 last:pb-0">
-                        <input name="tarea_titulo" placeholder={`Título de la tarea ${i + 1} (opcional)`} className={inputClass + " text-xs !py-1.5"} />
-                        <div className="grid grid-cols-3 gap-1.5">
-                          <select name="tarea_responsable_id" defaultValue="" className={inputClass + " text-xs !py-1.5"}>
-                            <option value="">Sin asignar</option>
-                            {usuarios.map((u) => (
-                              <option key={u.id} value={u.id}>{u.nombre}</option>
-                            ))}
-                          </select>
-                          <select name="tarea_prioridad" defaultValue="media" className={inputClass + " text-xs !py-1.5"}>
-                            <option value="alta">Alta</option>
-                            <option value="media">Media</option>
-                            <option value="baja">Baja</option>
-                          </select>
-                          <input name="tarea_fecha_vencimiento" type="date" className={inputClass + " text-xs !py-1.5"} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Cerrar reunión y generar acta</button>
-              </form>
-            </Card>
+            <CerrarReunionForm reunionId={reunion.id} usuarios={usuarios} />
           ) : (
             <EmptyState>Todavía no se cerró esta reunión.</EmptyState>
           )}

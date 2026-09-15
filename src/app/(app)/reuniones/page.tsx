@@ -2,11 +2,11 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all, get } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
 import dayjs from "dayjs";
 import Link from "next/link";
-import { crearReunionAction } from "@/lib/actions/reuniones";
 import { Pagination, paginaDe } from "@/components/Pagination";
+import { CrearReunionForm } from "@/components/reuniones/ReunionesFormularios";
 
 const POR_PAGINA = 15;
 
@@ -103,35 +103,7 @@ export default async function ReunionesPage({
         {pasadas.length > 0 && <Pagination page={page} totalPages={totalPages} basePath="/reuniones" searchParams={sp} />}
       </div>
 
-      {puedeEditar && (
-        <details>
-          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agendar reunión</summary>
-          <Card className="mt-3">
-            <form action={crearReunionAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label>Tipo</Label>
-                <select name="tipo" className={inputClass} defaultValue="comision">
-                  {esOversightReuniones && <option value="asamblea">Asamblea</option>}
-                  {esOversightReuniones && <option value="consejo_directivo">Consejo Directivo</option>}
-                  <option value="comision">Comisión</option>
-                </select>
-              </div>
-              <div>
-                <Label>Comisión (si corresponde)</Label>
-                <select name="comision_id" className={inputClass} defaultValue="">
-                  <option value="">—</option>
-                  {comisiones.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-              </div>
-              <div className="sm:col-span-2"><Label>Título</Label><input name="titulo" required className={inputClass} /></div>
-              <div><Label>Fecha y hora</Label><input type="datetime-local" name="fecha" required className={inputClass} /></div>
-              <div><Label>Lugar</Label><input name="lugar" className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Orden del día</Label><textarea name="orden_del_dia" className={inputClass} rows={3} placeholder={"Un punto por línea"} /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agendar reunión</button></div>
-            </form>
-          </Card>
-        </details>
-      )}
+      {puedeEditar && <CrearReunionForm comisiones={comisiones} esOversightReuniones={esOversightReuniones} />}
     </div>
   );
 }

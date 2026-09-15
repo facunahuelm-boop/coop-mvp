@@ -10,6 +10,7 @@ import { generarPdfBuffer } from "@/lib/pdf";
 import { saveGeneratedFile } from "@/lib/upload";
 import dayjs from "dayjs";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaHora, zEnumSeguro, zCheckbox } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",
@@ -73,6 +74,10 @@ export async function crearReunionAction(formData: FormData) {
   });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "reuniones", entidad_id: id, valor_nuevo: { titulo: datos.titulo, fecha: datos.fecha, tipo: datos.tipo } });
   revalidatePath("/reuniones");
+}
+
+export async function crearReunionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearReunionAction(formData));
 }
 
 export async function cancelarReunionAction(formData: FormData) {
@@ -270,4 +275,8 @@ export async function cerrarReunionAction(formData: FormData) {
   revalidatePath(`/reuniones/${reunion_id}`);
   revalidatePath("/documentos");
   revalidatePath("/comisiones");
+}
+
+export async function cerrarReunionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => cerrarReunionAction(formData));
 }
