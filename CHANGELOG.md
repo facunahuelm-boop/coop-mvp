@@ -486,3 +486,19 @@ Desplegado (commit `90d3d81`).
 **Pendiente**: adjuntar facturas/documentos directamente a una solicitud (sección 21, requiere migración nueva); "Editar solicitud" y un botón único de "Cambiar estado" (sección 6, 16) — hoy los cambios de estado ya existen pero contextuales a cada estado (marcar pedida/entregada/rechazar), no como una acción genérica; quedan para una fase siguiente junto con proveedor habitual vs. nuevo (secciones 17-18).
 
 Desplegado (commit `1c483d3`).
+
+### Fase 4 — Adjuntar facturas y comprobantes a una compra puntual (15/09)
+
+**Qué se hizo** (sección 21 del pedido, hallazgo documentado en la Fase 3: no existía ningún vínculo real entre una solicitud de compra y la biblioteca de `documentos`):
+
+- **Migración `0026_documentos_solicitud_compra_id.sql`**: agrega `solicitud_compra_id` (nullable, sin `CASCADE` — mismo criterio del proyecto) a `documentos`. Todo documento existente queda con este campo en `NULL`, exactamente como está hoy — ningún documento de la biblioteca general se ve afectado.
+- **`adjuntarFacturaCompraAction`** (`lib/actions/compras.ts`, nuevo): sube el archivo con `saveUploadedFile()` (mismo helper y mismos límites/tipos permitidos que ya usa `subirDocumentoAction` en `documentos.ts`, sin duplicar esa lógica) y crea la fila en `documentos` con `categoria: "facturas"` y el `solicitud_compra_id` correspondiente.
+- **Decisión de permiso, explícita y distinta a `documentos.ts`**: subir a la biblioteca general exige `canEdit(rol, "documentos")` (solo Administración/Consejo Directivo/admin, ver `roles.ts`) — pero la Comisión de Compras, que es quien de verdad recibe la factura de lo que compró, tiene `compras: "edit"` y sólo `documentos: "read"`. Gatear esto por el permiso de "documentos" le habría impedido a la propia Comisión de Compras adjuntar su propio comprobante. Por eso `adjuntarFacturaCompraAction` exige el mismo permiso que el resto de las acciones de compras (`canEdit(rol,"compras")` + `verificarPermisoSobreSolicitud`, igual que `agregarPresupuestoAction`), no el de documentos.
+- **`AdjuntarFacturaForm`** (`components/compras/ComprasFormularios.tsx`, nuevo): formulario `<details>` inline, mismo criterio que `CargarPresupuestoForm` de al lado (vive dentro de la ficha de una compra puntual, no en un listado).
+- **Pestaña "Documentos" con contenido real** (`/compras/[id]`): lista los documentos ya adjuntos (nombre, descripción, quién y cuándo, contador en el título de la pestaña) con "Ver / Descargar" apuntando a la misma ruta mediada que ya usa `/documentos` (`/api/archivos/documento/[id]`, sin ningún cambio — vuelve a verificar sesión, permiso y cooperativa en cada descarga) y el formulario de adjuntar debajo, sin reemplazar el link a la biblioteca general.
+
+**Archivos afectados**: `migrations/0026_documentos_solicitud_compra_id.sql` (nuevo), `src/lib/actions/compras.ts`, `src/components/compras/ComprasFormularios.tsx`, `src/app/(app)/compras/[id]/page.tsx`. `npx tsc --noEmit` sin errores; `npx eslint` sin errores nuevos (mismo patrón preexistente de `no-explicit-any`); `npx next build` compila y pasa TypeScript (mismo límite de siempre: sin `DATABASE_URL` en este entorno).
+
+**Pendiente antes de que esto tenga efecto en producción**: correr la migración `0026` vía `/api/admin/migraciones` (junto con la `0025`, todavía pendiente) — hasta entonces, adjuntar una factura sigue funcionando pero sin el vínculo directo a la solicitud (mismo criterio defensivo de `insert()` que el resto del proyecto). Sigue: "Editar solicitud", un botón único de "Cambiar estado" y proveedor habitual vs. nuevo (secciones 6, 16, 17-18).
+
+Desplegado (commit `6d1be27`).
