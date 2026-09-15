@@ -6,6 +6,7 @@ import { insert, get, all, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { enviarEmailPersonalizado } from "@/lib/email";
 import { parseForm, zIdOpcional, zTexto, zCheckbox } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // Sección de Mails (pedido explícito): mandarle un mail a un usuario
 // puntual, a todos los integrantes activos de una comisión, o a todos los
@@ -125,4 +126,8 @@ export async function enviarMailAction(formData: FormData) {
   }
 
   revalidatePath("/mails");
+}
+
+export async function enviarMailFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => enviarMailAction(formData));
 }

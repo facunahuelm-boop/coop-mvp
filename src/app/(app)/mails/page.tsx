@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { all, get } from "@/lib/db";
-import { Card, PageHeader, Label, inputClass, EmptyState, Badge } from "@/components/ui";
-import { enviarMailAction } from "@/lib/actions/mails";
+import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
 import dayjs from "dayjs";
-import { Mail, Send, Users, User } from "lucide-react";
+import { Mail, Send } from "lucide-react";
 import { UsuarioLink } from "@/components/EntidadLink";
 import { Pagination, paginaDe } from "@/components/Pagination";
+import { EnviarMailForm } from "@/components/mails/EnviarMailForm";
 
 const POR_PAGINA = 20;
 
@@ -93,57 +93,7 @@ export default async function MailsPage({
           <Send size={16} className="text-[var(--color-brand-800)]" />
           <h2 className="text-sm font-bold text-ink">Redactar</h2>
         </div>
-        <form action={enviarMailAction} className="space-y-3">
-          <div className={`grid grid-cols-1 ${puedeATodos ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
-            <div>
-              <Label>
-                <span className="inline-flex items-center gap-1"><User size={12} /> A un usuario</span>
-              </Label>
-              <select name="usuario_id" defaultValue="" className={inputClass}>
-                <option value="">— Elegir —</option>
-                {usuarios.map((u) => (
-                  <option key={u.id} value={u.id}>{u.nombre}{!u.email ? " (sin email — no se le puede mandar)" : ""}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label>
-                <span className="inline-flex items-center gap-1"><Users size={12} /> ...o a una comisión</span>
-              </Label>
-              <select name="comision_id" defaultValue="" className={inputClass}>
-                <option value="">— Elegir —</option>
-                {comisiones.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre} ({c.con_email} con email)
-                  </option>
-                ))}
-              </select>
-            </div>
-            {puedeATodos && (
-              <div>
-                <Label>...o a todos</Label>
-                <label className="flex items-center gap-2 rounded-lg border border-ink/10 bg-surface px-3 py-2 text-sm cursor-pointer">
-                  <input type="checkbox" name="todos" className="h-4 w-4" />
-                  Todos los usuarios de la cooperativa ({totalConEmail} con email)
-                </label>
-              </div>
-            )}
-          </div>
-          <p className="text-xs text-ink-faint">Elegí una sola opción — a quien elijas le llega el mail directo a su casilla.</p>
-
-          <div>
-            <Label>Asunto</Label>
-            <input name="asunto" required maxLength={200} placeholder="Ej: Reunión del sábado" className={inputClass} />
-          </div>
-          <div>
-            <Label>Mensaje</Label>
-            <textarea name="cuerpo" required maxLength={5000} rows={6} placeholder="Escribí el mensaje acá..." className={inputClass} />
-          </div>
-
-          <button className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2.5 text-sm font-semibold">
-            <Send size={15} /> Enviar mail
-          </button>
-        </form>
+        <EnviarMailForm usuarios={usuarios} comisiones={comisiones} puedeATodos={puedeATodos} totalConEmail={totalConEmail} />
       </Card>
 
       <div className="mt-6">
