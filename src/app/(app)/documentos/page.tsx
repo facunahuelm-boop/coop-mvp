@@ -2,11 +2,11 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass, AddButtonSummary } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
+import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
 import dayjs from "dayjs";
-import { subirDocumentoAction, crearCategoriaDocumentoAction, eliminarDocumentoAction } from "@/lib/actions/documentos";
+import { eliminarDocumentoAction } from "@/lib/actions/documentos";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
+import { SubirDocumentoForm, CrearCategoriaDocumentoForm } from "@/components/documentos/DocumentosFormularios";
 
 const CATEGORIAS_BASE = ["actas", "asambleas", "presupuestos", "facturas", "contratos", "tecnicos", "obra", "socios", "seguridad", "compras", "reglamentos", "informes", "comunicaciones"];
 const CAT_LABEL_BASE: Record<string, string> = {
@@ -136,36 +136,8 @@ export default async function DocumentosPage({
 
       {puedeEditar && (
         <>
-          <details className="mt-6"><AddButtonSummary>Subir documento</AddButtonSummary>
-            <Card className="mt-3">
-              <form action={subirDocumentoAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
-                <div>
-                  <Label>Categoría</Label>
-                  <select name="categoria" className={inputClass} defaultValue="informes">
-                    {CATEGORIAS.map((c) => <option key={c} value={c}>{CAT_LABEL[c]}</option>)}
-                  </select>
-                </div>
-                <div className="sm:col-span-2"><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
-                <div className="sm:col-span-2">
-                  <Label>Etiquetas (opcional)</Label>
-                  <input name="etiquetas" placeholder="separadas por coma, ej: obra-etapa-2, urgente" className={inputClass} />
-                </div>
-                <div className="sm:col-span-2"><Label>Archivo</Label><input type="file" name="archivo" className="text-xs" /></div>
-                <div className="sm:col-span-2"><SubmitButton variant="add">Subir</SubmitButton></div>
-              </form>
-            </Card>
-          </details>
-
-          <details className="mt-3">
-            <AddButtonSummary className="text-xs px-3 py-1.5">Crear una categoría nueva</AddButtonSummary>
-            <Card className="mt-3">
-              <form action={crearCategoriaDocumentoAction} className="flex items-end gap-2">
-                <div className="flex-1"><Label>Nombre de la categoría</Label><input name="nombre" required placeholder="ej: Estatuto, RRHH" className={inputClass} /></div>
-                <SubmitButton variant="add" className="text-xs px-3 py-2">Crear</SubmitButton>
-              </form>
-            </Card>
-          </details>
+          <SubirDocumentoForm categorias={CATEGORIAS} catLabel={CAT_LABEL} />
+          <CrearCategoriaDocumentoForm />
         </>
       )}
     </div>

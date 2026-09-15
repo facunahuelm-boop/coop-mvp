@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
 import { parseForm, zId, zTexto, zTextoOpcional } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 /**
  * Normaliza una lista de etiquetas escritas a mano ("obra, etapa 2 ,,urgente")
@@ -51,6 +52,10 @@ export async function subirDocumentoAction(formData: FormData) {
   revalidatePath("/documentos");
 }
 
+export async function subirDocumentoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => subirDocumentoAction(formData));
+}
+
 /**
  * Fase 07 del Plan Maestro ("carpetas/etiquetas"): antes de esto, la lista de
  * categorías era fija en código (CATEGORIAS en documentos/page.tsx) y ninguna
@@ -64,6 +69,10 @@ export async function crearCategoriaDocumentoAction(formData: FormData) {
   const id = await insert("documento_categorias", { nombre, creado_por_id: user.id });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "documento_categorias", entidad_id: id, valor_nuevo: { nombre } });
   revalidatePath("/documentos");
+}
+
+export async function crearCategoriaDocumentoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearCategoriaDocumentoAction(formData));
 }
 
 /**
