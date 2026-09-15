@@ -11,7 +11,7 @@ import { marcarPedidaFormAction, marcarEntregadaFormAction, rechazarSolicitudFor
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
-import { CargarPresupuestoForm, AdjuntarFacturaForm } from "@/components/compras/ComprasFormularios";
+import { CargarPresupuestoForm, AdjuntarFacturaForm, EditarSolicitudForm } from "@/components/compras/ComprasFormularios";
 import { SolicitudStatusBadge } from "@/components/compras/PurchaseStatus";
 import { HistorialCompra } from "@/components/compras/HistorialCompra";
 import { PurchaseComparison } from "@/components/compras/PurchaseComparison";
@@ -46,6 +46,12 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
     (solicitud.comision_id ? await puedeGestionarComision(user, solicitud.comision_id) : true);
 
   const puedeElegirProveedor = puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion");
+  // Rediseño profundo de Compras, Fase 5 (sección 6): editar sólo tiene
+  // sentido mientras la compra sigue "viva" — una vez entregada o rechazada
+  // el ciclo terminó (mismo criterio, con el mismo mensaje, que
+  // `editarSolicitudAction` ya valida en el servidor; acá sólo se evita
+  // ofrecer un botón que el servidor rechazaría igual).
+  const puedeEditarDatos = puedeEditar && solicitud.estado !== "entregada" && solicitud.estado !== "rechazada";
 
   // Rediseño profundo de Compras, Fase 3 (pedido explícito, sección 16): el
   // detalle deja de ser una página larga de scroll continuo y pasa a
@@ -189,7 +195,29 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
   return (
     <div>
       <PageHeader title={solicitud.material} subtitle={`${solicitud.cantidad} ${solicitud.unidad} · ${solicitud.comision}`}
-        action={<Badge color={solicitud.prioridad === "critica" ? "rojo" : "brand"}>{solicitud.prioridad}</Badge>} />
+        action={
+          <div className="flex items-center gap-2">
+            {puedeEditarDatos && (
+              <EditarSolicitudForm
+                solicitud={{
+                  id: solicitud.id,
+                  categoria: solicitud.categoria,
+                  subcategoria: solicitud.subcategoria ?? null,
+                  recurrente: Boolean(solicitud.recurrente),
+                  material: solicitud.material,
+                  cantidad: solicitud.cantidad,
+                  unidad: solicitud.unidad,
+                  especificacion: solicitud.especificacion ?? null,
+                  prioridad: solicitud.prioridad,
+                  etapa_obra: solicitud.etapa_obra ?? null,
+                  fecha_necesaria: solicitud.fecha_necesaria ?? null,
+                  presupuesto_estimado: solicitud.presupuesto_estimado ?? null,
+                }}
+              />
+            )}
+            <Badge color={solicitud.prioridad === "critica" ? "rojo" : "brand"}>{solicitud.prioridad}</Badge>
+          </div>
+        } />
 
       <Tabs
         tabs={[

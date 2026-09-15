@@ -114,6 +114,70 @@ export async function crearSolicitudFormAction(_prev: ActionState, formData: For
   return conEstadoDeAccion(() => crearSolicitudAction(formData));
 }
 
+/**
+ * Rediseño profundo de Compras, Fase 5 (pedido explícito, sección 6:
+ * "permitir editar y eliminar correctamente según permisos"). Los mismos
+ * campos descriptivos que `crearSolicitudAction`, a propósito SIN
+ * `comision`/`comision_id`: ese vínculo se fija al crear la solicitud y no
+ * se deja tocar después — cambiarlo una vez que ya existe un presupuesto,
+ * una decisión o un gasto (`gastos_comision`, generado automáticamente por
+ * `decidirCompraAction` con la comisión de ESE momento) dejaría esos
+ * registros apuntando a una comisión distinta de la que aparece en la
+ * solicitud, un problema de integridad real que no vale la pena resolver acá
+ * (sección 39: "no romper relaciones existentes"). Si la comisión estuvo
+ * mal desde el principio, la corrección correcta es eliminar la solicitud
+ * (si nada la usa todavía) y cargarla de nuevo.
+ */
+const editarSolicitudSchema = z.object({
+  id: zId,
+  categoria: zEnumSeguro(clavesDe(CATEGORIA_COMPRA_LABEL), "obra"),
+  subcategoria: zTextoOpcional(150),
+  recurrente: zCheckbox,
+  material: zTexto(300),
+  cantidad: zNumeroOpcionalConDefault(0),
+  unidad: zTexto(50),
+  especificacion: zTextoOpcional(1000),
+  prioridad: zEnumSeguro(PRIORIDAD_COMPRA, "media"),
+  etapa_obra: zTextoOpcional(200),
+  fecha_necesaria: zFechaOpcional,
+  presupuesto_estimado: zMontoOpcional(),
+});
+
+export async function editarSolicitudAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
+  const { id, ...datos } = parseForm(editarSolicitudSchema, formData);
+  await verificarPermisoSobreSolicitud(user, id);
+
+  const anterior = await get<any>(`SELECT * FROM solicitudes_compra WHERE id = ?`, [id]);
+  if (!anterior) throw new Error("Esa solicitud ya no existe.");
+  // Una solicitud "entregada" o "rechazada" ya está cerrada — el ciclo de
+  // esa compra terminó (llegó lo pedido, o se decidió no seguir adelante).
+  // Editar sus datos a esta altura no cambiaría nada real y podría confundir
+  // el historial de lo que efectivamente se compró; para corregir un error
+  // de carga después de cerrada, la vía es la Zona de administrador
+  // (eliminar) si nada la usa todavía, no editarla.
+  if (anterior.estado === "entregada" || anterior.estado === "rechazada") {
+    throw new Error("Esta solicitud ya está cerrada (entregada o rechazada) — no se puede editar. Si fue un error de carga, un administrador puede eliminarla desde la pestaña Información.");
+  }
+
+  await update("solicitudes_compra", id, datos);
+  await audit({
+    usuario_id: user.id,
+    accion: "editar",
+    entidad: "solicitudes_compra",
+    entidad_id: id,
+    valor_anterior: { material: anterior.material, cantidad: anterior.cantidad, unidad: anterior.unidad, categoria: anterior.categoria },
+    valor_nuevo: datos,
+  });
+  revalidatePath("/compras");
+  revalidatePath(`/compras/${id}`);
+}
+
+export async function editarSolicitudFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => editarSolicitudAction(formData));
+}
+
 const agregarPresupuestoSchema = z.object({
   solicitud_id: zId,
   precio: zMonto(),

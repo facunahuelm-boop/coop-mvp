@@ -20,7 +20,7 @@ type RegistroAuditoria = {
 // Sólo se muestran acciones pensadas para que las vea la persona usuaria —
 // las entradas "error_*" son diagnóstico interno (ver compras.ts) y no
 // tienen que aparecer acá, igual que ya se filtran del resto de la UI.
-const ACCION_VISIBLE = new Set(["crear", "aprobar_compra", "rechazar_compra", "cambiar_estado", "eliminar"]);
+const ACCION_VISIBLE = new Set(["crear", "editar", "aprobar_compra", "rechazar_compra", "cambiar_estado", "eliminar"]);
 
 function parseValorNuevo(raw: string | null): Record<string, any> {
   if (!raw) return {};
@@ -39,6 +39,7 @@ function descripcion(r: RegistroAuditoria): string | null {
   }
   if (r.entidad === "solicitudes_compra") {
     if (r.accion === "crear") return "Solicitud creada";
+    if (r.accion === "editar") return "Datos de la solicitud editados";
     if (r.accion === "aprobar_compra") {
       return datos.monto ? `Compra aprobada — $${Number(datos.monto).toLocaleString("es-UY")}` : "Compra aprobada";
     }

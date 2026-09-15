@@ -18,7 +18,7 @@
 // patrón correcto (no hay "lista" de la que abrir un pop-up).
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { crearSolicitudFormAction, agregarPresupuestoFormAction, adjuntarFacturaCompraFormAction } from "@/lib/actions/compras";
+import { crearSolicitudFormAction, editarSolicitudFormAction, agregarPresupuestoFormAction, adjuntarFacturaCompraFormAction } from "@/lib/actions/compras";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
 import { AddButton, Button, Card, Label, inputClass } from "@/components/ui";
@@ -132,6 +132,128 @@ export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
           <div className="sm:col-span-2 flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
             <SubmitButton variant="add" pendingLabel="Creando…">Crear solicitud</SubmitButton>
+          </div>
+        </form>
+      </Modal>
+    </>
+  );
+}
+
+type SolicitudEditable = {
+  id: number;
+  categoria: string;
+  subcategoria: string | null;
+  recurrente: boolean;
+  material: string;
+  cantidad: number;
+  unidad: string;
+  especificacion: string | null;
+  prioridad: string;
+  etapa_obra: string | null;
+  fecha_necesaria: string | null;
+  presupuesto_estimado: number | null;
+};
+
+/**
+ * Rediseño profundo de Compras, Fase 5 (pedido explícito, sección 6:
+ * "permitir editar... según permisos"). Mismos campos y mismo patrón Modal
+ * que `CrearSolicitudForm` de arriba — a propósito sin comisión/comisión
+ * vinculada (ver el comentario de `editarSolicitudAction` en compras.ts:
+ * ese vínculo no se deja tocar después de creada la solicitud). Vive en
+ * `/compras/[id]` (una solicitud puntual), así que no necesita la lista de
+ * comisiones que sí usa `CrearSolicitudForm`.
+ */
+export function EditarSolicitudForm({ solicitud }: { solicitud: SolicitudEditable }) {
+  const [open, setOpen] = useState(false);
+  const [estado, formAction] = useActionState(editarSolicitudFormAction, ESTADO_INICIAL);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) {
+      // La respuesta de la Server Action (useActionState) sólo se conoce acá
+      // — no hay ningún evento síncrono al que engancharse para cerrar el
+      // Modal, mismo criterio ya documentado en CrearSolicitudForm de arriba
+      // y en CambiarFotoForm.tsx.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false);
+      show("Solicitud actualizada.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)} className="text-xs px-3 py-1.5">Editar</Button>
+      <Modal open={open} onClose={() => setOpen(false)} title="Editar solicitud de compra" size="lg">
+        <form action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
+          <input type="hidden" name="id" value={solicitud.id} />
+          <div>
+            <Label>Categoría de la compra</Label>
+            <select name="categoria" className={inputClass} defaultValue={solicitud.categoria}>
+              {Object.entries(CATEGORIA_COMPRA_LABEL).map(([valor, label]) => (
+                <option key={valor} value={valor}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Subcategoría (opcional)</Label>
+            <input name="subcategoria" defaultValue={solicitud.subcategoria || ""} className={inputClass} placeholder="Ej: cemento, guantes, extintores…" />
+            <FieldError message={estado.fieldErrors?.subcategoria} />
+          </div>
+          <div>
+            <Label>Material</Label>
+            <input name="material" required defaultValue={solicitud.material} className={inputClass} />
+            <FieldError message={estado.fieldErrors?.material} />
+          </div>
+          <div>
+            <Label>Cantidad</Label>
+            <input name="cantidad" type="number" step="0.01" required defaultValue={solicitud.cantidad} className={inputClass} />
+            <FieldError message={estado.fieldErrors?.cantidad} />
+          </div>
+          <div>
+            <Label>Unidad</Label>
+            <input name="unidad" required defaultValue={solicitud.unidad} className={inputClass} placeholder="kg, unidad, m2…" />
+            <FieldError message={estado.fieldErrors?.unidad} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Especificación</Label>
+            <input name="especificacion" defaultValue={solicitud.especificacion || ""} className={inputClass} />
+            <FieldError message={estado.fieldErrors?.especificacion} />
+          </div>
+          <div>
+            <Label>Etapa de obra (si corresponde)</Label>
+            <input name="etapa_obra" defaultValue={solicitud.etapa_obra || ""} className={inputClass} />
+            <FieldError message={estado.fieldErrors?.etapa_obra} />
+          </div>
+          <div>
+            <Label>Fecha necesaria</Label>
+            <input type="date" name="fecha_necesaria" defaultValue={solicitud.fecha_necesaria || ""} className={inputClass} />
+            <FieldError message={estado.fieldErrors?.fecha_necesaria} />
+          </div>
+          <div>
+            <Label>Prioridad</Label>
+            <select name="prioridad" className={inputClass} defaultValue={solicitud.prioridad}>
+              <option value="baja">Baja</option>
+              <option value="media">Media</option>
+              <option value="alta">Alta</option>
+              <option value="critica">Crítica</option>
+            </select>
+          </div>
+          <div>
+            <Label>Presupuesto estimado</Label>
+            <input name="presupuesto_estimado" type="number" defaultValue={solicitud.presupuesto_estimado ?? ""} className={inputClass} />
+            <FieldError message={estado.fieldErrors?.presupuesto_estimado} />
+          </div>
+          <div className="sm:col-span-2 flex items-center gap-2">
+            <input id="recurrente-editar" type="checkbox" name="recurrente" defaultChecked={solicitud.recurrente} className="h-4 w-4" />
+            <label htmlFor="recurrente-editar" className="text-sm text-ink-muted">Esta compra se repite habitualmente (limpieza, papelería, mantenimiento…)</label>
+          </div>
+          <div className="sm:col-span-2">
+            <FormError message={estado.error} />
+          </div>
+          <div className="sm:col-span-2 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <SubmitButton pendingLabel="Guardando…">Guardar cambios</SubmitButton>
           </div>
         </form>
       </Modal>
