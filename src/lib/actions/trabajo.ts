@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { proponerDistribucionJornada } from "@/lib/logic";
 import { parseForm, zId, zFecha, zTextoOpcional, zNumeroOpcionalConDefault, zCheckbox } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 const crearJornadaSchema = z.object({
   fecha: zFecha,
@@ -34,6 +35,10 @@ export async function crearJornadaAction(formData: FormData) {
     nombres.map((nombre) => insert("tareas_jornada", { jornada_id: id, nombre, prioridad: "media", personas_necesarias: 3 }))
   );
   revalidatePath("/trabajo");
+}
+
+export async function crearJornadaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearJornadaAction(formData));
 }
 
 export async function proponerDistribucionAction(formData: FormData) {

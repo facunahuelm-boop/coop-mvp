@@ -2,13 +2,13 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all, get } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass, AddButtonSummary } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
+import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
 import dayjs from "dayjs";
 import Link from "next/link";
-import { crearJornadaAction, proponerDistribucionAction, confirmarAsignacionAction, anotarmeAction } from "@/lib/actions/trabajo";
+import { proponerDistribucionAction, confirmarAsignacionAction, anotarmeAction } from "@/lib/actions/trabajo";
 import { NucleoLink } from "@/components/EntidadLink";
 import { Pagination, paginaDe } from "@/components/Pagination";
+import { PlanificarJornadaForm } from "@/components/trabajo/TrabajoFormularios";
 
 const POR_PAGINA = 10;
 
@@ -136,20 +136,7 @@ export default async function TrabajoPage({
         </div>
       </div>
 
-      {puedeEditar && (
-        <details className="mt-6">
-          <AddButtonSummary>Planificar nueva jornada</AddButtonSummary>
-          <Card className="mt-3">
-            <form action={crearJornadaAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label>Fecha</Label><input type="date" name="fecha" required className={inputClass} /></div>
-              <div><Label>Herramientas necesarias</Label><input name="herramientas_necesarias" className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Tareas de la jornada (una por línea)</Label><textarea name="tareas" className={inputClass} rows={3} placeholder={"Encofrado de columnas\nOrden y limpieza"} /></div>
-              <div className="sm:col-span-2"><SubmitButton variant="add">Crear jornada</SubmitButton></div>
-            </form>
-          </Card>
-        </details>
-      )}
+      {puedeEditar && <PlanificarJornadaForm />}
     </div>
   );
 }
