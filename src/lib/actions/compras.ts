@@ -19,6 +19,7 @@ import {
   zNumeroOpcionalConDefault,
   zFechaOpcional,
   zEnumSeguro,
+  zCheckbox,
   clavesDe,
 } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
@@ -71,6 +72,12 @@ const crearSolicitudSchema = z.object({
   comision: zTexto(200),
   comision_id: zIdOpcional,
   categoria: zEnumSeguro(clavesDe(CATEGORIA_COMPRA_LABEL), "obra"),
+  // subcategoria/recurrente: Fase 1 del rediseño de Compras (migración 0025)
+  // — texto libre opcional para precisar la categoría (ej. "cemento" dentro
+  // de "Compra de obra") sin necesitar una lista rígida nueva, y una bandera
+  // simple para marcar compras que se repiten (limpieza, papelería, etc.).
+  subcategoria: zTextoOpcional(150),
+  recurrente: zCheckbox,
   material: zTexto(300),
   cantidad: zNumeroOpcionalConDefault(0),
   unidad: zTexto(50),
@@ -210,6 +217,12 @@ export async function marcarPedidaAction(formData: FormData) {
   const { id } = parseForm(z.object({ id: zId }), formData);
   await verificarPermisoSobreSolicitud(user, id);
   await update("solicitudes_compra", id, { estado: "pedida" });
+  // Fase 1 del rediseño de Compras (pedido explícito, sección 15: historial
+  // de estados): esta acción nunca había dejado rastro en auditoría — el
+  // cambio de estado quedaba invisible para cualquier historial. Se agrega
+  // acá, sin tocar el resto del flujo (mismo patrón ya usado en
+  // decidirCompraAction/rechazarSolicitudAction de este mismo archivo).
+  await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "solicitudes_compra", entidad_id: id, valor_nuevo: { estado: "pedida" } });
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
 }
@@ -224,6 +237,7 @@ export async function marcarEntregadaAction(formData: FormData) {
   const { id } = parseForm(z.object({ id: zId }), formData);
   await verificarPermisoSobreSolicitud(user, id);
   await update("solicitudes_compra", id, { estado: "entregada" });
+  await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "solicitudes_compra", entidad_id: id, valor_nuevo: { estado: "entregada" } });
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
 }
@@ -288,6 +302,29 @@ export async function eliminarSolicitudAction(formData: FormData) {
   if (!solicitud) {
     revalidatePath("/compras");
     return; // ya no existe: nada que borrar
+  }
+
+  // Fase 1 del rediseño de Compras (decisión confirmada explícitamente con
+  // el usuario): si esta solicitud ya generó un gasto que Finanzas marcó
+  // como "pagado" (movimiento financiero real, plata que ya salió), NO se
+  // permite borrar la solicitud — perderla dejaría ese pago sin ningún
+  // origen rastreable. Hay que anular el gasto desde /gastos primero (acción
+  // ya existente, deja su propio registro en auditoría) y recién ahí se
+  // puede eliminar la solicitud. Un gasto "pendiente" o "anulado" no bloquea
+  // — mismo criterio de columna/tabla-faltante que el resto de este archivo
+  // (si gastos_comision no existe todavía en esta base, no hay nada que
+  // pueda estar pagado).
+  const gastoPagado = await get<{ id: number }>(
+    `SELECT id FROM gastos_comision WHERE solicitud_compra_id = ? AND estado = 'pagado' LIMIT 1`,
+    [id]
+  ).catch((err: any) => {
+    if (err?.code === "42703" || err?.code === "42P01") return undefined;
+    throw err;
+  });
+  if (gastoPagado) {
+    throw new Error(
+      "Esta solicitud ya generó un gasto marcado como pagado en Finanzas — no se puede eliminar sin perder ese registro. Anulá primero el gasto desde /gastos y volvé a intentarlo."
+    );
   }
 
   // AUDITORÍA INTEGRAL (testing E2E real, 12/09): el primer intento en vivo de

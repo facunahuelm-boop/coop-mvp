@@ -556,3 +556,30 @@ export async function historialProveedor(proveedorId: number) {
   );
   return compras;
 }
+
+/**
+ * Fase 1 del rediseño de Compras (pedido explícito, sección 15: "toda compra
+ * importante debería poder mostrar su historial"). No se crea ninguna tabla
+ * nueva — se arma leyendo `auditoria`, que ya registra cada paso del flujo
+ * (crear solicitud, cargar presupuesto, aprobar, rechazar, eliminar) desde
+ * hace varias fases. Dos condiciones porque un presupuesto se audita con su
+ * propio id (`entidad_id` = id del presupuesto), no con el de la solicitud
+ * — se lo vincula por el JOIN a presupuestos_proveedor en vez de tener que
+ * parsear el JSON de `valor_nuevo` (que se guarda como texto, no jsonb).
+ * Devuelve [] en vez de romper si la tabla auditoria no tuviera todavía
+ * alguna fila esperable — nunca debería pasar, pero el criterio del
+ * proyecto es que un historial vacío es mejor que tumbar el modal de detalle.
+ */
+export async function historialSolicitud(solicitudId: number) {
+  return all<any>(
+    `SELECT a.*, u.nombre as usuario_nombre
+     FROM auditoria a
+     LEFT JOIN users u ON u.id = a.usuario_id
+     WHERE (a.entidad = 'solicitudes_compra' AND a.entidad_id = ?)
+        OR (a.entidad = 'presupuestos_proveedor' AND a.entidad_id IN (
+              SELECT id FROM presupuestos_proveedor WHERE solicitud_id = ?
+            ))
+     ORDER BY a.fecha ASC`,
+    [solicitudId, solicitudId]
+  ).catch(() => [] as any[]);
+}

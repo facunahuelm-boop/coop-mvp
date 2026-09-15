@@ -13,6 +13,16 @@ export const CHECKLIST_BASE = [
  * una cooperativa habitada también compra (mantenimiento, administración,
  * espacios comunes). Esto clasifica cada solicitud; no reemplaza a
  * "Comisión solicitante" (quién la pide), sólo dice para qué es.
+ *
+ * Fase 1 del rediseño de Compras (pedido explícito, sección 2): se agregan
+ * "seguridad" y "servicios" — dos rubros reales que una cooperativa compra
+ * seguido (EPP/señalización/extintores; electricidad/sanitaria/transporte
+ * contratados) y que antes cadían todos en "Otros". A propósito NO se
+ * explota esto en decenas de categorías rígidas (cemento, guantes, cascos,
+ * etc.) — el pedido pide expresamente evitarlo; ese nivel de detalle va en
+ * el campo libre "subcategoria" (migración 0025), no acá. Los 6 valores
+ * existentes NO se tocan (renombrarlos rompería solicitudes y gastos ya
+ * guardados con ese valor).
  */
 export const CATEGORIA_COMPRA_LABEL: Record<string, string> = {
   general: "Compra general",
@@ -20,6 +30,8 @@ export const CATEGORIA_COMPRA_LABEL: Record<string, string> = {
   mantenimiento: "Mantenimiento",
   administracion: "Administración",
   espacios_comunes: "Espacios comunes",
+  seguridad: "Seguridad",
+  servicios: "Servicios",
   otros: "Otros",
 };
 

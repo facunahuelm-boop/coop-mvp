@@ -7,13 +7,7 @@ import Link from "next/link";
 import dayjs from "dayjs";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 import { CrearSolicitudForm } from "@/components/compras/ComprasFormularios";
-
-const estadoColor: Record<string, "gray" | "amarillo" | "verde" | "brand" | "rojo"> = {
-  pendiente_cotizacion: "gray", en_comparacion: "amarillo", aprobada: "brand", pedida: "amarillo", entregada: "verde", rechazada: "rojo",
-};
-const estadoLabel: Record<string, string> = {
-  pendiente_cotizacion: "Pendiente de cotización", en_comparacion: "En comparación", aprobada: "Aprobada", pedida: "Pedida a proveedor", entregada: "Entregada", rechazada: "Rechazada",
-};
+import { SolicitudStatusBadge } from "@/components/compras/PurchaseStatus";
 
 export default async function ComprasPage() {
   const user = await getCurrentUser();
@@ -65,12 +59,13 @@ export default async function ComprasPage() {
                 <div>
                   <p className="text-sm font-semibold text-[var(--color-brand-900)]">{s.material} <span className="font-normal text-ink/50">({s.cantidad} {s.unidad})</span></p>
                   <p className="text-xs text-ink/50 mt-0.5">
-                    {CATEGORIA_COMPRA_LABEL[s.categoria] || CATEGORIA_COMPRA_LABEL.obra} · {s.comision_vinculada || s.comision} · {s.solicitante_nombre}
+                    {CATEGORIA_COMPRA_LABEL[s.categoria] || CATEGORIA_COMPRA_LABEL.obra}{s.subcategoria ? ` (${s.subcategoria})` : ""} · {s.comision_vinculada || s.comision} · {s.solicitante_nombre}
                     {s.fecha_necesaria && ` · necesario para el ${dayjs(s.fecha_necesaria).format("DD/MM")}`}
+                    {s.recurrente && " · 🔁 recurrente"}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <Badge color={estadoColor[s.estado]}>{estadoLabel[s.estado]}</Badge>
+                  <SolicitudStatusBadge estado={s.estado} />
                   {s.prioridad === "critica" && <Badge color="rojo">🔴 crítica</Badge>}
                 </div>
               </div>

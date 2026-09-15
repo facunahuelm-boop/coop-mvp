@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, canApprove } from "@/lib/roles";
 import { get, all } from "@/lib/db";
-import { compararPresupuestos, historialProveedor } from "@/lib/logic";
+import { compararPresupuestos, historialSolicitud } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
@@ -12,11 +12,8 @@ import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 import { CargarPresupuestoForm } from "@/components/compras/ComprasFormularios";
-
-const ESTADO_LABEL: Record<string, string> = {
-  pendiente_cotizacion: "pendiente de cotización", en_comparacion: "en comparación", aprobada: "aprobada",
-  pedida: "pedida a proveedor", entregada: "entregada", rechazada: "rechazada",
-};
+import { SolicitudStatusBadge } from "@/components/compras/PurchaseStatus";
+import { HistorialCompra } from "@/components/compras/HistorialCompra";
 
 export default async function SolicitudPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -24,11 +21,12 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
   if (!user) redirect("/login");
   if (!canRead(user.rol, "compras")) redirect("/dashboard");
 
-  const [solicitud, proveedores, comparacion, decision] = await Promise.all([
+  const [solicitud, proveedores, comparacion, decision, historial] = await Promise.all([
     get<any>(`SELECT * FROM solicitudes_compra WHERE id = ?`, [id]),
     all<any>(`SELECT * FROM proveedores ORDER BY nombre`),
     compararPresupuestos(Number(id)),
     get<any>(`SELECT dc.*, pp.proveedor_id, pv.nombre as proveedor_nombre, u.nombre as decidido_por FROM decisiones_compra dc JOIN presupuestos_proveedor pp ON pp.id = dc.presupuesto_id JOIN proveedores pv ON pv.id = pp.proveedor_id LEFT JOIN users u ON u.id = dc.decidido_por_id WHERE dc.solicitud_id = ? ORDER BY dc.fecha DESC LIMIT 1`, [id]),
+    historialSolicitud(Number(id)),
   ]);
   if (!solicitud) notFound();
   const puedeAprobar = canApprove(user.rol, "compras");
@@ -48,8 +46,8 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
 
       <Card className="mb-5 text-sm">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div><Label>Categoría</Label>{CATEGORIA_COMPRA_LABEL[solicitud.categoria] || CATEGORIA_COMPRA_LABEL.obra}</div>
-          <div><Label>Estado</Label>{ESTADO_LABEL[solicitud.estado] || solicitud.estado.replace(/_/g, " ")}</div>
+          <div><Label>Categoría</Label>{CATEGORIA_COMPRA_LABEL[solicitud.categoria] || CATEGORIA_COMPRA_LABEL.obra}{solicitud.subcategoria ? ` · ${solicitud.subcategoria}` : ""}</div>
+          <div><Label>Estado</Label><SolicitudStatusBadge estado={solicitud.estado} /></div>
           <div><Label>Etapa de obra</Label>{solicitud.etapa_obra || "—"}</div>
           <div><Label>Necesario para</Label>{solicitud.fecha_necesaria ? dayjs(solicitud.fecha_necesaria).format("DD/MM/YYYY") : "—"}</div>
           <div><Label>Estimado</Label>{solicitud.presupuesto_estimado ? `$${solicitud.presupuesto_estimado.toLocaleString("es-UY")}` : "—"}</div>
@@ -135,6 +133,11 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
       {puedeEditar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
         <CargarPresupuestoForm solicitudId={solicitud.id} proveedores={proveedores} abiertoPorDefecto={comparacion.presupuestos.length < 3} />
       )}
+
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2 mt-6">Historial</h3>
+      <Card>
+        <HistorialCompra registros={historial} />
+      </Card>
     </div>
   );
 }

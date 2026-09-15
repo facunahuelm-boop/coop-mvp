@@ -43,6 +43,11 @@ export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
             </select>
           </div>
           <div>
+            <Label>Subcategoría (opcional)</Label>
+            <input name="subcategoria" className={inputClass} placeholder="Ej: cemento, guantes, extintores…" />
+            <FieldError message={estado.fieldErrors?.subcategoria} />
+          </div>
+          <div>
             <Label>Comisión solicitante</Label>
             <input name="comision" required className={inputClass} placeholder="Comisión de Obra" />
             <FieldError message={estado.fieldErrors?.comision} />
@@ -100,6 +105,10 @@ export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
             <Label>Presupuesto estimado</Label>
             <input name="presupuesto_estimado" type="number" className={inputClass} />
             <FieldError message={estado.fieldErrors?.presupuesto_estimado} />
+          </div>
+          <div className="sm:col-span-2 flex items-center gap-2">
+            <input id="recurrente" type="checkbox" name="recurrente" className="h-4 w-4" />
+            <label htmlFor="recurrente" className="text-sm text-ink-muted">Esta compra se repite habitualmente (limpieza, papelería, mantenimiento…)</label>
           </div>
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
