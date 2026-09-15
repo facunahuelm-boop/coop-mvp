@@ -27,8 +27,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Sidebar user={user} />
           <div className="md:pl-64 flex flex-col min-h-full">
             <TopBar user={user} />
+            {/* En escritorio los accesos rápidos ahora viven adentro de
+                TopBarDesktop, junto al buscador (pedido explícito) — acá
+                queda solo la versión de celular (`AccesosRapidos` ya tiene
+                md:pt-3.5, pero no se auto-oculta en desktop; con
+                TopBarDesktop ahora mostrando los mismos accesos habría
+                quedado duplicado, así que se lo limita a `md:hidden`). */}
             <TopBarDesktop user={user} alertas={alertas} />
-            <AccesosRapidos user={user} />
+            <div className="md:hidden">
+              <AccesosRapidos user={user} />
+            </div>
             <main className="flex-1 px-4 sm:px-6 py-5 pb-24 md:pb-8 max-w-5xl w-full mx-auto">{children}</main>
           </div>
           <BottomNav user={user} />

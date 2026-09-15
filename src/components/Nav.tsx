@@ -316,15 +316,27 @@ export function TopBarDesktop({
   alertas: { count: number; hayCriticas: boolean; items: { id: number; titulo: string; severidad: string; fecha: string }[] };
 }) {
   return (
-    <header className="hidden md:flex items-center justify-end gap-4 px-4 sm:px-6 py-2.5 bg-surface border-b border-border">
-      <TopBarClient
-        nombre={user.nombre}
-        rolLabel={ROLE_LABELS[user.rol]}
-        avatarUrl={user.avatar_url}
-        perfilHref={`/usuarios/${user.id}`}
-        alertas={alertas}
-        logoutAction={logoutAction}
-      />
+    <header className="hidden md:flex items-center gap-4 px-4 sm:px-6 py-2.5 bg-surface border-b border-border">
+      {/* Accesos rápidos a la izquierda (pedido explícito: juntarlos con el
+          buscador en la misma franja en vez de una fila aparte debajo) — si
+          el usuario no tiene ninguno habilitado (ej. un socio en una
+          cooperativa todavía no habitada, ver accesosRapidosFor), esta zona
+          no renderiza nada y el resto de la barra queda igual que antes. */}
+      <AccesosRapidosInline user={user} />
+      {/* `ml-auto` (no `justify-between` en el header): así el buscador/
+          campana/perfil quedan pegados a la derecha tanto si hay accesos
+          rápidos a la izquierda como si no hay ninguno (el header tendría un
+          solo hijo y `justify-between` no alcanzaría para separarlo). */}
+      <div className="shrink-0 ml-auto">
+        <TopBarClient
+          nombre={user.nombre}
+          rolLabel={ROLE_LABELS[user.rol]}
+          avatarUrl={user.avatar_url}
+          perfilHref={`/usuarios/${user.id}`}
+          alertas={alertas}
+          logoutAction={logoutAction}
+        />
+      </div>
     </header>
   );
 }
@@ -383,11 +395,14 @@ export function accesosRapidosFor(user: SessionUser): { label: string; href: str
 }
 
 /**
- * Franja de accesos rápidos — se monta una sola vez a nivel de layout (ver
- * (app)/layout.tsx), justo debajo de la Top Bar, así aparece en cualquier
- * pantalla y no sólo en Inicio. Compacta y horizontal-scrollable a propósito
- * ("no quiero 15-20 botones ni una fila gigante" — pedido explícito): son
- * accesos a una ACCIÓN puntual, con nombre + ícono, nunca botones enormes.
+ * Franja de accesos rápidos para CELULAR — se monta a nivel de layout (ver
+ * (app)/layout.tsx), justo debajo del `TopBar` compacto, con `md:hidden`
+ * (en escritorio ahora viven adentro de la Top Bar, ver `AccesosRapidosInline`
+ * más abajo — se pidió explícitamente juntarlos con el buscador en la misma
+ * franja en vez de una fila aparte debajo). Compacta y horizontal-scrollable
+ * a propósito ("no quiero 15-20 botones ni una fila gigante" — pedido
+ * explícito): son accesos a una ACCIÓN puntual, con nombre + ícono, nunca
+ * botones enormes.
  */
 export function AccesosRapidos({ user }: { user: SessionUser }) {
   const accesos = accesosRapidosFor(user);
@@ -406,6 +421,37 @@ export function AccesosRapidos({ user }: { user: SessionUser }) {
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Versión compacta de los accesos rápidos para adentro de la Top Bar de
+ * escritorio (a la izquierda del buscador, ver `TopBarDesktop`) — mismos
+ * ítems y mismo cálculo por permiso que `AccesosRapidos` (`accesosRapidosFor`,
+ * sin duplicar la lógica), solo cambia el envoltorio: sin el padding/ancho
+ * máximo de una franja propia, pensada para compartir una sola fila con el
+ * buscador/campana/perfil. `min-w-0` + `overflow-x-auto` para que, si el rol
+ * tiene varios ítems (ej. admin/consejo directivo) y la pantalla es angosta,
+ * esta zona se recorte con scroll horizontal en vez de empujar el
+ * buscador/perfil fuera de la franja (esos quedan `shrink-0` en
+ * `TopBarDesktop`).
+ */
+export function AccesosRapidosInline({ user }: { user: SessionUser }) {
+  const accesos = accesosRapidosFor(user);
+  if (accesos.length === 0) return null;
+  return (
+    <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto">
+      {accesos.map((a) => (
+        <Link
+          key={a.href}
+          href={a.href}
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-surface-sunken border border-border px-3 py-2 text-xs font-semibold text-ink hover:bg-[var(--color-secondary-bg)] hover:border-[var(--color-secondary)]/30 hover:text-[var(--color-secondary)] transition-colors whitespace-nowrap"
+        >
+          <span className="text-[var(--color-secondary)]">{a.icon}</span>
+          {a.label}
+        </Link>
+      ))}
     </div>
   );
 }
