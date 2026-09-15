@@ -114,10 +114,24 @@ export default async function TrabajoPage({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
           <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Jornadas anteriores</h3>
-          <div className="space-y-2">
-            {pasadas.map((j) => <Link key={j.id} href={`/trabajo/${j.id}`}><Card className="hover:shadow-md text-sm">{dayjs(j.fecha).format("DD/MM/YYYY")} — {j.descripcion}</Card></Link>)}
-            {pasadas.length === 0 && <EmptyState>Sin jornadas anteriores.</EmptyState>}
-          </div>
+          {pasadas.length === 0 ? (
+            <EmptyState>Sin jornadas anteriores.</EmptyState>
+          ) : (
+            // Auditoría de espacio (sección 27-28, extendida al resto del
+            // sistema): antes cada jornada pasada era una <Card> completa
+            // para una sola línea de texto — se reemplaza por una Card con
+            // filas compactas, mismo patrón ya usado acá al lado para "Horas
+            // acumuladas por núcleo" (tabla dentro de una única Card).
+            <Card className="text-sm">
+              <div className="divide-y divide-ink/5">
+                {pasadas.map((j) => (
+                  <Link key={j.id} href={`/trabajo/${j.id}`} className="block py-2 hover:opacity-70 transition-opacity">
+                    {dayjs(j.fecha).format("DD/MM/YYYY")} — {j.descripcion}
+                  </Link>
+                ))}
+              </div>
+            </Card>
+          )}
           {pasadas.length > 0 && <Pagination page={page} totalPages={totalPages} basePath="/trabajo" searchParams={sp} />}
         </div>
         <div>

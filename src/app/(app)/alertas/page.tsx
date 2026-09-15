@@ -55,9 +55,17 @@ export default async function AlertasPage() {
       {resueltas.length > 0 && (
         <>
           <h3 className="text-sm font-bold text-[var(--color-brand-900)]/60 mb-2">Resueltas recientemente</h3>
-          <div className="space-y-1.5 opacity-60">
-            {resueltas.map((a) => <Card key={a.id} className="text-xs">{a.titulo} — {dayjs(a.fecha).format("DD/MM")}</Card>)}
-          </div>
+          {/* Auditoría de espacio (sección 27-28, extendida al resto del
+              sistema): antes cada alerta resuelta era una <Card> completa
+              para una sola línea de texto ya de por sí atenuada (opacity-60)
+              — se reemplaza por una única Card con filas compactas. */}
+          <Card className="text-xs opacity-60">
+            <div className="divide-y divide-ink/5">
+              {resueltas.map((a) => (
+                <div key={a.id} className="py-1.5">{a.titulo} — {dayjs(a.fecha).format("DD/MM")}</div>
+              ))}
+            </div>
+          </Card>
         </>
       )}
     </div>

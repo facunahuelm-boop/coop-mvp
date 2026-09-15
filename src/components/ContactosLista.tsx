@@ -95,31 +95,41 @@ export function ContactosLista({ contactos }: { contactos: Contacto[] }) {
           {busqueda ? `No se encontraron contactos para "${busqueda}".` : "No hay contactos para mostrar."}
         </EmptyState>
       ) : (
-        <div className="space-y-2">
-          <p className="text-xs text-ink/50">
+        <>
+          <p className="text-xs text-ink/50 mb-2">
             {resultados.length} contacto{resultados.length !== 1 ? "s" : ""}
           </p>
-          {resultados.map((c) => (
-            <Link key={`${c.tipo}-${c.id}`} href={c.href}>
-              <Card className="cursor-pointer hover:bg-ink/2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge color={BADGE_POR_TIPO[c.tipo]}>{LABEL_POR_TIPO[c.tipo]}</Badge>
-                      <p className="text-sm font-semibold truncate">{c.nombre}</p>
+          {/* Auditoría de espacio (sección 27-28 del pedido de rediseño de
+              Compras, extendida al resto del sistema): antes, cada contacto
+              era una <Card> completa (borde, sombra, padding grande) para 2
+              líneas de texto — con un padrón + proveedores reales esto
+              multiplica mucho espacio desperdiciado. Se reemplaza por una
+              sola Card conteniendo filas compactas separadas por línea
+              divisoria, mismo patrón ya usado en nucleos/[id] (asistencias)
+              y mails (historial). */}
+          <Card>
+            <div className="divide-y divide-ink/5">
+              {resultados.map((c) => (
+                <Link key={`${c.tipo}-${c.id}`} href={c.href} className="block py-2.5 hover:opacity-70 transition-opacity">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge color={BADGE_POR_TIPO[c.tipo]}>{LABEL_POR_TIPO[c.tipo]}</Badge>
+                        <p className="text-sm font-semibold truncate">{c.nombre}</p>
+                      </div>
+                      <p className="text-xs text-ink/50 mt-0.5">{c.subtitulo}</p>
                     </div>
-                    <p className="text-xs text-ink/50 mt-1">{c.subtitulo}</p>
+                    <div className="text-right text-xs text-ink-muted shrink-0">
+                      {c.telefono && <p>{c.telefono}</p>}
+                      {c.email && <p className="truncate max-w-[200px]">{c.email}</p>}
+                      {!c.telefono && !c.email && <p className="text-ink/30">Sin datos de contacto</p>}
+                    </div>
                   </div>
-                  <div className="text-right text-xs text-ink-muted shrink-0">
-                    {c.telefono && <p>{c.telefono}</p>}
-                    {c.email && <p className="truncate max-w-[200px]">{c.email}</p>}
-                    {!c.telefono && !c.email && <p className="text-ink/30">Sin datos de contacto</p>}
-                  </div>
-                </div>
-              </Card>
-            </Link>
-          ))}
-        </div>
+                </Link>
+              ))}
+            </div>
+          </Card>
+        </>
       )}
     </div>
   );

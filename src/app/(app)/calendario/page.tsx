@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { all } from "@/lib/db";
 import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
-import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState, SectionTitle } from "@/components/ui";
 import { MonthCalendar, type EventoCalendario, type NotaCalendario } from "@/components/MonthCalendar";
 import {
   crearNotaCalendarioFormAction,
@@ -183,14 +183,22 @@ export default async function CalendarioPage() {
       {grupos.length === 0 ? (
         <EmptyState>No hay nada agendado por ahora.</EmptyState>
       ) : (
+        // Auditoría de espacio (sección 27-28, extendida del rediseño de
+        // Compras al resto del sistema): antes, cada evento era una <Card>
+        // completa (borde, sombra, padding grande) para una sola línea de
+        // título+subtítulo+fecha — con varias reuniones/jornadas/vencimientos
+        // en una misma semana esto se volvía una columna larga de cajas
+        // repetidas. Se reemplaza por una sola Card por grupo con filas
+        // compactas separadas por línea divisoria (mismo patrón ya usado en
+        // nucleos/[id] para las asistencias).
         <div className="space-y-6">
           {grupos.map((g) => (
             <div key={g.titulo}>
-              <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">{g.titulo}</h3>
-              <div className="space-y-2">
-                {g.items.map((e) => (
-                  <Card key={e.id}>
-                    <Link href={e.href} className="flex items-center justify-between gap-3">
+              <SectionTitle>{g.titulo}</SectionTitle>
+              <Card>
+                <div className="divide-y divide-ink/5">
+                  {g.items.map((e) => (
+                    <Link key={e.id} href={e.href} className="flex items-center justify-between gap-3 py-2.5 hover:opacity-70 transition-opacity">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-ink truncate">{e.titulo}</p>
                         <p className="text-xs text-ink/50 mt-0.5">
@@ -200,9 +208,9 @@ export default async function CalendarioPage() {
                       </div>
                       <Badge color={TIPO_COLOR[e.tipo]}>{dayjs(e.fecha).format("dddd DD/MM")}</Badge>
                     </Link>
-                  </Card>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </Card>
             </div>
           ))}
         </div>
