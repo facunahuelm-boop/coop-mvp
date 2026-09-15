@@ -3,7 +3,8 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, EmptyState, Label, inputClass, Badge } from "@/components/ui";
+import { Card, PageHeader, EmptyState, Label, inputClass, Badge, AddButtonSummary } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import { UsuarioLink } from "@/components/EntidadLink";
 import dayjs from "dayjs";
@@ -114,7 +115,7 @@ export default async function ComisionesPage() {
                       <option value="coordinador">Coordinador/a</option>
                     </select>
                   </div>
-                  <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Agregar</button>
+                  <SubmitButton variant="add" className="text-xs px-3 py-2 whitespace-nowrap">Agregar</SubmitButton>
                 </form>
               )}
 
@@ -154,7 +155,7 @@ export default async function ComisionesPage() {
 
                 {puedeGestionar && (
                   <details className="mt-2">
-                    <summary className="cursor-pointer text-xs font-semibold text-[var(--color-brand-800)]">+ Agregar tarea</summary>
+                    <AddButtonSummary className="text-xs px-3 py-1.5">Agregar tarea</AddButtonSummary>
                     <form action={crearTareaAction} className="mt-2 grid grid-cols-1 gap-2">
                       <input type="hidden" name="comision_id" value={c.id} />
                       <input name="titulo" required placeholder="Título de la tarea" className={inputClass} />
@@ -172,7 +173,7 @@ export default async function ComisionesPage() {
                         </select>
                       </div>
                       <input name="fecha_vencimiento" type="date" className={inputClass} />
-                      <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold">Agregar tarea</button>
+                      <SubmitButton variant="add" className="text-xs px-3 py-2">Agregar tarea</SubmitButton>
                     </form>
                   </details>
                 )}
@@ -185,12 +186,12 @@ export default async function ComisionesPage() {
 
       {esOversightComisiones && (
         <details className="mt-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Crear comisión</summary>
+          <AddButtonSummary>Crear comisión</AddButtonSummary>
           <Card className="mt-3">
             <form action={crearComisionAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Nombre</Label><input name="nombre" required placeholder="Ej: Comisión de Educación" className={inputClass} /></div>
               <div><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Crear comisión</button></div>
+              <div className="sm:col-span-2"><SubmitButton variant="add">Crear comisión</SubmitButton></div>
             </form>
           </Card>
         </details>

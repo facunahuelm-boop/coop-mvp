@@ -3,7 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { tareasObraConSemaforo } from "@/lib/logic";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState, Label, inputClass, AddButtonSummary } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import Link from "next/link";
 import dayjs from "dayjs";
 import { crearTareaAction } from "@/lib/actions/obra";
@@ -69,7 +70,7 @@ export default async function ObraPage() {
 
       {puedeEditar && (
         <details className="mt-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar tarea</summary>
+          <AddButtonSummary>Agregar tarea</AddButtonSummary>
           <Card className="mt-3">
             <form action={crearTareaAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Etapa</Label><input name="etapa" required className={inputClass} placeholder="Ej: Estructura" /></div>
@@ -84,7 +85,7 @@ export default async function ObraPage() {
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Crear tarea</button>
+                <SubmitButton variant="add">Crear tarea</SubmitButton>
               </div>
             </form>
           </Card>

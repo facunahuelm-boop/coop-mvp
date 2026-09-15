@@ -3,7 +3,8 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, EmptyState, Label, inputClass, Badge } from "@/components/ui";
+import { Card, PageHeader, EmptyState, Label, inputClass, Badge, AddButtonSummary } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import dayjs from "dayjs";
 import { crearProveedorAction, cambiarEstadoProveedorAction } from "@/lib/actions/proveedores";
@@ -134,7 +135,7 @@ export default async function ProveedoresPage({ searchParams }: { searchParams: 
 
         {puedeEditar && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar proveedor</summary>
+            <AddButtonSummary>Agregar proveedor</AddButtonSummary>
             <form action={crearProveedorAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Nombre / razón social</Label><input name="nombre" required className={inputClass} /></div>
               <div><Label>RUT</Label><input name="rut" className={inputClass} /></div>
@@ -158,7 +159,7 @@ export default async function ProveedoresPage({ searchParams }: { searchParams: 
               <div><Label>Contacto (libre)</Label><input name="contacto" placeholder="Teléfono o email, si no encaja arriba" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agregar proveedor</button>
+                <SubmitButton variant="add">Agregar proveedor</SubmitButton>
               </div>
             </form>
           </details>

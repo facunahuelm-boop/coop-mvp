@@ -3,7 +3,8 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, canApprove } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, SectionTitle, EmptyState, Label, inputClass, Badge } from "@/components/ui";
+import { Card, PageHeader, SectionTitle, EmptyState, Label, inputClass, Badge, AddButtonSummary } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import {
   crearViviendaAction,
@@ -193,7 +194,7 @@ export default async function SociosPage() {
 
         {puedeEditar && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar socio</summary>
+            <AddButtonSummary>Agregar socio</AddButtonSummary>
             <form action={crearSocioAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
               <div><Label>Documento</Label><input name="documento" className={inputClass} /></div>
@@ -220,7 +221,7 @@ export default async function SociosPage() {
               <div><Label>Fecha de ingreso</Label><input name="fecha_ingreso" type="date" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agregar socio</button>
+                <SubmitButton variant="add">Agregar socio</SubmitButton>
               </div>
             </form>
           </details>
@@ -253,7 +254,7 @@ export default async function SociosPage() {
 
         {puedeEditar && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar vivienda</summary>
+            <AddButtonSummary>Agregar vivienda</AddButtonSummary>
             <form action={crearViviendaAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Número / identificador</Label><input name="numero" required placeholder="Ej: Casa 12" className={inputClass} /></div>
               <div>
@@ -266,7 +267,7 @@ export default async function SociosPage() {
               </div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agregar vivienda</button>
+                <SubmitButton variant="add">Agregar vivienda</SubmitButton>
               </div>
             </form>
           </details>
@@ -368,14 +369,14 @@ export default async function SociosPage() {
 
         {puedeEditar && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar aspirante</summary>
+            <AddButtonSummary>Agregar aspirante</AddButtonSummary>
             <form action={agregarListaEsperaAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
               <div><Label>Documento</Label><input name="documento" className={inputClass} /></div>
               <div><Label>Contacto</Label><input name="contacto" placeholder="Teléfono o email" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agregar a la lista</button>
+                <SubmitButton variant="add">Agregar a la lista</SubmitButton>
               </div>
             </form>
           </details>

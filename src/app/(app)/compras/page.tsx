@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState, Label, inputClass, AddButtonSummary } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import Link from "next/link";
 import dayjs from "dayjs";
 import { crearSolicitudAction } from "@/lib/actions/compras";
@@ -82,7 +83,7 @@ export default async function ComprasPage() {
 
       {puedeEditar && (
         <details className="mt-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Nueva solicitud de compra</summary>
+          <AddButtonSummary>Nueva solicitud de compra</AddButtonSummary>
           <Card className="mt-3">
             <form action={crearSolicitudAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -115,7 +116,7 @@ export default async function ComprasPage() {
                 </select>
               </div>
               <div><Label>Presupuesto estimado</Label><input name="presupuesto_estimado" type="number" className={inputClass} /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Crear solicitud</button></div>
+              <div className="sm:col-span-2"><SubmitButton variant="add">Crear solicitud</SubmitButton></div>
             </form>
           </Card>
         </details>

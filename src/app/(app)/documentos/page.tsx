@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState, Label, inputClass, AddButtonSummary } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import dayjs from "dayjs";
 import { subirDocumentoAction, crearCategoriaDocumentoAction, eliminarDocumentoAction } from "@/lib/actions/documentos";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
@@ -135,7 +136,7 @@ export default async function DocumentosPage({
 
       {puedeEditar && (
         <>
-          <details className="mt-6"><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Subir documento</summary>
+          <details className="mt-6"><AddButtonSummary>Subir documento</AddButtonSummary>
             <Card className="mt-3">
               <form action={subirDocumentoAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
@@ -151,17 +152,17 @@ export default async function DocumentosPage({
                   <input name="etiquetas" placeholder="separadas por coma, ej: obra-etapa-2, urgente" className={inputClass} />
                 </div>
                 <div className="sm:col-span-2"><Label>Archivo</Label><input type="file" name="archivo" className="text-xs" /></div>
-                <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Subir</button></div>
+                <div className="sm:col-span-2"><SubmitButton variant="add">Subir</SubmitButton></div>
               </form>
             </Card>
           </details>
 
           <details className="mt-3">
-            <summary className="cursor-pointer text-xs text-ink/40 hover:text-[var(--color-brand-800)]">+ Crear una categoría nueva</summary>
+            <AddButtonSummary className="text-xs px-3 py-1.5">Crear una categoría nueva</AddButtonSummary>
             <Card className="mt-3">
               <form action={crearCategoriaDocumentoAction} className="flex items-end gap-2">
                 <div className="flex-1"><Label>Nombre de la categoría</Label><input name="nombre" required placeholder="ej: Estatuto, RRHH" className={inputClass} /></div>
-                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Crear</button>
+                <SubmitButton variant="add" className="text-xs px-3 py-2">Crear</SubmitButton>
               </form>
             </Card>
           </details>

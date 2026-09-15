@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState, Label, inputClass, AddButtonSummary } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import dayjs from "dayjs";
 import { crearDocumentoSeguridadAction, crearInspeccionAction, crearIncidenteAction, resolverIncidenteAction } from "@/lib/actions/seguridad";
 import { CHECKLIST_BASE } from "@/lib/constants";
@@ -43,13 +44,13 @@ export default async function SeguridadPage() {
         {docs.length === 0 && <EmptyState>Sin documentos cargados.</EmptyState>}
       </div>
       {puedeEditar && (
-        <details className="mb-8"><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Cargar documento</summary>
+        <details className="mb-8"><AddButtonSummary>Cargar documento</AddButtonSummary>
           <Card className="mt-3">
             <form action={crearDocumentoSeguridadAction} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div><Label>Tipo de documento</Label><input name="tipo" required className={inputClass} /></div>
               <div><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
               <div><Label>Fecha de vencimiento</Label><input type="date" name="fecha_vencimiento" className={inputClass} /></div>
-              <div className="sm:col-span-3"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar</button></div>
+              <div className="sm:col-span-3"><SubmitButton variant="add">Guardar</SubmitButton></div>
             </form>
           </Card>
         </details>
@@ -82,7 +83,7 @@ export default async function SeguridadPage() {
         {incidentes.length === 0 && <EmptyState>Sin incidentes registrados.</EmptyState>}
       </div>
       {puedeEditar && (
-        <details className="mb-8"><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Registrar incidente / observación</summary>
+        <details className="mb-8"><AddButtonSummary>Registrar incidente / observación</AddButtonSummary>
           <Card className="mt-3">
             <form action={crearIncidenteAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -99,7 +100,7 @@ export default async function SeguridadPage() {
               </div>
               <div className="sm:col-span-2"><Label>Descripción</Label><textarea name="descripcion" required className={inputClass} rows={2} /></div>
               <div className="sm:col-span-2"><Label>Foto (opcional)</Label><input type="file" name="foto" accept="image/*" className="text-xs" /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Registrar</button></div>
+              <div className="sm:col-span-2"><SubmitButton variant="add">Registrar</SubmitButton></div>
             </form>
           </Card>
         </details>
@@ -121,7 +122,7 @@ export default async function SeguridadPage() {
         {inspecciones.length === 0 && <EmptyState>Sin inspecciones registradas.</EmptyState>}
       </div>
       {puedeEditar && (
-        <details><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Nueva inspección</summary>
+        <details><AddButtonSummary>Nueva inspección</AddButtonSummary>
           <Card className="mt-3">
             <form action={crearInspeccionAction} className="space-y-2">
               {CHECKLIST_BASE.map((item, i) => (
@@ -130,7 +131,7 @@ export default async function SeguridadPage() {
                 </label>
               ))}
               <div><Label>Hallazgos</Label><textarea name="hallazgos" className={inputClass} rows={2} /></div>
-              <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar inspección</button>
+              <SubmitButton variant="add">Guardar inspección</SubmitButton>
             </form>
           </Card>
         </details>

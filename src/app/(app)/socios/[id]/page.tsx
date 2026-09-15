@@ -3,7 +3,8 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { get, all } from "@/lib/db";
-import { Card, PageHeader, SectionTitle, EmptyState, Badge, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, SectionTitle, EmptyState, Badge, Label, inputClass, AddButtonSummary } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import dayjs from "dayjs";
 import { registrarMovimientoCuentaSocioAction } from "@/lib/actions/cuentaSocios";
 import { actualizarSocioAction, agregarIntegranteAction, editarIntegranteAction, cambiarEstadoIntegranteAction } from "@/lib/actions/socios";
@@ -174,7 +175,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
 
         {puedeEditar && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar integrante</summary>
+            <AddButtonSummary>Agregar integrante</AddButtonSummary>
             <form action={agregarIntegranteAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input type="hidden" name="socio_id" value={socio.id} />
               <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
@@ -197,7 +198,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
               </div>
               <div className="sm:col-span-2"><Label>Observaciones</Label><input name="observaciones" className={inputClass} /></div>
               <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Agregar integrante</button>
+                <SubmitButton variant="add">Agregar integrante</SubmitButton>
               </div>
             </form>
           </details>
@@ -243,7 +244,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
 
             {puedeRegistrar && (
               <details className="mt-4">
-                <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Registrar cargo o pago</summary>
+                <AddButtonSummary>Registrar cargo o pago</AddButtonSummary>
                 <form action={registrarMovimientoCuentaSocioAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input type="hidden" name="socio_id" value={socio.id} />
                   <div>
@@ -258,7 +259,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
                   <div><Label>Fecha</Label><input name="fecha" type="date" required className={inputClass} defaultValue={dayjs().format("YYYY-MM-DD")} /></div>
                   <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
                   <div className="sm:col-span-2">
-                    <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Registrar</button>
+                    <SubmitButton variant="add">Registrar</SubmitButton>
                   </div>
                 </form>
               </details>

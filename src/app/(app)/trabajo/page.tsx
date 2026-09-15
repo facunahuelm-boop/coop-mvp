@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all, get } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass, Button } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState, Label, inputClass, AddButtonSummary } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import dayjs from "dayjs";
 import Link from "next/link";
 import { crearJornadaAction, proponerDistribucionAction, confirmarAsignacionAction, anotarmeAction } from "@/lib/actions/trabajo";
@@ -137,14 +138,14 @@ export default async function TrabajoPage({
 
       {puedeEditar && (
         <details className="mt-6">
-          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Planificar nueva jornada</summary>
+          <AddButtonSummary>Planificar nueva jornada</AddButtonSummary>
           <Card className="mt-3">
             <form action={crearJornadaAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Fecha</Label><input type="date" name="fecha" required className={inputClass} /></div>
               <div><Label>Herramientas necesarias</Label><input name="herramientas_necesarias" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
               <div className="sm:col-span-2"><Label>Tareas de la jornada (una por línea)</Label><textarea name="tareas" className={inputClass} rows={3} placeholder={"Encofrado de columnas\nOrden y limpieza"} /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Crear jornada</button></div>
+              <div className="sm:col-span-2"><SubmitButton variant="add">Crear jornada</SubmitButton></div>
             </form>
           </Card>
         </details>

@@ -4,6 +4,7 @@ import { canRead, canEdit } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { semaforoTarea } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import dayjs from "dayjs";
 import { agregarAvanceAction, agregarProblemaAction, resolverProblemaAction, cambiarEstadoTareaAction } from "@/lib/actions/obra";
 import { UsuarioLink } from "@/components/EntidadLink";
@@ -68,7 +69,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
               <input type="hidden" name="tarea_id" value={tarea.id} />
               <textarea name="descripcion" required placeholder="Describí el avance…" className={inputClass} rows={2} />
               <input type="file" name="foto" accept="image/*" className="text-xs" />
-              <button className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold">Agregar avance</button>
+              <SubmitButton variant="add" className="text-xs px-3 py-2">Agregar avance</SubmitButton>
             </form>
           )}
         </div>
@@ -105,7 +106,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
               <select name="severidad" className={inputClass} defaultValue="media">
                 <option value="baja">Baja</option><option value="media">Media</option><option value="critica">Crítica</option>
               </select>
-              <button className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold">Registrar problema</button>
+              <SubmitButton variant="add" className="text-xs px-3 py-2">Registrar problema</SubmitButton>
             </form>
           )}
         </div>

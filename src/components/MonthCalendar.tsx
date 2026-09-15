@@ -7,6 +7,7 @@ import dayjs, { Dayjs } from "dayjs";
 import { ChevronLeft, ChevronRight, Pencil, Trash2, Plus } from "lucide-react";
 import { ESTADO_INICIAL, type ActionState } from "@/lib/actionState";
 import { FieldError, FormError, useToast } from "./ui-client";
+import { AddButton } from "./ui";
 import {
   CATEGORIAS_EVENTO,
   CATEGORIA_EVENTO_LABEL,
@@ -397,13 +398,9 @@ export function MonthCalendar({
             )}
 
             {puedeEscribir && !mostrarForm && !notaEnEdicion && (
-              <button
-                type="button"
-                onClick={() => setMostrarForm(true)}
-                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-brand-800)]"
-              >
-                <Plus size={13} /> Agregar algo para este día
-              </button>
+              <AddButton onClick={() => setMostrarForm(true)} className="mt-2 text-xs px-3 py-1.5">
+                Agregar algo para este día
+              </AddButton>
             )}
           </>
         ) : (
@@ -640,16 +637,15 @@ export function MonthCalendar({
           </ul>
         )}
         {puedeEscribir && !seleccionado && (
-          <button
-            type="button"
+          <AddButton
             onClick={() => {
               setSeleccionado(isoDate(hoy));
               setMostrarForm(true);
             }}
-            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-verde)]"
+            className="mt-2 text-xs px-3 py-1.5"
           >
-            <Plus size={13} /> Agregar evento
-          </button>
+            Agregar evento
+          </AddButton>
         )}
       </div>
 

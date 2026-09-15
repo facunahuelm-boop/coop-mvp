@@ -3,7 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { all, get } from "@/lib/db";
 import { resumenFinanciero, cuentasPorCobrar } from "@/lib/logic";
-import { Card, PageHeader, StatTile, EmptyState, Label, inputClass, SectionTitle } from "@/components/ui";
+import { Card, PageHeader, StatTile, EmptyState, Label, inputClass, SectionTitle, AddButtonSummary } from "@/components/ui";
+import { SubmitButton } from "@/components/ui-client";
 import Link from "next/link";
 import dayjs from "dayjs";
 import { registrarMovimientoAction, agregarCompromisoAction } from "@/lib/actions/finanzas";
@@ -124,14 +125,14 @@ export default async function FinanzasPage({
             {compromisos.length === 0 && <EmptyState>Sin compromisos futuros cargados.</EmptyState>}
           </div>
           {puedeEditar && (
-            <details className="mb-8"><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agregar compromiso futuro</summary>
+            <details className="mb-8"><AddButtonSummary>Agregar compromiso futuro</AddButtonSummary>
               <Card className="mt-3">
                 <form action={agregarCompromisoAction} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2"><Label>Descripción</Label><input name="descripcion" required className={inputClass} /></div>
                   <div><Label>Monto</Label><input name="monto" type="number" required className={inputClass} /></div>
                   <div><Label>Fecha estimada</Label><input type="date" name="fecha_estimada" required className={inputClass} /></div>
                   <div><Label>Origen</Label><input name="origen" className={inputClass} /></div>
-                  <div className="sm:col-span-3"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar</button></div>
+                  <div className="sm:col-span-3"><SubmitButton variant="add">Guardar</SubmitButton></div>
                 </form>
               </Card>
             </details>
@@ -188,7 +189,7 @@ export default async function FinanzasPage({
           </Card>
           <Pagination page={page} totalPages={totalPages} basePath="/finanzas" searchParams={sp} />
           {puedeEditar && (
-            <details className="mt-4"><summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Registrar movimiento</summary>
+            <details className="mt-4"><AddButtonSummary>Registrar movimiento</AddButtonSummary>
               <Card className="mt-3">
                 <form action={registrarMovimientoAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -198,7 +199,7 @@ export default async function FinanzasPage({
                   <div><Label>Monto</Label><input name="monto" type="number" required className={inputClass} /></div>
                   <div><Label>Categoría</Label><input name="categoria" required className={inputClass} placeholder="Estructura, Administración…" /></div>
                   <div><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
-                  <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Registrar</button></div>
+                  <div className="sm:col-span-2"><SubmitButton variant="add">Registrar</SubmitButton></div>
                 </form>
               </Card>
             </details>
