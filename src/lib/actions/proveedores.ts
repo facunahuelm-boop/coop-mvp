@@ -106,6 +106,10 @@ export async function cambiarEstadoProveedorAction(formData: FormData) {
   revalidatePath("/proveedores");
 }
 
+export async function cambiarEstadoProveedorFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => cambiarEstadoProveedorAction(formData));
+}
+
 /**
  * AUDITORÍA INTEGRAL (testing E2E real, 12/09): hasta acá no había ninguna
  * forma de borrar un proveedor cargado por error o de prueba — quedaba para
@@ -158,4 +162,8 @@ export async function eliminarProveedorAction(formData: FormData) {
   }
   await audit({ usuario_id: user.id, accion: "eliminar", entidad: "proveedores", entidad_id: Number(id), valor_anterior: proveedor });
   revalidatePath("/proveedores");
+}
+
+export async function eliminarProveedorFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => eliminarProveedorAction(formData));
 }

@@ -191,6 +191,10 @@ export async function decidirCompraAction(formData: FormData) {
   revalidatePath("/gastos");
 }
 
+export async function decidirCompraFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => decidirCompraAction(formData));
+}
+
 /**
  * Fase 08 del Plan Maestro ("estados más granulares"): antes de esto, una
  * solicitud aprobada pasaba directo a "entregada" con un solo botón, sin
@@ -210,6 +214,10 @@ export async function marcarPedidaAction(formData: FormData) {
   revalidatePath(`/compras/${id}`);
 }
 
+export async function marcarPedidaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => marcarPedidaAction(formData));
+}
+
 export async function marcarEntregadaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
@@ -218,6 +226,10 @@ export async function marcarEntregadaAction(formData: FormData) {
   await update("solicitudes_compra", id, { estado: "entregada" });
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
+}
+
+export async function marcarEntregadaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => marcarEntregadaAction(formData));
 }
 
 /**
@@ -237,6 +249,10 @@ export async function rechazarSolicitudAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "rechazar_compra", entidad: "solicitudes_compra", entidad_id: id, valor_nuevo: { motivo } });
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
+}
+
+export async function rechazarSolicitudFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => rechazarSolicitudAction(formData));
 }
 
 /**
@@ -311,4 +327,8 @@ export async function eliminarSolicitudAction(formData: FormData) {
 
   await audit({ usuario_id: user.id, accion: "eliminar", entidad: "solicitudes_compra", entidad_id: Number(id), valor_anterior: solicitud });
   revalidatePath("/compras");
+}
+
+export async function eliminarSolicitudFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => eliminarSolicitudAction(formData));
 }

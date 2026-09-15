@@ -226,6 +226,10 @@ export async function marcarGastoPagadoAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function marcarGastoPagadoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => marcarGastoPagadoAction(formData));
+}
+
 /** Anular solo está permitido mientras el gasto sigue "pendiente" — uno ya
  * pagado ya generó un movimiento financiero real, y no se borra ni se
  * revierte información histórica sin pasar por Finanzas (mismo criterio de
@@ -261,4 +265,8 @@ export async function anularGastoAction(formData: FormData) {
   }
   await audit({ usuario_id: user.id, accion: "anular", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { motivo } });
   revalidatePath("/gastos");
+}
+
+export async function anularGastoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => anularGastoAction(formData));
 }

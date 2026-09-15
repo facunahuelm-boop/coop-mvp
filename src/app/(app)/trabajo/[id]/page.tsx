@@ -3,8 +3,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { Card, PageHeader, Badge, inputClass } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
-import { registrarAsistenciaAction, marcarJornadaRealizadaAction } from "@/lib/actions/trabajo";
+import { registrarAsistenciaFormAction, marcarJornadaRealizadaFormAction } from "@/lib/actions/trabajo";
 import { NucleoLink } from "@/components/EntidadLink";
 
 export default async function JornadaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,9 +29,9 @@ export default async function JornadaPage({ params }: { params: Promise<{ id: st
     <div>
       <PageHeader title={`Jornada del ${dayjs(jornada.fecha).format("DD/MM/YYYY")}`} subtitle={jornada.descripcion}
         action={jornada.estado === "planificada" && puedeEditar ? (
-          <form action={marcarJornadaRealizadaAction}><input type="hidden" name="id" value={jornada.id} />
+          <ActionForm action={marcarJornadaRealizadaFormAction}><input type="hidden" name="id" value={jornada.id} />
             <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">Marcar como realizada</button>
-          </form>
+          </ActionForm>
         ) : <Badge color={jornada.estado === "realizada" ? "verde" : "gray"}>{jornada.estado}</Badge>} />
 
       <Card className="mb-5 flex gap-6 text-sm">
@@ -54,13 +55,13 @@ export default async function JornadaPage({ params }: { params: Promise<{ id: st
                   <td className="text-ink/50">{a?.justificacion || ""}</td>
                   {puedeEditar && (
                     <td>
-                      <form action={registrarAsistenciaAction} className="flex items-center gap-1.5">
+                      <ActionForm action={registrarAsistenciaFormAction} className="flex items-center gap-1.5">
                         <input type="hidden" name="jornada_id" value={jornada.id} />
                         <input type="hidden" name="nucleo_id" value={n.id} />
                         <input type="checkbox" name="presente" defaultChecked={!!a?.presente} />
                         <input type="number" name="horas" defaultValue={a?.horas || 3} step="0.5" className="w-14 rounded border border-ink/10 px-1 py-0.5 text-xs" />
                         <button className="text-xs text-[var(--color-brand-800)] underline">Guardar</button>
-                      </form>
+                      </ActionForm>
                     </td>
                   )}
                 </tr>

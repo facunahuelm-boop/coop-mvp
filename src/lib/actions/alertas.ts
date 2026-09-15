@@ -5,6 +5,7 @@ import { get, update, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { parseForm, zId } from "@/lib/validation";
 import { z } from "zod";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 export async function resolverAlertaAction(formData: FormData) {
   const user = await requireUser();
@@ -17,4 +18,8 @@ export async function resolverAlertaAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "resolver_alerta", entidad: "alertas", entidad_id: id });
   revalidatePath("/alertas");
   revalidatePath("/dashboard");
+}
+
+export async function resolverAlertaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => resolverAlertaAction(formData));
 }

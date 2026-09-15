@@ -4,7 +4,7 @@ import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
 import dayjs from "dayjs";
-import { eliminarDocumentoAction } from "@/lib/actions/documentos";
+import { eliminarDocumentoFormAction } from "@/lib/actions/documentos";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { SubirDocumentoForm, CrearCategoriaDocumentoForm } from "@/components/documentos/DocumentosFormularios";
 
@@ -116,7 +116,7 @@ export default async function DocumentosPage({
                       <summary className="cursor-pointer text-[11px] text-[var(--color-rojo)]/70 hover:text-[var(--color-rojo)] whitespace-nowrap">Eliminar</summary>
                       <div className="mt-1">
                         <ConfirmarEliminar
-                          action={eliminarDocumentoAction}
+                          action={eliminarDocumentoFormAction}
                           hiddenFields={{ id: d.id, confirmacion: "ELIMINAR" }}
                           titulo="¿Eliminar este documento?"
                           descripcion={`Se va a borrar "${d.nombre}" de forma permanente. Esta acción no se puede deshacer.`}

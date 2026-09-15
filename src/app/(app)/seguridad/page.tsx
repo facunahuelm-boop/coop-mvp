@@ -3,8 +3,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, inputClass } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
-import { resolverIncidenteAction } from "@/lib/actions/seguridad";
+import { resolverIncidenteFormAction } from "@/lib/actions/seguridad";
 import { CHECKLIST_BASE } from "@/lib/constants";
 import { UsuarioLink } from "@/components/EntidadLink";
 import { CargarDocumentoSeguridadForm, RegistrarIncidenteForm, NuevaInspeccionForm } from "@/components/seguridad/SeguridadFormularios";
@@ -61,11 +62,11 @@ export default async function SeguridadPage() {
             )}
             {i.medidas && <p className="text-xs text-[var(--color-verde)] mt-1">Medidas: {i.medidas}</p>}
             {puedeEditar && i.estado === "abierto" && (
-              <form action={resolverIncidenteAction} className="mt-2 flex gap-2">
+              <ActionForm action={resolverIncidenteFormAction} className="mt-2 flex gap-2">
                 <input type="hidden" name="id" value={i.id} />
                 <input name="medidas" placeholder="Medida correctiva aplicada" className={inputClass + " text-xs"} />
                 <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Marcar resuelto</button>
-              </form>
+              </ActionForm>
             )}
           </Card>
         ))}

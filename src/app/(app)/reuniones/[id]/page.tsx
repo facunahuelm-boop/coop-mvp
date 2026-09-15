@@ -3,14 +3,15 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, inputClass } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import { UsuarioLink, NucleoLink } from "@/components/EntidadLink";
 import dayjs from "dayjs";
 import {
-  registrarAsistenciaAction,
-  cancelarReunionAction,
+  registrarAsistenciaFormAction,
+  cancelarReunionFormAction,
 } from "@/lib/actions/reuniones";
-import { cambiarEstadoTareaAction } from "@/lib/actions/tareas";
+import { cambiarEstadoTareaFormAction } from "@/lib/actions/tareas";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
 import { CerrarReunionForm } from "@/components/reuniones/ReunionesFormularios";
 
@@ -83,10 +84,10 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
 
       {reunion.estado === "planificada" && puedeGestionar && (
         <Card className="mb-5 flex flex-wrap items-center gap-2">
-          <form action={cancelarReunionAction}>
+          <ActionForm action={cancelarReunionFormAction}>
             <input type="hidden" name="id" value={reunion.id} />
             <button className="text-xs text-ink/50 hover:text-[var(--color-rojo)] underline underline-offset-2">Cancelar reunión</button>
-          </form>
+          </ActionForm>
         </Card>
       )}
 
@@ -98,7 +99,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
               {nucleos.map((n) => {
                 const a = asistenciaPorNucleo.get(n.id);
                 return (
-                  <form key={n.id} action={registrarAsistenciaAction} className="flex items-center gap-2 py-1 border-b border-ink/5 last:border-0">
+                  <ActionForm key={n.id} action={registrarAsistenciaFormAction} className="flex items-center gap-2 py-1 border-b border-ink/5 last:border-0">
                     <input type="hidden" name="reunion_id" value={reunion.id} />
                     <input type="hidden" name="nucleo_id" value={n.id} />
                     <div className="flex items-center gap-2 text-sm flex-1">
@@ -113,7 +114,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                     ) : (
                       a?.justificacion && <span className="text-xs text-ink/40">{a.justificacion}</span>
                     )}
-                  </form>
+                  </ActionForm>
                 );
               })}
               {nucleos.length === 0 && <EmptyState>No hay núcleos familiares cargados.</EmptyState>}
@@ -166,7 +167,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                       </div>
                       {puedeGestionar ? (
                         <AutoSubmitSelect
-                          action={cambiarEstadoTareaAction}
+                          action={cambiarEstadoTareaFormAction}
                           hiddenFields={{ id: t.id }}
                           name="estado"
                           defaultValue={t.estado}

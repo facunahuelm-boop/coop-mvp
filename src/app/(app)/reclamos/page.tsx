@@ -3,8 +3,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canApprove, puedeGestionarReclamos } from "@/lib/roles";
 import { all, get } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, inputClass } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
-import { tomarReclamoAction, resolverReclamoAction, reabrirReclamoAction } from "@/lib/actions/reclamos";
+import { tomarReclamoFormAction, resolverReclamoFormAction, reabrirReclamoFormAction } from "@/lib/actions/reclamos";
 import { CATEGORIA_RECLAMO_LABEL, PRIORIDAD_RECLAMO_LABEL } from "@/lib/constants";
 import { UsuarioLink } from "@/components/EntidadLink";
 import { Pagination, paginaDe } from "@/components/Pagination";
@@ -92,17 +93,17 @@ export default async function ReclamosPage({
               )}
             </p>
             {puedeGestionar && r.estado === "abierto" && (
-              <form action={tomarReclamoAction} className="mt-2">
+              <ActionForm action={tomarReclamoFormAction} className="mt-2">
                 <input type="hidden" name="id" value={r.id} />
                 <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold">Tomar reclamo</button>
-              </form>
+              </ActionForm>
             )}
             {puedeGestionar && r.estado === "en_proceso" && (
-              <form action={resolverReclamoAction} className="mt-2 flex gap-2">
+              <ActionForm action={resolverReclamoFormAction} className="mt-2 flex gap-2">
                 <input type="hidden" name="id" value={r.id} />
                 <input name="resolucion" placeholder="¿Cómo se resolvió?" className={inputClass + " text-xs"} />
                 <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Marcar resuelto</button>
-              </form>
+              </ActionForm>
             )}
           </Card>
         ))}
@@ -122,10 +123,10 @@ export default async function ReclamosPage({
             {r.resolucion && <p className="text-xs text-ink/60 mt-1">{r.resolucion}</p>}
             <p className="text-xs text-ink/40 mt-1">{r.resuelto_en ? dayjs(r.resuelto_en).format("DD/MM/YYYY") : ""}</p>
             {puedeAprobar && (
-              <form action={reabrirReclamoAction} className="mt-1">
+              <ActionForm action={reabrirReclamoFormAction} className="mt-1">
                 <input type="hidden" name="id" value={r.id} />
                 <button className="text-xs text-[var(--color-brand-800)] underline underline-offset-2">Reabrir</button>
-              </form>
+              </ActionForm>
             )}
           </Card>
         ))}

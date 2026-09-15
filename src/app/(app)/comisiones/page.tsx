@@ -4,11 +4,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
 import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import { UsuarioLink } from "@/components/EntidadLink";
 import dayjs from "dayjs";
-import { archivarComisionAction, quitarMiembroAction } from "@/lib/actions/comisiones";
-import { cambiarEstadoTareaAction } from "@/lib/actions/tareas";
+import { archivarComisionFormAction, quitarMiembroFormAction } from "@/lib/actions/comisiones";
+import { cambiarEstadoTareaFormAction } from "@/lib/actions/tareas";
 import { AgregarMiembroForm, CrearTareaForm, CrearComisionForm } from "@/components/comisiones/ComisionesFormularios";
 
 // Fase 06 del Plan Maestro — cualquier comisión puede llevar sus propias
@@ -64,10 +65,10 @@ export default async function ComisionesPage() {
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-[var(--color-brand-900)]">{c.nombre}</h3>
                 {esOversightComisiones && (
-                  <form action={archivarComisionAction}>
+                  <ActionForm action={archivarComisionFormAction}>
                     <input type="hidden" name="id" value={c.id} />
                     <button className="text-xs text-ink/40 hover:text-[var(--color-rojo)] underline underline-offset-2">Archivar</button>
-                  </form>
+                  </ActionForm>
                 )}
               </div>
               {c.descripcion && <p className="text-xs text-ink/50 mt-0.5">{c.descripcion}</p>}
@@ -82,10 +83,10 @@ export default async function ComisionesPage() {
                       {m.user_nombre}
                     </Link>
                     {puedeGestionar && (
-                      <form action={quitarMiembroAction} className="inline">
+                      <ActionForm action={quitarMiembroFormAction} className="inline">
                         <input type="hidden" name="id" value={m.id} />
                         <button className="text-ink/40 hover:text-[var(--color-rojo)]" title="Quitar de la comisión">✕</button>
-                      </form>
+                      </ActionForm>
                     )}
                   </span>
                 ))}
@@ -111,7 +112,7 @@ export default async function ComisionesPage() {
                       </div>
                       {puedeGestionar ? (
                         <AutoSubmitSelect
-                          action={cambiarEstadoTareaAction}
+                          action={cambiarEstadoTareaFormAction}
                           hiddenFields={{ id: t.id }}
                           name="estado"
                           defaultValue={t.estado}

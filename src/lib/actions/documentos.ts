@@ -117,3 +117,7 @@ export async function eliminarDocumentoAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "eliminar", entidad: "documentos", entidad_id: Number(id), valor_anterior: documento });
   revalidatePath("/documentos");
 }
+
+export async function eliminarDocumentoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => eliminarDocumentoAction(formData));
+}

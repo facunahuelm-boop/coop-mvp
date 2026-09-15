@@ -10,6 +10,7 @@ import { generarPdfBuffer, type SeccionPdf } from "@/lib/pdf";
 import { saveGeneratedFile } from "@/lib/upload";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 dayjs.locale("es");
 
@@ -97,6 +98,10 @@ export async function generarReporteObraAction(formData: FormData) {
   revalidatePath("/reportes");
 }
 
+export async function generarReporteObraFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => generarReporteObraAction(formData));
+}
+
 export async function generarReporteFinanzasAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -136,6 +141,10 @@ export async function generarReporteFinanzasAction(formData: FormData) {
 
   await generarYGuardarReporte(user, "finanzas", titulo, secciones);
   revalidatePath("/reportes");
+}
+
+export async function generarReporteFinanzasFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => generarReporteFinanzasAction(formData));
 }
 
 export async function generarReporteTrabajoAction(formData: FormData) {
@@ -179,6 +188,10 @@ export async function generarReporteTrabajoAction(formData: FormData) {
 
   await generarYGuardarReporte(user, "trabajo", titulo, secciones);
   revalidatePath("/reportes");
+}
+
+export async function generarReporteTrabajoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => generarReporteTrabajoAction(formData));
 }
 
 /** Genera el PDF de verdad (mismo motor que ya usan las actas de reuniones),

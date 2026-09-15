@@ -10,10 +10,11 @@
 // Fase B, cuando reemplacemos los "¿estás seguro?" implícitos (o inexistentes)
 // por confirmaciones y avisos con palabras humanas.
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useActionState, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { X, Plus } from "lucide-react";
 import { Button } from "./ui";
+import { ESTADO_INICIAL, type ActionState } from "@/lib/actionState";
 
 // Rediseño del Inicio (dashboard): los nuevos modales de detalle (Finanzas,
 // Tareas, Calendario, una Comisión con muchos integrantes/tareas/gastos...)
@@ -288,5 +289,52 @@ export function SubmitButton({
       {variant === "add" && !pending && <Plus size={16} aria-hidden />}
       {pending ? pendingLabel || "Guardando…" : children}
     </Button>
+  );
+}
+
+/**
+ * Endurecimiento de errores (pasada posterior a la Fase 4): las acciones
+ * simples de un solo clic sin campos que validar (Archivar, Marcar
+ * resuelto/pagado, Confirmar, Quitar, Cancelar, los toggles por fila) seguían
+ * usando `<form action={accionCruda}>` directo — si el servidor rechazaba
+ * algo (un permiso, una regla de negocio como "esta solicitud ya fue
+ * decidida", incluso un error técnico ya traducido por `conEstadoDeAccion`),
+ * el mensaje se perdía: `error.tsx` (boundary global) REDACTA el `.message`
+ * real en producción y sólo muestra "Ocurrió un problema", tirando a la
+ * persona a una pantalla de error de página completa por algo que a veces es
+ * tan simple como "ese gasto ya está pagado".
+ *
+ * `ActionForm` es un reemplazo directo de `<form action={...}>`: se le pasa
+ * la versión ya envuelta con `conEstadoDeAccion` (`xFormAction`, mismo
+ * patrón que los formularios de la Fase 4) y muestra el resultado como toast
+ * en vez de dejar que reviente la pantalla — sin agregar campos, sin cambiar
+ * el resto del formulario (los hijos se pasan tal cual: inputs ocultos,
+ * inputs visibles, el botón). No hace falta `FieldError`/`FormError` porque
+ * estas acciones no tienen campos de usuario que validar.
+ */
+export function ActionForm({
+  action,
+  children,
+  className,
+  successMessage,
+}: {
+  action: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
+  children: ReactNode;
+  className?: string;
+  successMessage?: string;
+}) {
+  const [estado, formAction] = useActionState(action, ESTADO_INICIAL);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.error) show(estado.error, "error");
+    else if (estado.ok && successMessage) show(successMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form action={formAction} className={className}>
+      {children}
+    </form>
   );
 }

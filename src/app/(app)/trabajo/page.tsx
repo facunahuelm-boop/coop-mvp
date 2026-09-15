@@ -3,9 +3,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all, get } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
 import Link from "next/link";
-import { proponerDistribucionAction, confirmarAsignacionAction, anotarmeAction } from "@/lib/actions/trabajo";
+import { proponerDistribucionFormAction, confirmarAsignacionFormAction, anotarmeFormAction } from "@/lib/actions/trabajo";
 import { NucleoLink } from "@/components/EntidadLink";
 import { Pagination, paginaDe } from "@/components/Pagination";
 import { PlanificarJornadaForm } from "@/components/trabajo/TrabajoFormularios";
@@ -59,10 +60,10 @@ export default async function TrabajoPage({
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold text-[var(--color-brand-900)]">Próxima jornada</h3>
           {proximaJornada && puedeEditar && (
-            <form action={proponerDistribucionAction}>
+            <ActionForm action={proponerDistribucionFormAction}>
               <input type="hidden" name="jornada_id" value={proximaJornada.id} />
               <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">✨ Proponer distribución con IA</button>
-            </form>
+            </ActionForm>
           )}
         </div>
 
@@ -87,20 +88,20 @@ export default async function TrabajoPage({
                         <span key={a.id} className={`text-xs rounded-full px-2 py-1 ${a.confirmado ? "bg-[var(--color-verde-bg)] text-[var(--color-verde)]" : "bg-ink/5 text-ink/60"}`}>
                           <NucleoLink id={a.nucleo_id} nombre={a.nucleo_nombre} />{a.propuesta_por_ia && !a.confirmado ? " (propuesto por IA)" : ""}
                           {!a.confirmado && puedeEditar && (
-                            <form action={confirmarAsignacionAction} className="inline">
+                            <ActionForm action={confirmarAsignacionFormAction} className="inline">
                               <input type="hidden" name="id" value={a.id} />
                               <button className="ml-1.5 underline">confirmar</button>
-                            </form>
+                            </ActionForm>
                           )}
                         </span>
                       ))}
                     </div>
                     {falta > 0 && user.nucleo_id && (
-                      <form action={anotarmeAction} className="mt-2">
+                      <ActionForm action={anotarmeFormAction} className="mt-2">
                         <input type="hidden" name="jornada_id" value={proximaJornada.id} />
                         <input type="hidden" name="tarea_jornada_id" value={t.id} />
                         <button className="text-xs text-[var(--color-brand-800)] underline">Anotarme para esta tarea</button>
-                      </form>
+                      </ActionForm>
                     )}
                   </div>
                 );

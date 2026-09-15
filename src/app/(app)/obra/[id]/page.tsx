@@ -4,8 +4,9 @@ import { canRead, canEdit } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { semaforoTarea } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
-import { resolverProblemaAction, cambiarEstadoTareaAction } from "@/lib/actions/obra";
+import { resolverProblemaFormAction, cambiarEstadoTareaFormAction } from "@/lib/actions/obra";
 import { UsuarioLink } from "@/components/EntidadLink";
 import { AgregarAvanceForm, AgregarProblemaForm } from "@/components/obra/ObraFormularios";
 
@@ -41,13 +42,13 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
           <div><Label>Responsable</Label><UsuarioLink id={tarea.responsable_id} nombre={tarea.responsable_nombre} /></div>
         </div>
         {puedeEditar && (
-          <form action={cambiarEstadoTareaAction} className="mt-4 flex items-center gap-2">
+          <ActionForm action={cambiarEstadoTareaFormAction} className="mt-4 flex items-center gap-2">
             <input type="hidden" name="id" value={tarea.id} />
             <select name="estado" defaultValue={tarea.estado} className={inputClass + " max-w-[180px]"}>
               <option value="pendiente">Pendiente</option><option value="en_curso">En curso</option><option value="completada">Completada</option>
             </select>
             <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold">Actualizar estado</button>
-          </form>
+          </ActionForm>
         )}
       </Card>
 
@@ -81,12 +82,12 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
                 <p className="text-xs text-ink/40 mt-1">{dayjs(p.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={p.autor_id} nombre={p.autor_nombre} fallback="sin autor" /></p>
                 {p.resolucion && <p className="text-xs text-[var(--color-verde)] mt-1">Resolución: {p.resolucion}</p>}
                 {puedeEditar && p.estado === "abierto" && (
-                  <form action={resolverProblemaAction} className="mt-2 flex gap-2">
+                  <ActionForm action={resolverProblemaFormAction} className="mt-2 flex gap-2">
                     <input type="hidden" name="id" value={p.id} />
                     <input type="hidden" name="tarea_id" value={tarea.id} />
                     <input name="resolucion" placeholder="¿Cómo se resolvió?" className={inputClass + " text-xs"} />
                     <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Marcar resuelto</button>
-                  </form>
+                  </ActionForm>
                 )}
               </Card>
             ))}

@@ -56,6 +56,10 @@ export async function archivarComisionAction(formData: FormData) {
   revalidatePath("/comisiones");
 }
 
+export async function archivarComisionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => archivarComisionAction(formData));
+}
+
 const agregarMiembroSchema = z.object({
   comision_id: zId,
   user_id: zId,
@@ -93,4 +97,8 @@ export async function quitarMiembroAction(formData: FormData) {
   await update("comision_miembros", id, { activo: 0, hasta: new Date().toISOString() });
   await audit({ usuario_id: user.id, accion: "quitar_miembro", entidad: "comision_miembros", entidad_id: id });
   revalidatePath("/comisiones");
+}
+
+export async function quitarMiembroFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => quitarMiembroAction(formData));
 }

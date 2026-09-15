@@ -93,6 +93,10 @@ export async function cancelarReunionAction(formData: FormData) {
   revalidatePath(`/reuniones/${id}`);
 }
 
+export async function cancelarReunionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => cancelarReunionAction(formData));
+}
+
 /**
  * Registra o actualiza la asistencia de un núcleo familiar a una reunión.
  * Mismo criterio que las asistencias de jornadas de trabajo: se guarda por
@@ -124,6 +128,10 @@ export async function registrarAsistenciaAction(formData: FormData) {
     await insert("reunion_asistencias", { reunion_id, nucleo_id, presente, justificacion });
   }
   revalidatePath(`/reuniones/${reunion_id}`);
+}
+
+export async function registrarAsistenciaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => registrarAsistenciaAction(formData));
 }
 
 /**

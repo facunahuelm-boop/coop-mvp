@@ -3,8 +3,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead } from "@/lib/roles";
 import { all, get } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
-import { generarReporteObraAction, generarReporteFinanzasAction, generarReporteTrabajoAction } from "@/lib/actions/reportes";
+import { generarReporteObraFormAction, generarReporteFinanzasFormAction, generarReporteTrabajoFormAction } from "@/lib/actions/reportes";
 
 export default async function ReportesPage() {
   const user = await getCurrentUser();
@@ -22,7 +23,7 @@ export default async function ReportesPage() {
       nombre: "Reporte de Obra",
       descripcion: "Resumen mensual del avance de la obra, tareas completadas, problemas y cronograma",
       icon: "🏗️",
-      action: generarReporteObraAction,
+      action: generarReporteObraFormAction,
       modulo: "obra",
     },
     {
@@ -30,7 +31,7 @@ export default async function ReportesPage() {
       nombre: "Reporte Financiero",
       descripcion: "Estado de ingresos, egresos, presupuesto vs real y proyecciones",
       icon: "💰",
-      action: generarReporteFinanzasAction,
+      action: generarReporteFinanzasFormAction,
       modulo: "finanzas",
     },
     {
@@ -38,7 +39,7 @@ export default async function ReportesPage() {
       nombre: "Reporte de Jornadas",
       descripcion: "Asistencias, horas acumuladas por núcleo, distribución de tareas",
       icon: "🤝",
-      action: generarReporteTrabajoAction,
+      action: generarReporteTrabajoFormAction,
       modulo: "trabajo",
     },
   ];
@@ -63,11 +64,11 @@ export default async function ReportesPage() {
                 </div>
               </div>
               <div className="flex gap-2 ml-4 flex-shrink-0 items-center">
-                <form action={r.action}>
+                <ActionForm action={r.action}>
                   <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-2 text-xs font-semibold whitespace-nowrap hover:bg-[var(--color-brand-100)]/70">
                     📄 Generar PDF
                   </button>
-                </form>
+                </ActionForm>
                 <span
                   className="rounded-lg bg-ink/5 text-ink/30 px-3 py-2 text-xs font-semibold whitespace-nowrap cursor-not-allowed"
                   title="Excel todavía no está disponible en esta versión"

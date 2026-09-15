@@ -66,6 +66,10 @@ export async function tomarReclamoAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function tomarReclamoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => tomarReclamoAction(formData));
+}
+
 /** Resolver un reclamo, con qué se hizo para solucionarlo.
  * AUDITORÍA INTEGRAL (hallazgo de seguridad, 12/09): mismo criterio que
  * tomarReclamoAction — un socio no puede marcar un reclamo como resuelto,
@@ -85,6 +89,10 @@ export async function resolverReclamoAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function resolverReclamoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => resolverReclamoAction(formData));
+}
+
 /** Reabrir un reclamo que se había marcado resuelto — consejo directivo aprueba/cierra con más alcance. */
 export async function reabrirReclamoAction(formData: FormData) {
   const user = await requireUser();
@@ -94,4 +102,8 @@ export async function reabrirReclamoAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "reabrir", entidad: "reclamos", entidad_id: id });
   revalidatePath("/reclamos");
   revalidatePath("/dashboard");
+}
+
+export async function reabrirReclamoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => reabrirReclamoAction(formData));
 }

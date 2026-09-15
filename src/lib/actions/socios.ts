@@ -70,6 +70,10 @@ export async function actualizarViviendaEstadoAction(formData: FormData) {
   revalidatePath("/socios");
 }
 
+export async function actualizarViviendaEstadoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => actualizarViviendaEstadoAction(formData));
+}
+
 // ---------- Socios ----------
 
 const crearSocioSchema = z.object({
@@ -106,6 +110,10 @@ export async function actualizarSocioEstadoAction(formData: FormData) {
   revalidatePath("/socios");
 }
 
+export async function actualizarSocioEstadoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => actualizarSocioEstadoAction(formData));
+}
+
 export async function asignarViviendaSocioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
@@ -113,6 +121,10 @@ export async function asignarViviendaSocioAction(formData: FormData) {
   await update("socios", id, { vivienda_id });
   await audit({ usuario_id: user.id, accion: "asignar_vivienda", entidad: "socios", entidad_id: id, valor_nuevo: { vivienda_id } });
   revalidatePath("/socios");
+}
+
+export async function asignarViviendaSocioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => asignarViviendaSocioAction(formData));
 }
 
 /**
@@ -182,6 +194,10 @@ export async function actualizarListaEsperaEstadoAction(formData: FormData) {
   revalidatePath("/socios");
 }
 
+export async function actualizarListaEsperaEstadoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => actualizarListaEsperaEstadoAction(formData));
+}
+
 /**
  * El "orden" de la lista de espera se asignaba solo una vez, al agregar al
  * aspirante (siempre al final) — no había forma de subirlo o bajarlo si, por
@@ -209,6 +225,10 @@ export async function moverListaEsperaAction(formData: FormData) {
   await update("lista_espera", vecino.id, { orden: actual.orden });
   await audit({ usuario_id: user.id, accion: "reordenar", entidad: "lista_espera", entidad_id: id, valor_nuevo: { direccion } });
   revalidatePath("/socios");
+}
+
+export async function moverListaEsperaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => moverListaEsperaAction(formData));
 }
 
 /**
@@ -243,6 +263,10 @@ export async function incorporarDesdeListaEsperaAction(formData: FormData) {
 
   await audit({ usuario_id: user.id, accion: "incorporar_desde_lista_espera", entidad: "socios", entidad_id: socioId, valor_nuevo: { desde_lista_espera_id: id } });
   revalidatePath("/socios");
+}
+
+export async function incorporarDesdeListaEsperaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => incorporarDesdeListaEsperaAction(formData));
 }
 
 /**
@@ -337,4 +361,8 @@ export async function cambiarEstadoIntegranteAction(formData: FormData) {
   await update("socio_integrantes", id, { estado });
   await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "socio_integrantes", entidad_id: id, valor_nuevo: { estado } });
   revalidatePath(`/socios/${integrante.socio_id}`);
+}
+
+export async function cambiarEstadoIntegranteFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => cambiarEstadoIntegranteAction(formData));
 }

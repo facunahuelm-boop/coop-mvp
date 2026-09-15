@@ -46,6 +46,10 @@ export async function cambiarEstadoTareaAction(formData: FormData) {
   revalidatePath(`/obra/${id}`);
 }
 
+export async function cambiarEstadoTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => cambiarEstadoTareaAction(formData));
+}
+
 export async function agregarAvanceAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "obra")) throw new Error("No autorizado");
@@ -99,4 +103,8 @@ export async function resolverProblemaAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "resolver", entidad: "problemas_obra", entidad_id: id });
   if (tareaId) revalidatePath(`/obra/${tareaId}`);
   revalidatePath("/obra");
+}
+
+export async function resolverProblemaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => resolverProblemaAction(formData));
 }

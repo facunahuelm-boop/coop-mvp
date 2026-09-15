@@ -5,8 +5,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all, get } from "@/lib/db";
 import { Card, PageHeader, SectionTitle, Badge, EmptyState, Label, inputClass, StatTile, Button } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
-import { marcarGastoPagadoAction, anularGastoAction } from "@/lib/actions/gastos";
+import { marcarGastoPagadoFormAction, anularGastoFormAction } from "@/lib/actions/gastos";
 import { UsuarioLink } from "@/components/EntidadLink";
 import { puedeUsarGastos } from "@/lib/comisionAuth";
 import { Pagination, paginaDe } from "@/components/Pagination";
@@ -262,17 +263,17 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
               </div>
               {puedeGestionar && g.estado === "pendiente" && (
                 <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border">
-                  <form action={marcarGastoPagadoAction}>
+                  <ActionForm action={marcarGastoPagadoFormAction}>
                     <input type="hidden" name="id" value={g.id} />
                     <button className="rounded-lg bg-[var(--color-verde-bg)] text-[var(--color-verde)] px-3 py-1.5 text-xs font-semibold">Marcar como pagado</button>
-                  </form>
+                  </ActionForm>
                   <details className="inline-block">
                     <summary className="cursor-pointer text-xs text-[var(--color-rojo)] font-semibold px-1">Anular</summary>
-                    <form action={anularGastoAction} className="mt-2 flex items-center gap-2">
+                    <ActionForm action={anularGastoFormAction} className="mt-2 flex items-center gap-2">
                       <input type="hidden" name="id" value={g.id} />
                       <input name="motivo" placeholder="Motivo (opcional)" className={inputClass + " text-xs"} />
                       <button className="rounded-lg bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Confirmar anulación</button>
-                    </form>
+                    </ActionForm>
                   </details>
                 </div>
               )}

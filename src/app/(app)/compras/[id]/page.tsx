@@ -5,8 +5,9 @@ import { canRead, canEdit, canApprove } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { compararPresupuestos, historialProveedor } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
-import { decidirCompraAction, marcarPedidaAction, marcarEntregadaAction, rechazarSolicitudAction, eliminarSolicitudAction } from "@/lib/actions/compras";
+import { decidirCompraFormAction, marcarPedidaFormAction, marcarEntregadaFormAction, rechazarSolicitudFormAction, eliminarSolicitudFormAction } from "@/lib/actions/compras";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
@@ -55,23 +56,23 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
         </div>
         {solicitud.especificacion && <p className="text-ink/60 mt-3">{solicitud.especificacion}</p>}
         {puedeEditar && solicitud.estado === "aprobada" && (
-          <form action={marcarPedidaAction} className="mt-3 inline-block mr-2"><input type="hidden" name="id" value={solicitud.id} />
+          <ActionForm action={marcarPedidaFormAction} className="mt-3 inline-block mr-2"><input type="hidden" name="id" value={solicitud.id} />
             <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">Marcar como pedida al proveedor</button>
-          </form>
+          </ActionForm>
         )}
         {puedeEditar && (solicitud.estado === "aprobada" || solicitud.estado === "pedida") && (
-          <form action={marcarEntregadaAction} className="mt-3 inline-block"><input type="hidden" name="id" value={solicitud.id} />
+          <ActionForm action={marcarEntregadaFormAction} className="mt-3 inline-block"><input type="hidden" name="id" value={solicitud.id} />
             <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">Marcar como entregada</button>
-          </form>
+          </ActionForm>
         )}
         {puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
           <details className="mt-3">
             <summary className="cursor-pointer text-xs font-semibold text-[var(--color-rojo)]">Rechazar esta solicitud</summary>
-            <form action={rechazarSolicitudAction} className="mt-2 flex items-center gap-2">
+            <ActionForm action={rechazarSolicitudFormAction} className="mt-2 flex items-center gap-2">
               <input type="hidden" name="id" value={solicitud.id} />
               <input name="motivo" placeholder="Motivo del rechazo" className={inputClass + " text-xs"} />
               <button className="rounded-lg bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Confirmar rechazo</button>
-            </form>
+            </ActionForm>
           </details>
         )}
         {user.rol === "admin" && (
@@ -80,7 +81,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
             <p className="text-xs text-ink/50 mt-2">Esto borra la solicitud y sus presupuestos/decisión asociados de forma permanente. Usalo solo para corregir un error de carga o limpiar datos de prueba — para una compra real que ya no corresponde, usá "Rechazar" en su lugar.</p>
             <div className="mt-2">
               <ConfirmarEliminar
-                action={eliminarSolicitudAction}
+                action={eliminarSolicitudFormAction}
                 hiddenFields={{ id: solicitud.id, confirmacion: "ELIMINAR" }}
                 titulo="¿Eliminar esta solicitud de compra?"
                 descripcion={`Se va a borrar "${solicitud.material}" y sus presupuestos/decisión asociados de forma permanente. Esta acción no se puede deshacer.`}
@@ -120,12 +121,12 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
             </p>
             {p.condiciones && <p className="text-xs text-ink/50 mt-0.5">Condiciones: {p.condiciones}</p>}
             {puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
-              <form action={decidirCompraAction} className="mt-2 flex items-center gap-2">
+              <ActionForm action={decidirCompraFormAction} className="mt-2 flex items-center gap-2">
                 <input type="hidden" name="solicitud_id" value={solicitud.id} />
                 <input type="hidden" name="presupuesto_id" value={p.id} />
                 <input name="motivo" placeholder="Motivo de la decisión" className={inputClass + " text-xs"} />
                 <button className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold whitespace-nowrap">Elegir este proveedor</button>
-              </form>
+              </ActionForm>
             )}
           </Card>
         ))}

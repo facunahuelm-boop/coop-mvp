@@ -3,9 +3,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { all } from "@/lib/db";
 import { recalcularAlertas } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import { ROLE_LABELS } from "@/lib/roles";
 import dayjs from "dayjs";
-import { resolverAlertaAction } from "@/lib/actions/alertas";
+import { resolverAlertaFormAction } from "@/lib/actions/alertas";
 
 const SEV_LABEL: Record<string, string> = { critica: "🔴 Crítica", importante: "🟠 Importante", informativa: "🟢 Informativa" };
 const SEV_COLOR: Record<string, "rojo" | "amarillo" | "verde"> = { critica: "rojo", importante: "amarillo", informativa: "verde" };
@@ -41,9 +42,9 @@ export default async function AlertasPage() {
                 </p>
               </div>
               {(user.rol === a.asignado_a_rol || ["consejo_directivo", "admin"].includes(user.rol)) && (
-                <form action={resolverAlertaAction}><input type="hidden" name="id" value={a.id} />
+                <ActionForm action={resolverAlertaFormAction}><input type="hidden" name="id" value={a.id} />
                   <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold whitespace-nowrap">Marcar resuelta</button>
-                </form>
+                </ActionForm>
               )}
             </div>
           </Card>

@@ -49,12 +49,20 @@ export async function proponerDistribucionAction(formData: FormData) {
   revalidatePath("/trabajo");
 }
 
+export async function proponerDistribucionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => proponerDistribucionAction(formData));
+}
+
 export async function confirmarAsignacionAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "trabajo")) throw new Error("No autorizado");
   const { id } = parseForm(z.object({ id: zId }), formData);
   await update("asignaciones_jornada", id, { confirmado: 1 });
   revalidatePath("/trabajo");
+}
+
+export async function confirmarAsignacionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => confirmarAsignacionAction(formData));
 }
 
 export async function anotarmeAction(formData: FormData) {
@@ -66,6 +74,10 @@ export async function anotarmeAction(formData: FormData) {
   );
   await insert("asignaciones_jornada", { jornada_id: jornadaId, tarea_jornada_id: tareaJornadaId, nucleo_id: user.nucleo_id, propuesta_por_ia: 0, confirmado: 1 });
   revalidatePath("/trabajo");
+}
+
+export async function anotarmeFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => anotarmeAction(formData));
 }
 
 const registrarAsistenciaSchema = z.object({
@@ -94,6 +106,10 @@ export async function registrarAsistenciaAction(formData: FormData) {
   revalidatePath(`/trabajo/${jornadaId}`);
 }
 
+export async function registrarAsistenciaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => registrarAsistenciaAction(formData));
+}
+
 export async function marcarJornadaRealizadaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "trabajo")) throw new Error("No autorizado");
@@ -101,4 +117,8 @@ export async function marcarJornadaRealizadaAction(formData: FormData) {
   await update("jornadas_trabajo", id, { estado: "realizada" });
   revalidatePath("/trabajo");
   revalidatePath(`/trabajo/${id}`);
+}
+
+export async function marcarJornadaRealizadaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => marcarJornadaRealizadaAction(formData));
 }

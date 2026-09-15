@@ -96,3 +96,7 @@ export async function resolverIncidenteAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "resolver", entidad: "incidentes_seguridad", entidad_id: id });
   revalidatePath("/seguridad");
 }
+
+export async function resolverIncidenteFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => resolverIncidenteAction(formData));
+}

@@ -6,7 +6,7 @@ import { all } from "@/lib/db";
 import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import dayjs from "dayjs";
-import { cambiarEstadoProveedorAction } from "@/lib/actions/proveedores";
+import { cambiarEstadoProveedorFormAction } from "@/lib/actions/proveedores";
 import { ESTADO_PROVEEDOR, ESTADO_PROVEEDOR_LABEL } from "@/lib/constants";
 import { CrearProveedorForm } from "@/components/proveedores/ProveedoresFormularios";
 
@@ -110,7 +110,7 @@ export default async function ProveedoresPage({ searchParams }: { searchParams: 
                   <td className="py-2 pr-3">
                     {puedeEditar ? (
                       <AutoSubmitSelect
-                        action={cambiarEstadoProveedorAction}
+                        action={cambiarEstadoProveedorFormAction}
                         hiddenFields={{ id: p.id }}
                         name="estado"
                         defaultValue={p.estado || "nuevo"}

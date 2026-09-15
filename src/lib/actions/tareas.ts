@@ -59,3 +59,7 @@ export async function cambiarEstadoTareaAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "tareas", entidad_id: id, valor_nuevo: { estado } });
   revalidatePath("/comisiones");
 }
+
+export async function cambiarEstadoTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => cambiarEstadoTareaAction(formData));
+}

@@ -6,7 +6,7 @@ import { get } from "@/lib/db";
 import { historialProveedor } from "@/lib/logic";
 import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
 import dayjs from "dayjs";
-import { eliminarProveedorAction } from "@/lib/actions/proveedores";
+import { eliminarProveedorFormAction } from "@/lib/actions/proveedores";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { ESTADO_PROVEEDOR, ESTADO_PROVEEDOR_LABEL, TIPO_PROVEEDOR, TIPO_PROVEEDOR_LABEL } from "@/lib/constants";
 import { ActualizarProveedorForm } from "@/components/proveedores/ProveedoresFormularios";
@@ -70,7 +70,7 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
             </p>
             <div className="mt-2">
               <ConfirmarEliminar
-                action={eliminarProveedorAction}
+                action={eliminarProveedorFormAction}
                 hiddenFields={{ id: proveedor.id, confirmacion: "ELIMINAR" }}
                 titulo="¿Eliminar este proveedor?"
                 descripcion={`Se va a borrar "${proveedor.nombre}" de forma permanente. Esta acción no se puede deshacer.`}

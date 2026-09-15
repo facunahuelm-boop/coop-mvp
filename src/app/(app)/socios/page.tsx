@@ -4,14 +4,15 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, canApprove } from "@/lib/roles";
 import { all } from "@/lib/db";
 import { Card, PageHeader, SectionTitle, EmptyState, Badge } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import {
-  actualizarViviendaEstadoAction,
-  actualizarSocioEstadoAction,
-  asignarViviendaSocioAction,
-  actualizarListaEsperaEstadoAction,
-  incorporarDesdeListaEsperaAction,
-  moverListaEsperaAction,
+  actualizarViviendaEstadoFormAction,
+  actualizarSocioEstadoFormAction,
+  asignarViviendaSocioFormAction,
+  actualizarListaEsperaEstadoFormAction,
+  incorporarDesdeListaEsperaFormAction,
+  moverListaEsperaFormAction,
 } from "@/lib/actions/socios";
 import { NucleoLink } from "@/components/EntidadLink";
 import { BuscadorFilas } from "@/components/BuscadorFilas";
@@ -148,7 +149,7 @@ export default async function SociosPage() {
                 <td className="py-2 pr-3">
                   {puedeEditar ? (
                     <AutoSubmitSelect
-                      action={asignarViviendaSocioAction}
+                      action={asignarViviendaSocioFormAction}
                       hiddenFields={{ id: s.id }}
                       name="vivienda_id"
                       defaultValue={s.vivienda_id || ""}
@@ -173,7 +174,7 @@ export default async function SociosPage() {
                 <td className="py-2 pr-3">
                   {puedeEditar ? (
                     <AutoSubmitSelect
-                      action={actualizarSocioEstadoAction}
+                      action={actualizarSocioEstadoFormAction}
                       hiddenFields={{ id: s.id }}
                       name="estado"
                       defaultValue={s.estado}
@@ -201,7 +202,7 @@ export default async function SociosPage() {
               <span className="text-sm font-semibold text-[var(--color-brand-900)]">{v.numero}</span>
               {puedeEditar ? (
                 <AutoSubmitSelect
-                  action={actualizarViviendaEstadoAction}
+                  action={actualizarViviendaEstadoFormAction}
                   hiddenFields={{ id: v.id }}
                   name="estado"
                   defaultValue={v.estado}
@@ -244,7 +245,7 @@ export default async function SociosPage() {
                       <span>{l.orden}</span>
                       {puedeReordenar && (
                         <span className="flex flex-col -my-1">
-                          <form action={moverListaEsperaAction}>
+                          <ActionForm action={moverListaEsperaFormAction}>
                             <input type="hidden" name="id" value={l.id} />
                             <input type="hidden" name="direccion" value="arriba" />
                             <button
@@ -255,8 +256,8 @@ export default async function SociosPage() {
                             >
                               ▲
                             </button>
-                          </form>
-                          <form action={moverListaEsperaAction}>
+                          </ActionForm>
+                          <ActionForm action={moverListaEsperaFormAction}>
                             <input type="hidden" name="id" value={l.id} />
                             <input type="hidden" name="direccion" value="abajo" />
                             <button
@@ -267,7 +268,7 @@ export default async function SociosPage() {
                             >
                               ▼
                             </button>
-                          </form>
+                          </ActionForm>
                         </span>
                       )}
                     </div>
@@ -277,7 +278,7 @@ export default async function SociosPage() {
                   <td className="py-2 pr-3">
                     {puedeEditar ? (
                       <AutoSubmitSelect
-                        action={actualizarListaEsperaEstadoAction}
+                        action={actualizarListaEsperaEstadoFormAction}
                         hiddenFields={{ id: l.id }}
                         name="estado"
                         defaultValue={l.estado}
@@ -290,7 +291,7 @@ export default async function SociosPage() {
                   </td>
                   {puedeAprobar && (
                     <td className="py-2 pr-3">
-                      <form action={incorporarDesdeListaEsperaAction} className="flex items-center gap-1.5">
+                      <ActionForm action={incorporarDesdeListaEsperaFormAction} className="flex items-center gap-1.5">
                         <input type="hidden" name="id" value={l.id} />
                         <select name="vivienda_id" defaultValue="" className="rounded-md border border-ink/10 bg-surface px-1.5 py-1 text-xs">
                           <option value="">Sin vivienda</option>
@@ -301,7 +302,7 @@ export default async function SociosPage() {
                         <button className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap">
                           Incorporar como socio
                         </button>
-                      </form>
+                      </ActionForm>
                     </td>
                   )}
                 </tr>

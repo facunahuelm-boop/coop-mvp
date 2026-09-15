@@ -4,8 +4,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { Card, PageHeader, SectionTitle, EmptyState, Badge } from "@/components/ui";
+import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
-import { cambiarEstadoIntegranteAction } from "@/lib/actions/socios";
+import { cambiarEstadoIntegranteFormAction } from "@/lib/actions/socios";
 import { RELACION_INTEGRANTE, RELACION_INTEGRANTE_LABEL } from "@/lib/constants";
 import { NucleoLink } from "@/components/EntidadLink";
 import {
@@ -122,13 +123,13 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
                 {puedeEditar && (
                   <div className="flex flex-col items-end gap-1 shrink-0 text-right">
                     <EditarIntegranteForm integrante={i} />
-                    <form action={cambiarEstadoIntegranteAction}>
+                    <ActionForm action={cambiarEstadoIntegranteFormAction}>
                       <input type="hidden" name="id" value={i.id} />
                       <input type="hidden" name="estado" value={i.estado === "activo" ? "inactivo" : "activo"} />
                       <button className="text-xs text-ink-faint hover:text-[var(--color-rojo)] underline underline-offset-2">
                         {i.estado === "activo" ? "Dar de baja" : "Reactivar"}
                       </button>
-                    </form>
+                    </ActionForm>
                   </div>
                 )}
               </div>
