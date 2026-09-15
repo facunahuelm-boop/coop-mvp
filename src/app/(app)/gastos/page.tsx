@@ -6,10 +6,11 @@ import { canRead, canEdit } from "@/lib/roles";
 import { all, get } from "@/lib/db";
 import { Card, PageHeader, SectionTitle, Badge, EmptyState, Label, inputClass, StatTile, Button } from "@/components/ui";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
-import { crearGastoAction, marcarGastoPagadoAction, anularGastoAction } from "@/lib/actions/gastos";
+import { marcarGastoPagadoAction, anularGastoAction } from "@/lib/actions/gastos";
 import { UsuarioLink } from "@/components/EntidadLink";
 import { puedeUsarGastos } from "@/lib/comisionAuth";
 import { Pagination, paginaDe } from "@/components/Pagination";
+import { RegistrarGastoForm } from "@/components/gastos/RegistrarGastoForm";
 
 const POR_PAGINA = 30;
 
@@ -288,48 +289,7 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
 
       {puedeCargar && (
         comisionesQuePuedeCargar.length > 0 ? (
-          <details className="mt-2">
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Registrar gasto</summary>
-            <Card className="mt-3">
-              <form action={crearGastoAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3" encType="multipart/form-data">
-                <div>
-                  <Label>Comisión</Label>
-                  <select name="comision_id" required className={inputClass} defaultValue="">
-                    <option value="" disabled>— elegir —</option>
-                    {comisionesQuePuedeCargar.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select>
-                </div>
-                <div><Label>Descripción</Label><input name="descripcion" required className={inputClass} /></div>
-                <div>
-                  <Label>Categoría</Label>
-                  <select name="categoria" className={inputClass} defaultValue="otros">
-                    {Object.entries(CATEGORIA_COMPRA_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                  </select>
-                </div>
-                <div><Label>Fecha</Label><input type="date" name="fecha" required defaultValue={dayjs().format("YYYY-MM-DD")} className={inputClass} /></div>
-                <div><Label>Importe</Label><input type="number" step="0.01" name="importe" required className={inputClass} /></div>
-                <div><Label>Forma de pago</Label><input name="forma_pago" className={inputClass} placeholder="efectivo, transferencia…" /></div>
-                <div>
-                  <Label>Proveedor existente</Label>
-                  <select name="proveedor_id" className={inputClass} defaultValue="">
-                    <option value="">— sin proveedor —</option>
-                    {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                  </select>
-                </div>
-                <div><Label>...o proveedor nuevo</Label><input name="nuevo_proveedor" className={inputClass} placeholder="Nombre del proveedor" /></div>
-                <div>
-                  <Label>Estado</Label>
-                  <select name="estado" className={inputClass} defaultValue="pendiente">
-                    <option value="pendiente">Pendiente</option>
-                    <option value="pagado">Ya está pagado</option>
-                  </select>
-                </div>
-                <div><Label>Comprobante (opcional)</Label><input type="file" name="comprobante" className="text-xs" /></div>
-                <div className="sm:col-span-2"><Label>Observaciones</Label><input name="observaciones" className={inputClass} /></div>
-                <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Registrar gasto</button></div>
-              </form>
-            </Card>
-          </details>
+          <RegistrarGastoForm comisiones={comisionesQuePuedeCargar} proveedores={proveedores} />
         ) : (
           <p className="text-xs text-ink-faint mt-2">Para registrar un gasto hace falta ser integrante activo de una comisión — pedile a Administración que te agregue en Comisiones.</p>
         )

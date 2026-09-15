@@ -18,6 +18,7 @@ import {
   zEnumSeguro,
   clavesDe,
 } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // Gastos por Comisión (pedido explícito): cada comisión (Compras, Seguridad,
 // Administrativa, Trabajo, Obra, o cualquiera creada a futuro) puede cargar
@@ -143,6 +144,10 @@ export async function crearGastoAction(formData: FormData) {
   revalidatePath("/gastos");
   revalidatePath("/finanzas");
   revalidatePath("/dashboard");
+}
+
+export async function crearGastoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearGastoAction(formData));
 }
 
 const editarGastoSchema = z.object({
