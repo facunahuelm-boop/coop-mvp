@@ -10,7 +10,18 @@ import { Pagination, paginaDe } from "@/components/Pagination";
 import { AgregarCompromisoForm, RegistrarMovimientoForm } from "@/components/finanzas/FinanzasFormularios";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
-const CATEGORY_COLORS = ["#1F4E5F", "#3A7A8C", "#7FA8B3", "#A15C00", "#B3261E", "#5B7553"];
+// Fase 5 (consistencia visual): antes era un array de 6 hex sueltos, sin
+// relación con la paleta del sistema (globals.css) — se reemplaza por
+// variables CSS ya definidas ahí, para que un cambio de paleta a futuro
+// también actualice este gráfico sin tocar código.
+const CATEGORY_COLORS = [
+  "var(--color-brand-800)",
+  "var(--color-brand-600)",
+  "var(--accent-teal)",
+  "var(--color-amarillo)",
+  "var(--color-rojo)",
+  "var(--color-verde)",
+];
 const POR_PAGINA = 20;
 
 export default async function FinanzasPage({

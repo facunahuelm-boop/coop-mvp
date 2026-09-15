@@ -218,8 +218,8 @@ export function ConfigEmailForm({ configObj }: { configObj: ConfigEmail }) {
           <SubmitButton pendingLabel="Guardando…">Guardar configuración</SubmitButton>
         </div>
       </form>
-      <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-        <p className="text-xs text-yellow-800">
+      <div className="mt-4 p-3 bg-[var(--color-amarillo-bg)] rounded-lg border border-[var(--color-amarillo)]/20">
+        <p className="text-xs text-[var(--color-amarillo)]">
           <strong>Para Gmail:</strong> Usa contraseña de aplicación (no la contraseña normal). Activa &quot;Acceso de aplicaciones menos seguras&quot; o genera una contraseña de app en tu cuenta Google.
         </p>
       </div>
