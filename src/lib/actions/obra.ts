@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { saveUploadedFile, TIPOS_IMAGEN } from "@/lib/upload";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaOpcional, zEnumSeguro } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 const PRIORIDAD_TAREA_OBRA = ["baja", "media", "alta", "critica"] as const;
 const ESTADOS_TAREA_OBRA = ["pendiente", "en_curso", "completada"] as const;
@@ -29,6 +30,10 @@ export async function crearTareaAction(formData: FormData) {
   const id = await insert("tareas_obra", { ...datos, responsable_id: user.id, estado: "pendiente" });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "tareas_obra", entidad_id: id, valor_nuevo: { nombre: datos.nombre } });
   revalidatePath("/obra");
+}
+
+export async function crearTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearTareaAction(formData));
 }
 
 export async function cambiarEstadoTareaAction(formData: FormData) {
@@ -58,6 +63,10 @@ export async function agregarAvanceAction(formData: FormData) {
   revalidatePath(`/obra/${tareaId}`);
 }
 
+export async function agregarAvanceFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarAvanceAction(formData));
+}
+
 const agregarProblemaSchema = z.object({
   tarea_id: zIdOpcional,
   titulo: zTexto(200),
@@ -73,6 +82,10 @@ export async function agregarProblemaAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "crear", entidad: "problemas_obra", entidad_id: id });
   if (tareaId) revalidatePath(`/obra/${tareaId}`);
   revalidatePath("/obra");
+}
+
+export async function agregarProblemaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarProblemaAction(formData));
 }
 
 export async function resolverProblemaAction(formData: FormData) {

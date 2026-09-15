@@ -3,11 +3,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { tareasObraConSemaforo } from "@/lib/logic";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass, AddButtonSummary } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
+import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
 import Link from "next/link";
 import dayjs from "dayjs";
-import { crearTareaAction } from "@/lib/actions/obra";
+import { CrearTareaObraForm } from "@/components/obra/ObraFormularios";
 
 const semColor: Record<string, "verde" | "amarillo" | "rojo"> = { verde: "verde", amarillo: "amarillo", rojo: "rojo" };
 const semLabel: Record<string, string> = { verde: "🟢 En hora", amarillo: "🟡 Atención", rojo: "🔴 Crítico" };
@@ -68,29 +67,7 @@ export default async function ObraPage() {
         {tareas.length === 0 && <EmptyState>Todavía no hay tareas cargadas.</EmptyState>}
       </div>
 
-      {puedeEditar && (
-        <details className="mt-6">
-          <AddButtonSummary>Agregar tarea</AddButtonSummary>
-          <Card className="mt-3">
-            <form action={crearTareaAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label>Etapa</Label><input name="etapa" required className={inputClass} placeholder="Ej: Estructura" /></div>
-              <div><Label>Nombre de la tarea</Label><input name="nombre" required className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Descripción</Label><textarea name="descripcion" className={inputClass} rows={2} /></div>
-              <div><Label>Fecha de inicio</Label><input type="date" name="fecha_inicio" className={inputClass} /></div>
-              <div><Label>Fecha fin prevista</Label><input type="date" name="fecha_fin_prevista" className={inputClass} /></div>
-              <div>
-                <Label>Prioridad</Label>
-                <select name="prioridad" className={inputClass} defaultValue="media">
-                  <option value="baja">Baja</option><option value="media">Media</option><option value="alta">Alta</option><option value="critica">Crítica</option>
-                </select>
-              </div>
-              <div className="sm:col-span-2">
-                <SubmitButton variant="add">Crear tarea</SubmitButton>
-              </div>
-            </form>
-          </Card>
-        </details>
-      )}
+      {puedeEditar && <CrearTareaObraForm />}
     </div>
   );
 }

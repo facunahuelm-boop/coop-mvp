@@ -4,10 +4,10 @@ import { canRead, canEdit } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { semaforoTarea } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
 import dayjs from "dayjs";
-import { agregarAvanceAction, agregarProblemaAction, resolverProblemaAction, cambiarEstadoTareaAction } from "@/lib/actions/obra";
+import { resolverProblemaAction, cambiarEstadoTareaAction } from "@/lib/actions/obra";
 import { UsuarioLink } from "@/components/EntidadLink";
+import { AgregarAvanceForm, AgregarProblemaForm } from "@/components/obra/ObraFormularios";
 
 const semColor: Record<string, "verde" | "amarillo" | "rojo"> = { verde: "verde", amarillo: "amarillo", rojo: "rojo" };
 
@@ -64,14 +64,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
               </Card>
             ))}
           </div>
-          {puedeEditar && (
-            <form action={agregarAvanceAction} className="space-y-2">
-              <input type="hidden" name="tarea_id" value={tarea.id} />
-              <textarea name="descripcion" required placeholder="Describí el avance…" className={inputClass} rows={2} />
-              <input type="file" name="foto" accept="image/*" className="text-xs" />
-              <SubmitButton variant="add" className="text-xs px-3 py-2">Agregar avance</SubmitButton>
-            </form>
-          )}
+          {puedeEditar && <AgregarAvanceForm tareaId={tarea.id} />}
         </div>
 
         <div>
@@ -98,17 +91,7 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
               </Card>
             ))}
           </div>
-          {puedeEditar && (
-            <form action={agregarProblemaAction} className="space-y-2">
-              <input type="hidden" name="tarea_id" value={tarea.id} />
-              <input name="titulo" required placeholder="Título del problema" className={inputClass} />
-              <textarea name="descripcion" placeholder="Descripción" className={inputClass} rows={2} />
-              <select name="severidad" className={inputClass} defaultValue="media">
-                <option value="baja">Baja</option><option value="media">Media</option><option value="critica">Crítica</option>
-              </select>
-              <SubmitButton variant="add" className="text-xs px-3 py-2">Registrar problema</SubmitButton>
-            </form>
-          )}
+          {puedeEditar && <AgregarProblemaForm tareaId={tarea.id} />}
         </div>
       </div>
     </div>
