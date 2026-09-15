@@ -6,6 +6,7 @@ import { insert, get, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { parseForm, zId, zTexto, zTextoOpcional, zMontoPositivo, zFecha, zEnumSeguro } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // Fase 10 del Plan Maestro — cuenta corriente por socio ("¿cuánto debo?").
 // Se gatea por el permiso de Finanzas (no el de Socios): registrar un cargo
@@ -49,4 +50,8 @@ export async function registrarMovimientoCuentaSocioAction(formData: FormData) {
   });
   revalidatePath(`/socios/${socio_id}`);
   revalidatePath("/socios");
+}
+
+export async function registrarMovimientoCuentaSocioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => registrarMovimientoCuentaSocioAction(formData));
 }

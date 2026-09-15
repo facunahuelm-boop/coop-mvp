@@ -3,22 +3,19 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, canApprove } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, SectionTitle, EmptyState, Label, inputClass, Badge, AddButtonSummary } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
+import { Card, PageHeader, SectionTitle, EmptyState, Badge } from "@/components/ui";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import {
-  crearViviendaAction,
   actualizarViviendaEstadoAction,
-  crearSocioAction,
   actualizarSocioEstadoAction,
   asignarViviendaSocioAction,
-  agregarListaEsperaAction,
   actualizarListaEsperaEstadoAction,
   incorporarDesdeListaEsperaAction,
   moverListaEsperaAction,
 } from "@/lib/actions/socios";
 import { NucleoLink } from "@/components/EntidadLink";
 import { BuscadorFilas } from "@/components/BuscadorFilas";
+import { CrearSocioForm, CrearViviendaForm, AgregarListaEsperaForm } from "@/components/socios/SociosFormularios";
 
 const ESTADOS_VIVIENDA = ["en_obra", "terminada", "ocupada"] as const;
 const ESTADOS_SOCIO = ["activo", "inactivo", "baja"] as const;
@@ -192,40 +189,7 @@ export default async function SociosPage() {
           </BuscadorFilas>
         )}
 
-        {puedeEditar && (
-          <details className="mt-4">
-            <AddButtonSummary>Agregar socio</AddButtonSummary>
-            <form action={crearSocioAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
-              <div><Label>Documento</Label><input name="documento" className={inputClass} /></div>
-              <div><Label>Email</Label><input name="email" type="email" className={inputClass} /></div>
-              <div><Label>Teléfono</Label><input name="telefono" className={inputClass} /></div>
-              <div>
-                <Label>Vivienda</Label>
-                <select name="vivienda_id" className={inputClass} defaultValue="">
-                  <option value="">Sin asignar</option>
-                  {viviendas.map((v) => (
-                    <option key={v.id} value={v.id}>{v.numero}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label>Núcleo familiar</Label>
-                <select name="nucleo_id" className={inputClass} defaultValue="">
-                  <option value="">Sin vincular</option>
-                  {nucleos.map((n) => (
-                    <option key={n.id} value={n.id}>{n.nombre}</option>
-                  ))}
-                </select>
-              </div>
-              <div><Label>Fecha de ingreso</Label><input name="fecha_ingreso" type="date" className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
-              <div className="sm:col-span-2">
-                <SubmitButton variant="add">Agregar socio</SubmitButton>
-              </div>
-            </form>
-          </details>
-        )}
+        {puedeEditar && <CrearSocioForm viviendas={viviendas} nucleos={nucleos} />}
       </Card>
 
       {/* ---------- Viviendas ---------- */}
@@ -252,26 +216,7 @@ export default async function SociosPage() {
           {viviendas.length === 0 && <EmptyState>Todavía no hay viviendas cargadas.</EmptyState>}
         </div>
 
-        {puedeEditar && (
-          <details className="mt-4">
-            <AddButtonSummary>Agregar vivienda</AddButtonSummary>
-            <form action={crearViviendaAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label>Número / identificador</Label><input name="numero" required placeholder="Ej: Casa 12" className={inputClass} /></div>
-              <div>
-                <Label>Estado</Label>
-                <select name="estado" className={inputClass} defaultValue="en_obra">
-                  {ESTADOS_VIVIENDA.map((e) => (
-                    <option key={e} value={e}>{e}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
-              <div className="sm:col-span-2">
-                <SubmitButton variant="add">Agregar vivienda</SubmitButton>
-              </div>
-            </form>
-          </details>
-        )}
+        {puedeEditar && <CrearViviendaForm estados={ESTADOS_VIVIENDA} />}
       </Card>
 
       {/* ---------- Lista de espera ---------- */}
@@ -367,20 +312,7 @@ export default async function SociosPage() {
           {listaEspera.length === 0 && <EmptyState>No hay aspirantes en lista de espera.</EmptyState>}
         </div>
 
-        {puedeEditar && (
-          <details className="mt-4">
-            <AddButtonSummary>Agregar aspirante</AddButtonSummary>
-            <form action={agregarListaEsperaAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
-              <div><Label>Documento</Label><input name="documento" className={inputClass} /></div>
-              <div><Label>Contacto</Label><input name="contacto" placeholder="Teléfono o email" className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
-              <div className="sm:col-span-2">
-                <SubmitButton variant="add">Agregar a la lista</SubmitButton>
-              </div>
-            </form>
-          </details>
-        )}
+        {puedeEditar && <AgregarListaEsperaForm />}
       </Card>
     </div>
   );

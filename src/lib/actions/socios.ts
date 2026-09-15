@@ -12,10 +12,12 @@ import {
   zTexto,
   zTextoOpcional,
   zEmailOpcional,
+  zTelefonoOpcional,
   zFechaOpcional,
   zEnumSeguro,
 } from "@/lib/validation";
 import { RELACION_INTEGRANTE, TIPO_INTEGRANTE, ESTADO_INTEGRANTE } from "@/lib/constants";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // ---------- Núcleos / Integrantes ----------
 // Padrón de Socios y Núcleos (pedido explícito): un núcleo (grupo familiar)
@@ -55,6 +57,10 @@ export async function crearViviendaAction(formData: FormData) {
   revalidatePath("/socios");
 }
 
+export async function crearViviendaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearViviendaAction(formData));
+}
+
 export async function actualizarViviendaEstadoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
@@ -70,7 +76,7 @@ const crearSocioSchema = z.object({
   nombre: zTexto(200),
   documento: zTextoOpcional(50),
   email: zEmailOpcional,
-  telefono: zTextoOpcional(50),
+  telefono: zTelefonoOpcional,
   vivienda_id: zIdOpcional,
   nucleo_id: zIdOpcional,
   fecha_ingreso: zFechaOpcional,
@@ -85,6 +91,10 @@ export async function crearSocioAction(formData: FormData) {
   const id = await insert("socios", { ...datos, estado: "activo" });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "socios", entidad_id: id, valor_nuevo: { nombre: datos.nombre } });
   revalidatePath("/socios");
+}
+
+export async function crearSocioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearSocioAction(formData));
 }
 
 export async function actualizarSocioEstadoAction(formData: FormData) {
@@ -117,7 +127,7 @@ const actualizarSocioSchema = z.object({
   id: zId,
   documento: zTextoOpcional(50),
   email: zEmailOpcional,
-  telefono: zTextoOpcional(50),
+  telefono: zTelefonoOpcional,
   notas: zTextoOpcional(1000),
 });
 
@@ -129,6 +139,10 @@ export async function actualizarSocioAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "editar", entidad: "socios", entidad_id: id, valor_nuevo: datos });
   revalidatePath(`/socios/${id}`);
   revalidatePath("/socios");
+}
+
+export async function actualizarSocioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => actualizarSocioAction(formData));
 }
 
 // ---------- Lista de espera ----------
@@ -153,6 +167,10 @@ export async function agregarListaEsperaAction(formData: FormData) {
   const id = await insert("lista_espera", { ...datos, orden, estado: "en_espera" });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "lista_espera", entidad_id: id, valor_nuevo: { nombre: datos.nombre, orden } });
   revalidatePath("/socios");
+}
+
+export async function agregarListaEsperaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarListaEsperaAction(formData));
 }
 
 export async function actualizarListaEsperaEstadoAction(formData: FormData) {
@@ -239,7 +257,7 @@ const agregarIntegranteSchema = z.object({
   apellido: zTextoOpcional(200),
   documento: zTextoOpcional(50),
   fecha_nacimiento: zFechaOpcional,
-  telefono: zTextoOpcional(50),
+  telefono: zTelefonoOpcional,
   email: zEmailOpcional,
   relacion: zEnumSeguro(RELACION_INTEGRANTE, "otro"),
   tipo_integrante: zEnumSeguro(TIPO_INTEGRANTE, "adulto"),
@@ -265,6 +283,10 @@ export async function agregarIntegranteAction(formData: FormData) {
   revalidatePath("/socios");
 }
 
+export async function agregarIntegranteFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarIntegranteAction(formData));
+}
+
 /** Edita los datos de un integrante ya cargado. */
 const editarIntegranteSchema = z.object({
   id: zId,
@@ -272,7 +294,7 @@ const editarIntegranteSchema = z.object({
   apellido: zTextoOpcional(200),
   documento: zTextoOpcional(50),
   fecha_nacimiento: zFechaOpcional,
-  telefono: zTextoOpcional(50),
+  telefono: zTelefonoOpcional,
   email: zEmailOpcional,
   relacion: zEnumSeguro(RELACION_INTEGRANTE, "otro"),
   tipo_integrante: zEnumSeguro(TIPO_INTEGRANTE, "adulto"),
@@ -290,6 +312,10 @@ export async function editarIntegranteAction(formData: FormData) {
   await update("socio_integrantes", id, datos);
   await audit({ usuario_id: user.id, accion: "editar", entidad: "socio_integrantes", entidad_id: id, valor_nuevo: datos });
   revalidatePath(`/socios/${integrante.socio_id}`);
+}
+
+export async function editarIntegranteFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => editarIntegranteAction(formData));
 }
 
 /**

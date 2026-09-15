@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { insert, update, get, run, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
-import { parseForm, zId, zTexto, zTextoOpcional, zEmailOpcional, zEnumSeguro } from "@/lib/validation";
+import { parseForm, zId, zTexto, zTextoOpcional, zEmailOpcional, zTelefonoOpcional, zEnumSeguro } from "@/lib/validation";
 import { ESTADO_PROVEEDOR, TIPO_PROVEEDOR } from "@/lib/constants";
 
 // Proveedores fijos vs. nuevos/a presupuestar (pedido explícito): ver
@@ -19,7 +19,7 @@ import { ESTADO_PROVEEDOR, TIPO_PROVEEDOR } from "@/lib/constants";
 
 const datosProveedorSchema = {
   rut: zTextoOpcional(30),
-  telefono: zTextoOpcional(50),
+  telefono: zTelefonoOpcional,
   email: zEmailOpcional,
   direccion: zTextoOpcional(300),
   persona_contacto: zTextoOpcional(150),

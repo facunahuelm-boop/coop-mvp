@@ -3,16 +3,19 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { get, all } from "@/lib/db";
-import { Card, PageHeader, SectionTitle, EmptyState, Badge, Label, inputClass, AddButtonSummary } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
+import { Card, PageHeader, SectionTitle, EmptyState, Badge } from "@/components/ui";
 import dayjs from "dayjs";
-import { registrarMovimientoCuentaSocioAction } from "@/lib/actions/cuentaSocios";
-import { actualizarSocioAction, agregarIntegranteAction, editarIntegranteAction, cambiarEstadoIntegranteAction } from "@/lib/actions/socios";
-import { RELACION_INTEGRANTE, RELACION_INTEGRANTE_LABEL, TIPO_INTEGRANTE } from "@/lib/constants";
+import { cambiarEstadoIntegranteAction } from "@/lib/actions/socios";
+import { RELACION_INTEGRANTE, RELACION_INTEGRANTE_LABEL } from "@/lib/constants";
 import { NucleoLink } from "@/components/EntidadLink";
+import {
+  ActualizarSocioForm,
+  AgregarIntegranteForm,
+  EditarIntegranteForm,
+  RegistrarMovimientoCuentaForm,
+} from "@/components/socios/SocioDetalleFormularios";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
-const TIPO_INTEGRANTE_LABEL: Record<(typeof TIPO_INTEGRANTE)[number], string> = { adulto: "Adulto", menor: "Menor de edad" };
 
 const badgeSocio: Record<string, "verde" | "amarillo" | "rojo"> = {
   activo: "verde",
@@ -85,21 +88,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
           {socio.notas && <div className="sm:col-span-2"><span className="text-ink/50">Notas:</span> {socio.notas}</div>}
         </div>
 
-        {puedeEditar && (
-          <details className="mt-4">
-            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-brand-800)]">Editar datos de contacto</summary>
-            <form action={actualizarSocioAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input type="hidden" name="id" value={socio.id} />
-              <div><Label>Documento</Label><input name="documento" defaultValue={socio.documento || ""} className={inputClass} /></div>
-              <div><Label>Email</Label><input name="email" type="email" defaultValue={socio.email || ""} className={inputClass} /></div>
-              <div><Label>Teléfono</Label><input name="telefono" defaultValue={socio.telefono || ""} className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" defaultValue={socio.notas || ""} className={inputClass} /></div>
-              <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar</button>
-              </div>
-            </form>
-          </details>
-        )}
+        {puedeEditar && <ActualizarSocioForm socio={socio} />}
       </Card>
 
       {/* ---------- Integrantes del núcleo (pareja, hijos, etc.) ---------- */}
@@ -132,32 +121,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
                 </div>
                 {puedeEditar && (
                   <div className="flex flex-col items-end gap-1 shrink-0 text-right">
-                    <details>
-                      <summary className="cursor-pointer text-xs text-[var(--color-brand-800)] font-semibold">Editar</summary>
-                      <form action={editarIntegranteAction} className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 w-64 sm:w-80">
-                        <input type="hidden" name="id" value={i.id} />
-                        <div><Label>Nombre</Label><input name="nombre" defaultValue={i.nombre} required className={inputClass} /></div>
-                        <div><Label>Apellido</Label><input name="apellido" defaultValue={i.apellido || ""} className={inputClass} /></div>
-                        <div><Label>Documento</Label><input name="documento" defaultValue={i.documento || ""} className={inputClass} /></div>
-                        <div><Label>Fecha de nacimiento</Label><input type="date" name="fecha_nacimiento" defaultValue={i.fecha_nacimiento || ""} className={inputClass} /></div>
-                        <div><Label>Teléfono</Label><input name="telefono" defaultValue={i.telefono || ""} className={inputClass} /></div>
-                        <div><Label>Email</Label><input type="email" name="email" defaultValue={i.email || ""} className={inputClass} /></div>
-                        <div>
-                          <Label>Relación</Label>
-                          <select name="relacion" defaultValue={i.relacion} className={inputClass}>
-                            {RELACION_INTEGRANTE.map((r) => <option key={r} value={r}>{RELACION_INTEGRANTE_LABEL[r]}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <Label>Tipo</Label>
-                          <select name="tipo_integrante" defaultValue={i.tipo_integrante} className={inputClass}>
-                            {TIPO_INTEGRANTE.map((t) => <option key={t} value={t}>{TIPO_INTEGRANTE_LABEL[t]}</option>)}
-                          </select>
-                        </div>
-                        <div className="sm:col-span-2"><Label>Observaciones</Label><input name="observaciones" defaultValue={i.observaciones || ""} className={inputClass} /></div>
-                        <div className="sm:col-span-2"><button className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-1.5 text-xs font-semibold">Guardar</button></div>
-                      </form>
-                    </details>
+                    <EditarIntegranteForm integrante={i} />
                     <form action={cambiarEstadoIntegranteAction}>
                       <input type="hidden" name="id" value={i.id} />
                       <input type="hidden" name="estado" value={i.estado === "activo" ? "inactivo" : "activo"} />
@@ -173,36 +137,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
           {integrantes.length === 0 && <p className="text-xs text-ink-faint">Sin otros integrantes cargados todavía.</p>}
         </div>
 
-        {puedeEditar && (
-          <details className="mt-4">
-            <AddButtonSummary>Agregar integrante</AddButtonSummary>
-            <form action={agregarIntegranteAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input type="hidden" name="socio_id" value={socio.id} />
-              <div><Label>Nombre</Label><input name="nombre" required className={inputClass} /></div>
-              <div><Label>Apellido</Label><input name="apellido" className={inputClass} /></div>
-              <div><Label>Documento</Label><input name="documento" className={inputClass} /></div>
-              <div><Label>Fecha de nacimiento</Label><input type="date" name="fecha_nacimiento" className={inputClass} /></div>
-              <div><Label>Teléfono</Label><input name="telefono" className={inputClass} /></div>
-              <div><Label>Email</Label><input type="email" name="email" className={inputClass} /></div>
-              <div>
-                <Label>Relación con el titular</Label>
-                <select name="relacion" className={inputClass} defaultValue="pareja">
-                  {RELACION_INTEGRANTE.filter((r) => r !== "titular").map((r) => <option key={r} value={r}>{RELACION_INTEGRANTE_LABEL[r]}</option>)}
-                </select>
-              </div>
-              <div>
-                <Label>Tipo de integrante</Label>
-                <select name="tipo_integrante" className={inputClass} defaultValue="adulto">
-                  {TIPO_INTEGRANTE.map((t) => <option key={t} value={t}>{TIPO_INTEGRANTE_LABEL[t]}</option>)}
-                </select>
-              </div>
-              <div className="sm:col-span-2"><Label>Observaciones</Label><input name="observaciones" className={inputClass} /></div>
-              <div className="sm:col-span-2">
-                <SubmitButton variant="add">Agregar integrante</SubmitButton>
-              </div>
-            </form>
-          </details>
-        )}
+        {puedeEditar && <AgregarIntegranteForm socioId={socio.id} />}
       </Card>
 
       <SectionTitle>Cuenta corriente</SectionTitle>
@@ -242,28 +177,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
               {movimientos.length === 0 && <EmptyState>Sin movimientos registrados todavía.</EmptyState>}
             </div>
 
-            {puedeRegistrar && (
-              <details className="mt-4">
-                <AddButtonSummary>Registrar cargo o pago</AddButtonSummary>
-                <form action={registrarMovimientoCuentaSocioAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input type="hidden" name="socio_id" value={socio.id} />
-                  <div>
-                    <Label>Tipo</Label>
-                    <select name="tipo" className={inputClass} defaultValue="cargo">
-                      <option value="cargo">Cargo (aumenta la deuda, ej: cuota)</option>
-                      <option value="pago">Pago (la reduce)</option>
-                    </select>
-                  </div>
-                  <div><Label>Monto</Label><input name="monto" type="number" step="0.01" required className={inputClass} /></div>
-                  <div><Label>Concepto</Label><input name="concepto" required placeholder="Cuota setiembre, pago parcial…" className={inputClass} /></div>
-                  <div><Label>Fecha</Label><input name="fecha" type="date" required className={inputClass} defaultValue={dayjs().format("YYYY-MM-DD")} /></div>
-                  <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
-                  <div className="sm:col-span-2">
-                    <SubmitButton variant="add">Registrar</SubmitButton>
-                  </div>
-                </form>
-              </details>
-            )}
+            {puedeRegistrar && <RegistrarMovimientoCuentaForm socioId={socio.id} />}
           </Card>
         </>
       )}
