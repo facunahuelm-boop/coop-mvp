@@ -453,3 +453,19 @@ Desplegado (commit `cd644e8`).
 **Pendiente antes de que esto tenga efecto en producción**: correr la migración `0025` vía `/api/admin/migraciones` — hasta entonces, `subcategoria`/`recurrente` se degradan a "sin valor" (no rompen nada, por el criterio defensivo de `insert()`/`SELECT *`) pero no se guardan de verdad. Sigue: Fase 2 (nueva pantalla principal de Compras: resumen compacto + acciones rápidas + búsqueda/filtros + solicitud nueva en modal).
 
 Desplegado (commit `ad929cd`).
+
+### Fase 2 — Nueva pantalla principal de Compras (15/09)
+
+**Qué se hizo** (secciones 4, 7, 23-26 del pedido: pantalla compacta con resumen + acciones rápidas + búsqueda/filtros, "Nueva solicitud" en modal, nunca página larga con scroll interminable):
+
+- **"Nueva solicitud" pasa a abrirse en un Modal** (`CrearSolicitudForm`, `components/compras/ComprasFormularios.tsx`): dejó de ser un `<details>` que desplegaba el formulario inline (patrón que el resto del sistema sigue usando sin tocar) y ahora usa el `Modal` ya existente (`ui-client.tsx`, construido en el rediseño del Dashboard) — es el primer formulario de alta de todo el sistema que adopta este patrón, tal como pide la sección 7 ("al hacer clic en + Nueva solicitud, abrir un MODAL. NO navegar a otra página"). Se usó `size="lg"` por la cantidad de campos, se agregó un botón "Cancelar" que el `<details>` no tenía, y se corrigió que el texto tipeado se viera con el color muted por defecto del `Modal` (se fuerza `text-ink` en el formulario).
+- **Resumen compacto de 5 `StatTile`** (mismo componente que ya usa `/gastos`, sin inventar uno nuevo): Pendientes, Cotizando, Aprobadas (agrupa `aprobada` + `pedida`, ambas ya "decididas"), Entregadas, y Gastado este mes — este último leído de `decisiones_compra.monto` (el registro de la decisión de compra en sí, distinto de `gastos_comision` que es el lado de pago en Finanzas — no se duplica información, sección 22). Las cuentas por estado son sobre el total real, no sobre lo filtrado, mismo criterio que "Por comisión" en `/gastos`.
+- **Filtros compactos** (Estado / Categoría / Comisión) vía querystring GET, calcados del patrón ya usado en `/gastos` (mismo layout de `Card` + `SectionTitle` + link "Limpiar filtros" cuando hay algo filtrado) — nunca ocupan media pantalla.
+- **Búsqueda instantánea**: se agregó `BuscadorLista` (`components/BuscadorFilas.tsx`, nuevo, hermano de `BuscadorFilas` que ya existía) — mismo mecanismo 100% cliente sobre filas ya renderizadas por el servidor, por un array paralelo de texto, pero para listas de tarjetas en vez de una `<table>` (Compras no arma tabla). Envuelve la lista de solicitudes; busca por material, especificación, categoría, subcategoría, comisión y solicitante.
+- **"Nueva solicitud" se movió a la cabecera** (`PageHeader`, junto al link "Ver proveedores →") en vez de vivir al pie de la lista — ya no hace falta bajar toda la pantalla para encontrar la acción más usada.
+
+**Archivos afectados**: `src/components/compras/ComprasFormularios.tsx`, `src/components/BuscadorFilas.tsx`, `src/app/(app)/compras/page.tsx`. Ninguna acción de servidor ni regla de negocio se tocó — es una fase puramente de presentación sobre datos que Fase 1 ya dejaba disponibles. `npx tsc --noEmit` sin errores; `npx eslint` sobre los 3 archivos sin errores nuevos (los `no-explicit-any` son el mismo patrón preexistente que ya tiene `/gastos/page.tsx`, verificado línea por línea); `npx next build` compila y pasa TypeScript (mismo límite de siempre: sin `DATABASE_URL` en este entorno).
+
+**Pendiente**: sigue Fase 3 (solicitudes y presupuestos en modal + comparador visual de presupuestos, detalle de `/compras/[id]` con tabs Información/Presupuestos/Documentos/Historial).
+
+Desplegado (commit `90d3d81`).
