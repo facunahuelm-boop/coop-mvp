@@ -517,3 +517,19 @@ Desplegado (commit `6d1be27`).
 **Pendiente**: proveedor habitual vs. nuevo (secciones 17-18) — distinguir visualmente 🟢 proveedor habitual de 🟡 nuevo proveedor y evitar duplicados al cargar un presupuesto.
 
 Desplegado (commit `7c30a08`).
+
+### Fase 6 — Proveedor habitual vs. nuevo, y evitar duplicados (15/09)
+
+**Hallazgo antes de escribir código** (investigación previa, mismo criterio de siempre): la distinción que pide la sección 18 ("🟢 proveedor habitual vs. 🟡 nuevo proveedor") **ya existía en la base** — `proveedores.estado` (`nuevo | habitual | en_evaluacion | inactivo`) se agregó en la migración 0018, ya con tabs, badge y edición en `/proveedores`. Lo que faltaba era mostrar ese estado en el momento en que realmente importa: cuando se está cargando un presupuesto o comparando proveedores dentro de una compra puntual. No se creó ninguna columna ni concepto nuevo — se cableó lo que ya estaba.
+
+**Qué se hizo**:
+- **`compararPresupuestos()`** (`lib/logic.ts`): la consulta suma `pv.estado as proveedor_estado`, sin cambiar nada más de la función.
+- **`PurchaseComparison`**: cada tarjeta de proveedor ahora muestra su estado (🟢 Habitual / 🟡 Nuevo o en evaluación / ⚪ Inactivo) debajo del nombre.
+- **`CargarPresupuestoForm`**: el desplegable "Proveedor existente" antepone el mismo emoji a cada nombre, con una leyenda corta debajo explicando qué significa cada uno.
+- **Evitar duplicados** (sección 18, "no duplicar proveedores"): `agregarPresupuestoAction` creaba SIEMPRE un proveedor nuevo al escribir un nombre en "...o proveedor nuevo", aunque ya existiera uno con ese mismo nombre — fácil de hacer sin querer si la persona no revisa el desplegable de arriba primero. Ahora busca primero por nombre exacto (sin mayúsculas ni espacios de más, dentro de la cooperativa activa) y reutiliza ese proveedor en vez de crear un duplicado; sólo crea uno nuevo si de verdad no existe.
+
+**Archivos afectados**: `src/lib/logic.ts`, `src/lib/actions/compras.ts`, `src/components/compras/PurchaseComparison.tsx`, `src/components/compras/ComprasFormularios.tsx`. Ningún permiso ni tabla nueva. `npx tsc --noEmit` sin errores; `npx eslint` sin errores nuevos (mismo patrón preexistente de `no-explicit-any`, con la misma cantidad de ocurrencias que antes de esta fase en cada archivo); `npx next build` compila y pasa TypeScript (mismo límite de siempre: sin `DATABASE_URL` en este entorno).
+
+**Con esto se cierra el plan de 6 fases propuesto para la primera etapa del rediseño de Compras.** Quedan explícitamente para una fase futura, si el usuario lo pide: adjuntar facturas desde un flujo más automático (hoy ya funciona, manual), automatización real de "recurrente" (hoy sólo la bandera), y la auditoría visual/espacio del resto del sistema (Dashboard, Finanzas, Proveedores, Contactos, Usuarios, Núcleos, Comisiones, etc. — sección 27 en adelante del pedido original), que el propio pedido del usuario ubica "después de terminar Compras".
+
+Desplegado (commit `7f7823f`).
