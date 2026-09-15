@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaOpcional, zEnumSeguro } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // Fase 06 del Plan Maestro — tareas genéricas por comisión (no solo Obra o
 // Trabajo). El comentario original decía "quien puede editar la comisión
@@ -41,6 +42,10 @@ export async function crearTareaAction(formData: FormData) {
     valor_nuevo: { comision_id: datos.comision_id, titulo: datos.titulo, prioridad: datos.prioridad },
   });
   revalidatePath("/comisiones");
+}
+
+export async function crearTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearTareaAction(formData));
 }
 
 export async function cambiarEstadoTareaAction(formData: FormData) {

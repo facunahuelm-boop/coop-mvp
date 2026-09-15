@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { parseForm, zId, zTexto, zTextoOpcional } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // AUDITORÍA INTEGRAL (hallazgo de seguridad, sección 17): estas cuatro
 // acciones solo comprobaban canEdit(rol, "comisiones") — y en la matriz de
@@ -42,6 +43,10 @@ export async function crearComisionAction(formData: FormData) {
   revalidatePath("/comisiones");
 }
 
+export async function crearComisionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearComisionAction(formData));
+}
+
 export async function archivarComisionAction(formData: FormData) {
   const user = await requireUser();
   if (!esOversightComisiones(user.rol)) throw new Error("Archivar una comisión requiere un rol de conducción (Admin, Consejo Directivo, Tesorería o Administración).");
@@ -72,6 +77,10 @@ export async function agregarMiembroAction(formData: FormData) {
   const id = await insert("comision_miembros", { comision_id, user_id, rol_en_comision });
   await audit({ usuario_id: user.id, accion: "agregar_miembro", entidad: "comision_miembros", entidad_id: id, valor_nuevo: { comision_id, user_id, rol_en_comision } });
   revalidatePath("/comisiones");
+}
+
+export async function agregarMiembroFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarMiembroAction(formData));
 }
 
 export async function quitarMiembroAction(formData: FormData) {

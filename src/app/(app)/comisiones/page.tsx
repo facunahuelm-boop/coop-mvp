@@ -3,18 +3,13 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, EmptyState, Label, inputClass, Badge, AddButtonSummary } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
+import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import { UsuarioLink } from "@/components/EntidadLink";
 import dayjs from "dayjs";
-import {
-  crearComisionAction,
-  archivarComisionAction,
-  agregarMiembroAction,
-  quitarMiembroAction,
-} from "@/lib/actions/comisiones";
-import { crearTareaAction, cambiarEstadoTareaAction } from "@/lib/actions/tareas";
+import { archivarComisionAction, quitarMiembroAction } from "@/lib/actions/comisiones";
+import { cambiarEstadoTareaAction } from "@/lib/actions/tareas";
+import { AgregarMiembroForm, CrearTareaForm, CrearComisionForm } from "@/components/comisiones/ComisionesFormularios";
 
 // Fase 06 del Plan Maestro — cualquier comisión puede llevar sus propias
 // tareas ahora, no solo Obra (tareas_obra) o Trabajo (tareas_jornada).
@@ -97,27 +92,7 @@ export default async function ComisionesPage() {
                 {integrantes.length === 0 && <p className="text-xs text-ink/40 italic">Sin integrantes todavía.</p>}
               </div>
 
-              {puedeGestionar && (
-                <form action={agregarMiembroAction} className="mt-3 flex flex-wrap items-end gap-2">
-                  <input type="hidden" name="comision_id" value={c.id} />
-                  <div className="flex-1 min-w-[140px]">
-                    <Label>Agregar integrante</Label>
-                    <select name="user_id" required className={inputClass}>
-                      {usuarios.map((u) => (
-                        <option key={u.id} value={u.id}>{u.nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label>Rol</Label>
-                    <select name="rol_en_comision" className={inputClass} defaultValue="integrante">
-                      <option value="integrante">Integrante</option>
-                      <option value="coordinador">Coordinador/a</option>
-                    </select>
-                  </div>
-                  <SubmitButton variant="add" className="text-xs px-3 py-2 whitespace-nowrap">Agregar</SubmitButton>
-                </form>
-              )}
+              {puedeGestionar && <AgregarMiembroForm comisionId={c.id} usuarios={usuarios} />}
 
               <div className="mt-4 pt-4 border-t border-ink/5">
                 <p className="text-xs font-semibold text-ink/60 mb-2">Tareas</p>
@@ -153,30 +128,7 @@ export default async function ComisionesPage() {
                   )}
                 </div>
 
-                {puedeGestionar && (
-                  <details className="mt-2">
-                    <AddButtonSummary className="text-xs px-3 py-1.5">Agregar tarea</AddButtonSummary>
-                    <form action={crearTareaAction} className="mt-2 grid grid-cols-1 gap-2">
-                      <input type="hidden" name="comision_id" value={c.id} />
-                      <input name="titulo" required placeholder="Título de la tarea" className={inputClass} />
-                      <div className="grid grid-cols-2 gap-2">
-                        <select name="responsable_id" className={inputClass} defaultValue="">
-                          <option value="">Sin asignar</option>
-                          {usuarios.map((u) => (
-                            <option key={u.id} value={u.id}>{u.nombre}</option>
-                          ))}
-                        </select>
-                        <select name="prioridad" className={inputClass} defaultValue="media">
-                          <option value="alta">Alta</option>
-                          <option value="media">Media</option>
-                          <option value="baja">Baja</option>
-                        </select>
-                      </div>
-                      <input name="fecha_vencimiento" type="date" className={inputClass} />
-                      <SubmitButton variant="add" className="text-xs px-3 py-2">Agregar tarea</SubmitButton>
-                    </form>
-                  </details>
-                )}
+                {puedeGestionar && <CrearTareaForm comisionId={c.id} usuarios={usuarios} />}
               </div>
             </Card>
           );
@@ -184,18 +136,7 @@ export default async function ComisionesPage() {
         {comisiones.length === 0 && <EmptyState>Todavía no hay comisiones creadas.</EmptyState>}
       </div>
 
-      {esOversightComisiones && (
-        <details className="mt-6">
-          <AddButtonSummary>Crear comisión</AddButtonSummary>
-          <Card className="mt-3">
-            <form action={crearComisionAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label>Nombre</Label><input name="nombre" required placeholder="Ej: Comisión de Educación" className={inputClass} /></div>
-              <div><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
-              <div className="sm:col-span-2"><SubmitButton variant="add">Crear comisión</SubmitButton></div>
-            </form>
-          </Card>
-        </details>
-      )}
+      {esOversightComisiones && <CrearComisionForm />}
     </div>
   );
 }
