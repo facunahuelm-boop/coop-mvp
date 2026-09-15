@@ -3,12 +3,11 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { all, get } from "@/lib/db";
 import { resumenFinanciero, cuentasPorCobrar } from "@/lib/logic";
-import { Card, PageHeader, StatTile, EmptyState, Label, inputClass, SectionTitle, AddButtonSummary } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
+import { Card, PageHeader, StatTile, EmptyState, SectionTitle } from "@/components/ui";
 import Link from "next/link";
 import dayjs from "dayjs";
-import { registrarMovimientoAction, agregarCompromisoAction } from "@/lib/actions/finanzas";
 import { Pagination, paginaDe } from "@/components/Pagination";
+import { AgregarCompromisoForm, RegistrarMovimientoForm } from "@/components/finanzas/FinanzasFormularios";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
 const CATEGORY_COLORS = ["#1F4E5F", "#3A7A8C", "#7FA8B3", "#A15C00", "#B3261E", "#5B7553"];
@@ -124,19 +123,7 @@ export default async function FinanzasPage({
             ))}
             {compromisos.length === 0 && <EmptyState>Sin compromisos futuros cargados.</EmptyState>}
           </div>
-          {puedeEditar && (
-            <details className="mb-8"><AddButtonSummary>Agregar compromiso futuro</AddButtonSummary>
-              <Card className="mt-3">
-                <form action={agregarCompromisoAction} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-2"><Label>Descripción</Label><input name="descripcion" required className={inputClass} /></div>
-                  <div><Label>Monto</Label><input name="monto" type="number" required className={inputClass} /></div>
-                  <div><Label>Fecha estimada</Label><input type="date" name="fecha_estimada" required className={inputClass} /></div>
-                  <div><Label>Origen</Label><input name="origen" className={inputClass} /></div>
-                  <div className="sm:col-span-3"><SubmitButton variant="add">Guardar</SubmitButton></div>
-                </form>
-              </Card>
-            </details>
-          )}
+          {puedeEditar && <AgregarCompromisoForm />}
 
           <SectionTitle action={cobrar.filas.length > 0 ? <span className="text-sm font-bold text-[var(--color-brand-900)]">{money(cobrar.totalACobrar)}</span> : undefined}>
             Cuentas por cobrar a socios
@@ -188,22 +175,7 @@ export default async function FinanzasPage({
             </table>
           </Card>
           <Pagination page={page} totalPages={totalPages} basePath="/finanzas" searchParams={sp} />
-          {puedeEditar && (
-            <details className="mt-4"><AddButtonSummary>Registrar movimiento</AddButtonSummary>
-              <Card className="mt-3">
-                <form action={registrarMovimientoAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label>Tipo</Label>
-                    <select name="tipo" className={inputClass} defaultValue="egreso"><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select>
-                  </div>
-                  <div><Label>Monto</Label><input name="monto" type="number" required className={inputClass} /></div>
-                  <div><Label>Categoría</Label><input name="categoria" required className={inputClass} placeholder="Estructura, Administración…" /></div>
-                  <div><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
-                  <div className="sm:col-span-2"><SubmitButton variant="add">Registrar</SubmitButton></div>
-                </form>
-              </Card>
-            </details>
-          )}
+          {puedeEditar && <RegistrarMovimientoForm />}
         </>
       )}
     </div>

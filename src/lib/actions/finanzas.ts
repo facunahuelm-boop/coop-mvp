@@ -6,6 +6,7 @@ import { insert, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { parseForm, zTexto, zTextoOpcional, zMontoPositivo, zFecha, zEnumSeguro } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 const registrarMovimientoSchema = z.object({
   tipo: zEnumSeguro(["ingreso", "egreso"], "egreso"),
@@ -31,6 +32,10 @@ export async function registrarMovimientoAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function registrarMovimientoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => registrarMovimientoAction(formData));
+}
+
 const agregarCompromisoSchema = z.object({
   descripcion: zTexto(300),
   monto: zMontoPositivo(),
@@ -45,4 +50,8 @@ export async function agregarCompromisoAction(formData: FormData) {
   await insert("compromisos_futuros", datos);
   revalidatePath("/finanzas");
   revalidatePath("/dashboard");
+}
+
+export async function agregarCompromisoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarCompromisoAction(formData));
 }
