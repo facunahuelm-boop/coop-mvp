@@ -312,6 +312,57 @@ export function SubmitButton({
  * inputs visibles, el botón). No hace falta `FieldError`/`FormError` porque
  * estas acciones no tienen campos de usuario que validar.
  */
+/**
+ * Rediseño profundo de Compras, Fase 3 (pedido explícito, sección 16: el
+ * detalle de una compra debe organizarse en pestañas — Información /
+ * Presupuestos / Documentos / Historial — en vez de una página larga con
+ * mucho scroll). Primer uso de pestañas en todo el sistema; se construye acá
+ * (no en un archivo propio) porque es igual de chico y genérico que `Modal`/
+ * `ConfirmDialog` de este mismo archivo. Todo el contenido de cada pestaña ya
+ * viene renderizado por el Server Component padre (mismo criterio de toda la
+ * app: nunca pasar una función a través del límite servidor→cliente) — acá
+ * sólo se decide cuál mostrar, sin refetch ni navegación. Como las tres
+ * pestañas comparten los datos que la página YA pidió una sola vez (no una
+ * lista de filas, un único detalle), no hay ningún costo extra en tenerlas
+ * todas ya armadas y sólo ocultar las que no están activas.
+ */
+export function Tabs({
+  tabs,
+  defaultTab,
+}: {
+  tabs: { id: string; label: string; content: ReactNode }[];
+  defaultTab?: string;
+}) {
+  const [activo, setActivo] = useState(defaultTab || tabs[0]?.id);
+  return (
+    <div>
+      <div role="tablist" className="flex gap-1 border-b border-ink/10 mb-4 overflow-x-auto">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={activo === t.id}
+            onClick={() => setActivo(t.id)}
+            className={`px-3.5 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${
+              activo === t.id
+                ? "border-[var(--color-brand-800)] text-[var(--color-brand-800)]"
+                : "border-transparent text-ink-muted hover:text-ink"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tabs.map((t) => (
+        <div key={t.id} role="tabpanel" hidden={activo !== t.id}>
+          {t.content}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ActionForm({
   action,
   children,

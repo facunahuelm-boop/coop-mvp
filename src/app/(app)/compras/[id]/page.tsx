@@ -5,15 +5,16 @@ import { canRead, canEdit, canApprove } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { compararPresupuestos, historialSolicitud } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
-import { ActionForm } from "@/components/ui-client";
+import { ActionForm, Tabs } from "@/components/ui-client";
 import dayjs from "dayjs";
-import { decidirCompraFormAction, marcarPedidaFormAction, marcarEntregadaFormAction, rechazarSolicitudFormAction, eliminarSolicitudFormAction } from "@/lib/actions/compras";
+import { marcarPedidaFormAction, marcarEntregadaFormAction, rechazarSolicitudFormAction, eliminarSolicitudFormAction } from "@/lib/actions/compras";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 import { CargarPresupuestoForm } from "@/components/compras/ComprasFormularios";
 import { SolicitudStatusBadge } from "@/components/compras/PurchaseStatus";
 import { HistorialCompra } from "@/components/compras/HistorialCompra";
+import { PurchaseComparison } from "@/components/compras/PurchaseComparison";
 
 export default async function SolicitudPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -39,11 +40,21 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
     canEdit(user.rol, "compras") &&
     (solicitud.comision_id ? await puedeGestionarComision(user, solicitud.comision_id) : true);
 
-  return (
-    <div>
-      <PageHeader title={solicitud.material} subtitle={`${solicitud.cantidad} ${solicitud.unidad} · ${solicitud.comision}`}
-        action={<Badge color={solicitud.prioridad === "critica" ? "rojo" : "brand"}>{solicitud.prioridad}</Badge>} />
+  const puedeElegirProveedor = puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion");
 
+  // Rediseño profundo de Compras, Fase 3 (pedido explícito, sección 16): el
+  // detalle deja de ser una página larga de scroll continuo y pasa a
+  // organizarse en las 4 pestañas pedidas — Información / Presupuestos /
+  // Documentos / Historial. Se mantiene como página propia (no como modal
+  // abierto desde la lista): convertir cada fila del listado en un modal
+  // pre-armado hubiera significado repetir esta misma batería de consultas
+  // (comparación, decisión, historial) para CADA solicitud de la lista, se
+  // haya abierto o no — un costo real que crece con la cantidad de compras
+  // de la cooperativa. Acá, en cambio, las pestañas comparten los datos que
+  // esta página ya pidió una sola vez para la solicitud puntual que se está
+  // mirando, así que no hay ningún costo extra en tenerlas ya armadas.
+  const tabInformacion = (
+    <>
       <Card className="mb-5 text-sm">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div><Label>Categoría</Label>{CATEGORIA_COMPRA_LABEL[solicitud.categoria] || CATEGORIA_COMPRA_LABEL.obra}{solicitud.subcategoria ? ` · ${solicitud.subcategoria}` : ""}</div>
@@ -76,7 +87,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
         {user.rol === "admin" && (
           <details className="mt-4 pt-3 border-t border-ink/10">
             <summary className="cursor-pointer text-xs font-semibold text-[var(--color-rojo)]">Zona de administrador: eliminar esta solicitud</summary>
-            <p className="text-xs text-ink/50 mt-2">Esto borra la solicitud y sus presupuestos/decisión asociados de forma permanente. Usalo solo para corregir un error de carga o limpiar datos de prueba — para una compra real que ya no corresponde, usá "Rechazar" en su lugar.</p>
+            <p className="text-xs text-ink/50 mt-2">Esto borra la solicitud y sus presupuestos/decisión asociados de forma permanente. Usalo solo para corregir un error de carga o limpiar datos de prueba — para una compra real que ya no corresponde, usá &quot;Rechazar&quot; en su lugar.</p>
             <div className="mt-2">
               <ConfirmarEliminar
                 action={eliminarSolicitudFormAction}
@@ -91,53 +102,77 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
       </Card>
 
       {decision && (
-        <Card className="mb-5 !border-[var(--color-verde)]/30 bg-[var(--color-verde-bg)]/40">
+        <Card className="!border-[var(--color-verde)]/30 bg-[var(--color-verde-bg)]/40">
           <p className="text-sm font-semibold text-[var(--color-verde)]">Decisión registrada</p>
           <p className="text-sm mt-1">Se eligió a <Link href={`/proveedores/${decision.proveedor_id}`} className="font-semibold underline underline-offset-2">{decision.proveedor_nombre}</Link> por <strong>${decision.monto?.toLocaleString("es-UY")}</strong>, decidido por {decision.decidido_por} el {dayjs(decision.fecha).format("DD/MM/YYYY")}.</p>
           {decision.motivo && <p className="text-xs text-ink/60 mt-1">Motivo: {decision.motivo}</p>}
         </Card>
       )}
+    </>
+  );
 
-      <Card className="mb-5">
-        <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">✨ Comparación asistida por IA</h3>
-        <pre className="text-sm text-ink/70 whitespace-pre-wrap font-sans">{comparacion.texto}</pre>
-      </Card>
-
-      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Presupuestos cargados</h3>
-      <div className="space-y-2 mb-4">
-        {comparacion.presupuestos.length === 0 && <EmptyState>Todavía no hay presupuestos.</EmptyState>}
-        {comparacion.presupuestos.map((p: any) => (
-          <Card key={p.id} className="text-sm">
-            <div className="flex items-center justify-between">
-              <Link href={`/proveedores/${p.proveedor_id}`} className="font-semibold hover:underline underline-offset-2">{p.proveedor_nombre}</Link>
-              <p className="font-bold">${p.precio.toLocaleString("es-UY")}{p.costo_envio ? ` + $${p.costo_envio.toLocaleString("es-UY")} envío` : ""}</p>
-            </div>
-            <p className="text-xs text-ink/50 mt-1">
-              {p.plazo_entrega_dias != null && `Entrega en ${p.plazo_entrega_dias} días · `}
-              {p.forma_pago && `Pago: ${p.forma_pago} · `}
-              {p.garantia ? `Garantía: ${p.garantia}` : "Sin garantía informada"}
-            </p>
-            {p.condiciones && <p className="text-xs text-ink/50 mt-0.5">Condiciones: {p.condiciones}</p>}
-            {puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
-              <ActionForm action={decidirCompraFormAction} className="mt-2 flex items-center gap-2">
-                <input type="hidden" name="solicitud_id" value={solicitud.id} />
-                <input type="hidden" name="presupuesto_id" value={p.id} />
-                <input name="motivo" placeholder="Motivo de la decisión" className={inputClass + " text-xs"} />
-                <button className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold whitespace-nowrap">Elegir este proveedor</button>
-              </ActionForm>
-            )}
-          </Card>
-        ))}
-      </div>
-
-      {puedeEditar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
-        <CargarPresupuestoForm solicitudId={solicitud.id} proveedores={proveedores} abiertoPorDefecto={comparacion.presupuestos.length < 3} />
+  // Rediseño profundo de Compras, Fase 3 (sección 10: comparador visual lado
+  // a lado). `PurchaseComparison` es ahora la forma principal de comparar;
+  // el resumen de texto de `compararPresupuestos()` (`comparacion.texto`) NO
+  // se eliminó — sigue siendo una función útil (detecta más barato/más
+  // rápido/con garantía en una frase) y se muestra más chico, como apoyo.
+  const tabPresupuestos = (
+    <>
+      {comparacion.presupuestos.length === 0 ? (
+        <EmptyState>Todavía no hay presupuestos cargados para esta solicitud.</EmptyState>
+      ) : (
+        <>
+          <PurchaseComparison presupuestos={comparacion.presupuestos} puedeElegir={puedeElegirProveedor} />
+          {/* Las marcas 🏆/⚡ de arriba ya muestran lo mismo que las primeras
+              líneas de `comparacion.texto` — acá sólo se agregan, como apoyo,
+              las dos líneas de ese texto que NO se repiten visualmente: el
+              aviso de "menos de tres presupuestos" y el disclaimer de que
+              esto no reemplaza la decisión de la persona/órgano competente. */}
+          {comparacion.presupuestos.length < 3 && (
+            <p className="text-xs text-ink-faint mt-3">Hay menos de tres presupuestos cargados — la buena práctica recomendada es comparar al menos tres antes de decidir.</p>
+          )}
+          <p className="text-xs text-ink-faint mt-1">Esta comparación es una vista objetiva de los datos cargados, no una recomendación de a quién comprarle.</p>
+        </>
       )}
+      {puedeEditar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
+        <div className="mt-4">
+          <CargarPresupuestoForm solicitudId={solicitud.id} proveedores={proveedores} abiertoPorDefecto={comparacion.presupuestos.length < 3} />
+        </div>
+      )}
+    </>
+  );
 
-      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2 mt-6">Historial</h3>
-      <Card>
-        <HistorialCompra registros={historial} />
-      </Card>
+  // Documentos (sección 21 del pedido): a diferencia de Información/
+  // Presupuestos/Historial, hoy no existe ningún vínculo real en la base
+  // entre una solicitud de compra puntual y la tabla `documentos` (que ya
+  // existe, pero es una biblioteca general por categoría, sin
+  // `solicitud_compra_id`). En vez de simular una relación que no existe
+  // (por ejemplo, adivinando qué documentos "son de esta compra" por texto),
+  // esta pestaña queda honesta sobre esa limitación y linkea a la biblioteca
+  // general — agregar el vínculo real (migración + formulario de adjuntar)
+  // queda para una fase siguiente, sección 39 del pedido ("no simular
+  // relaciones que no existen todavía").
+  const tabDocumentos = (
+    <EmptyState>
+      Todavía no se puede adjuntar una factura directamente a esta solicitud — es la próxima mejora prevista para Compras.
+      Mientras tanto, los comprobantes de compras se suben desde{" "}
+      <Link href="/documentos" className="font-semibold underline underline-offset-2">Documentos</Link>, categoría &quot;Facturas&quot;.
+    </EmptyState>
+  );
+
+  return (
+    <div>
+      <PageHeader title={solicitud.material} subtitle={`${solicitud.cantidad} ${solicitud.unidad} · ${solicitud.comision}`}
+        action={<Badge color={solicitud.prioridad === "critica" ? "rojo" : "brand"}>{solicitud.prioridad}</Badge>} />
+
+      <Tabs
+        tabs={[
+          { id: "info", label: "Información", content: tabInformacion },
+          { id: "presupuestos", label: `Presupuestos${comparacion.presupuestos.length ? ` (${comparacion.presupuestos.length})` : ""}`, content: tabPresupuestos },
+          { id: "documentos", label: "Documentos", content: tabDocumentos },
+          { id: "historial", label: "Historial", content: <Card><HistorialCompra registros={historial} /></Card> },
+        ]}
+      />
     </div>
   );
 }
