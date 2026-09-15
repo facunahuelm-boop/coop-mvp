@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 
 // Fase A del rediseño UI/UX (ver Plan Maestro): estos componentes ahora usan
 // los tokens semánticos definidos en globals.css (--color-ink, --color-surface,
@@ -52,13 +53,26 @@ export function Badge({ children, color = "gray" }: { children: ReactNode; color
   );
 }
 
+// Rediseño de botones "Agregar" (15/09, pedido explícito): un solo patrón
+// visual reutilizable para TODA acción de creación del sistema (agregar
+// usuario, núcleo, comisión, tarea, evento, proveedor, compra, presupuesto,
+// documento, gasto, ingreso, comunicación, categoría, etc.) en vez de que
+// cada pantalla arme el suyo a mano. Verde = "crear", pero el mismo verde
+// suave del semáforo de estado (--color-verde) que ya usa el resto del
+// sistema — a propósito NO un verde nuevo/flúo, para no romper la paleta
+// coherente. Se expone como un variant más de `Button` (no un componente
+// aparte) para que CUALQUIER lugar que ya use `Button`/`SubmitButton` lo
+// consiga gratis con sólo `variant="add"`, sin otro componente que aprender.
+const ADD_BUTTON_STYLES =
+  "border-2 border-[var(--color-verde)] text-[var(--color-verde)] bg-transparent hover:bg-[var(--color-verde-bg)]";
+
 export function Button({
   children, href, type = "button", variant = "primary", className = "", onClick, disabled,
 }: {
   children: ReactNode;
   href?: string;
   type?: "button" | "submit";
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "add";
   className?: string;
   onClick?: () => void;
   disabled?: boolean;
@@ -70,6 +84,8 @@ export function Button({
       ? "bg-brand-100 text-brand-800 hover:bg-brand-100/70"
       : variant === "danger"
       ? "bg-[var(--color-rojo)] text-white hover:brightness-90"
+      : variant === "add"
+      ? ADD_BUTTON_STYLES
       : "text-brand-800 hover:bg-brand-100";
   const cls = `inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none ${styles} ${className}`;
   if (href) return <Link href={href} className={cls}>{children}</Link>;
@@ -77,6 +93,54 @@ export function Button({
     <button type={type} className={cls} onClick={onClick} disabled={disabled}>
       {children}
     </button>
+  );
+}
+
+/**
+ * `AddButton`: atajo sobre `Button variant="add"` que además agrega el
+ * ícono "+" siempre (para no repetir `<Plus size={16} />` en cada pantalla
+ * ni arriesgarse a que alguien lo omita). Sirve tanto para navegar a una
+ * pantalla de creación (`href`) como para un submit directo (`type="submit"`,
+ * aunque para eso conviene `AddSubmitButton` de ui-client.tsx, que además
+ * deshabilita/renombra el botón mientras la Server Action está en curso).
+ */
+export function AddButton({
+  children, href, type = "button", className = "", onClick, disabled,
+}: {
+  children: ReactNode;
+  href?: string;
+  type?: "button" | "submit";
+  className?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Button href={href} type={type} variant="add" className={className} onClick={onClick} disabled={disabled}>
+      <Plus size={16} aria-hidden />
+      {children}
+    </Button>
+  );
+}
+
+/**
+ * `AddButtonSummary`: mismo look que `AddButton`, pero como `<summary>` —
+ * para el patrón "revelar un formulario chico de creación inline" (antes:
+ * `<summary className="cursor-pointer text-sm font-semibold ...">+ Agregar
+ * socio</summary>`, un simple link de texto con un "+" pegado, repetido a
+ * mano en 11+ pantallas). Mismas clases visuales que `Button variant="add"`
+ * (no se puede reusar `Button` directo porque un `<summary>` no es un
+ * `<button>`/`<Link>`, es lo que le da al `<details>` el toggle nativo de
+ * abrir/cerrar) — `list-none` + ocultar el marcador nativo del navegador
+ * para que se vea igual que un botón real, no como una lista desplegable.
+ */
+export function AddButtonSummary({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <summary
+      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden ${ADD_BUTTON_STYLES} ${className}`}
+    >
+      <Plus size={16} aria-hidden />
+      {children}
+    </summary>
   );
 }
 

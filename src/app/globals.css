@@ -104,6 +104,38 @@
      --accent-blue: es literalmente el mismo significado ("info"). */
   --color-info: var(--accent-blue);
   --color-info-bg: var(--accent-blue-bg);
+
+  /* ============================================================
+     Rediseño del Calendario (15/09) — categorías de evento. Pedido
+     explícito: colores "suaves y elegantes, NO fluorescentes", con
+     variables centralizadas en vez de hex sueltos repetidos por
+     componente (antes: TIPO_COLOR_DOT/TIPO_COLOR triplicados a mano
+     en MonthCalendar.tsx, dashboard/page.tsx y calendario/page.tsx).
+
+     A propósito son ALIAS de tokens que ya existían — la app usa 4
+     acentos + semáforo de estado y funciona bien así; agregar 6
+     colores nuevos de cero hubiera roto esa paleta coherente. Cada
+     categoría del pedido mapea al tono ya usado en el resto del
+     sistema para ese mismo significado:
+       comision   → verde   (mismo verde de "éxito/al día")
+       asamblea   → azul    (--accent-blue, ya usado en Tareas/Comunicaciones)
+       reunion    → amarillo (mismo tono de "atención/pendiente")
+       obra       → violeta (--accent-violet, ya usado en Comisiones)
+       importante → rojo    (mismo rojo de "urgente/vencido")
+       personal   → gris neutro (mismo criterio que Badge color="gray")
+     ============================================================ */
+  --color-calendar-comision: var(--color-verde);
+  --color-calendar-comision-bg: var(--color-verde-bg);
+  --color-calendar-asamblea: var(--accent-blue);
+  --color-calendar-asamblea-bg: var(--accent-blue-bg);
+  --color-calendar-reunion: var(--color-amarillo);
+  --color-calendar-reunion-bg: var(--color-amarillo-bg);
+  --color-calendar-obra: var(--accent-violet);
+  --color-calendar-obra-bg: var(--accent-violet-bg);
+  --color-calendar-importante: var(--color-rojo);
+  --color-calendar-importante-bg: var(--color-rojo-bg);
+  --color-calendar-personal: var(--color-ink-muted);
+  --color-calendar-personal-bg: var(--color-border);
 }
 
 @theme inline {
@@ -144,6 +176,18 @@
   --color-accent-teal-bg: var(--accent-teal-bg);
   --color-accent-amber: var(--accent-amber);
   --color-accent-amber-bg: var(--accent-amber-bg);
+  --color-calendar-comision: var(--color-calendar-comision);
+  --color-calendar-comision-bg: var(--color-calendar-comision-bg);
+  --color-calendar-asamblea: var(--color-calendar-asamblea);
+  --color-calendar-asamblea-bg: var(--color-calendar-asamblea-bg);
+  --color-calendar-reunion: var(--color-calendar-reunion);
+  --color-calendar-reunion-bg: var(--color-calendar-reunion-bg);
+  --color-calendar-obra: var(--color-calendar-obra);
+  --color-calendar-obra-bg: var(--color-calendar-obra-bg);
+  --color-calendar-importante: var(--color-calendar-importante);
+  --color-calendar-importante-bg: var(--color-calendar-importante-bg);
+  --color-calendar-personal: var(--color-calendar-personal);
+  --color-calendar-personal-bg: var(--color-calendar-personal-bg);
 }
 
 html, body {

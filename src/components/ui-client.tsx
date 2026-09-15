@@ -12,7 +12,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
-import { X } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import { Button } from "./ui";
 
 // Rediseño del Inicio (dashboard): los nuevos modales de detalle (Finanzas,
@@ -128,36 +128,66 @@ export function ConfirmDialog({
 // Avisos de guardado/error ("Cambios guardados", "No se pudo guardar, probá
 // de nuevo") — para que cada acción tenga una confirmación visible en vez de
 // que la pantalla simplemente se quede como estaba.
-type ToastTone = "ok" | "error";
+//
+// Rediseño de mensajes de error/feedback (15/09, pedido explícito): el
+// pedido nombra 4 variantes de estado (🟢 éxito, 🟡 advertencia, 🔴 error,
+// 🔵 info) — antes sólo existían "ok"/"error". Se agregan "warning"/"info"
+// reusando los mismos tokens de color que ya usa el resto del sistema para
+// ese mismo significado (--color-amarillo, --color-info), nada nuevo. Se
+// suma además un botón de cierre manual (antes sólo desaparecía solo a los
+// 4s, sin forma de cerrarlo ni de volver a leerlo con lector de pantalla
+// tranquilo) y `aria-live="polite"` en el contenedor, explícito por
+// accesibilidad — pedido del sistema para adultos mayores/lectores de
+// pantalla, antes dependía sólo del `role="status"` implícito de cada toast.
+type ToastTone = "ok" | "error" | "warning" | "info";
 type ToastItem = { id: number; message: string; tone: ToastTone };
 type ToastContextValue = { show: (message: string, tone?: ToastTone) => void };
 const ToastContext = createContext<ToastContextValue | null>(null);
+
+const TOAST_STYLES: Record<ToastTone, string> = {
+  ok: "bg-[var(--color-verde-bg)] text-[var(--color-verde)]",
+  error: "bg-[var(--color-rojo-bg)] text-[var(--color-rojo)]",
+  warning: "bg-[var(--color-amarillo-bg)] text-[var(--color-amarillo)]",
+  info: "bg-[var(--color-info-bg)] text-[var(--color-info)]",
+};
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const idRef = useRef(0);
 
+  const cerrar = useCallback((id: number) => {
+    setToasts((t) => t.filter((x) => x.id !== id));
+  }, []);
+
   const show = useCallback((message: string, tone: ToastTone = "ok") => {
     const id = ++idRef.current;
     setToasts((t) => [...t, { id, message, tone }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
-  }, []);
+    setTimeout(() => cerrar(id), 4000);
+  }, [cerrar]);
 
   return (
     <ToastContext.Provider value={{ show }}>
       {children}
-      <div className="fixed bottom-4 inset-x-0 z-[60] flex flex-col items-center gap-2 px-4 pointer-events-none safe-bottom">
+      <div
+        className="fixed bottom-4 inset-x-0 z-[60] flex flex-col items-center gap-2 px-4 pointer-events-none safe-bottom"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
             role="status"
-            className={`pointer-events-auto max-w-sm w-full sm:w-auto rounded-xl px-4 py-3 text-sm font-medium shadow-[var(--shadow-md)] ${
-              t.tone === "error"
-                ? "bg-[var(--color-rojo-bg)] text-[var(--color-rojo)]"
-                : "bg-[var(--color-verde-bg)] text-[var(--color-verde)]"
-            }`}
+            className={`pointer-events-auto max-w-sm w-full sm:w-auto rounded-xl pl-4 pr-2 py-2 text-sm font-medium shadow-[var(--shadow-md)] flex items-center gap-2 ${TOAST_STYLES[t.tone]}`}
           >
-            {t.message}
+            <span className="flex-1">{t.message}</span>
+            <button
+              type="button"
+              onClick={() => cerrar(t.id)}
+              aria-label="Cerrar aviso"
+              className="shrink-0 rounded-full p-1 hover:bg-black/10 transition-colors"
+            >
+              <X size={14} aria-hidden />
+            </button>
           </div>
         ))}
       </div>
@@ -244,12 +274,18 @@ export function SubmitButton({
 }: {
   children: ReactNode;
   pendingLabel?: string;
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "add";
   className?: string;
 }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" variant={variant} className={className} disabled={pending}>
+      {/* Rediseño de botones "Agregar" (15/09): con variant="add" siempre
+          lleva el ícono "+" mientras no está mandando el formulario — mismo
+          look que AddButton/AddButtonSummary (ui.tsx), para que un botón de
+          "Crear X" que SÍ hace submit directo (Pattern B del audit, sin
+          <details> de por medio) se vea idéntico al resto de la familia. */}
+      {variant === "add" && !pending && <Plus size={16} aria-hidden />}
       {pending ? pendingLabel || "Guardando…" : children}
     </Button>
   );

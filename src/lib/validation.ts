@@ -171,6 +171,24 @@ export const zEmailOpcional = z
   .refine((v) => !v || z.string().email().safeParse(v).success, "Email inválido.")
   .transform((v) => (v ? v : null));
 
+/** Teléfono opcional (15/09, pedido explícito — antes no existía ninguna
+ * validación de formato acá, todo teléfono era `zTextoOpcional(50)`, texto
+ * libre). A propósito LAXO en el formato: cada cooperativa/país escribe un
+ * teléfono distinto (con o sin código de país, con o sin guiones/paréntesis:
+ * "+54 9 11 1234-5678", "(011) 15-1234-5678", "1123456789") — el pedido es
+ * explícito en "permitir formatos razonables según configuración regional,
+ * no ser demasiado rígido". Sólo rechaza lo que claramente NO es un
+ * teléfono: letras, o muy pocos dígitos reales. Vacío -> null. */
+export const zTelefonoOpcional = z
+  .string()
+  .trim()
+  .max(50)
+  .optional()
+  .or(z.literal(""))
+  .refine((v) => !v || /^[+\d][\d\s()-]{5,49}$/.test(v), "Ingresá un número de teléfono válido.")
+  .refine((v) => !v || (v.match(/\d/g)?.length ?? 0) >= 6, "Ingresá un número de teléfono válido.")
+  .transform((v) => (v ? v : null));
+
 /** Enum obligatorio contra una lista fija de valores permitidos — para
  * "estado", "categoría", "prioridad", etc. cuando la UI ya ofrece un
  * <select> cerrado: si algo no está en la lista, se rechaza en vez de
