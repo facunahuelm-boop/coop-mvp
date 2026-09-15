@@ -21,6 +21,7 @@ import {
   zEnumSeguro,
   clavesDe,
 } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 const PRIORIDAD_COMPRA = ["baja", "media", "alta", "critica"] as const;
 
@@ -101,6 +102,10 @@ export async function crearSolicitudAction(formData: FormData) {
   revalidatePath("/compras");
 }
 
+export async function crearSolicitudFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearSolicitudAction(formData));
+}
+
 const agregarPresupuestoSchema = z.object({
   solicitud_id: zId,
   precio: zMonto(),
@@ -136,6 +141,10 @@ export async function agregarPresupuestoAction(formData: FormData) {
   // se agrega acá, sin tocar el resto del flujo.
   await audit({ usuario_id: user.id, accion: "crear", entidad: "presupuestos_proveedor", entidad_id: presupuestoId, valor_nuevo: { solicitudId, proveedorId, ...datos } });
   revalidatePath(`/compras/${solicitudId}`);
+}
+
+export async function agregarPresupuestoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarPresupuestoAction(formData));
 }
 
 export async function decidirCompraAction(formData: FormData) {

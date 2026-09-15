@@ -6,10 +6,11 @@ import { get, all } from "@/lib/db";
 import { compararPresupuestos, historialProveedor } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
-import { agregarPresupuestoAction, decidirCompraAction, marcarPedidaAction, marcarEntregadaAction, rechazarSolicitudAction, eliminarSolicitudAction } from "@/lib/actions/compras";
+import { decidirCompraAction, marcarPedidaAction, marcarEntregadaAction, rechazarSolicitudAction, eliminarSolicitudAction } from "@/lib/actions/compras";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
+import { CargarPresupuestoForm } from "@/components/compras/ComprasFormularios";
 
 const ESTADO_LABEL: Record<string, string> = {
   pendiente_cotizacion: "pendiente de cotización", en_comparacion: "en comparación", aprobada: "aprobada",
@@ -131,31 +132,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
       </div>
 
       {puedeEditar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
-        <details open={comparacion.presupuestos.length < 3}>
-          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Cargar presupuesto</summary>
-          <Card className="mt-3">
-            <form action={agregarPresupuestoAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input type="hidden" name="solicitud_id" value={solicitud.id} />
-              <div>
-                <Label>Proveedor existente</Label>
-                <select name="proveedor_id" className={inputClass} defaultValue="">
-                  <option value="">— elegir —</option>
-                  {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                </select>
-              </div>
-              <div><Label>...o proveedor nuevo</Label><input name="nuevo_proveedor" className={inputClass} placeholder="Nombre del proveedor" /></div>
-              <div><Label>Precio</Label><input name="precio" type="number" step="0.01" required className={inputClass} /></div>
-              <div><Label>Precio unitario</Label><input name="precio_unitario" type="number" step="0.01" className={inputClass} /></div>
-              <div><Label>Costo de envío</Label><input name="costo_envio" type="number" step="0.01" className={inputClass} /></div>
-              <div><Label>Plazo de entrega (días)</Label><input name="plazo_entrega_dias" type="number" className={inputClass} /></div>
-              <div><Label>Forma de pago</Label><input name="forma_pago" className={inputClass} placeholder="contado, 30 días…" /></div>
-              <div><Label>Garantía</Label><input name="garantia" className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Condiciones (calidad, entrega, etc.)</Label><input name="condiciones" className={inputClass} placeholder="Ej: material de primera calidad, entrega en obra incluida" /></div>
-              <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
-              <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar presupuesto</button></div>
-            </form>
-          </Card>
-        </details>
+        <CargarPresupuestoForm solicitudId={solicitud.id} proveedores={proveedores} abiertoPorDefecto={comparacion.presupuestos.length < 3} />
       )}
     </div>
   );

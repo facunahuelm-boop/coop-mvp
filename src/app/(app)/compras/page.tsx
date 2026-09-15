@@ -2,12 +2,11 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass, AddButtonSummary } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
+import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
 import Link from "next/link";
 import dayjs from "dayjs";
-import { crearSolicitudAction } from "@/lib/actions/compras";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
+import { CrearSolicitudForm } from "@/components/compras/ComprasFormularios";
 
 const estadoColor: Record<string, "gray" | "amarillo" | "verde" | "brand" | "rojo"> = {
   pendiente_cotizacion: "gray", en_comparacion: "amarillo", aprobada: "brand", pedida: "amarillo", entregada: "verde", rechazada: "rojo",
@@ -81,46 +80,7 @@ export default async function ComprasPage() {
         {solicitudes.length === 0 && <EmptyState>No hay solicitudes de compra todavía.</EmptyState>}
       </div>
 
-      {puedeEditar && (
-        <details className="mt-6">
-          <AddButtonSummary>Nueva solicitud de compra</AddButtonSummary>
-          <Card className="mt-3">
-            <form action={crearSolicitudAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label>Categoría de la compra</Label>
-                <select name="categoria" className={inputClass} defaultValue="obra">
-                  {Object.entries(CATEGORIA_COMPRA_LABEL).map(([valor, label]) => (
-                    <option key={valor} value={valor}>{label}</option>
-                  ))}
-                </select>
-              </div>
-              <div><Label>Comisión solicitante</Label><input name="comision" required className={inputClass} placeholder="Comisión de Obra" /></div>
-              <div>
-                <Label>Vincular a una comisión real (opcional)</Label>
-                <select name="comision_id" className={inputClass} defaultValue="">
-                  <option value="">— sin vincular —</option>
-                  {comisiones.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-                <p className="text-[11px] text-ink-faint mt-1">Vinculada, la compra suma al gasto de esa comisión en /gastos cuando se apruebe.</p>
-              </div>
-              <div><Label>Material</Label><input name="material" required className={inputClass} /></div>
-              <div><Label>Cantidad</Label><input name="cantidad" type="number" step="0.01" required className={inputClass} /></div>
-              <div><Label>Unidad</Label><input name="unidad" required className={inputClass} placeholder="kg, unidad, m2…" /></div>
-              <div className="sm:col-span-2"><Label>Especificación</Label><input name="especificacion" className={inputClass} /></div>
-              <div><Label>Etapa de obra (si corresponde)</Label><input name="etapa_obra" className={inputClass} /></div>
-              <div><Label>Fecha necesaria</Label><input type="date" name="fecha_necesaria" className={inputClass} /></div>
-              <div>
-                <Label>Prioridad</Label>
-                <select name="prioridad" className={inputClass} defaultValue="media">
-                  <option value="baja">Baja</option><option value="media">Media</option><option value="alta">Alta</option><option value="critica">Crítica</option>
-                </select>
-              </div>
-              <div><Label>Presupuesto estimado</Label><input name="presupuesto_estimado" type="number" className={inputClass} /></div>
-              <div className="sm:col-span-2"><SubmitButton variant="add">Crear solicitud</SubmitButton></div>
-            </form>
-          </Card>
-        </details>
-      )}
+      {puedeEditar && <CrearSolicitudForm comisiones={comisiones} />}
     </div>
   );
 }
