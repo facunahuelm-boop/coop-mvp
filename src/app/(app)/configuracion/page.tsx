@@ -1,30 +1,14 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { all, get, rootGet } from "@/lib/db";
-import { Card, PageHeader, Badge, Label, inputClass } from "@/components/ui";
+import { all, rootGet } from "@/lib/db";
+import { Card, PageHeader, Badge } from "@/components/ui";
 import {
-  guardarConfigEmailAction,
-  actualizarAlertasEmailAction,
-  actualizarEtapaAction,
-  actualizarBrandingAction,
-  actualizarModulosAction,
-} from "@/lib/actions/configuracion";
-
-const ETAPA_LABEL: Record<string, string> = {
-  pre_obra: "Pre-obra (todavía no arrancó la construcción)",
-  obra: "En obra (construcción en curso)",
-  habitada: "Habitada (ya se mudaron, obra terminada)",
-};
-
-// Fase D: módulos cuyo default de visibilidad depende de la etapa (ver
-// moduloVisible() en components/Nav.tsx) — acá un admin puede forzarlos más
-// allá de lo que diría la etapa sola, sin tocar ningún dato existente.
-const MODULOS_LABEL: Record<string, string> = {
-  obra: "Obra (cronograma y avance de la construcción)",
-  trabajo: "Trabajo (jornadas de ayuda mutua)",
-  seguridad: "Seguridad e higiene",
-  reclamos: "Reclamos y mantenimiento (una vez habitada)",
-};
+  BrandingForm,
+  EtapaForm,
+  ModulosForm,
+  ConfigEmailForm,
+  AlertasEmailForm,
+} from "@/components/configuracion/ConfiguracionFormularios";
 
 export default async function ConfiguracionPage() {
   const user = await getCurrentUser();
@@ -58,46 +42,7 @@ export default async function ConfiguracionPage() {
           Estos datos reemplazan "COOVA" en el menú y la pantalla de inicio de sesión: nombre, logo
           y color principal se aplican en todo el sistema.
         </p>
-        <form action={actualizarBrandingAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2">
-            <Label>Nombre de la cooperativa</Label>
-            <input
-              type="text"
-              name="nombre"
-              required
-              defaultValue={organizacion?.nombre || ""}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <Label>Color principal</Label>
-            <input
-              type="color"
-              name="color_primario"
-              defaultValue={organizacion?.color_primario || "var(--color-brand-900)"}
-              className="h-10 w-full rounded-lg border border-ink/10 cursor-pointer"
-            />
-          </div>
-          <div>
-            <Label>Color secundario (opcional)</Label>
-            <input
-              type="color"
-              name="color_secundario"
-              defaultValue={organizacion?.color_secundario || organizacion?.color_primario || "var(--color-brand-800)"}
-              className="h-10 w-full rounded-lg border border-ink/10 cursor-pointer"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Label>Logo (opcional)</Label>
-            {organizacion?.logo_url && (
-              <img src={organizacion.logo_url} alt={organizacion.nombre} className="h-12 w-12 rounded-full object-cover mb-2" />
-            )}
-            <input type="file" name="logo" accept="image/*" className="text-xs" />
-          </div>
-          <button type="submit" className="sm:col-span-2 rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
-            Guardar marca
-          </button>
-        </form>
+        <BrandingForm organizacion={organizacion} />
       </Card>
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Etapa</h3>
@@ -107,19 +52,7 @@ export default async function ConfiguracionPage() {
           el grupo Obra (Obra, Trabajo y Seguridad), porque deja de ser relevante una vez terminada
           la construcción.
         </p>
-        <form action={actualizarEtapaAction} className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[260px]">
-            <Label>Etapa actual: {ETAPA_LABEL[organizacion?.etapa || "obra"]}</Label>
-            <select name="etapa" defaultValue={organizacion?.etapa || "obra"} className={inputClass}>
-              {Object.entries(ETAPA_LABEL).map(([valor, label]) => (
-                <option key={valor} value={valor}>{label}</option>
-              ))}
-            </select>
-          </div>
-          <button type="submit" className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
-            Guardar etapa
-          </button>
-        </form>
+        <EtapaForm etapaActual={organizacion?.etapa || "obra"} />
       </Card>
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Módulos</h3>
@@ -129,25 +62,7 @@ export default async function ConfiguracionPage() {
           caso particular, podés forzarlos acá — nunca se borra nada: un módulo oculto sigue teniendo
           toda su información guardada, sólo desaparece del menú.
         </p>
-        <form action={actualizarModulosAction} className="space-y-4">
-          {Object.entries(MODULOS_LABEL).map(([mod, label]) => (
-            <div key={mod} className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm text-ink">{label}</span>
-              <select
-                name={mod}
-                defaultValue={organizacion?.modulos_override?.[mod] || "auto"}
-                className={inputClass + " sm:w-56"}
-              >
-                <option value="auto">Automático (según la etapa)</option>
-                <option value="mostrar">Mostrar siempre</option>
-                <option value="ocultar">Ocultar siempre</option>
-              </select>
-            </div>
-          ))}
-          <button type="submit" className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
-            Guardar módulos
-          </button>
-        </form>
+        <ModulosForm overrides={organizacion?.modulos_override} />
       </Card>
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Configuración de Email</h3>
@@ -155,73 +70,7 @@ export default async function ConfiguracionPage() {
         <p className="text-xs text-ink/60 mb-4">
           Configura el servidor SMTP para enviar alertas automáticas. Dejalos en blanco para desactivar email.
         </p>
-        <form action={guardarConfigEmailAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <Label>Host SMTP</Label>
-            <input
-              type="text"
-              name="smtp_host"
-              defaultValue={configObj.smtp_host || ""}
-              placeholder="ej: smtp.gmail.com"
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <Label>Puerto</Label>
-            <input
-              type="number"
-              name="smtp_port"
-              defaultValue={configObj.smtp_port || "587"}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <Label>Usuario (email)</Label>
-            <input
-              type="email"
-              name="smtp_user"
-              defaultValue={configObj.smtp_user || ""}
-              placeholder="tu@ejemplo.com"
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <Label>Contraseña</Label>
-            <input
-              type="password"
-              name="smtp_password"
-              placeholder="Contraseña o token de app"
-              className={inputClass}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Label>Remitente (nombre)</Label>
-            <input
-              type="text"
-              name="email_remitente"
-              defaultValue={configObj.email_remitente || "COOVA Sistema"}
-              className={inputClass}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Label>Email de destino para alertas críticas</Label>
-            <input
-              type="email"
-              name="email_alertas_criticas"
-              defaultValue={configObj.email_alertas_criticas || ""}
-              placeholder="admin@tucooperativa.uy"
-              className={inputClass}
-            />
-          </div>
-          <button type="submit" className="sm:col-span-2 rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
-            Guardar configuración
-          </button>
-        </form>
-        <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-          <p className="text-xs text-yellow-800">
-            <strong>Para Gmail:</strong> Usa contraseña de aplicación (no la contraseña normal). Activa "Acceso de aplicaciones menos seguras" o genera una contraseña de app en tu cuenta Google.
-          </p>
-        </div>
+        <ConfigEmailForm configObj={configObj} />
       </Card>
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Alertas por Email</h3>
@@ -229,29 +78,7 @@ export default async function ConfiguracionPage() {
         <p className="text-xs text-ink/60 mb-4">
           Configura qué alertas se envían por email automáticamente.
         </p>
-        <form action={actualizarAlertasEmailAction} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" name="tarea_atrasada" defaultChecked={true} />
-              Tareas atrasadas
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" name="documento_vencido" defaultChecked={true} />
-              Documentos vencidos
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" name="dinero_bajo" defaultChecked={true} />
-              Saldo bajo
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" name="problema_critico" defaultChecked={true} />
-              Problemas críticos
-            </label>
-          </div>
-          <button type="submit" className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">
-            Actualizar preferencias
-          </button>
-        </form>
+        <AlertasEmailForm />
       </Card>
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Info del sistema</h3>

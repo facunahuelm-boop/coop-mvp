@@ -8,6 +8,7 @@ import { cifrar } from "@/lib/crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { parseForm, zTexto, zTextoOpcional, zEmailOpcional } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // AUDITORÍA INTEGRAL (cobertura de auditoría, sección "trazabilidad"): las
 // cinco acciones de este archivo cambian configuración sensible de toda la
@@ -60,6 +61,10 @@ export async function actualizarEtapaAction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function actualizarEtapaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => actualizarEtapaAction(formData));
+}
+
 /**
  * Fase D (etapas + módulos): guarda el override manual de visibilidad para
  * los módulos que por defecto dependen de la etapa (obra, trabajo,
@@ -87,6 +92,10 @@ export async function actualizarModulosAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "actualizar_modulos", entidad: "organizations", entidad_id: user.organization_id, valor_nuevo: overrides });
   revalidatePath("/configuracion");
   revalidatePath("/", "layout");
+}
+
+export async function actualizarModulosFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => actualizarModulosAction(formData));
 }
 
 /**
@@ -137,6 +146,10 @@ export async function actualizarBrandingAction(formData: FormData) {
   revalidatePath("/configuracion");
   revalidatePath("/dashboard");
   revalidatePath("/", "layout");
+}
+
+export async function actualizarBrandingFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => actualizarBrandingAction(formData));
 }
 
 const configEmailSchema = z.object({
@@ -200,6 +213,10 @@ export async function guardarConfigEmailAction(formData: FormData) {
   revalidatePath("/configuracion");
 }
 
+export async function guardarConfigEmailFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => guardarConfigEmailAction(formData));
+}
+
 export async function actualizarAlertasEmailAction(formData: FormData) {
   const user = await requireAdminOConsejo();
 
@@ -239,4 +256,8 @@ export async function actualizarAlertasEmailAction(formData: FormData) {
     valor_nuevo: estadoFinal,
   });
   revalidatePath("/configuracion");
+}
+
+export async function actualizarAlertasEmailFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => actualizarAlertasEmailAction(formData));
 }
