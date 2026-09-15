@@ -435,6 +435,7 @@ export default async function DashboardPage() {
     hora: n.hora,
     titulo: n.titulo,
     color: n.color,
+    descripcion: n.descripcion ?? null,
     autorNombre: n.autor_nombre || "—",
     esPropia: n.autor_id === user.id || user.rol === "admin" || user.rol === "consejo_directivo",
   }));

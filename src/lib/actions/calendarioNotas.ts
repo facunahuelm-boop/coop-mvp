@@ -4,17 +4,26 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, update, get, run, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
-import { parseForm, zId, zTexto, zFecha, zEnumSeguro } from "@/lib/validation";
+import { parseForm, zId, zTexto, zTextoOpcional, zFecha, zEnumSeguro } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { CATEGORIAS_EVENTO } from "@/lib/calendarCategories";
 
 // Notas de calendario personalizadas (pedido explícito): a diferencia del
 // resto del calendario (que solo muestra fechas que ya existen en otro
 // módulo — reuniones, obra, etc.), esto es texto libre que cualquiera puede
-// escribir directo en una fecha, con su propio color, desde el Dashboard o
-// desde /calendario — las dos pantallas usan las mismas tres acciones.
-
-const COLORES_NOTA = ["brand", "verde", "amarillo", "rojo", "gray"] as const;
-
+// escribir directo en una fecha, con su propia categoría, desde el
+// Dashboard o desde /calendario — las dos pantallas usan las mismas tres
+// acciones.
+//
+// Rediseño del Calendario (15/09): el campo sigue llamándose "color" en la
+// base (notas_calendario.color, migración 0015) — se reutiliza esa misma
+// columna TEXT sin CHECK constraint para guardar una de las 6 categorías
+// nuevas del rediseño, en vez de agregar una columna "categoria" aparte o
+// renombrar la existente (ambas hubieran sido una migración innecesaria
+// para lo mismo). Ver `calendarCategories.ts` para el mapeo de compatibilidad
+// con notas viejas que todavía tengan uno de los 5 valores anteriores
+// (brand/verde/amarillo/rojo/gray) — siguen mostrándose bien, y en cuanto se
+// editan y guardan de nuevo quedan con una categoría nueva.
 const notaSchema = z.object({
   fecha: zFecha,
   hora: z
@@ -24,7 +33,8 @@ const notaSchema = z.object({
     .transform((v) => (v ? v : null))
     .refine((v) => v === null || /^\d{2}:\d{2}$/.test(v), "Hora inválida."),
   titulo: zTexto(150),
-  color: zEnumSeguro(COLORES_NOTA, "brand"),
+  color: zEnumSeguro(CATEGORIAS_EVENTO, "personal"),
+  descripcion: zTextoOpcional(1000),
 });
 
 function puedeModificar(user: SessionUser, autorId: number) {

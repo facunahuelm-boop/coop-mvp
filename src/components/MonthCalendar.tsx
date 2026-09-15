@@ -1,23 +1,45 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, type CSSProperties } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import dayjs, { Dayjs } from "dayjs";
 import { ChevronLeft, ChevronRight, Pencil, Trash2, Plus } from "lucide-react";
 import { ESTADO_INICIAL, type ActionState } from "@/lib/actionState";
 import { FieldError, FormError, useToast } from "./ui-client";
+import {
+  CATEGORIAS_EVENTO,
+  CATEGORIA_EVENTO_LABEL,
+  CATEGORIA_EVENTO_NOMBRE,
+  CATEGORIA_EVENTO_COLOR_VAR,
+  CATEGORIA_EVENTO_COLOR_BG_VAR,
+  categoriaDeTipoEvento,
+  categoriaDeNota,
+  type CategoriaEvento,
+} from "@/lib/calendarCategories";
 
 // Calendario visual, compartido entre /calendario (vista completa, con
 // navegación de mes) y el Dashboard (versión compacta, semana actual). No
 // trae datos propios: recibe los eventos que ya arma cada página (reuniones,
 // jornadas, hitos de obra, vencimientos) MÁS las notas de calendario propias
 // del sistema (ver lib/actions/calendarioNotas.ts) — texto libre que
-// cualquiera puede escribir en una fecha, con su propio color, sin tener que
-// pasar por otro módulo. Los eventos que vienen de otro módulo siguen siendo
-// de solo lectura acá (llevan a su propia pantalla); las notas se pueden
-// crear, editar y borrar desde acá mismo — en el Dashboard o en /calendario,
-// las dos pantallas usan las mismas tres acciones.
+// cualquiera puede escribir en una fecha, con su propia categoría, sin tener
+// que pasar por otro módulo. Los eventos que vienen de otro módulo siguen
+// siendo de solo lectura acá (llevan a su propia pantalla); las notas se
+// pueden crear, editar y borrar desde acá mismo — en el Dashboard o en
+// /calendario, las dos pantallas usan las mismas tres acciones.
+//
+// Rediseño del Calendario (15/09, pedido explícito): los cambios grandes de
+// esta vuelta son (a) las celdas del mes ahora muestran el CONTENIDO real de
+// cada evento/nota (título + hora), no sólo un puntito de color, con un
+// "+N más" cuando no entran todos; (b) categorías centralizadas en
+// lib/calendarCategories.ts en vez de los 3 mapas tipo→color triplicados que
+// había antes; (c) botón "Hoy" y una leyenda chica de categorías; (d) en
+// mobile (`sm:hidden`) se reemplaza la grilla del mes — que a ese ancho
+// queda ilegible con contenido real adentro — por una vista de agenda
+// (lista de los días del mes que tienen algo, en orden); (e) al tocar un día
+// VACÍO con permiso de escritura, el formulario de "nuevo" se abre directo,
+// sin el paso intermedio de tocar "+ Agregar algo para este día".
 
 export type EventoCalendario = {
   id: string;
@@ -33,7 +55,8 @@ export type NotaCalendario = {
   fecha: string; // YYYY-MM-DD
   hora: string | null;
   titulo: string;
-  color: string; // brand | verde | amarillo | rojo | gray
+  color: string; // categoría (ver calendarCategories.ts) — el nombre de columna en la base sigue siendo "color", ver nota en calendarioNotas.ts
+  descripcion?: string | null;
   autorNombre: string;
   esPropia: boolean; // si la persona que mira puede editarla/borrarla
 };
@@ -44,47 +67,49 @@ export type NotaCalendario = {
 // pantalla genérica de Next.js.
 type AccionNota = (prevState: ActionState, formData: FormData) => Promise<ActionState>;
 
-const TIPO_COLOR_DOT: Record<string, string> = {
-  reunion: "bg-[var(--color-brand-700)]",
-  asamblea: "bg-[var(--color-brand-700)]",
-  jornada: "bg-[var(--color-brand-700)]",
-  obra: "bg-[var(--color-amarillo)]",
-  finanzas: "bg-[var(--color-rojo)]",
-  seguridad: "bg-[var(--color-amarillo)]",
+/** Item unificado para pintar una celda/fila del calendario, ya sea que
+ * venga de un evento de otro módulo (solo lectura) o de una nota propia
+ * (editable). Un solo tipo así el renderizado de celda/agenda no necesita
+ * dos caminos distintos para "qué mostrar". */
+type ItemDia = {
+  key: string;
+  categoria: CategoriaEvento;
+  titulo: string;
+  hora?: string | null;
+  href?: string; // sólo eventos de otro módulo
+  notaId?: number; // sólo notas propias
 };
 
-const TIPO_LABEL: Record<string, string> = {
-  reunion: "Reunión",
-  asamblea: "Asamblea",
-  jornada: "Jornada de trabajo",
-  obra: "Obra",
-  finanzas: "Vencimiento",
-  seguridad: "Seguridad",
-};
-
-// Misma paleta que ya usa <Badge> (components/ui.tsx) — así el color que se
-// elige para una nota se siente parte del mismo sistema visual, no un color
-// suelto inventado para el calendario.
-const COLOR_DOT: Record<string, string> = {
-  brand: "bg-[var(--color-brand-700)]",
-  verde: "bg-[var(--color-verde)]",
-  amarillo: "bg-[var(--color-amarillo)]",
-  rojo: "bg-[var(--color-rojo)]",
-  gray: "bg-ink/40",
-};
-
-const COLOR_OPCIONES: { value: string; label: string }[] = [
-  { value: "brand", label: "Institucional" },
-  { value: "verde", label: "Verde" },
-  { value: "amarillo", label: "Amarillo" },
-  { value: "rojo", label: "Rojo" },
-  { value: "gray", label: "Gris" },
-];
+function fondoSuave(categoria: CategoriaEvento): CSSProperties {
+  return {
+    color: `var(${CATEGORIA_EVENTO_COLOR_VAR[categoria]})`,
+    backgroundColor: `var(${CATEGORIA_EVENTO_COLOR_BG_VAR[categoria]})`,
+  };
+}
+function soloDot(categoria: CategoriaEvento): CSSProperties {
+  return { backgroundColor: `var(${CATEGORIA_EVENTO_COLOR_VAR[categoria]})` };
+}
 
 const DIAS = ["L", "M", "M", "J", "V", "S", "D"];
+const MAX_CHIPS_CELDA = 2;
 
 function isoDate(d: Dayjs) {
   return d.format("YYYY-MM-DD");
+}
+
+/** Leyenda chica de categorías (pedido explícito: "discreta, no una barra de
+ * colores grande") — misma orden/etiquetas en toda la app. */
+function LeyendaCategorias() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-faint mb-2">
+      {CATEGORIAS_EVENTO.map((cat) => (
+        <span key={cat} className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full shrink-0" style={soloDot(cat)} />
+          {CATEGORIA_EVENTO_NOMBRE[cat]}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 // Fase 3: formulario de agregar/editar nota como componente aparte, para que
@@ -116,6 +141,8 @@ function NotaFormulario({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
+  const categoriaActual = categoriaDeNota(notaEnEdicion?.color ?? "personal");
+
   return (
     <form action={formAction} className="mt-2 rounded-lg border border-border bg-surface-sunken p-2.5 space-y-2">
       <input type="hidden" name="fecha" value={fecha} />
@@ -131,29 +158,37 @@ function NotaFormulario({
         />
         <FieldError message={estado.fieldErrors?.titulo} />
       </div>
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         <input
           name="hora"
           type="time"
           defaultValue={notaEnEdicion?.hora ?? ""}
+          aria-label="Hora"
           className="rounded-md border border-ink/10 bg-surface px-2 py-1.5 text-xs"
         />
-        <div className="flex gap-1.5">
-          {COLOR_OPCIONES.map((c) => (
-            <label key={c.value} title={c.label} className="cursor-pointer">
-              <input
-                type="radio"
-                name="color"
-                value={c.value}
-                defaultChecked={(notaEnEdicion?.color ?? "brand") === c.value}
-                className="peer sr-only"
-              />
-              <span
-                className={`block h-5 w-5 rounded-full ${COLOR_DOT[c.value]} ring-2 ring-offset-1 ring-offset-surface-sunken ring-transparent peer-checked:ring-[var(--color-brand-900)]`}
-              />
-            </label>
+        <select
+          name="color"
+          defaultValue={categoriaActual}
+          aria-label="Categoría"
+          className="rounded-md border border-ink/10 bg-surface px-2 py-1.5 text-xs flex-1 min-w-[8rem]"
+        >
+          {CATEGORIAS_EVENTO.map((cat) => (
+            <option key={cat} value={cat}>
+              {CATEGORIA_EVENTO_LABEL[cat]}
+            </option>
           ))}
-        </div>
+        </select>
+      </div>
+      <div>
+        <textarea
+          name="descripcion"
+          maxLength={1000}
+          rows={2}
+          placeholder="Descripción (opcional)"
+          defaultValue={notaEnEdicion?.descripcion ?? ""}
+          className="w-full rounded-md border border-ink/10 bg-surface px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-800)]/30"
+        />
+        <FieldError message={estado.fieldErrors?.descripcion} />
       </div>
       {!estado.ok && <FormError message={estado.error} />}
       <div className="flex items-center gap-3">
@@ -177,8 +212,9 @@ function BotonGuardarNota({ esEdicion }: { esEdicion: boolean }) {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+      className="inline-flex items-center gap-1.5 rounded-lg border-2 border-[var(--color-verde)] text-[var(--color-verde)] bg-transparent hover:bg-[var(--color-verde-bg)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50 transition-colors"
     >
+      {!pending && <Plus size={13} aria-hidden />}
       {pending ? "Guardando…" : esEdicion ? "Guardar cambios" : "Agregar"}
     </button>
   );
@@ -246,10 +282,30 @@ export function MonthCalendar({
     arr.push(n);
     notasPorDia.set(n.fecha, arr);
   }
-  const dotsDia = (key: string) => [
-    ...(eventosPorDia.get(key) || []).map((e) => TIPO_COLOR_DOT[e.tipo] || "bg-ink/30"),
-    ...(notasPorDia.get(key) || []).map((n) => COLOR_DOT[n.color] || "bg-ink/30"),
-  ];
+
+  /** Todo lo que hay en un día, ya normalizado (evento de otro módulo o
+   * nota propia) — una sola lista para pintar tanto la celda del mes como
+   * la fila de la vista agenda (mobile), ordenada por hora cuando la hay. */
+  function itemsDia(key: string): ItemDia[] {
+    const items: ItemDia[] = [
+      ...(eventosPorDia.get(key) || []).map((e) => ({
+        key: `e${e.id}`,
+        categoria: categoriaDeTipoEvento(e.tipo),
+        titulo: e.titulo,
+        hora: e.hora,
+        href: e.href,
+      })),
+      ...(notasPorDia.get(key) || []).map((n) => ({
+        key: `n${n.id}`,
+        categoria: categoriaDeNota(n.color),
+        titulo: n.titulo,
+        hora: n.hora,
+        notaId: n.id,
+      })),
+    ];
+    items.sort((a, b) => (a.hora || "99:99").localeCompare(b.hora || "99:99"));
+    return items;
+  }
 
   const eventosSeleccionado = seleccionado ? eventosPorDia.get(seleccionado) || [] : [];
   const notasSeleccionado = seleccionado ? notasPorDia.get(seleccionado) || [] : [];
@@ -259,6 +315,18 @@ export function MonthCalendar({
   function cerrarFormulario() {
     setMostrarForm(false);
     setNotaEditandoId(null);
+  }
+
+  /** Selecciona (o deselecciona, si ya estaba) un día — y si queda vacío y
+   * hay permiso de escritura, abre directo el formulario de "nuevo" (pedido
+   * explícito: "tocar un día vacío abre 'Nuevo evento' con esa fecha ya
+   * puesta", sin el paso intermedio de tocar "+ Agregar"). */
+  function tocarDia(key: string) {
+    const eraSeleccionado = key === seleccionado;
+    setSeleccionado(eraSeleccionado ? null : key);
+    cerrarFormulario();
+    const vacio = (eventosPorDia.get(key)?.length ?? 0) === 0 && (notasPorDia.get(key)?.length ?? 0) === 0;
+    if (!eraSeleccionado && vacio && puedeEscribir) setMostrarForm(true);
   }
 
   // Panel de detalle del día elegido: lista de lo que hay +, si se pasaron
@@ -273,23 +341,32 @@ export function MonthCalendar({
           <>
             {hayAlgo ? (
               <ul className="space-y-1.5">
-                {eventosSeleccionado.map((e) => (
-                  <li key={e.id}>
-                    <Link href={e.href} className={`flex items-center gap-2 ${txt} text-ink hover:underline`}>
-                      <span className={`h-2 w-2 rounded-full shrink-0 ${TIPO_COLOR_DOT[e.tipo] || "bg-ink/30"}`} />
-                      <span className="truncate">{e.titulo}</span>
-                      {e.hora && <span className={`${txtChico} text-ink-faint shrink-0`}>· {e.hora}</span>}
-                      <span className={`${txtChico} text-ink-faint shrink-0`}>· {TIPO_LABEL[e.tipo] || e.tipo}</span>
-                    </Link>
-                  </li>
-                ))}
-                {notasSeleccionado.map((n) =>
-                  n.id === notaEditandoId ? null : (
-                    <li key={`n${n.id}`} className="flex items-center justify-between gap-2">
-                      <span className={`flex items-center gap-2 ${txt} text-ink min-w-0`}>
-                        <span className={`h-2 w-2 rounded-full shrink-0 ${COLOR_DOT[n.color] || "bg-ink/30"}`} />
-                        <span className="truncate">{n.titulo}</span>
-                        {n.hora && <span className={`${txtChico} text-ink-faint shrink-0`}>· {n.hora}</span>}
+                {eventosSeleccionado.map((e) => {
+                  const cat = categoriaDeTipoEvento(e.tipo);
+                  return (
+                    <li key={e.id}>
+                      <Link href={e.href} className={`flex items-center gap-2 ${txt} text-ink hover:underline`}>
+                        <span className="h-2 w-2 rounded-full shrink-0" style={soloDot(cat)} />
+                        <span className="truncate">{e.titulo}</span>
+                        {e.hora && <span className={`${txtChico} text-ink-faint shrink-0`}>· {e.hora}</span>}
+                        <span className={`${txtChico} text-ink-faint shrink-0`}>· {CATEGORIA_EVENTO_NOMBRE[cat]}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+                {notasSeleccionado.map((n) => {
+                  if (n.id === notaEditandoId) return null;
+                  const cat = categoriaDeNota(n.color);
+                  return (
+                    <li key={`n${n.id}`} className="flex items-start justify-between gap-2">
+                      <span className={`flex flex-col gap-0.5 min-w-0`}>
+                        <span className={`flex items-center gap-2 ${txt} text-ink min-w-0`}>
+                          <span className="h-2 w-2 rounded-full shrink-0" style={soloDot(cat)} />
+                          <span className="truncate">{n.titulo}</span>
+                          {n.hora && <span className={`${txtChico} text-ink-faint shrink-0`}>· {n.hora}</span>}
+                          <span className={`${txtChico} text-ink-faint shrink-0`}>· {CATEGORIA_EVENTO_NOMBRE[cat]}</span>
+                        </span>
+                        {n.descripcion && <span className={`${txtChico} text-ink-muted pl-4 truncate`}>{n.descripcion}</span>}
                       </span>
                       {n.esPropia && (
                         <span className="flex items-center gap-2 shrink-0">
@@ -300,8 +377,8 @@ export function MonthCalendar({
                         </span>
                       )}
                     </li>
-                  )
-                )}
+                  );
+                })}
               </ul>
             ) : (
               <p className={`${txt} text-ink-faint`}>Nada agendado para el {dayjs(seleccionado).format("D [de] MMMM")}.</p>
@@ -354,17 +431,14 @@ export function MonthCalendar({
         <div className="grid grid-cols-7 gap-1">
           {diasSemana.map((d, i) => {
             const key = isoDate(d);
-            const dots = dotsDia(key);
+            const items = itemsDia(key);
             const esHoy = key === isoDate(hoy);
             const esSeleccionado = key === seleccionado;
             return (
               <button
                 type="button"
                 key={i}
-                onClick={() => {
-                  setSeleccionado(esSeleccionado ? null : key);
-                  cerrarFormulario();
-                }}
+                onClick={() => tocarDia(key)}
                 className={`mx-auto h-9 w-9 rounded-lg flex flex-col items-center justify-center gap-0.5 text-xs transition-colors ${
                   esSeleccionado
                     ? "bg-[var(--color-brand-800)] text-white"
@@ -374,10 +448,10 @@ export function MonthCalendar({
                 }`}
               >
                 <span>{d.date()}</span>
-                {dots.length > 0 && (
+                {items.length > 0 && (
                   <span className="flex gap-0.5">
-                    {dots.slice(0, 3).map((c, j) => (
-                      <span key={j} className={`h-1.5 w-1.5 rounded-full ${esSeleccionado ? "bg-white" : c}`} />
+                    {items.slice(0, 3).map((it) => (
+                      <span key={it.key} className="h-1.5 w-1.5 rounded-full" style={esSeleccionado ? { backgroundColor: "#fff" } : soloDot(it.categoria)} />
                     ))}
                   </span>
                 )}
@@ -407,68 +481,176 @@ export function MonthCalendar({
   for (let d = 1; d <= diasEnMes; d++) celdas.push(mes.date(d));
   while (celdas.length % 7 !== 0) celdas.push(null);
 
+  // Vista agenda (mobile, `sm:hidden`): sólo los días del mes visible que
+  // tienen algo, en orden — pedido explícito: en una pantalla angosta, una
+  // grilla de mes con contenido real adentro de cada celda queda ilegible,
+  // así que ahí se reemplaza por una lista.
+  const diasConAlgo = celdas.filter((d): d is Dayjs => !!d && itemsDia(isoDate(d)).length > 0);
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2 gap-2">
         <button
           type="button"
           onClick={() => setMes(mes.subtract(1, "month"))}
           aria-label="Mes anterior"
-          className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-surface-sunken text-ink-muted"
+          className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-surface-sunken text-ink-muted shrink-0"
         >
           <ChevronLeft size={16} />
         </button>
-        <p className="text-sm font-bold text-ink capitalize">{mes.format("MMMM YYYY")}</p>
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-bold text-ink capitalize truncate">{mes.format("MMMM YYYY")}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setMes(hoy.startOf("month"));
+              setSeleccionado(isoDate(hoy));
+              cerrarFormulario();
+            }}
+            className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold text-ink-muted hover:bg-surface-sunken hover:text-ink"
+          >
+            Hoy
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => setMes(mes.add(1, "month"))}
           aria-label="Mes siguiente"
-          className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-surface-sunken text-ink-muted"
+          className="h-8 w-8 inline-flex items-center justify-center rounded-full hover:bg-surface-sunken text-ink-muted shrink-0"
         >
           <ChevronRight size={16} />
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-ink-faint uppercase mb-1">
-        {DIAS.map((d, i) => (
-          <div key={i}>{d}</div>
-        ))}
+      <LeyendaCategorias />
+
+      {/* Grilla del mes — sólo desde `sm:` para arriba (ver vista agenda debajo). */}
+      <div className="hidden sm:block">
+        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-ink-faint uppercase mb-1">
+          {DIAS.map((d, i) => (
+            <div key={i}>{d}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {celdas.map((d, i) => {
+            if (!d) return <div key={i} />;
+            const key = isoDate(d);
+            const items = itemsDia(key);
+            const visibles = items.slice(0, MAX_CHIPS_CELDA);
+            const restantes = items.length - visibles.length;
+            const esHoy = key === isoDate(hoy);
+            const esSeleccionado = key === seleccionado;
+            return (
+              <div
+                key={i}
+                className={`rounded-lg border transition-colors min-h-[76px] p-1 flex flex-col gap-0.5 ${
+                  esSeleccionado
+                    ? "border-[var(--color-brand-800)] bg-brand-50"
+                    : "border-transparent hover:border-border hover:bg-surface-sunken"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => tocarDia(key)}
+                  className={`self-start h-6 w-6 shrink-0 rounded-full flex items-center justify-center text-xs transition-colors ${
+                    esSeleccionado
+                      ? "bg-[var(--color-brand-800)] text-white font-bold"
+                      : esHoy
+                      ? "bg-brand-100 text-[var(--color-brand-900)] font-bold"
+                      : "text-ink hover:bg-surface"
+                  }`}
+                >
+                  {d.date()}
+                </button>
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  {visibles.map((it) => {
+                    const contenido = (
+                      <span className="block truncate rounded px-1 py-0.5 text-[10px] font-medium leading-tight" style={fondoSuave(it.categoria)}>
+                        {it.hora ? `${it.hora} ` : ""}
+                        {it.titulo}
+                      </span>
+                    );
+                    return it.href ? (
+                      <Link key={it.key} href={it.href}>
+                        {contenido}
+                      </Link>
+                    ) : (
+                      <button key={it.key} type="button" onClick={() => tocarDia(key)} className="text-left">
+                        {contenido}
+                      </button>
+                    );
+                  })}
+                  {restantes > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => tocarDia(key)}
+                      className="text-left text-[10px] font-semibold text-ink-faint hover:text-ink px-1"
+                    >
+                      +{restantes} más
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
-        {celdas.map((d, i) => {
-          if (!d) return <div key={i} />;
-          const key = isoDate(d);
-          const dots = dotsDia(key);
-          const esHoy = key === isoDate(hoy);
-          const esSeleccionado = key === seleccionado;
-          return (
-            <button
-              type="button"
-              key={i}
-              onClick={() => {
-                setSeleccionado(esSeleccionado ? null : key);
-                cerrarFormulario();
-              }}
-              className={`mx-auto h-10 w-10 rounded-lg flex flex-col items-center justify-center gap-0.5 text-xs transition-colors ${
-                esSeleccionado
-                  ? "bg-[var(--color-brand-800)] text-white"
-                  : esHoy
-                  ? "bg-brand-100 text-[var(--color-brand-900)] font-bold"
-                  : "text-ink hover:bg-surface-sunken"
-              }`}
-            >
-              <span>{d.date()}</span>
-              {dots.length > 0 && (
-                <span className="flex gap-0.5">
-                  {dots.slice(0, 3).map((c, j) => (
-                    <span key={j} className={`h-1.5 w-1.5 rounded-full ${esSeleccionado ? "bg-white" : c}`} />
-                  ))}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/* Vista agenda — sólo debajo de `sm:` (ver comentario grande arriba). */}
+      <div className="sm:hidden">
+        {diasConAlgo.length === 0 ? (
+          <p className="text-sm text-ink-faint py-4 text-center">Sin nada agendado este mes.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {diasConAlgo.map((d) => {
+              const key = isoDate(d);
+              const esHoy = key === isoDate(hoy);
+              const esSeleccionado = key === seleccionado;
+              return (
+                <li key={key} className="py-2">
+                  <button
+                    type="button"
+                    onClick={() => tocarDia(key)}
+                    className="w-full flex items-center gap-2 text-left"
+                  >
+                    <span
+                      className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                        esSeleccionado ? "bg-[var(--color-brand-800)] text-white" : esHoy ? "bg-brand-100 text-[var(--color-brand-900)]" : "bg-surface-sunken text-ink"
+                      }`}
+                    >
+                      {d.date()}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-ink-faint capitalize">{d.format("dddd")}</span>
+                      <span className="flex flex-col gap-0.5 mt-0.5">
+                        {itemsDia(key).map((it) => (
+                          <span key={it.key} className="flex items-center gap-1.5 text-sm text-ink truncate">
+                            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={soloDot(it.categoria)} />
+                            <span className="truncate">{it.titulo}</span>
+                            {it.hora && <span className="text-xs text-ink-faint shrink-0">· {it.hora}</span>}
+                          </span>
+                        ))}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {puedeEscribir && !seleccionado && (
+          <button
+            type="button"
+            onClick={() => {
+              setSeleccionado(isoDate(hoy));
+              setMostrarForm(true);
+            }}
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-verde)]"
+          >
+            <Plus size={13} /> Agregar evento
+          </button>
+        )}
       </div>
 
       {panelDetalle("sm")}
