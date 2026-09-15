@@ -502,3 +502,18 @@ Desplegado (commit `1c483d3`).
 **Pendiente antes de que esto tenga efecto en producción**: correr la migración `0026` vía `/api/admin/migraciones` (junto con la `0025`, todavía pendiente) — hasta entonces, adjuntar una factura sigue funcionando pero sin el vínculo directo a la solicitud (mismo criterio defensivo de `insert()` que el resto del proyecto). Sigue: "Editar solicitud", un botón único de "Cambiar estado" y proveedor habitual vs. nuevo (secciones 6, 16, 17-18).
 
 Desplegado (commit `6d1be27`).
+
+### Fase 5 — Editar solicitud (15/09)
+
+**Qué se hizo** (sección 6 del pedido: "permitir editar y eliminar correctamente según permisos" — el borrado ya estaba resuelto desde la Fase 1; esta fase cierra la parte de editar, que no existía en absoluto):
+
+- **`editarSolicitudAction`** (`lib/actions/compras.ts`, nuevo): mismos campos descriptivos que `crearSolicitudAction` (categoría, subcategoría, material, cantidad, unidad, especificación, prioridad, etapa de obra, fecha necesaria, presupuesto estimado, recurrente). Mismo permiso que el resto de las acciones de esta solicitud (`canEdit(rol,"compras")` + `verificarPermisoSobreSolicitud`, respeta el scoping por comisión). Se bloquea con un mensaje explícito si la solicitud ya está "entregada" o "rechazada" (cerrada) — editar una compra ya cerrada no cambiaría nada real y podría confundir lo que efectivamente se compró.
+- **Decisión de alcance, explícita**: `comision`/`comision_id` NO son editables. Ese vínculo se fija al crear la solicitud; cambiarlo después de que ya existe un presupuesto, una decisión o un gasto (`gastos_comision`, generado automáticamente al aprobar con la comisión de ese momento) dejaría esos registros apuntando a una comisión distinta de la que muestra la solicitud — un problema de integridad real (sección 39: "no romper relaciones existentes") que no se resuelve acá. Si la comisión estuvo mal desde el principio, la vía correcta sigue siendo eliminar la solicitud (si nada la usa todavía) y cargarla de nuevo.
+- **`EditarSolicitudForm`** (`components/compras/ComprasFormularios.tsx`, nuevo): mismo patrón Modal que `CrearSolicitudForm` (Fase 2), prellenado con los datos actuales. Botón "Editar" ubicado en la cabecera de `/compras/[id]`, visible solo cuando la solicitud sigue "viva" (ni entregada ni rechazada) — mismo criterio que valida el servidor, para no ofrecer un botón que de todos modos se rechazaría.
+- **Historial**: se agregó la acción "editar" a `HistorialCompra.tsx` — cada edición ahora deja rastro visible en la pestaña Historial, igual que crear/aprobar/rechazar/cambiar estado.
+
+**Archivos afectados**: `src/lib/actions/compras.ts`, `src/components/compras/ComprasFormularios.tsx`, `src/components/compras/HistorialCompra.tsx`, `src/app/(app)/compras/[id]/page.tsx`. Ningún otro permiso ni regla de negocio se tocó. `npx tsc --noEmit` sin errores; `npx eslint` sin errores nuevos (mismo patrón preexistente de `no-explicit-any`); `npx next build` compila y pasa TypeScript (mismo límite de siempre: sin `DATABASE_URL` en este entorno).
+
+**Pendiente**: proveedor habitual vs. nuevo (secciones 17-18) — distinguir visualmente 🟢 proveedor habitual de 🟡 nuevo proveedor y evitar duplicados al cargar un presupuesto.
+
+Desplegado (commit `7c30a08`).
