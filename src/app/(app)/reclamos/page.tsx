@@ -2,12 +2,13 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canApprove, puedeGestionarReclamos } from "@/lib/roles";
 import { all, get } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
-import { crearReclamoAction, tomarReclamoAction, resolverReclamoAction, reabrirReclamoAction } from "@/lib/actions/reclamos";
+import { tomarReclamoAction, resolverReclamoAction, reabrirReclamoAction } from "@/lib/actions/reclamos";
 import { CATEGORIA_RECLAMO_LABEL, PRIORIDAD_RECLAMO_LABEL } from "@/lib/constants";
 import { UsuarioLink } from "@/components/EntidadLink";
 import { Pagination, paginaDe } from "@/components/Pagination";
+import { ReportarReclamoForm } from "@/components/reclamos/ReclamosFormularios";
 
 const POR_PAGINA = 10;
 
@@ -108,42 +109,7 @@ export default async function ReclamosPage({
         {abiertos.length === 0 && <EmptyState>No hay reclamos abiertos — todo está al día.</EmptyState>}
       </div>
 
-      <details className="mb-8">
-        <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Reportar un problema</summary>
-        <Card className="mt-3">
-          <form action={crearReclamoAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="sm:col-span-2"><Label>¿Cuál es el problema?</Label><input name="titulo" required className={inputClass} placeholder="ej: Filtración en el techo del pasillo" /></div>
-            <div>
-              <Label>Categoría</Label>
-              <select name="categoria" className={inputClass} defaultValue="otros">
-                {Object.entries(CATEGORIA_RECLAMO_LABEL).map(([valor, label]) => (
-                  <option key={valor} value={valor}>{label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label>Vivienda (opcional — dejalo vacío si es un espacio común)</Label>
-              <select name="vivienda_id" className={inputClass} defaultValue="">
-                <option value="">Espacio común</option>
-                {viviendas.map((v) => (
-                  <option key={v.id} value={v.id}>{v.numero}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label>Prioridad</Label>
-              <select name="prioridad" className={inputClass} defaultValue="media">
-                {Object.entries(PRIORIDAD_RECLAMO_LABEL).map(([valor, label]) => (
-                  <option key={valor} value={valor}>{label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="sm:col-span-2"><Label>Descripción</Label><textarea name="descripcion" className={inputClass} rows={2} /></div>
-            <div className="sm:col-span-2"><Label>Foto (opcional)</Label><input type="file" name="foto" accept="image/*" className="text-xs" /></div>
-            <div className="sm:col-span-2"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Reportar</button></div>
-          </form>
-        </Card>
-      </details>
+      <ReportarReclamoForm viviendas={viviendas} />
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Resueltos</h3>
       <div className="space-y-2">

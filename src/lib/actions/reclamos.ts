@@ -8,6 +8,7 @@ import { canEdit, canApprove, puedeGestionarReclamos } from "@/lib/roles";
 import { saveUploadedFile, TIPOS_IMAGEN } from "@/lib/upload";
 import { CATEGORIA_RECLAMO_LABEL, PRIORIDAD_RECLAMO_LABEL } from "@/lib/constants";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zEnumSeguro, clavesDe } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 const crearReclamoSchema = z.object({
   vivienda_id: zIdOpcional,
@@ -46,6 +47,10 @@ export async function crearReclamoAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "crear", entidad: "reclamos", entidad_id: id, valor_nuevo: { titulo: datos.titulo } });
   revalidatePath("/reclamos");
   revalidatePath("/dashboard");
+}
+
+export async function crearReclamoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearReclamoAction(formData));
 }
 
 /** Tomar un reclamo: alguien de mantenimiento/seguridad/técnico lo pasa a "en proceso" y se asigna.
