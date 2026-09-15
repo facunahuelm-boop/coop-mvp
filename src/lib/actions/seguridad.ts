@@ -8,6 +8,7 @@ import { canEdit } from "@/lib/roles";
 import { saveUploadedFile, TIPOS_IMAGEN } from "@/lib/upload";
 import { CHECKLIST_BASE } from "@/lib/constants";
 import { parseForm, zId, zTexto, zTextoOpcional, zFechaOpcional, zEnumSeguro, zCheckbox } from "@/lib/validation";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 const TIPO_INCIDENTE = ["observacion", "incidente", "accidente"] as const;
 const SEVERIDAD_INCIDENTE = ["baja", "media", "critica"] as const;
@@ -24,6 +25,10 @@ export async function crearDocumentoSeguridadAction(formData: FormData) {
   const datos = parseForm(crearDocumentoSeguridadSchema, formData);
   await insert("documentos_seguridad", { ...datos, responsable_id: user.id });
   revalidatePath("/seguridad");
+}
+
+export async function crearDocumentoSeguridadFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearDocumentoSeguridadAction(formData));
 }
 
 export async function crearInspeccionAction(formData: FormData) {
@@ -43,6 +48,10 @@ export async function crearInspeccionAction(formData: FormData) {
     autor_id: user.id,
   });
   revalidatePath("/seguridad");
+}
+
+export async function crearInspeccionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearInspeccionAction(formData));
 }
 
 const crearIncidenteSchema = z.object({
@@ -73,6 +82,10 @@ export async function crearIncidenteAction(formData: FormData) {
   });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "incidentes_seguridad", entidad_id: id, valor_nuevo: { severidad: datos.severidad } });
   revalidatePath("/seguridad");
+}
+
+export async function crearIncidenteFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearIncidenteAction(formData));
 }
 
 export async function resolverIncidenteAction(formData: FormData) {

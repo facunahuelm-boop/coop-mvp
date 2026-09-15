@@ -2,12 +2,12 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState, Label, inputClass, AddButtonSummary } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
+import { Card, PageHeader, Badge, EmptyState, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
-import { crearDocumentoSeguridadAction, crearInspeccionAction, crearIncidenteAction, resolverIncidenteAction } from "@/lib/actions/seguridad";
+import { resolverIncidenteAction } from "@/lib/actions/seguridad";
 import { CHECKLIST_BASE } from "@/lib/constants";
 import { UsuarioLink } from "@/components/EntidadLink";
+import { CargarDocumentoSeguridadForm, RegistrarIncidenteForm, NuevaInspeccionForm } from "@/components/seguridad/SeguridadFormularios";
 
 export default async function SeguridadPage() {
   const user = await getCurrentUser();
@@ -43,18 +43,7 @@ export default async function SeguridadPage() {
         })}
         {docs.length === 0 && <EmptyState>Sin documentos cargados.</EmptyState>}
       </div>
-      {puedeEditar && (
-        <details className="mb-8"><AddButtonSummary>Cargar documento</AddButtonSummary>
-          <Card className="mt-3">
-            <form action={crearDocumentoSeguridadAction} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div><Label>Tipo de documento</Label><input name="tipo" required className={inputClass} /></div>
-              <div><Label>Descripción</Label><input name="descripcion" className={inputClass} /></div>
-              <div><Label>Fecha de vencimiento</Label><input type="date" name="fecha_vencimiento" className={inputClass} /></div>
-              <div className="sm:col-span-3"><SubmitButton variant="add">Guardar</SubmitButton></div>
-            </form>
-          </Card>
-        </details>
-      )}
+      {puedeEditar && <CargarDocumentoSeguridadForm />}
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Incidentes, accidentes y observaciones</h3>
       <div className="space-y-2 mb-4">
@@ -82,29 +71,7 @@ export default async function SeguridadPage() {
         ))}
         {incidentes.length === 0 && <EmptyState>Sin incidentes registrados.</EmptyState>}
       </div>
-      {puedeEditar && (
-        <details className="mb-8"><AddButtonSummary>Registrar incidente / observación</AddButtonSummary>
-          <Card className="mt-3">
-            <form action={crearIncidenteAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <Label>Tipo</Label>
-                <select name="tipo" className={inputClass} defaultValue="observacion">
-                  <option value="observacion">Observación</option><option value="incidente">Incidente</option><option value="accidente">Accidente</option>
-                </select>
-              </div>
-              <div>
-                <Label>Severidad</Label>
-                <select name="severidad" className={inputClass} defaultValue="media">
-                  <option value="baja">Baja</option><option value="media">Media</option><option value="critica">Crítica</option>
-                </select>
-              </div>
-              <div className="sm:col-span-2"><Label>Descripción</Label><textarea name="descripcion" required className={inputClass} rows={2} /></div>
-              <div className="sm:col-span-2"><Label>Foto (opcional)</Label><input type="file" name="foto" accept="image/*" className="text-xs" /></div>
-              <div className="sm:col-span-2"><SubmitButton variant="add">Registrar</SubmitButton></div>
-            </form>
-          </Card>
-        </details>
-      )}
+      {puedeEditar && <RegistrarIncidenteForm />}
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Inspecciones (checklist)</h3>
       <div className="space-y-2 mb-4">
@@ -121,21 +88,7 @@ export default async function SeguridadPage() {
         })}
         {inspecciones.length === 0 && <EmptyState>Sin inspecciones registradas.</EmptyState>}
       </div>
-      {puedeEditar && (
-        <details><AddButtonSummary>Nueva inspección</AddButtonSummary>
-          <Card className="mt-3">
-            <form action={crearInspeccionAction} className="space-y-2">
-              {CHECKLIST_BASE.map((item, i) => (
-                <label key={i} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name={`item_${i}`} defaultChecked /> {item}
-                </label>
-              ))}
-              <div><Label>Hallazgos</Label><textarea name="hallazgos" className={inputClass} rows={2} /></div>
-              <SubmitButton variant="add">Guardar inspección</SubmitButton>
-            </form>
-          </Card>
-        </details>
-      )}
+      {puedeEditar && <NuevaInspeccionForm checklistBase={CHECKLIST_BASE} />}
     </div>
   );
 }
