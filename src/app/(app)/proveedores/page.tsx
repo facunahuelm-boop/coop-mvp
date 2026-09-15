@@ -3,12 +3,12 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, EmptyState, Label, inputClass, Badge, AddButtonSummary } from "@/components/ui";
-import { SubmitButton } from "@/components/ui-client";
+import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import dayjs from "dayjs";
-import { crearProveedorAction, cambiarEstadoProveedorAction } from "@/lib/actions/proveedores";
-import { ESTADO_PROVEEDOR, ESTADO_PROVEEDOR_LABEL, TIPO_PROVEEDOR_LABEL } from "@/lib/constants";
+import { cambiarEstadoProveedorAction } from "@/lib/actions/proveedores";
+import { ESTADO_PROVEEDOR, ESTADO_PROVEEDOR_LABEL } from "@/lib/constants";
+import { CrearProveedorForm } from "@/components/proveedores/ProveedoresFormularios";
 
 /**
  * Fase 08 del Plan Maestro ("ficha de Proveedores independiente"), ampliada
@@ -133,37 +133,7 @@ export default async function ProveedoresPage({ searchParams }: { searchParams: 
           {proveedores.length === 0 && <EmptyState>No hay proveedores en esta pestaña.</EmptyState>}
         </div>
 
-        {puedeEditar && (
-          <details className="mt-4">
-            <AddButtonSummary>Agregar proveedor</AddButtonSummary>
-            <form action={crearProveedorAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label>Nombre / razón social</Label><input name="nombre" required className={inputClass} /></div>
-              <div><Label>RUT</Label><input name="rut" className={inputClass} /></div>
-              <div><Label>Rubro</Label><input name="rubro" placeholder="Materiales, ferretería, electricidad…" className={inputClass} /></div>
-              <div>
-                <Label>Tipo</Label>
-                <select name="tipo" className={inputClass} defaultValue="empresa">
-                  {Object.entries(TIPO_PROVEEDOR_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
-              </div>
-              <div><Label>Teléfono</Label><input name="telefono" className={inputClass} /></div>
-              <div><Label>Email</Label><input type="email" name="email" className={inputClass} /></div>
-              <div><Label>Dirección</Label><input name="direccion" className={inputClass} /></div>
-              <div><Label>Persona de contacto</Label><input name="persona_contacto" className={inputClass} /></div>
-              <div>
-                <Label>Estado</Label>
-                <select name="estado" className={inputClass} defaultValue="nuevo">
-                  {ESTADO_PROVEEDOR.map((e) => <option key={e} value={e}>{ESTADO_PROVEEDOR_LABEL[e]}</option>)}
-                </select>
-              </div>
-              <div><Label>Contacto (libre)</Label><input name="contacto" placeholder="Teléfono o email, si no encaja arriba" className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" className={inputClass} /></div>
-              <div className="sm:col-span-2">
-                <SubmitButton variant="add">Agregar proveedor</SubmitButton>
-              </div>
-            </form>
-          </details>
-        )}
+        {puedeEditar && <CrearProveedorForm />}
       </Card>
     </div>
   );

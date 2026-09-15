@@ -4,11 +4,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { get } from "@/lib/db";
 import { historialProveedor } from "@/lib/logic";
-import { Card, PageHeader, EmptyState, Label, inputClass, Badge } from "@/components/ui";
+import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
 import dayjs from "dayjs";
-import { actualizarProveedorAction, eliminarProveedorAction } from "@/lib/actions/proveedores";
+import { eliminarProveedorAction } from "@/lib/actions/proveedores";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { ESTADO_PROVEEDOR, ESTADO_PROVEEDOR_LABEL, TIPO_PROVEEDOR, TIPO_PROVEEDOR_LABEL } from "@/lib/constants";
+import { ActualizarProveedorForm } from "@/components/proveedores/ProveedoresFormularios";
 
 const ESTADO_COLOR: Record<string, "verde" | "amarillo" | "brand" | "gray"> = {
   nuevo: "amarillo", habitual: "verde", en_evaluacion: "brand", inactivo: "gray",
@@ -60,37 +61,7 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
           {proveedor.notas && <div className="sm:col-span-2"><span className="text-ink/50">Notas:</span> {proveedor.notas}</div>}
         </div>
 
-        {puedeEditar && (
-          <details className="mt-4">
-            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-brand-800)]">Editar ficha</summary>
-            <form action={actualizarProveedorAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input type="hidden" name="id" value={proveedor.id} />
-              <div><Label>RUT</Label><input name="rut" defaultValue={proveedor.rut || ""} className={inputClass} /></div>
-              <div><Label>Rubro</Label><input name="rubro" defaultValue={proveedor.rubro || ""} className={inputClass} /></div>
-              <div>
-                <Label>Tipo</Label>
-                <select name="tipo" defaultValue={proveedor.tipo || "empresa"} className={inputClass}>
-                  {TIPO_PROVEEDOR.map((t) => <option key={t} value={t}>{TIPO_PROVEEDOR_LABEL[t]}</option>)}
-                </select>
-              </div>
-              <div>
-                <Label>Estado</Label>
-                <select name="estado" defaultValue={proveedor.estado || "nuevo"} className={inputClass}>
-                  {ESTADO_PROVEEDOR.map((e) => <option key={e} value={e}>{ESTADO_PROVEEDOR_LABEL[e]}</option>)}
-                </select>
-              </div>
-              <div><Label>Teléfono</Label><input name="telefono" defaultValue={proveedor.telefono || ""} className={inputClass} /></div>
-              <div><Label>Email</Label><input type="email" name="email" defaultValue={proveedor.email || ""} className={inputClass} /></div>
-              <div><Label>Dirección</Label><input name="direccion" defaultValue={proveedor.direccion || ""} className={inputClass} /></div>
-              <div><Label>Persona de contacto</Label><input name="persona_contacto" defaultValue={proveedor.persona_contacto || ""} className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Contacto (libre)</Label><input name="contacto" defaultValue={proveedor.contacto || ""} placeholder="Teléfono o email" className={inputClass} /></div>
-              <div className="sm:col-span-2"><Label>Notas</Label><input name="notas" defaultValue={proveedor.notas || ""} className={inputClass} /></div>
-              <div className="sm:col-span-2">
-                <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold">Guardar</button>
-              </div>
-            </form>
-          </details>
-        )}
+        {puedeEditar && <ActualizarProveedorForm proveedor={proveedor} />}
         {user.rol === "admin" && (
           <details className="mt-4 pt-3 border-t border-ink/10">
             <summary className="cursor-pointer text-xs font-semibold text-[var(--color-rojo)]">Zona de administrador: eliminar este proveedor</summary>

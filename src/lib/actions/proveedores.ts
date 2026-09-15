@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { parseForm, zId, zTexto, zTextoOpcional, zEmailOpcional, zTelefonoOpcional, zEnumSeguro } from "@/lib/validation";
 import { ESTADO_PROVEEDOR, TIPO_PROVEEDOR } from "@/lib/constants";
+import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // Proveedores fijos vs. nuevos/a presupuestar (pedido explícito): ver
 // migrations/0018_proveedores_extendido.sql para el detalle de las columnas
@@ -70,6 +71,10 @@ export async function crearProveedorAction(formData: FormData) {
   revalidatePath("/proveedores");
 }
 
+export async function crearProveedorFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearProveedorAction(formData));
+}
+
 /** Edita los datos de un proveedor ya existente (ficha, Fase 08 + extensión). */
 const actualizarProveedorSchema = z.object({ id: zId, ...datosProveedorSchema });
 
@@ -81,6 +86,10 @@ export async function actualizarProveedorAction(formData: FormData) {
   await audit({ usuario_id: user.id, accion: "editar", entidad: "proveedores", entidad_id: id, valor_nuevo: datos });
   revalidatePath(`/proveedores/${id}`);
   revalidatePath("/proveedores");
+}
+
+export async function actualizarProveedorFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => actualizarProveedorAction(formData));
 }
 
 /** Cambiar solo el estado (ej: marcar como "habitual" después de varias
