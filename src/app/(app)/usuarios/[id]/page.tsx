@@ -40,8 +40,13 @@ export default async function UsuarioDetallePage({ params }: { params: Promise<{
   const viewer = await getCurrentUser();
   if (!viewer) redirect("/login");
 
-  const usuario = await get<any>(`SELECT id, nombre, email, rol, activo, creado_en, avatar_url FROM users WHERE id = ?`, [id]);
+  // HOTFIX TEMPORAL (14/09): `avatar_url` afuera del SELECT hasta que la
+  // migración 0023 corra en producción (ver el mismo comentario en
+  // lib/auth.ts) — evitaba un 500 en esta página durante la ventana del
+  // incidente. Revertir junto con el hotfix de auth.ts.
+  const usuario = await get<any>(`SELECT id, nombre, email, rol, activo, creado_en FROM users WHERE id = ?`, [id]);
   if (!usuario) notFound();
+  usuario.avatar_url = usuario.avatar_url ?? null;
 
   const esPropioPerfil = viewer.id === usuario.id;
 

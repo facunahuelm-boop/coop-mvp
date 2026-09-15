@@ -116,8 +116,17 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
     // organizations no tiene organization_id (es la tabla raíz, sin RLS) —
     // se puede traer con un JOIN normal en la misma consulta.
+    //
+    // HOTFIX TEMPORAL (14/09): la migración 0023 (columna users.avatar_url)
+    // se desplegó en el código antes de correrse en producción, lo que
+    // rompía el login de TODA la app (esta consulta fallaba para cualquier
+    // usuario y el catch de abajo la convertía en "no autenticado"). Se
+    // saca `u.avatar_url` de este SELECT para restablecer el login de
+    // inmediato; en cuanto la migración 0023 corra en producción, este
+    // hotfix se revierte para volver a traer avatar_url acá (ver
+    // CHANGELOG.md, entrada "Incidente…").
     const row = await get<any>(
-      `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, u.avatar_url, o.etapa,
+      `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, o.etapa,
               o.modulos_override,
               o.nombre as org_nombre, o.logo_url as org_logo_url,
               o.color_primario as org_color_primario, o.color_secundario as org_color_secundario
@@ -135,7 +144,9 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       email: row.email,
       rol: row.rol,
       nucleo_id: row.nucleo_id,
-      avatar_url: row.avatar_url ?? null,
+      // HOTFIX TEMPORAL: ver comentario arriba, en el SELECT — vuelve a
+      // `row.avatar_url ?? null` en cuanto la migración 0023 esté aplicada.
+      avatar_url: null,
       organization_id: row.organization_id,
       etapa: row.etapa,
       modulos_override: row.modulos_override || {},
