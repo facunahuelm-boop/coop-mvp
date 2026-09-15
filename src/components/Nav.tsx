@@ -373,9 +373,15 @@ export function BottomNav({ user }: { user: SessionUser }) {
  * condiciones por rol/etapa/permiso — dashboard/page.tsx ya no arma su
  * propia versión, usa ésta (ver nota de alcance en CHANGELOG.md).
  *
- * A propósito son "acciones", no navegación pura: cada ítem ya existía tal
- * cual en el Dashboard (mismos labels/hrefs/íconos/condiciones de canEdit),
- * sólo cambia DÓNDE se muestran. Ningún permiso nuevo, ninguna lógica nueva.
+ * A propósito son mayormente "acciones", no navegación pura: cada ítem de
+ * acción ya existía tal cual en el Dashboard (mismos labels/hrefs/íconos/
+ * condiciones de canEdit), sólo cambia DÓNDE se muestran. Ningún permiso
+ * nuevo, ninguna lógica nueva.
+ *
+ * Excepción (15/09, pedido explícito): si al rol le quedan menos de 2
+ * accesos-acción (típicamente "socio", que sólo tiene reclamos.edit), se
+ * completa con 1-2 atajos de NAVEGACIÓN de sólo lectura — ver el bloque al
+ * final de la función.
  */
 export function accesosRapidosFor(user: SessionUser): { label: string; href: string; icon: ReactNode }[] {
   const verObra = canRead(user.rol, "obra") && moduloVisible("obra", user.etapa, user.modulos_override);
@@ -391,6 +397,34 @@ export function accesosRapidosFor(user: SessionUser): { label: string; href: str
   if (verReclamos && canEdit(user.rol, "reclamos")) accesos.push({ label: "Reportar un problema", href: "/reclamos", icon: <Wrench size={16} /> });
   if (canEdit(user.rol, "finanzas")) accesos.push({ label: "Registrar movimiento", href: "/finanzas", icon: <Wallet size={16} /> });
   if (canEdit(user.rol, "documentos")) accesos.push({ label: "Subir documento", href: "/documentos", icon: <FileText size={16} /> });
+
+  // Ajuste (15/09, pedido explícito): esta zona son "accesos rápidos" a una
+  // ACCIÓN puntual (por eso arriba se filtra por canEdit, no por canRead) —
+  // pero eso deja a roles con casi ningún permiso de edición (ej. "socio",
+  // que hoy sólo tiene "reclamos.edit") con 0-1 accesos, aunque sean el tipo
+  // de usuario más común del sistema. En vez de agregar un caso especial
+  // hardcodeado para "socio" (que rompería para otras cooperativas con
+  // matrices de permisos distintas), la regla es genérica: si a un rol le
+  // quedan menos de 2 accesos-ACCIÓN, se completa (sin superar 2 en total)
+  // con atajos de NAVEGACIÓN de sólo lectura a los módulos más generales y
+  // transparentes del sistema (documentos y comisiones — todos los roles
+  // tienen al menos "read" ahí, ver MATRIX en lib/roles.ts), evitando
+  // duplicar un módulo que ya tiene su propio acceso de acción arriba.
+  if (accesos.length < 2) {
+    const yaTieneAcceso = (href: string) => accesos.some((a) => a.href === href);
+    const candidatosLectura: { mod: Module; label: string; href: string; icon: ReactNode }[] = [
+      { mod: "documentos", label: "Ver documentos", href: "/documentos", icon: <FileText size={16} /> },
+      { mod: "comisiones", label: "Ver comisiones", href: "/comisiones", icon: <Users size={16} /> },
+    ];
+    for (const c of candidatosLectura) {
+      if (accesos.length >= 2) break;
+      if (yaTieneAcceso(c.href)) continue;
+      if (canRead(user.rol, c.mod) && moduloVisible(c.mod, user.etapa, user.modulos_override)) {
+        accesos.push({ label: c.label, href: c.href, icon: c.icon });
+      }
+    }
+  }
+
   return accesos;
 }
 
