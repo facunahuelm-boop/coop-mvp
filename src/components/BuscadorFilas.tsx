@@ -78,3 +78,58 @@ export function BuscadorFilas({
     </div>
   );
 }
+
+/**
+ * Rediseño de Compras, Fase 2 (sección 24, "búsqueda rápida"): mismo
+ * mecanismo que `BuscadorFilas` de arriba (filtro 100% cliente sobre
+ * elementos ya renderizados por el servidor, por un array paralelo de
+ * texto), pero para una lista de tarjetas/filas sueltas en vez de un
+ * `<table>` — Compras (y cualquier pantalla futura con el mismo patrón de
+ * "resumen en tarjetas compactas") no arma una tabla, así que forzar
+ * `BuscadorFilas` ahí habría significado envolver cada fila en `<tr><td>`
+ * sólo para poder buscar, cambiando el layout visual sin necesidad. No se
+ * modificó `BuscadorFilas` para aceptar ambos casos porque son dos formas de
+ * renderizar genuinamente distintas (tabla vs. lista) — más simple mantener
+ * dos componentes chicos y explícitos que uno con una rama condicional
+ * interna para elegir el contenedor.
+ */
+export function BuscadorLista({
+  claves,
+  children,
+  placeholder = "Buscar...",
+  sinResultadosTexto = "No se encontraron resultados para esa búsqueda.",
+  className = "space-y-2",
+}: {
+  claves: string[];
+  children: ReactNode[];
+  placeholder?: string;
+  sinResultadosTexto?: string;
+  className?: string;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+
+  const filasFiltradas = useMemo(() => {
+    const q = normalizar(busqueda.trim());
+    if (!q) return children;
+    return claves
+      .map((clave, i) => (normalizar(clave).includes(q) ? children[i] : null))
+      .filter((f): f is ReactNode => f !== null);
+  }, [claves, children, busqueda]);
+
+  return (
+    <div>
+      <input
+        type="text"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-ink/10 px-4 py-3 text-base mb-3"
+      />
+      {filasFiltradas.length === 0 ? (
+        <p className="text-sm text-ink-muted text-center py-6">{sinResultadosTexto}</p>
+      ) : (
+        <div className={className}>{filasFiltradas}</div>
+      )}
+    </div>
+  );
+}

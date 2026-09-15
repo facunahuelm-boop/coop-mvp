@@ -4,36 +4,52 @@
 // cargar presupuesto) migrados a `useActionState` — mismo criterio que los
 // demás módulos. Las acciones de decisión (marcar pedida/entregada, rechazar,
 // decidir compra) quedan sin tocar, mismo criterio que en Obra/Seguridad.
+//
+// Rediseño profundo de Compras, Fase 2 (pedido explícito, sección 7: "Al
+// hacer clic en + Nueva solicitud, abrir un MODAL. NO navegar a otra
+// página"): `CrearSolicitudForm` deja de ser un `<details>` que despliega el
+// formulario inline (patrón que sigue usando el resto del sistema, sin
+// tocar) y pasa a abrirse en el `Modal` ya existente (`ui-client.tsx`,
+// construido para el rediseño del Dashboard) — es el primer formulario de
+// alta del sistema que usa este patrón; se eligió `size="lg"` porque tiene
+// bastantes campos y un `md` los hubiera apretado. `agregarPresupuestoFormAction`
+// (más abajo) NO se tocó: vive siempre dentro de la ficha de una solicitud
+// puntual, no en un listado — ahí el `<details>` inline sigue siendo el
+// patrón correcto (no hay "lista" de la que abrir un pop-up).
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { crearSolicitudFormAction, agregarPresupuestoFormAction } from "@/lib/actions/compras";
 import { ESTADO_INICIAL } from "@/lib/actionState";
-import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
-import { AddButtonSummary, Card, Label, inputClass } from "@/components/ui";
+import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
+import { AddButton, Button, Card, Label, inputClass } from "@/components/ui";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 
 type Opcion = { id: number; nombre: string };
 
 export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
+  const [open, setOpen] = useState(false);
   const [estado, formAction] = useActionState(crearSolicitudFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
-  const detailsRef = useRef<HTMLDetailsElement>(null);
   const { show } = useToast();
 
   useEffect(() => {
     if (estado.ok) {
       formRef.current?.reset();
-      if (detailsRef.current) detailsRef.current.open = false;
+      // La respuesta de la Server Action (useActionState) sólo se conoce acá
+      // — no hay ningún evento síncrono al que engancharse para cerrar el
+      // Modal, mismo criterio ya documentado en CambiarFotoForm.tsx.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false);
       show("Solicitud creada.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
   return (
-    <details ref={detailsRef} className="mt-6">
-      <AddButtonSummary>Nueva solicitud de compra</AddButtonSummary>
-      <Card className="mt-3">
-        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <>
+      <AddButton onClick={() => setOpen(true)}>Nueva solicitud</AddButton>
+      <Modal open={open} onClose={() => setOpen(false)} title="Nueva solicitud de compra" size="lg">
+        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
           <div>
             <Label>Categoría de la compra</Label>
             <select name="categoria" className={inputClass} defaultValue="obra">
@@ -113,12 +129,13 @@ export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
           </div>
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
             <SubmitButton variant="add" pendingLabel="Creando…">Crear solicitud</SubmitButton>
           </div>
         </form>
-      </Card>
-    </details>
+      </Modal>
+    </>
   );
 }
 
