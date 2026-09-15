@@ -359,8 +359,12 @@ export async function recalcularAlertas() {
 
 // ============ COMPARACIÓN DE PRESUPUESTOS (motor local, sin LLM) ============
 export async function compararPresupuestos(solicitudId: number) {
+  // pv.estado (Rediseño profundo de Compras, Fase 6, sección 18: distinguir
+  // 🟢 proveedor habitual de 🟡 nuevo/en evaluación directamente en el
+  // comparador) — columna ya existente desde la migración 0018, sólo faltaba
+  // traerla hasta acá para poder mostrarla.
   const presupuestos = await all<any>(
-    `SELECT pp.*, pv.nombre as proveedor_nombre
+    `SELECT pp.*, pv.nombre as proveedor_nombre, pv.estado as proveedor_estado
      FROM presupuestos_proveedor pp JOIN proveedores pv ON pv.id = pp.proveedor_id
      WHERE pp.solicitud_id = ?`,
     [solicitudId]

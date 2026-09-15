@@ -25,6 +25,18 @@ import { AddButton, Button, Card, Label, inputClass } from "@/components/ui";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 
 type Opcion = { id: number; nombre: string };
+// Rediseño profundo de Compras, Fase 6 (sección 18): el selector de proveedor
+// al cargar un presupuesto es justo donde más importa ver de un vistazo si
+// es un proveedor ya probado o uno nuevo/en evaluación — de ahí que necesite
+// más que `Opcion` (que sólo tiene id/nombre, y sigue sirviendo para
+// comisiones, sin `estado`).
+type ProveedorOpcion = { id: number; nombre: string; estado?: string | null };
+const PROVEEDOR_ESTADO_EMOJI: Record<string, string> = {
+  habitual: "🟢",
+  nuevo: "🟡",
+  en_evaluacion: "🟡",
+  inactivo: "⚪",
+};
 
 export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
   const [open, setOpen] = useState(false);
@@ -314,7 +326,7 @@ export function AdjuntarFacturaForm({ solicitudId }: { solicitudId: number }) {
   );
 }
 
-export function CargarPresupuestoForm({ solicitudId, proveedores, abiertoPorDefecto }: { solicitudId: number; proveedores: Opcion[]; abiertoPorDefecto: boolean }) {
+export function CargarPresupuestoForm({ solicitudId, proveedores, abiertoPorDefecto }: { solicitudId: number; proveedores: ProveedorOpcion[]; abiertoPorDefecto: boolean }) {
   const [estado, formAction] = useActionState(agregarPresupuestoFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -340,9 +352,10 @@ export function CargarPresupuestoForm({ solicitudId, proveedores, abiertoPorDefe
             <select name="proveedor_id" className={inputClass} defaultValue="">
               <option value="">— elegir —</option>
               {proveedores.map((p) => (
-                <option key={p.id} value={p.id}>{p.nombre}</option>
+                <option key={p.id} value={p.id}>{PROVEEDOR_ESTADO_EMOJI[p.estado || "nuevo"]} {p.nombre}</option>
               ))}
             </select>
+            <p className="text-[11px] text-ink-faint mt-1">🟢 habitual · 🟡 nuevo o en evaluación · ⚪ inactivo</p>
           </div>
           <div>
             <Label>...o proveedor nuevo</Label>

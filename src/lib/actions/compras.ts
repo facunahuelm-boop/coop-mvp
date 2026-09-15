@@ -202,7 +202,17 @@ export async function agregarPresupuestoAction(formData: FormData) {
   let proveedorId = Number(formData.get("proveedor_id") || 0);
   const nuevoProveedor = String(formData.get("nuevo_proveedor") || "").trim().slice(0, 200);
   if (!proveedorId && nuevoProveedor) {
-    proveedorId = await insert("proveedores", { nombre: nuevoProveedor });
+    // Rediseño profundo de Compras, Fase 6 (pedido explícito, sección 18:
+    // "no duplicar proveedores"). Antes, escribir el nombre acá SIEMPRE creaba
+    // un proveedor nuevo, aunque ya existiera uno con ese mismo nombre — fácil
+    // de hacer sin querer si la persona no se acuerda de buscarlo en el
+    // desplegable de arriba. Se busca primero por nombre exacto (sin
+    // mayúsculas/espacios de más) dentro de la cooperativa activa (get() ya
+    // filtra por organization_id vía RLS) y se reutiliza ese proveedor en vez
+    // de crear un duplicado; recién si de verdad no existe se crea uno nuevo,
+    // que arranca en estado "nuevo" (default de la tabla, migración 0018).
+    const existente = await get<{ id: number }>(`SELECT id FROM proveedores WHERE lower(trim(nombre)) = lower(trim(?))`, [nuevoProveedor]);
+    proveedorId = existente ? existente.id : await insert("proveedores", { nombre: nuevoProveedor });
   }
   if (!proveedorId) throw new Error("Falta elegir o crear un proveedor.");
 

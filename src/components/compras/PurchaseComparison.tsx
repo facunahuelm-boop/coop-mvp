@@ -2,6 +2,20 @@ import Link from "next/link";
 import { Badge, inputClass } from "@/components/ui";
 import { ActionForm } from "@/components/ui-client";
 import { decidirCompraFormAction } from "@/lib/actions/compras";
+import { ESTADO_PROVEEDOR_LABEL } from "@/lib/constants";
+
+// Rediseño profundo de Compras, Fase 6 (pedido explícito, sección 18:
+// "distinguir 🟢 proveedor habitual de 🟡 nuevo proveedor"). El estado del
+// proveedor (columna `proveedores.estado`, ya existente desde la migración
+// 0018 — "nuevo | habitual | en_evaluacion | inactivo") no se mostraba en
+// ningún lugar del flujo de compra en sí, sólo en /proveedores. Mismos 4
+// valores, sólo un emoji nuevo para verlos de un vistazo acá.
+const PROVEEDOR_ESTADO_EMOJI: Record<string, string> = {
+  habitual: "🟢",
+  nuevo: "🟡",
+  en_evaluacion: "🟡",
+  inactivo: "⚪",
+};
 
 // Rediseño profundo de Compras, Fase 3 (pedido explícito, sección 10:
 // "comparador visual de presupuestos, lado a lado, simple — no complicado").
@@ -40,6 +54,9 @@ export function PurchaseComparison({
             <Link href={`/proveedores/${p.proveedor_id}`} className="font-semibold text-sm text-ink hover:underline underline-offset-2">
               {p.proveedor_nombre}
             </Link>
+            <p className="text-[11px] text-ink-faint">
+              {PROVEEDOR_ESTADO_EMOJI[p.proveedor_estado || "nuevo"]} {ESTADO_PROVEEDOR_LABEL[(p.proveedor_estado || "nuevo") as keyof typeof ESTADO_PROVEEDOR_LABEL] || "Nuevo"}
+            </p>
             <p className="text-lg font-bold text-ink mt-1">${p.total.toLocaleString("es-UY")}</p>
             {p.costo_envio > 0 && (
               <p className="text-[11px] text-ink-faint">
