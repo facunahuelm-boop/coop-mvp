@@ -11,7 +11,7 @@ import { marcarPedidaFormAction, marcarEntregadaFormAction, rechazarSolicitudFor
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
-import { CargarPresupuestoForm } from "@/components/compras/ComprasFormularios";
+import { CargarPresupuestoForm, AdjuntarFacturaForm } from "@/components/compras/ComprasFormularios";
 import { SolicitudStatusBadge } from "@/components/compras/PurchaseStatus";
 import { HistorialCompra } from "@/components/compras/HistorialCompra";
 import { PurchaseComparison } from "@/components/compras/PurchaseComparison";
@@ -22,12 +22,17 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
   if (!user) redirect("/login");
   if (!canRead(user.rol, "compras")) redirect("/dashboard");
 
-  const [solicitud, proveedores, comparacion, decision, historial] = await Promise.all([
+  const [solicitud, proveedores, comparacion, decision, historial, documentos] = await Promise.all([
     get<any>(`SELECT * FROM solicitudes_compra WHERE id = ?`, [id]),
     all<any>(`SELECT * FROM proveedores ORDER BY nombre`),
     compararPresupuestos(Number(id)),
     get<any>(`SELECT dc.*, pp.proveedor_id, pv.nombre as proveedor_nombre, u.nombre as decidido_por FROM decisiones_compra dc JOIN presupuestos_proveedor pp ON pp.id = dc.presupuesto_id JOIN proveedores pv ON pv.id = pp.proveedor_id LEFT JOIN users u ON u.id = dc.decidido_por_id WHERE dc.solicitud_id = ? ORDER BY dc.fecha DESC LIMIT 1`, [id]),
     historialSolicitud(Number(id)),
+    // solicitud_compra_id (migración 0026) recién adjunta un documento a una
+    // compra puntual — si esa migración todavía no corrió en esta base, la
+    // columna no existe y este SELECT se degrada a "sin documentos" en vez
+    // de romper toda la página (mismo criterio defensivo de siempre).
+    all<any>(`SELECT d.*, u.nombre as subido_por FROM documentos d LEFT JOIN users u ON u.id = d.subido_por_id WHERE d.solicitud_compra_id = ? ORDER BY d.fecha DESC`, [id]).catch(() => [] as any[]),
   ]);
   if (!solicitud) notFound();
   const puedeAprobar = canApprove(user.rol, "compras");
@@ -142,22 +147,43 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
     </>
   );
 
-  // Documentos (sección 21 del pedido): a diferencia de Información/
-  // Presupuestos/Historial, hoy no existe ningún vínculo real en la base
-  // entre una solicitud de compra puntual y la tabla `documentos` (que ya
-  // existe, pero es una biblioteca general por categoría, sin
-  // `solicitud_compra_id`). En vez de simular una relación que no existe
-  // (por ejemplo, adivinando qué documentos "son de esta compra" por texto),
-  // esta pestaña queda honesta sobre esa limitación y linkea a la biblioteca
-  // general — agregar el vínculo real (migración + formulario de adjuntar)
-  // queda para una fase siguiente, sección 39 del pedido ("no simular
-  // relaciones que no existen todavía").
+  // Rediseño profundo de Compras, Fase 4 (pedido explícito, sección 21):
+  // hallazgo de la Fase 3 (no existía ningún vínculo real entre una compra
+  // puntual y la tabla `documentos`) ya resuelto — migración 0026 agrega
+  // `documentos.solicitud_compra_id`, y `adjuntarFacturaCompraAction`
+  // (compras.ts) permite subir directo desde acá. La descarga reutiliza sin
+  // cambios la misma ruta mediada que ya usa /documentos
+  // (`/api/archivos/documento/[id]`, sesión + permiso + cooperativa
+  // verificados de nuevo en cada descarga).
   const tabDocumentos = (
-    <EmptyState>
-      Todavía no se puede adjuntar una factura directamente a esta solicitud — es la próxima mejora prevista para Compras.
-      Mientras tanto, los comprobantes de compras se suben desde{" "}
-      <Link href="/documentos" className="font-semibold underline underline-offset-2">Documentos</Link>, categoría &quot;Facturas&quot;.
-    </EmptyState>
+    <>
+      {documentos.length === 0 ? (
+        <EmptyState>Todavía no hay facturas ni comprobantes adjuntos a esta solicitud.</EmptyState>
+      ) : (
+        <div className="space-y-2 mb-4">
+          {documentos.map((d: any) => (
+            <Card key={d.id} className="flex items-center justify-between text-sm">
+              <div className="min-w-0">
+                <p className="font-semibold truncate">{d.nombre}</p>
+                <p className="text-xs text-ink/50">
+                  {d.descripcion && `${d.descripcion} · `}
+                  {d.subido_por && `subido por ${d.subido_por} · `}
+                  {dayjs(d.fecha).format("DD/MM/YYYY")}
+                </p>
+              </div>
+              <a href={`/api/archivos/documento/${d.id}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap ml-3">
+                Ver / Descargar
+              </a>
+            </Card>
+          ))}
+        </div>
+      )}
+      {puedeEditar && <AdjuntarFacturaForm solicitudId={solicitud.id} />}
+      <p className="text-xs text-ink-faint mt-3">
+        Esto adjunta el comprobante directamente a esta compra. La biblioteca general de la cooperativa sigue disponible en{" "}
+        <Link href="/documentos" className="underline underline-offset-2">Documentos</Link>.
+      </p>
+    </>
   );
 
   return (
@@ -169,7 +195,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
         tabs={[
           { id: "info", label: "Información", content: tabInformacion },
           { id: "presupuestos", label: `Presupuestos${comparacion.presupuestos.length ? ` (${comparacion.presupuestos.length})` : ""}`, content: tabPresupuestos },
-          { id: "documentos", label: "Documentos", content: tabDocumentos },
+          { id: "documentos", label: `Documentos${documentos.length ? ` (${documentos.length})` : ""}`, content: tabDocumentos },
           { id: "historial", label: "Historial", content: <Card><HistorialCompra registros={historial} /></Card> },
         ]}
       />

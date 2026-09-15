@@ -18,7 +18,7 @@
 // patrón correcto (no hay "lista" de la que abrir un pop-up).
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { crearSolicitudFormAction, agregarPresupuestoFormAction } from "@/lib/actions/compras";
+import { crearSolicitudFormAction, agregarPresupuestoFormAction, adjuntarFacturaCompraFormAction } from "@/lib/actions/compras";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
 import { AddButton, Button, Card, Label, inputClass } from "@/components/ui";
@@ -136,6 +136,59 @@ export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
         </form>
       </Modal>
     </>
+  );
+}
+
+/**
+ * Rediseño profundo de Compras, Fase 4 (pedido explícito, sección 21).
+ * Formulario chico, mismo criterio `<details>` inline que `CargarPresupuestoForm`
+ * de acá abajo (vive dentro de la ficha de una solicitud puntual, no en un
+ * listado — no aplica el patrón Modal de `CrearSolicitudForm`).
+ */
+export function AdjuntarFacturaForm({ solicitudId }: { solicitudId: number }) {
+  const [estado, formAction] = useActionState(adjuntarFacturaCompraFormAction, ESTADO_INICIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) {
+      formRef.current?.reset();
+      if (detailsRef.current) detailsRef.current.open = false;
+      show("Factura adjuntada.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <details ref={detailsRef}>
+      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Adjuntar factura o comprobante</summary>
+      <Card className="mt-3">
+        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input type="hidden" name="solicitud_id" value={solicitudId} />
+          <div>
+            <Label>Nombre</Label>
+            <input name="nombre" required className={inputClass} placeholder="Ej: Factura A-1234" />
+            <FieldError message={estado.fieldErrors?.nombre} />
+          </div>
+          <div>
+            <Label>Archivo</Label>
+            <input type="file" name="archivo" required className="text-xs" />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Descripción (opcional)</Label>
+            <input name="descripcion" className={inputClass} />
+            <FieldError message={estado.fieldErrors?.descripcion} />
+          </div>
+          <div className="sm:col-span-2">
+            <FormError message={estado.error} />
+          </div>
+          <div className="sm:col-span-2">
+            <SubmitButton variant="add" pendingLabel="Adjuntando…">Adjuntar</SubmitButton>
+          </div>
+        </form>
+      </Card>
+    </details>
   );
 }
 

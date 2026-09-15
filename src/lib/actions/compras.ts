@@ -7,6 +7,7 @@ import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
+import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
 import {
   parseForm,
   zId,
@@ -368,4 +369,63 @@ export async function eliminarSolicitudAction(formData: FormData) {
 
 export async function eliminarSolicitudFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => eliminarSolicitudAction(formData));
+}
+
+/**
+ * Rediseño profundo de Compras, Fase 4 (pedido explícito, sección 21:
+ * "facturas/documentos adjuntables desde el detalle de la compra"). Hallazgo
+ * de la Fase 3: no existía ningún vínculo real entre una solicitud de compra
+ * y la biblioteca general de `documentos` — esta acción cierra ese hueco sin
+ * tocar `subirDocumentoAction` (documentos.ts), que sigue sirviendo para la
+ * biblioteca general sin vínculo a ninguna compra puntual.
+ *
+ * Permiso deliberadamente distinto al de `documentos.ts`: subir un documento
+ * a la biblioteca general exige `canEdit(rol, "documentos")` (solo
+ * Administración/Consejo Directivo/admin — ver roles.ts), pero quien de
+ * verdad recibe una factura es la Comisión de Compras, que tiene
+ * `compras: "edit"` pero `documentos: "read"` (no "edit"). Gatear esto por
+ * el permiso de "documentos" le hubiera impedido a la propia Comisión de
+ * Compras adjuntar el comprobante de lo que ella misma compró — por eso acá
+ * se exige el mismo permiso que el resto de las acciones de este archivo
+ * (`canEdit(rol,"compras")` + `verificarPermisoSobreSolicitud`, igual que
+ * agregarPresupuestoAction/marcarPedidaAction), no el de documentos. La
+ * categoría se fuerza a "facturas" (una de las ya existentes en
+ * `documentos.categoria`) para que también aparezca ordenado en /documentos.
+ */
+const adjuntarFacturaCompraSchema = z.object({
+  solicitud_id: zId,
+  nombre: zTexto(200),
+  descripcion: zTextoOpcional(500),
+});
+
+export async function adjuntarFacturaCompraAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
+  const { solicitud_id: solicitudId, ...datos } = parseForm(adjuntarFacturaCompraSchema, formData);
+  await verificarPermisoSobreSolicitud(user, solicitudId);
+
+  const archivoUrl = await saveUploadedFile(formData.get("archivo") as File | null, user.organization_id, "documentos", {
+    tiposPermitidos: TIPOS_DOCUMENTO,
+    maxBytes: 20 * 1024 * 1024,
+  });
+  if (!archivoUrl) throw new Error("Elegí un archivo para adjuntar.");
+
+  // Si la migración 0026 (agrega esta columna) todavía no corrió en esta
+  // base, insert() reintenta sin solicitud_compra_id en vez de romper —
+  // mismo criterio defensivo que el resto de este archivo (ver comision_id
+  // en crearSolicitudAction). El documento igual se guarda, sólo que sin el
+  // vínculo directo hasta que la migración corra.
+  const documentoId = await insert("documentos", {
+    categoria: "facturas",
+    ...datos,
+    archivo_url: archivoUrl,
+    subido_por_id: user.id,
+    solicitud_compra_id: solicitudId,
+  });
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "documentos", entidad_id: documentoId, valor_nuevo: { solicitudId, ...datos } });
+  revalidatePath(`/compras/${solicitudId}`);
+}
+
+export async function adjuntarFacturaCompraFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => adjuntarFacturaCompraAction(formData));
 }
