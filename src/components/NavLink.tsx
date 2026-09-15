@@ -20,11 +20,22 @@ import type { ReactNode } from "react";
  * pero es exactamente el patrón de "tarjeta saturada" que el resto de este
  * rediseño evitó a propósito (ver SummaryCard/StatTile). Se reemplaza acá
  * por el mismo criterio ("color con elegancia"): fondo sutil (un lavado
- * translúcido del color de acento, no un relleno sólido), el color de acento
- * pasa al texto/ícono en vez del fondo, y un indicador lateral (una barrita
- * vertical pegada al borde de la barra de navegación) — tres señales a la
- * vez en vez de solo el color, para que se note con claridad incluso para
- * quien tiene dificultad para distinguir colores.
+ * translúcido del color de acento, no un relleno sólido) + indicador lateral
+ * (una barrita vertical pegada al borde de la barra de navegación) en el
+ * color de acento — dos señales de posición, no solo un cambio de color de
+ * texto.
+ *
+ * El texto/ícono del ítem activo (menú de escritorio) se queda en blanco en
+ * vez de pasar al color de acento: se probó en vivo con la marca real de una
+ * cooperativa (`color_secundario` muy cercano en tono a `color_primario`, el
+ * fondo de la barra lateral) y el texto coloreado quedaba con muy poco
+ * contraste contra su propio fondo — inaceptable para el requisito de
+ * accesibilidad del proyecto (usuarios de 70-80 años). El blanco garantiza
+ * contraste sin importar qué color secundario cargue cada cooperativa desde
+ * Configuración → Marca (multi-tenant: no se puede asumir combinaciones de
+ * color prolijas para todas). El color de acento sigue siendo protagonista
+ * vía el fondo traslúcido y la barra lateral, ambos visibles sin depender
+ * del contraste de un texto.
  */
 export function NavLink({
   href,
@@ -41,7 +52,7 @@ export function NavLink({
 }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(`${href}/`);
-  const fondoSutil = `color-mix(in srgb, ${accentColor} 20%, transparent)`;
+  const fondoSutil = `color-mix(in srgb, ${accentColor} 32%, transparent)`;
 
   if (variant === "bottom") {
     return (
@@ -78,7 +89,7 @@ export function NavLink({
       className="relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors"
       style={
         isActive
-          ? { backgroundColor: fondoSutil, color: accentColor, fontWeight: 600 }
+          ? { backgroundColor: fondoSutil, color: "#fff", fontWeight: 600 }
           : { color: "rgba(255,255,255,.85)" }
       }
       onMouseEnter={(e) => {
