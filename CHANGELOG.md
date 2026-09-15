@@ -533,3 +533,24 @@ Desplegado (commit `7c30a08`).
 **Con esto se cierra el plan de 6 fases propuesto para la primera etapa del rediseño de Compras.** Quedan explícitamente para una fase futura, si el usuario lo pide: adjuntar facturas desde un flujo más automático (hoy ya funciona, manual), automatización real de "recurrente" (hoy sólo la bandera), y la auditoría visual/espacio del resto del sistema (Dashboard, Finanzas, Proveedores, Contactos, Usuarios, Núcleos, Comisiones, etc. — sección 27 en adelante del pedido original), que el propio pedido del usuario ubica "después de terminar Compras".
 
 Desplegado (commit `7f7823f`).
+
+## Auditoría de espacio del resto del sistema (15/09 en adelante)
+
+**Pedido del usuario**: continuación explícita del pedido original (secciones 27-33, 40): "después de terminar Compras, hacé una auditoría visual del resto del sistema" buscando tarjetas gigantes, espacios vacíos, márgenes exagerados, padding excesivo, alturas artificiales, formularios largos, información repetida y secciones innecesarias — con la misma regla de fondo que ya guio Compras: "cada componente debe ocupar aproximadamente el espacio que necesita, nunca una caja de 500px para 3 datos", sin rediseñar lo que ya funciona bien (Finanzas/Gastos, explícitamente exceptuados salvo espaciado exagerado puntual).
+
+**Investigación previa**: se relevaron 14 pantallas (Dashboard, Finanzas, Gastos, Proveedores y su detalle, Contactos, Usuarios/perfil, Núcleos y su detalle, Comisiones, Tareas y su detalle, Calendario, Documentos, Mails, Alertas, Configuración) buscando hallazgos concretos (archivo:línea, clase exacta, problema puntual) en vez de impresiones generales. El hallazgo que más se repitió, en 4 pantallas distintas (Contactos, Calendario, Tareas, Alertas): una `<Card>` completa (borde + sombra + padding grande) por cada elemento de una lista, cuando el elemento sólo tiene un renglón o dos de texto — el mismo patrón que ya se había corregido para "Compras recientes" y "Por comisión" en fases anteriores del proyecto, pero nunca se había aplicado al resto del sistema. Se decidió resolver primero este hallazgo repetido (el de mayor impacto y menor riesgo) como Fase 1 de esta auditoría, dejando el resto de los hallazgos (Finanzas, Gastos, Proveedores/detalle, Usuarios/perfil, Núcleos/detalle, Comisiones, Tareas/detalle, Configuración) para fases siguientes, más chicas y puntuales cada una.
+
+### Fase 1 — Listas compactas en Contactos, Calendario, Tareas y Alertas (15/09)
+
+**Qué se hizo**: en las 4 pantallas con el hallazgo repetido de arriba, se reemplazó "una `<Card>` por fila" por una única `<Card>` conteniendo filas separadas por línea divisoria (`divide-y divide-ink/5`) — mismo patrón ya usado y probado en `nucleos/[id]` (asistencias) y `mails` (historial), no un componente nuevo.
+
+- **`ContactosLista.tsx`**: la lista de contactos (padrón + integrantes + proveedores) pasa de una Card por contacto a una sola Card con filas — el ahorro de espacio es mayor acá que en cualquier otra pantalla porque esta lista es, por diseño, la más larga del sistema (todo el padrón junto).
+- **`calendario/page.tsx`**: los 3 grupos ("Esta semana"/"Este mes"/"Más adelante") pasan de una Card por evento a una Card por grupo con filas; de paso, el encabezado de cada grupo pasa de un `<h3>` a mano a `SectionTitle` (consistencia con el resto del sistema).
+- **`trabajo/page.tsx`**: "Jornadas anteriores" pasa de una Card por jornada a una sola Card con filas — mismo criterio que ya usaba, al lado, "Horas acumuladas por núcleo" (una tabla dentro de una Card).
+- **`alertas/page.tsx`**: "Resueltas recientemente" pasa de una Card por alerta a una sola Card con filas. Las alertas abiertas (arriba, con más contenido real por fila: severidad, módulo, descripción, botón de acción) NO se tocaron — tienen contenido suficiente para justificar una Card completa cada una.
+
+**Archivos afectados**: `src/components/ContactosLista.tsx`, `src/app/(app)/calendario/page.tsx`, `src/app/(app)/trabajo/page.tsx`, `src/app/(app)/alertas/page.tsx`. Ningún dato, permiso ni acción de servidor se tocó — es una fase puramente visual. `npx tsc --noEmit` sin errores; `npx eslint` sin errores nuevos (mismo patrón preexistente de `no-explicit-any`); `npx next build` compila y pasa TypeScript (mismo límite de siempre: sin `DATABASE_URL` en este entorno).
+
+**Pendiente**: el resto de los hallazgos de la investigación previa — Finanzas (una nota al pie en Card completa; "Próximos pagos" en Cards en vez de tabla como sus vecinos), Gastos ("Por comisión" en Cards completas en vez de StatTile), Proveedores/detalle ("Total comprado" en una Card aparte para un solo dato), Usuarios/perfil (varias Cards apiladas, candidato a pestañas), Núcleos/detalle y Tareas/detalle (estadísticas armadas a mano en vez de `StatTile`), Configuración (6 secciones independientes en una sola columna larga, candidato a pestañas).
+
+Desplegado (commit `bc83f1c`).
