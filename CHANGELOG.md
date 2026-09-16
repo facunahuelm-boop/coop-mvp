@@ -554,3 +554,17 @@ Desplegado (commit `7f7823f`).
 **Pendiente**: el resto de los hallazgos de la investigación previa — Finanzas (una nota al pie en Card completa; "Próximos pagos" en Cards en vez de tabla como sus vecinos), Gastos ("Por comisión" en Cards completas en vez de StatTile), Proveedores/detalle ("Total comprado" en una Card aparte para un solo dato), Usuarios/perfil (varias Cards apiladas, candidato a pestañas), Núcleos/detalle y Tareas/detalle (estadísticas armadas a mano en vez de `StatTile`), Configuración (6 secciones independientes en una sola columna larga, candidato a pestañas).
 
 Desplegado (commit `bc83f1c`).
+
+### Fase 2 — Finanzas, Gastos y Proveedores/detalle (16/09)
+
+**Qué se hizo**: se resolvieron los 3 hallazgos puntuales de Finanzas/Gastos/Proveedores que quedaron pendientes de la investigación previa, cada uno igualando el tratamiento que ya usa la pantalla vecina en vez de inventar un patrón nuevo.
+
+- **`finanzas/page.tsx`**: la aclaración "saldo actual menos comprometido..." pasa de una `<Card>` completa (borde+sombra+padding) a un párrafo de texto simple — es una sola idea de una línea, no necesitaba su propia caja. "Próximos pagos / compromisos" pasa de una Card por compromiso a una tabla, igual que "Presupuesto vs. gasto real", "Cuentas por cobrar" y "Movimientos" en la misma pantalla — antes era el único bloque de esta página que usaba un patrón de lista distinto al resto.
+- **`gastos/page.tsx`**: "Por comisión" pasa de una Card completa por comisión (2-3 líneas cortas) a `StatTile`, el mismo componente que ya usa "Resumen" arriba en la misma pantalla. El resaltado de "filtro activo" y el hover, que antes dependían del borde de la Card, pasan a un anillo (`ring-2`) alrededor del StatTile — mismo resultado visual, sin depender de un borde que StatTile no tiene.
+- **`proveedores/[id]/page.tsx`**: "Total comprado a este proveedor" deja de ser una Card aparte para un solo dato y pasa a ser un `StatTile` dentro de la ficha del proveedor (la misma Card que ya tiene RUT, tipo, teléfono, etc.). El encabezado "Historial de compras" pasa de un `<h3>` a mano a `SectionTitle`, igual que el resto del sistema.
+
+**Archivos afectados**: `src/app/(app)/finanzas/page.tsx`, `src/app/(app)/gastos/page.tsx`, `src/app/(app)/proveedores/[id]/page.tsx`. Ningún dato, permiso ni acción de servidor se tocó — fase puramente visual. `npx tsc --noEmit` sin errores; `npx eslint` sin errores nuevos (mismo patrón preexistente de `no-explicit-any`, mismos usos ya existentes de `all<any>`/`get<any>` en las queries, ninguno agregado); `npx next build` compila y pasa TypeScript (mismo límite de siempre: sin `DATABASE_URL` en este entorno).
+
+**Pendiente**: Usuarios/perfil (varias Cards apiladas, candidato a pestañas), Núcleos/detalle y Tareas/detalle (estadísticas armadas a mano en vez de `StatTile`), Configuración (6 secciones independientes en una sola columna larga, candidato a pestañas).
+
+Desplegado (commit `7a59fe6`).
