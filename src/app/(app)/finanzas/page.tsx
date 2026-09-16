@@ -84,9 +84,14 @@ export default async function FinanzasPage({
             <StatTile label="Disponible prudencial" value={money(fin.disponiblePrudencial)} color={fin.disponiblePrudencial < 0 ? "rojo" : fin.disponiblePrudencial < fin.gastosProyectados ? "amarillo" : "verde"} />
           </div>
 
-          <Card className="mb-6 text-xs text-ink/60">
+          {/* Auditoría de espacio (Fase 2, extendida al resto del sistema):
+              antes esta aclaración de una sola idea vivía en su propia Card
+              completa (borde + sombra + padding) al mismo nivel visual que
+              las secciones reales de abajo — se baja a texto simple, mismo
+              tratamiento que cualquier aclaración corta del sistema. */}
+          <p className="text-xs text-ink/50 mb-6">
             Saldo actual ({money(fin.saldo)}) menos pagos y compromisos ya asumidos ({money(fin.comprometido)}) = disponible prudencial. Esto no es lo mismo que el saldo bancario: es lo que queda después de descontar lo comprometido.
-          </Card>
+          </p>
 
           <SectionTitle>Gasto por categoría</SectionTitle>
           <Card className="mb-6">
@@ -125,15 +130,28 @@ export default async function FinanzasPage({
           </Card>
 
           <SectionTitle>Próximos pagos / compromisos</SectionTitle>
-          <div className="space-y-2 mb-4">
-            {compromisos.map((c) => (
-              <Card key={c.id} className="flex items-center justify-between text-sm">
-                <div><p className="font-medium">{c.descripcion}</p><p className="text-xs text-ink/50">{c.origen} · {dayjs(c.fecha_estimada).format("DD/MM/YYYY")}</p></div>
-                <p className="font-bold">{money(c.monto)}</p>
-              </Card>
-            ))}
-            {compromisos.length === 0 && <EmptyState>Sin compromisos futuros cargados.</EmptyState>}
-          </div>
+          {/* Auditoría de espacio (Fase 2): antes cada compromiso era una
+              Card completa — se reemplaza por una tabla, mismo tratamiento
+              que "Presupuesto vs. gasto real" y "Movimientos" acá al lado,
+              en vez de un patrón de lista distinto para esta sola sección. */}
+          <Card className="mb-4">
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs text-ink/50 border-b border-ink/10"><th className="py-2">Descripción</th><th>Origen</th><th>Fecha</th><th className="text-right">Monto</th></tr></thead>
+              <tbody>
+                {compromisos.map((c) => (
+                  <tr key={c.id} className="border-b border-ink/5 last:border-0">
+                    <td className="py-2 font-medium">{c.descripcion}</td>
+                    <td className="text-ink/60">{c.origen}</td>
+                    <td className="text-ink/60">{dayjs(c.fecha_estimada).format("DD/MM/YYYY")}</td>
+                    <td className="text-right font-bold">{money(c.monto)}</td>
+                  </tr>
+                ))}
+                {compromisos.length === 0 && (
+                  <tr><td colSpan={4}><EmptyState>Sin compromisos futuros cargados.</EmptyState></td></tr>
+                )}
+              </tbody>
+            </table>
+          </Card>
           {puedeEditar && <AgregarCompromisoForm />}
 
           <SectionTitle action={cobrar.filas.length > 0 ? <span className="text-sm font-bold text-[var(--color-brand-900)]">{money(cobrar.totalACobrar)}</span> : undefined}>

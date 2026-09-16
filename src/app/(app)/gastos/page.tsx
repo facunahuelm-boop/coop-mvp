@@ -173,14 +173,24 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
       {comisionesTotales.length > 0 && (
         <div className="mb-5">
           <SectionTitle>Por comisión</SectionTitle>
+          {/* Auditoría de espacio (extendida al resto del sistema): antes
+              cada comisión era una <Card> completa (borde + sombra + padding
+              grande) para 2-3 líneas cortas — mismo contenido que un
+              StatTile ya resuelve en el resto del sistema (Resumen, Gastos
+              por comisión de arriba). El resaltado de filtro activo y el
+              hover pasan a un anillo/opacidad sobre el StatTile en vez de
+              depender del borde de la Card. */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {comisionesTotales.map((c) => (
-              <Link key={c.id} href={linkComision(c.id)}>
-                <Card className={`hover:shadow-md ${f.comision_id === String(c.id) ? "!border-[var(--color-brand-800)]" : ""}`}>
-                  <p className="text-xs text-ink-muted truncate">{c.nombre}</p>
-                  <p className="text-lg font-bold text-ink mt-0.5">{money(c.total)}</p>
-                  {Number(c.pendiente) > 0 && <p className="text-xs text-[var(--color-amarillo)] mt-0.5">{money(c.pendiente)} pendiente</p>}
-                </Card>
+              <Link key={c.id} href={linkComision(c.id)} className="block hover:opacity-80 transition-opacity">
+                <div className={f.comision_id === String(c.id) ? "ring-2 ring-[var(--color-brand-800)] rounded-xl" : ""}>
+                  <StatTile
+                    label={c.nombre}
+                    value={money(c.total)}
+                    hint={Number(c.pendiente) > 0 ? `${money(c.pendiente)} pendiente` : undefined}
+                    color={Number(c.pendiente) > 0 ? "amarillo" : undefined}
+                  />
+                </div>
               </Link>
             ))}
           </div>

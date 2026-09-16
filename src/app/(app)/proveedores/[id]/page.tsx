@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { get } from "@/lib/db";
 import { historialProveedor } from "@/lib/logic";
-import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
+import { Card, PageHeader, EmptyState, Badge, StatTile, SectionTitle } from "@/components/ui";
 import dayjs from "dayjs";
 import { eliminarProveedorFormAction } from "@/lib/actions/proveedores";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
@@ -48,6 +48,13 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
       </Link>
 
       <Card className="mt-4 mb-6">
+        {/* Auditoría de espacio (extendida al resto del sistema): antes
+            "Total comprado" vivía en su propia Card completa para un solo
+            dato — se integra como StatTile dentro de la misma ficha, en vez
+            de una caja aparte. */}
+        <div className="mb-4">
+          <StatTile label="Total comprado a este proveedor" value={totalComprado > 0 ? `$${totalComprado.toLocaleString("es-UY")}` : "—"} />
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div><span className="text-ink/50">RUT:</span> {proveedor.rut || "—"}</div>
           <div><span className="text-ink/50">Tipo:</span> {TIPO_PROVEEDOR_LABEL[proveedor.tipo as typeof TIPO_PROVEEDOR[number]] || "—"}</div>
@@ -81,14 +88,7 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
         )}
       </Card>
 
-      <Card className="mb-4 flex items-center justify-between">
-        <span className="text-sm text-ink/60">Total comprado a este proveedor</span>
-        <span className="text-2xl font-bold text-[var(--color-brand-900)]">
-          {totalComprado > 0 ? `$${totalComprado.toLocaleString("es-UY")}` : "—"}
-        </span>
-      </Card>
-
-      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Historial de compras</h3>
+      <SectionTitle>Historial de compras</SectionTitle>
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
