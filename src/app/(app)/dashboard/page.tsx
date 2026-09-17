@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { all, get } from "@/lib/db";
-import { tareasObraConSemaforo, resumenFinanciero, cuentasPorCobrar, recalcularAlertas } from "@/lib/logic";
+import { tareasObraConSemaforo, resumenFinanciero, cuentasPorCobrar, recalcularAlertas, calcularCuotasSocio, type MovimientoCuentaSocio } from "@/lib/logic";
 import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
@@ -298,15 +298,38 @@ export default async function DashboardPage() {
   // Estado de cuenta personal: solo para quien NO ve el resumen financiero
   // completo de la cooperativa (socio y similares) y tiene ficha de socio
   // vinculada a su cuenta — "¿cuánto debo?" sin llamar a tesorería.
+  // Rediseño profundo de Finanzas (16/09): además del saldo simple que ya
+  // había, se suma cuotas pendientes/vencidas (mismo cálculo FIFO que usa
+  // la ficha del socio y la pestaña "Cuotas y convenios" de Finanzas — una
+  // sola fuente de verdad) y si tiene un convenio activo, para que "cada
+  // socio pueda ver su cuota" también desde el Inicio, no solo entrando a
+  // Finanzas o a su propia ficha.
   let miSaldo: number | null = null;
+  let miSocioId: number | null = null;
+  let misCuotasPendientes = 0;
+  let misCuotasVencidas = 0;
+  let miProximoVencimiento: string | null = null;
+  let miConvenio: { id: number; motivo: string; monto_cuota: number } | null = null;
   if (!verFinanzasDetalle) {
     const misocio = await get<{ id: number }>(`SELECT id FROM socios WHERE user_id = ?`, [user.id]);
     if (misocio) {
-      const row = await get<{ s: number }>(
-        `SELECT COALESCE(SUM(CASE WHEN tipo='cargo' THEN monto ELSE -monto END),0) as s FROM movimientos_cuenta_socio WHERE socio_id = ?`,
+      miSocioId = misocio.id;
+      const movimientos = await all<MovimientoCuentaSocio>(
+        `SELECT id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id FROM movimientos_cuenta_socio WHERE socio_id = ?`,
         [misocio.id]
       );
-      miSaldo = row?.s ?? 0;
+      const { cuotas, saldo } = calcularCuotasSocio(movimientos);
+      miSaldo = saldo;
+      misCuotasPendientes = cuotas.filter((c) => c.estado === "pendiente" || c.estado === "parcial").length;
+      misCuotasVencidas = cuotas.filter((c) => c.estado === "vencida").length;
+      miProximoVencimiento = cuotas
+        .filter((c) => (c.estado === "pendiente" || c.estado === "parcial") && c.fechaVencimiento)
+        .map((c) => c.fechaVencimiento as string)
+        .sort()[0] || null;
+      miConvenio = (await get<{ id: number; motivo: string; monto_cuota: number }>(
+        `SELECT id, motivo, monto_cuota FROM convenios_pago WHERE socio_id = ? AND estado = 'activo' ORDER BY creado_en DESC LIMIT 1`,
+        [misocio.id]
+      ).catch(() => null)) ?? null;
     }
   }
   const pendienteCobrar = verFinanzasDetalle ? await cuentasPorCobrar() : null;
@@ -632,6 +655,23 @@ export default async function DashboardPage() {
               ) : (
                 <p className="text-sm text-[var(--color-verde)]">Estás al día. No tenés pagos pendientes.</p>
               )}
+              {(misCuotasPendientes > 0 || misCuotasVencidas > 0) && (
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <StatTile label="Cuotas pendientes" value={String(misCuotasPendientes)} color={misCuotasPendientes > 0 ? "amarillo" : undefined} />
+                  <StatTile label="Cuotas vencidas" value={String(misCuotasVencidas)} color={misCuotasVencidas > 0 ? "rojo" : undefined} />
+                </div>
+              )}
+              {miProximoVencimiento && (
+                <p className="text-xs text-ink/50 mt-2">Próximo vencimiento: {dayjs(miProximoVencimiento).format("DD/MM/YYYY")}</p>
+              )}
+              {miConvenio && (
+                <p className="text-sm text-ink mt-2">
+                  Tenés un convenio de pago activo (<span className="font-medium">{miConvenio.motivo}</span>, cuota {money(miConvenio.monto_cuota)}).
+                </p>
+              )}
+              <div className="mt-4">
+                <Button href={`/socios/${miSocioId}`} variant="ghost" className="!px-2 !py-1 text-xs">Ver mi ficha completa →</Button>
+              </div>
             </DashboardCardModal>
           )}
         </DashboardGrid>

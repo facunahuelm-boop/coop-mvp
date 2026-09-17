@@ -586,4 +586,16 @@ Desplegado (commit `7a59fe6`).
 
 **Verificación**: `npx tsc --noEmit` sin errores. `npx eslint` sobre los 9 archivos tocados/nuevos: se corrigieron dos problemas reales encontrados (un import de `dayjs` que quedó sin usar en `cuentaSocios.ts`, y un `setState` dentro de un `useEffect` en el formulario de registrar movimiento al que le faltaba el mismo `eslint-disable` que ya llevan los demás formularios de esta fase); el resto son usos de `any` para filas de consulta SQL, mismo patrón preexistente en todo `logic.ts` y en el resto del proyecto, sin agregar ninguno nuevo fuera de ese patrón ya establecido. `npx next build`: falla en este entorno por falta de `DATABASE_URL`/`AUTH_SECRET` (no configurados en este sandbox) — se repitió el build inyectando valores ficticios de esas dos variables únicamente para confirmar que no hay ningún otro error: compila limpio, TypeScript pasa y las 44 rutas (incluida `/finanzas`, `/socios/[id]` y la nueva `/api/archivos/cuota/[id]`) generan sin fallas.
 
-**Pendiente**: correr las migraciones 0025/0026/0027 en producción; sumar a la tarjeta "Mi cuenta" del dashboard (la que ya usan los socios para ver su saldo) las cuotas pendientes/vencidas y el estado del convenio, con acceso directo a su ficha — mismo criterio de "cada usuario pueda ver su cuota" pero desde el Inicio, no solo desde Finanzas o desde su ficha.
+**Pendiente**: correr las migraciones 0025/0026/0027 en producción (requiere que alguien con sesión de administrador entre a `/api/admin/migraciones` y confirme — no es algo que se pueda hacer sin credenciales reales).
+
+Desplegado (commit `a0660b5`).
+
+### Tarjeta "Mi cuenta" del dashboard (16/09)
+
+**Qué se hizo**: siguiendo el mismo pedido ("cada usuario pueda ver sus ingresos y su cuota y cómo van, si tienen algún convenio"), se sumó a la tarjeta "Mi cuenta" que ya veían los socios en el Inicio (hasta ahora solo mostraba el saldo total) el mismo detalle que ya tiene su ficha y la pestaña "Cuotas y convenios" de Finanzas: cuotas pendientes, cuotas vencidas, próximo vencimiento y, si tiene uno activo, el convenio de pago en curso. Se agregó también un acceso directo a su ficha completa (antes el botón llevaba a Finanzas, una pantalla a la que un socio ni siquiera tiene acceso de detalle).
+
+- **`src/app/(app)/dashboard/page.tsx`**: el cálculo del saldo personal pasa a usar `calcularCuotasSocio()` (la misma función de `logic.ts` que ya usan `/socios/[id]` y Finanzas) en vez de una suma manual aparte — una sola fuente de verdad para "cuánto debo", no tres cálculos iguales repetidos en tres archivos. El pop-up de la tarjeta suma dos `StatTile` (pendientes/vencidas) cuando corresponde, la fecha del próximo vencimiento, y una línea con el convenio activo si existe.
+
+**Verificación**: `npx tsc --noEmit` sin errores (se corrigió un error real de tipos: `get(...).catch(() => null)` necesitaba un `?? null` explícito para no quedar tipado con `undefined`). `npx eslint`: sin errores nuevos, mismo patrón preexistente de `any` en las consultas SQL de esta pantalla, ninguno agregado por este cambio (el código nuevo usa el tipo `MovimientoCuentaSocio` ya existente). `npx next build` (con las mismas variables ficticias que el resto de esta fase, por la falta de `DATABASE_URL`/`AUTH_SECRET` en este sandbox): compila limpio, las 45 rutas generan sin errores.
+
+Desplegado (commit pendiente de confirmar en el siguiente mensaje).
