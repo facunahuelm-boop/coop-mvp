@@ -3,23 +3,6 @@ import { all, get, upsertAlerta, insert } from "./db";
 import { enviarEmailAlerta } from "./email";
 import { canRead, type Role } from "./roles";
 
-// Auditoría funcional Finanzas↔Socios (17/09): la app corre en un servidor
-// cuya hora local puede no ser la de Uruguay (por ejemplo, Vercel corre en
-// UTC). `dayjs()` sin huso horario usa la hora del PROCESO, no la de
-// Montevideo — durante las últimas horas de cada día en Uruguay (cuando en
-// UTC ya es "mañana"), una cuota que vence "hoy" quedaba marcada "vencida"
-// unas horas antes de tiempo. `toLocaleDateString` con `timeZone` explícito
-// no depende de ningún paquete adicional (a diferencia del plugin de husos
-// horarios de dayjs) y da la fecha real del día en Uruguay sin importar
-// dónde corra el servidor. Se usa para toda fecha "hoy" que decide el
-// estado de una cuota o de un convenio (ver calcularCuotasSocio y
-// actions/convenios.ts) — no se tocó ningún otro uso de `dayjs()` en el
-// resto del sistema, que queda fuera del alcance de esta auditoría.
-export function hoyEnUruguay(): string {
-  // "en-CA" formatea como YYYY-MM-DD directamente, sin pasos intermedios.
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Montevideo" }).format(new Date());
-}
-
 // Crea o actualiza una alerta y, si es realmente nueva (no existía ya abierta),
 // dispara el email a la casilla configurada en Configuración (si hay una cargada).
 async function crearAlerta(params: Parameters<typeof upsertAlerta>[0]) {
@@ -144,43 +127,19 @@ export async function resumenFinanciero() {
  * ordenado por deuda de mayor a menor.
  */
 export async function cuentasPorCobrar() {
-  // Auditoría funcional Finanzas↔Socios (17/09): esta función calculaba el
-  // saldo de cada socio con su propia fórmula SQL (cargos menos pagos),
-  // separada de calcularCuotasSocio — la MISMA cuenta que ya arma la ficha
-  // individual, "Cuotas y convenios" de Finanzas y "Mi cuenta". Hoy dan el
-  // mismo número, pero son dos implementaciones que hay que mantener
-  // sincronizadas a mano; si mañana calcularCuotasSocio cambia (un nuevo
-  // caso de convenio, por ejemplo), esta tarjeta del dashboard quedaría
-  // mostrando un total distinto al resto del sistema sin que nadie lo note.
-  // Se unifica en una sola fuente de verdad, mismo patrón que ya usa
-  // resumenCuotasSocios() acá abajo.
-  const [socios, movimientos] = await Promise.all([
-    all<{ id: number; nombre: string; vivienda_numero: string | null }>(
-      `SELECT s.id, s.nombre, v.numero as vivienda_numero
-       FROM socios s
-       LEFT JOIN viviendas v ON v.id = s.vivienda_id
-       WHERE s.estado != 'baja'`
-    ),
-    all<MovimientoCuentaSocio & { socio_id: number }>(
-      `SELECT id, socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id
-       FROM movimientos_cuenta_socio ORDER BY socio_id, fecha ASC, id ASC`
-    ),
-  ]);
-
-  const movimientosPorSocio = new Map<number, (MovimientoCuentaSocio & { socio_id: number })[]>();
-  for (const m of movimientos) {
-    if (!movimientosPorSocio.has(m.socio_id)) movimientosPorSocio.set(m.socio_id, []);
-    movimientosPorSocio.get(m.socio_id)!.push(m);
-  }
-
-  const filas = socios
-    .map((s) => {
-      const { saldo } = calcularCuotasSocio(movimientosPorSocio.get(s.id) || []);
-      return { socio_id: s.id, nombre: s.nombre, vivienda_numero: s.vivienda_numero, saldo };
-    })
-    .filter((f) => f.saldo > 0)
-    .sort((a, b) => b.saldo - a.saldo);
-  const totalACobrar = Math.round(filas.reduce((acc, f) => acc + f.saldo, 0) * 100) / 100;
+  const filas = await all<{ socio_id: number; nombre: string; vivienda_numero: string | null; saldo: number }>(
+    `SELECT s.id as socio_id, s.nombre,
+       v.numero as vivienda_numero,
+       COALESCE(SUM(CASE WHEN m.tipo = 'cargo' THEN m.monto ELSE -m.monto END), 0) as saldo
+     FROM socios s
+     LEFT JOIN viviendas v ON v.id = s.vivienda_id
+     LEFT JOIN movimientos_cuenta_socio m ON m.socio_id = s.id
+     WHERE s.estado != 'baja'
+     GROUP BY s.id, s.nombre, v.numero
+     HAVING COALESCE(SUM(CASE WHEN m.tipo = 'cargo' THEN m.monto ELSE -m.monto END), 0) > 0
+     ORDER BY saldo DESC`
+  );
+  const totalACobrar = filas.reduce((acc, f) => acc + Number(f.saldo), 0);
   return { filas, totalACobrar };
 }
 
@@ -221,7 +180,7 @@ export type CuotaCalculada = {
 };
 
 export function calcularCuotasSocio(movimientos: MovimientoCuentaSocio[]): { cuotas: CuotaCalculada[]; saldo: number } {
-  const hoy = hoyEnUruguay();
+  const hoy = dayjs().format("YYYY-MM-DD");
   const cargos = movimientos
     .filter((m) => m.tipo === "cargo")
     .slice()

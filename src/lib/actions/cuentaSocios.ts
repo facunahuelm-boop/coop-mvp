@@ -193,20 +193,10 @@ const generarCuotaMensualSchema = z.object({
 /**
  * Generar la cuota del mes para todos los socios activos de una sola vez
  * (pedido explícito: "una tabla con todas las cuotas de todos los núcleos").
- *
- * Auditoría funcional Finanzas↔Socios (17/09) — la idempotencia original
- * comparaba el `concepto` como texto exacto, un campo que la persona
- * escribe a mano cada vez (el placeholder del formulario ni siquiera
- * sugiere un formato fijo: "Cuota setiembre 2026"). Eso tenía dos fallas
- * reales: (a) tipear el concepto un poco distinto al reintentar (may/mayo,
- * mayúscula/minúscula) generaba la cuota DOS VECES para todos los socios, y
- * (b) reusar el mismo texto en un mes distinto hacía que no se generara
- * NINGUNA cuota nueva, sin ningún aviso — el botón decía "Cuotas
- * generadas." igual, aunque `generadas` fuera 0. Se cambia la idempotencia
- * a lo que realmente identifica "la cuota de este mes" sin depender de lo
- * que la persona haya tipeado: un cargo mensual (no de convenio) cuyo
- * vencimiento cae en el mes elegido. Y si no se generó ninguna cuota nueva,
- * se avisa con un mensaje claro en vez de un "éxito" silencioso.
+ * Idempotente por diseño (mismo criterio ya usado para evitar proveedores
+ * duplicados en Compras Fase 6): si un socio ya tiene un cargo con ese
+ * concepto exacto, se lo saltea en vez de duplicarlo — así se puede tocar el
+ * botón de nuevo sin miedo a cobrar la cuota dos veces.
  */
 export async function generarCuotaMensualAction(formData: FormData) {
   const user = await requireUser();
@@ -221,10 +211,8 @@ export async function generarCuotaMensualAction(formData: FormData) {
 
   for (const s of socios) {
     const yaExiste = await get<{ id: number }>(
-      `SELECT id FROM movimientos_cuenta_socio
-       WHERE socio_id = ? AND tipo = 'cargo' AND convenio_id IS NULL
-         AND to_char(fecha_vencimiento, 'YYYY-MM') = ?`,
-      [s.id, mes]
+      `SELECT id FROM movimientos_cuenta_socio WHERE socio_id = ? AND tipo = 'cargo' AND concepto = ?`,
+      [s.id, concepto]
     );
     if (yaExiste) continue;
     await insert("movimientos_cuenta_socio", {
@@ -246,13 +234,6 @@ export async function generarCuotaMensualAction(formData: FormData) {
     entidad_id: 0,
     valor_nuevo: { concepto, monto, mes, generadas, totalSocios: socios.length },
   });
-
-  if (generadas === 0) {
-    throw new Error(
-      `Ya existía una cuota de este mes (${mes}) para todos los socios activos — no se generó ninguna nueva.`
-    );
-  }
-
   revalidatePath("/finanzas");
   revalidatePath("/socios");
   revalidatePath("/dashboard");
