@@ -1,44 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Search, Bell, ChevronDown, Settings, LogOut, UserRound } from "lucide-react";
+import { Search, Bell } from "lucide-react";
 import { useCommandPalette } from "./ui-client";
-import { Avatar } from "./EntidadLink";
 import dayjs from "dayjs";
 
 type AlertaItem = { id: number; titulo: string; severidad: string; fecha: string };
 
 /**
- * Rediseño "Color secundario + Top Bar" (puntos 7-18): única pieza
- * interactiva de la nueva Top Bar — buscador (abre el CommandPalette ya
- * existente), campana de notificaciones (popover chico, no una lista
- * gigante en la barra) y menú de perfil (avatar → "Mi perfil" /
- * "Configuración" / "Cerrar sesión"). Todo lo que recibe de props es dato ya
- * resuelto por el Server Component padre (ver (app)/layout.tsx) — la única
- * función que cruza el límite Server→Client es `logoutAction`, y es una
- * Server Action (permitido; ver la nota en DashboardCardClient.tsx sobre
- * por qué nunca puede ser una función común).
+ * Rediseño "Color secundario + Top Bar" (puntos 7-18), actualizado por el
+ * rediseño "Mi cuenta" (17/09): única pieza interactiva de la nueva Top Bar
+ * — buscador (abre el CommandPalette ya existente), campana de
+ * notificaciones (popover chico, no una lista gigante en la barra) y "Mi
+ * cuenta" (ver MiCuenta.tsx — antes era un menú desplegable con "Mi perfil"/
+ * "Configuración"/"Cerrar sesión" que llevaba a otra página; ahora es el
+ * mismo botón de avatar pero abre el modal "Mi cuenta", que incluye esas
+ * mismas dos acciones en su pie). Todo lo que recibe de props es dato o JSX
+ * ya resuelto por el Server Component padre (ver (app)/layout.tsx) — nunca
+ * cruza el límite Server→Client una función común, solo Server Actions
+ * (permitido; ver la nota en DashboardCardClient.tsx).
  */
 export function TopBarClient({
-  nombre,
-  rolLabel,
-  avatarUrl,
-  perfilHref,
   alertas,
-  logoutAction,
+  miCuenta,
 }: {
-  nombre: string;
-  rolLabel: string;
-  avatarUrl: string | null;
-  perfilHref: string;
   alertas: { count: number; hayCriticas: boolean; items: AlertaItem[] };
-  logoutAction: () => void;
+  miCuenta: ReactNode;
 }) {
   const { abrir: abrirBuscador } = useCommandPalette();
   const [notifsAbiertas, setNotifsAbiertas] = useState(false);
-  const [menuAbierto, setMenuAbierto] = useState(false);
-  const primerNombre = nombre.trim().split(" ")[0] || nombre;
 
   return (
     <div className="flex items-center gap-2 sm:gap-3">
@@ -127,59 +118,7 @@ export function TopBarClient({
         )}
       </div>
 
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setMenuAbierto((v) => !v)}
-          className="flex items-center gap-2 rounded-full pl-1 pr-2 py-1 hover:bg-surface-sunken transition-colors"
-          aria-label="Menú de perfil"
-        >
-          <Avatar url={avatarUrl} nombre={nombre} size={32} />
-          <span className="hidden lg:block text-left leading-tight">
-            <span className="block text-xs font-semibold text-ink truncate max-w-[110px]">{primerNombre}</span>
-          </span>
-          <ChevronDown size={14} className="hidden lg:block text-ink-faint" aria-hidden />
-        </button>
-
-        {menuAbierto && (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => setMenuAbierto(false)} />
-            <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-border bg-surface shadow-[var(--shadow-lg)] z-40 overflow-hidden">
-              <div className="px-4 py-3 border-b border-border">
-                <p className="text-sm font-bold text-ink truncate">{nombre}</p>
-                <p className="text-xs text-ink-faint truncate">{rolLabel}</p>
-              </div>
-              <nav className="py-1.5">
-                <Link
-                  href={perfilHref}
-                  onClick={() => setMenuAbierto(false)}
-                  className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-sunken"
-                >
-                  <UserRound size={16} className="text-ink-faint" aria-hidden />
-                  Mi perfil
-                </Link>
-                <Link
-                  href="/configuracion"
-                  onClick={() => setMenuAbierto(false)}
-                  className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink hover:bg-surface-sunken"
-                >
-                  <Settings size={16} className="text-ink-faint" aria-hidden />
-                  Configuración
-                </Link>
-              </nav>
-              <form action={logoutAction} className="border-t border-border py-1.5">
-                <button
-                  type="submit"
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-[var(--color-rojo)] hover:bg-[var(--color-rojo-bg)]"
-                >
-                  <LogOut size={16} aria-hidden />
-                  Cerrar sesión
-                </button>
-              </form>
-            </div>
-          </>
-        )}
-      </div>
+      {miCuenta}
     </div>
   );
 }

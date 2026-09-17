@@ -219,6 +219,107 @@ export function calcularCuotasSocio(movimientos: MovimientoCuentaSocio[]): { cuo
   return { cuotas, saldo: Math.round(saldo * 100) / 100 };
 }
 
+export type MiCuentaData = {
+  nombre: string;
+  email: string;
+  avatarUrl: string | null;
+  rol: Role;
+  activo: boolean;
+  creadoEn: string;
+  comisiones: { id: number; nombre: string; coordinador: boolean }[];
+  socio: {
+    id: number;
+    estado: string;
+    telefono: string | null;
+    emailContacto: string | null;
+    saldo: number;
+    cuotasPendientes: number;
+    cuotasVencidas: number;
+    proximoVencimiento: string | null;
+    convenio: { id: number; motivo: string; montoCuota: number } | null;
+    movimientosRecientes: MovimientoCuentaSocio[];
+  } | null;
+};
+
+/**
+ * Rediseño "Mi cuenta" en la barra superior (pedido explícito, 17/09):
+ * acceso único y compacto, visible para CUALQUIER rol (a diferencia de la
+ * tarjeta "Mi cuenta" del Inicio, que solo existía para quien tuviera fila
+ * en `socios`). Junta en una sola consulta lo que antes estaba repartido
+ * entre usuarios/[id] (perfil + comisiones) y el dashboard (estado de
+ * cuenta) — reutiliza calcularCuotasSocio como única fuente de verdad para
+ * el cálculo de cuotas, no duplica esa lógica. `socio` viene null cuando la
+ * cuenta no tiene un núcleo/socio asociado (ej. un usuario técnico o admin
+ * de sistema sin vivienda propia) — el llamador decide cómo mostrarlo.
+ *
+ * SIEMPRE se llama con el id del usuario de la sesión actual (nunca con un
+ * id recibido de un formulario o de la URL): esta función no vuelve a
+ * verificar permisos porque no tiene sentido pedirle "mi cuenta" de otra
+ * persona — el propio storage de la sesión ya es el control de acceso.
+ */
+export async function datosMiCuenta(userId: number): Promise<MiCuentaData | null> {
+  const usuario = await get<{ nombre: string; email: string; avatar_url: string | null; rol: Role; activo: number; creado_en: string }>(
+    `SELECT nombre, email, avatar_url, rol, activo, creado_en FROM users WHERE id = ?`,
+    [userId]
+  );
+  if (!usuario) return null;
+
+  const comisionesRows = await all<{ id: number; nombre: string; rol_en_comision: string }>(
+    `SELECT c.id, c.nombre, cm.rol_en_comision
+     FROM comision_miembros cm
+     JOIN comisiones c ON c.id = cm.comision_id
+     WHERE cm.user_id = ? AND cm.activo = 1
+     ORDER BY c.nombre ASC`,
+    [userId]
+  ).catch(() => [] as { id: number; nombre: string; rol_en_comision: string }[]);
+
+  const socioRow = await get<{ id: number; estado: string; telefono: string | null; email: string | null }>(
+    `SELECT id, estado, telefono, email FROM socios WHERE user_id = ?`,
+    [userId]
+  );
+
+  let socio: MiCuentaData["socio"] = null;
+  if (socioRow) {
+    const movimientos = await all<MovimientoCuentaSocio>(
+      `SELECT id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, comprobante_url
+       FROM movimientos_cuenta_socio WHERE socio_id = ? ORDER BY fecha DESC, id DESC`,
+      [socioRow.id]
+    );
+    const { cuotas, saldo } = calcularCuotasSocio(movimientos);
+    const convenio = (await get<{ id: number; motivo: string; monto_cuota: number }>(
+      `SELECT id, motivo, monto_cuota FROM convenios_pago WHERE socio_id = ? AND estado = 'activo' ORDER BY creado_en DESC LIMIT 1`,
+      [socioRow.id]
+    ).catch(() => null)) ?? null;
+    socio = {
+      id: socioRow.id,
+      estado: socioRow.estado,
+      telefono: socioRow.telefono,
+      emailContacto: socioRow.email,
+      saldo,
+      cuotasPendientes: cuotas.filter((c) => c.estado === "pendiente" || c.estado === "parcial").length,
+      cuotasVencidas: cuotas.filter((c) => c.estado === "vencida").length,
+      proximoVencimiento:
+        cuotas
+          .filter((c) => (c.estado === "pendiente" || c.estado === "parcial") && c.fechaVencimiento)
+          .map((c) => c.fechaVencimiento as string)
+          .sort()[0] || null,
+      convenio: convenio ? { id: convenio.id, motivo: convenio.motivo, montoCuota: Number(convenio.monto_cuota) } : null,
+      movimientosRecientes: movimientos.slice(0, 8),
+    };
+  }
+
+  return {
+    nombre: usuario.nombre,
+    email: usuario.email,
+    avatarUrl: usuario.avatar_url,
+    rol: usuario.rol,
+    activo: !!usuario.activo,
+    creadoEn: usuario.creado_en,
+    comisiones: comisionesRows.map((c) => ({ id: c.id, nombre: c.nombre, coordinador: c.rol_en_comision === "coordinador" })),
+    socio,
+  };
+}
+
 /**
  * Vista consolidada para la nueva pestaña "Cuotas y convenios" de Finanzas:
  * mismo cálculo que la ficha individual de cada socio (calcularCuotasSocio),

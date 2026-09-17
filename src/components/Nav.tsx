@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { SessionUser } from "@/lib/auth";
-import { canRead, canEdit, ROLE_LABELS, type Module } from "@/lib/roles";
+import { canRead, ROLE_LABELS, type Module } from "@/lib/roles";
 import { logoutAction } from "@/lib/actions/auth";
 import { Saludo } from "./Saludo";
 import { NavLink } from "./NavLink";
@@ -9,6 +9,8 @@ import { NavGroupSection } from "./NavGroupSection";
 import { Logo3D } from "./Logo3D";
 import { Avatar } from "./EntidadLink";
 import { TopBarClient } from "./TopBarClient";
+import { MiCuenta } from "./MiCuenta";
+import type { MiCuentaData } from "@/lib/logic";
 import {
   Home,
   Bell,
@@ -262,7 +264,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
   );
 }
 
-export function TopBar({ user }: { user: SessionUser }) {
+export function TopBar({ user, miCuenta }: { user: SessionUser; miCuenta: MiCuentaData | null }) {
   const { nombre, logo_url, color_primario } = user.organizacion;
   return (
     <header
@@ -273,18 +275,16 @@ export function TopBar({ user }: { user: SessionUser }) {
         <img src={logo_url || "/logo-coova.png"} alt={nombre} className="h-7 w-7 rounded-full object-cover" />
         <span className="text-sm font-bold">{nombre}</span>
       </div>
-      {/* Foto de perfil (rediseño "Color secundario + Top Bar", punto 13):
-          en celular no hay espacio para el menú desplegable completo de
-          escritorio (ver TopBarDesktop), pero sí para mostrar la foto y
-          llevar directo a "Mi perfil" con un toque — mismo Avatar
-          compartido que usa el resto de la app, nunca una imagen duplicada. */}
-      <Link href={`/usuarios/${user.id}`} className="flex items-center gap-2">
-        <div className="text-right leading-tight">
-          <div className="text-xs">{user.nombre.split(" ")[0]}</div>
-          <div className="text-[10px] text-white/50">{ROLE_LABELS[user.rol]}</div>
-        </div>
+      {/* "Mi cuenta" (rediseño 17/09, reemplaza el punto 13 anterior): en
+          celular no hay espacio para el buscador+campana+cuenta juntos como
+          en escritorio (ver TopBarDesktop), pero sí para este único acceso
+          compacto — mismo Avatar de siempre, ahora abre el modal "Mi cuenta"
+          en vez de navegar a otra página. */}
+      {miCuenta ? (
+        <MiCuenta data={miCuenta} size={30} variant="mobile" />
+      ) : (
         <Avatar url={user.avatar_url} nombre={user.nombre} size={30} className="border-white/30" />
-      </Link>
+      )}
     </header>
   );
 }
@@ -309,34 +309,22 @@ export function TopBar({ user }: { user: SessionUser }) {
  * la nota grande en DashboardCardClient.tsx).
  */
 export function TopBarDesktop({
-  user,
   alertas,
+  miCuenta,
 }: {
-  user: SessionUser;
   alertas: { count: number; hayCriticas: boolean; items: { id: number; titulo: string; severidad: string; fecha: string }[] };
+  miCuenta: MiCuentaData | null;
 }) {
   return (
-    <header className="hidden md:flex items-center gap-4 px-4 sm:px-6 py-2.5 bg-surface border-b border-border">
-      {/* Accesos rápidos a la izquierda (pedido explícito: juntarlos con el
-          buscador en la misma franja en vez de una fila aparte debajo) — si
-          el usuario no tiene ninguno habilitado (ej. un socio en una
-          cooperativa todavía no habitada, ver accesosRapidosFor), esta zona
-          no renderiza nada y el resto de la barra queda igual que antes. */}
-      <AccesosRapidosInline user={user} />
-      {/* `ml-auto` (no `justify-between` en el header): así el buscador/
-          campana/perfil quedan pegados a la derecha tanto si hay accesos
-          rápidos a la izquierda como si no hay ninguno (el header tendría un
-          solo hijo y `justify-between` no alcanzaría para separarlo). */}
-      <div className="shrink-0 ml-auto">
-        <TopBarClient
-          nombre={user.nombre}
-          rolLabel={ROLE_LABELS[user.rol]}
-          avatarUrl={user.avatar_url}
-          perfilHref={`/usuarios/${user.id}`}
-          alertas={alertas}
-          logoutAction={logoutAction}
-        />
-      </div>
+    <header className="hidden md:flex items-center justify-end gap-4 px-4 sm:px-6 py-2.5 bg-surface border-b border-border">
+      {/* Rediseño "Mi cuenta" (17/09, pedido explícito): la franja de accesos
+          rápidos que vivía acá (Nueva solicitud de compra / Registrar
+          movimiento / etc.) se retira de la cabecera global — esas acciones
+          puntuales viven en su propio módulo (ej. "+ Nueva solicitud" adentro
+          de Compras), no en la navegación de toda la app. `justify-end` deja
+          el buscador/campana/"Mi cuenta" pegados a la derecha, sin nada más
+          en esta franja. */}
+      <TopBarClient alertas={alertas} miCuenta={miCuenta && <MiCuenta data={miCuenta} />} />
     </header>
   );
 }
@@ -364,130 +352,16 @@ export function BottomNav({ user }: { user: SessionUser }) {
   );
 }
 
-/**
- * Rediseño "Color secundario + Top Bar" (puntos 19-21): zona de "Accesos
- * rápidos" — antes vivía sólo adentro de dashboard/page.tsx (mismo cálculo,
- * mismos ítems), visible únicamente al entrar a Inicio. Se saca a un
- * helper compartido para poder mostrarla en la Top Bar global (visible en
- * cualquier pantalla, no sólo en el Dashboard) sin duplicar la lista de
- * condiciones por rol/etapa/permiso — dashboard/page.tsx ya no arma su
- * propia versión, usa ésta (ver nota de alcance en CHANGELOG.md).
- *
- * A propósito son mayormente "acciones", no navegación pura: cada ítem de
- * acción ya existía tal cual en el Dashboard (mismos labels/hrefs/íconos/
- * condiciones de canEdit), sólo cambia DÓNDE se muestran. Ningún permiso
- * nuevo, ninguna lógica nueva.
- *
- * Excepción (15/09, pedido explícito): si al rol le quedan menos de 2
- * accesos-acción (típicamente "socio", que sólo tiene reclamos.edit), se
- * completa con 1-2 atajos de NAVEGACIÓN de sólo lectura — ver el bloque al
- * final de la función.
- */
-export function accesosRapidosFor(user: SessionUser): { label: string; href: string; icon: ReactNode }[] {
-  const verObra = canRead(user.rol, "obra") && moduloVisible("obra", user.etapa, user.modulos_override);
-  const verTrabajo = canRead(user.rol, "trabajo") && moduloVisible("trabajo", user.etapa, user.modulos_override);
-  const verSeguridad = canRead(user.rol, "seguridad") && moduloVisible("seguridad", user.etapa, user.modulos_override);
-  const verReclamos = canRead(user.rol, "reclamos") && moduloVisible("reclamos", user.etapa, user.modulos_override);
-
-  const accesos: { label: string; href: string; icon: ReactNode }[] = [];
-  if (verObra && canEdit(user.rol, "obra")) accesos.push({ label: "Registrar avance de obra", href: "/obra", icon: <HardHat size={16} /> });
-  if (verTrabajo && canEdit(user.rol, "trabajo")) accesos.push({ label: "Gestionar jornada de trabajo", href: "/trabajo", icon: <Handshake size={16} /> });
-  if (canEdit(user.rol, "compras")) accesos.push({ label: "Nueva solicitud de compra", href: "/compras", icon: <ShoppingCart size={16} /> });
-  if (verSeguridad && canEdit(user.rol, "seguridad")) accesos.push({ label: "Cargar inspección o incidente", href: "/seguridad", icon: <ShieldCheck size={16} /> });
-  if (verReclamos && canEdit(user.rol, "reclamos")) accesos.push({ label: "Reportar un problema", href: "/reclamos", icon: <Wrench size={16} /> });
-  if (canEdit(user.rol, "finanzas")) accesos.push({ label: "Registrar movimiento", href: "/finanzas", icon: <Wallet size={16} /> });
-  if (canEdit(user.rol, "documentos")) accesos.push({ label: "Subir documento", href: "/documentos", icon: <FileText size={16} /> });
-
-  // Ajuste (15/09, pedido explícito): esta zona son "accesos rápidos" a una
-  // ACCIÓN puntual (por eso arriba se filtra por canEdit, no por canRead) —
-  // pero eso deja a roles con casi ningún permiso de edición (ej. "socio",
-  // que hoy sólo tiene "reclamos.edit") con 0-1 accesos, aunque sean el tipo
-  // de usuario más común del sistema. En vez de agregar un caso especial
-  // hardcodeado para "socio" (que rompería para otras cooperativas con
-  // matrices de permisos distintas), la regla es genérica: si a un rol le
-  // quedan menos de 2 accesos-ACCIÓN, se completa (sin superar 2 en total)
-  // con atajos de NAVEGACIÓN de sólo lectura a los módulos más generales y
-  // transparentes del sistema (documentos y comisiones — todos los roles
-  // tienen al menos "read" ahí, ver MATRIX en lib/roles.ts), evitando
-  // duplicar un módulo que ya tiene su propio acceso de acción arriba.
-  if (accesos.length < 2) {
-    const yaTieneAcceso = (href: string) => accesos.some((a) => a.href === href);
-    const candidatosLectura: { mod: Module; label: string; href: string; icon: ReactNode }[] = [
-      { mod: "documentos", label: "Ver documentos", href: "/documentos", icon: <FileText size={16} /> },
-      { mod: "comisiones", label: "Ver comisiones", href: "/comisiones", icon: <Users size={16} /> },
-    ];
-    for (const c of candidatosLectura) {
-      if (accesos.length >= 2) break;
-      if (yaTieneAcceso(c.href)) continue;
-      if (canRead(user.rol, c.mod) && moduloVisible(c.mod, user.etapa, user.modulos_override)) {
-        accesos.push({ label: c.label, href: c.href, icon: c.icon });
-      }
-    }
-  }
-
-  return accesos;
-}
-
-/**
- * Franja de accesos rápidos para CELULAR — se monta a nivel de layout (ver
- * (app)/layout.tsx), justo debajo del `TopBar` compacto, con `md:hidden`
- * (en escritorio ahora viven adentro de la Top Bar, ver `AccesosRapidosInline`
- * más abajo — se pidió explícitamente juntarlos con el buscador en la misma
- * franja en vez de una fila aparte debajo). Compacta y horizontal-scrollable
- * a propósito ("no quiero 15-20 botones ni una fila gigante" — pedido
- * explícito): son accesos a una ACCIÓN puntual, con nombre + ícono, nunca
- * botones enormes.
- */
-export function AccesosRapidos({ user }: { user: SessionUser }) {
-  const accesos = accesosRapidosFor(user);
-  if (accesos.length === 0) return null;
-  return (
-    <div className="px-4 sm:px-6 pt-3 md:pt-3.5">
-      <div className="max-w-5xl mx-auto flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-        {accesos.map((a) => (
-          <Link
-            key={a.href}
-            href={a.href}
-            className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-surface border border-border shadow-[var(--shadow-sm)] px-3.5 py-2.5 text-xs font-semibold text-ink hover:bg-[var(--color-secondary-bg)] hover:border-[var(--color-secondary)]/30 transition-colors whitespace-nowrap"
-          >
-            <span className="text-[var(--color-secondary)]">{a.icon}</span>
-            {a.label}
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Versión compacta de los accesos rápidos para adentro de la Top Bar de
- * escritorio (a la izquierda del buscador, ver `TopBarDesktop`) — mismos
- * ítems y mismo cálculo por permiso que `AccesosRapidos` (`accesosRapidosFor`,
- * sin duplicar la lógica), solo cambia el envoltorio: sin el padding/ancho
- * máximo de una franja propia, pensada para compartir una sola fila con el
- * buscador/campana/perfil. `min-w-0` + `overflow-x-auto` para que, si el rol
- * tiene varios ítems (ej. admin/consejo directivo) y la pantalla es angosta,
- * esta zona se recorte con scroll horizontal en vez de empujar el
- * buscador/perfil fuera de la franja (esos quedan `shrink-0` en
- * `TopBarDesktop`).
- */
-export function AccesosRapidosInline({ user }: { user: SessionUser }) {
-  const accesos = accesosRapidosFor(user);
-  if (accesos.length === 0) return null;
-  return (
-    <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto">
-      {accesos.map((a) => (
-        <Link
-          key={a.href}
-          href={a.href}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-surface-sunken border border-border px-3 py-2 text-xs font-semibold text-ink hover:bg-[var(--color-secondary-bg)] hover:border-[var(--color-secondary)]/30 hover:text-[var(--color-secondary)] transition-colors whitespace-nowrap"
-        >
-          <span className="text-[var(--color-secondary)]">{a.icon}</span>
-          {a.label}
-        </Link>
-      ))}
-    </div>
-  );
-}
+// Rediseño "Mi cuenta" (17/09, pedido explícito): la franja de "Accesos
+// rápidos" que vivía acá (accesosRapidosFor/AccesosRapidos/AccesosRapidosInline
+// — botones como "Nueva solicitud de compra", "Registrar movimiento", "Subir
+// documento") se retiró de la cabecera global. El pedido fue puntual: no
+// quiere la cabecera ocupada por botones de acción, sólo el acceso compacto
+// "Mi cuenta" (ver MiCuenta.tsx, montado en TopBar/TopBarDesktop). Esas
+// mismas acciones siguen disponibles exactamente donde siempre estuvieron
+// disponibles además de acá: dentro de cada módulo (compras/page.tsx tiene
+// su "+ Nueva solicitud", finanzas/page.tsx su alta de movimiento,
+// documentos/page.tsx su "+ Subir documento") — no se perdió ninguna acción,
+// sólo se dejó de duplicarla en una franja global.
 
 export { ALL_ITEMS, itemsFor, groupsFor, moduloVisible };
