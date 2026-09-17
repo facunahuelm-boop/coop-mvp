@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { insert, run, get, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
+import { hoyEnUruguay } from "@/lib/logic";
 import { parseForm, zId, zTexto, zTextoOpcional, zMontoPositivo, zFecha, zEnumSeguro } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
@@ -124,7 +125,7 @@ export async function cambiarEstadoConvenioAction(formData: FormData) {
   await run(`UPDATE convenios_pago SET estado = ? WHERE id = ?`, [estado, id]);
 
   if (estado === "cancelado" || estado === "incumplido") {
-    const hoy = dayjs().format("YYYY-MM-DD");
+    const hoy = hoyEnUruguay();
     await run(
       `DELETE FROM movimientos_cuenta_socio WHERE convenio_id = ? AND fecha_vencimiento > ?`,
       [id, hoy]
@@ -171,7 +172,7 @@ export async function eliminarConvenioAction(formData: FormData) {
     return;
   }
 
-  const hoy = dayjs().format("YYYY-MM-DD");
+  const hoy = hoyEnUruguay();
   const cuotaYaVencida = await get<{ id: number }>(
     `SELECT id FROM movimientos_cuenta_socio WHERE convenio_id = ? AND fecha_vencimiento <= ? LIMIT 1`,
     [id, hoy]
