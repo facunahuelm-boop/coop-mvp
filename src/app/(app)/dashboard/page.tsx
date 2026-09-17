@@ -295,9 +295,16 @@ export default async function DashboardPage() {
   const importantes = alertas.filter((a) => a.severidad === "importante");
   const alertasAbiertasCount = criticas.length + importantes.length;
 
-  // Estado de cuenta personal: solo para quien NO ve el resumen financiero
-  // completo de la cooperativa (socio y similares) y tiene ficha de socio
-  // vinculada a su cuenta — "¿cuánto debo?" sin llamar a tesorería.
+  // Estado de cuenta personal: para CUALQUIER usuario logueado que tenga
+  // ficha de socio vinculada a su cuenta — "¿cuánto debo?" sin llamar a
+  // tesorería. Corrección (17/09, pedido explícito del usuario): antes se
+  // ocultaba para los roles de dirección (administración/tesorería/consejo
+  // directivo/fiscal/admin) asumiendo que esas cuentas ya ven el resumen
+  // financiero completo de la cooperativa — pero esas mismas personas
+  // también son socios de un núcleo con su propia cuota, así que deben ver
+  // su propia deuda igual que cualquier otro socio. La vista de dirección
+  // (resumen financiero de toda la cooperativa) y la vista personal ("Mi
+  // cuenta") no son excluyentes: son dos cosas distintas y ahora conviven.
   // Rediseño profundo de Finanzas (16/09): además del saldo simple que ya
   // había, se suma cuotas pendientes/vencidas (mismo cálculo FIFO que usa
   // la ficha del socio y la pestaña "Cuotas y convenios" de Finanzas — una
@@ -310,7 +317,7 @@ export default async function DashboardPage() {
   let misCuotasVencidas = 0;
   let miProximoVencimiento: string | null = null;
   let miConvenio: { id: number; motivo: string; monto_cuota: number } | null = null;
-  if (!verFinanzasDetalle) {
+  {
     const misocio = await get<{ id: number }>(`SELECT id FROM socios WHERE user_id = ?`, [user.id]);
     if (misocio) {
       miSocioId = misocio.id;
@@ -635,7 +642,7 @@ export default async function DashboardPage() {
             </DashboardCardModal>
           )}
 
-          {!verFinanzasDetalle && miSaldo !== null && (
+          {miSaldo !== null && (
             <DashboardCardModal
               title="Tu estado de cuenta"
               trigger={
