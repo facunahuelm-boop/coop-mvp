@@ -590,6 +590,8 @@ Desplegado (commit `7a59fe6`).
 
 Desplegado (commit `a0660b5`).
 
+**Corrección posterior (16/09)**: al intentar correr las migraciones, la cuenta usada devolvía "No autorizado" — `/api/admin/migraciones` exigía el rol exacto `admin`, distinto de `administracion`/`tesoreria`/`consejo_directivo` (roles de dirección que ya administran Finanzas pero no son el rol de sistema `admin`). Se amplió temporalmente `ROLES_PERMITIDOS_MIGRACIONES` en `src/app/api/admin/migraciones/route.ts` para aceptar también esos tres roles — **temporal a propósito**: apenas se confirme que las migraciones corrieron, hay que devolver esa lista a solo `["admin"]`, porque es una herramienta que ejecuta DDL con permisos elevados y no debe quedar abierta a más roles de los estrictamente necesarios. Desplegado (commit `d4e63dc`).
+
 ### Tarjeta "Mi cuenta" del dashboard (16/09)
 
 **Qué se hizo**: siguiendo el mismo pedido ("cada usuario pueda ver sus ingresos y su cuota y cómo van, si tienen algún convenio"), se sumó a la tarjeta "Mi cuenta" que ya veían los socios en el Inicio (hasta ahora solo mostraba el saldo total) el mismo detalle que ya tiene su ficha y la pestaña "Cuotas y convenios" de Finanzas: cuotas pendientes, cuotas vencidas, próximo vencimiento y, si tiene uno activo, el convenio de pago en curso. Se agregó también un acceso directo a su ficha completa (antes el botón llevaba a Finanzas, una pantalla a la que un socio ni siquiera tiene acceso de detalle).
