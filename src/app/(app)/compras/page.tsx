@@ -122,7 +122,16 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
           3 `name` de siempre, mismo `method="GET"` — ningún cambio en cómo
           se leen los filtros en el servidor. */}
       <form className="mb-5 flex flex-wrap items-center gap-2" method="GET">
-        <select name="estado" defaultValue={f.estado || ""} aria-label="Estado" className={`${inputClass} w-auto text-xs py-1.5`}>
+        {/* `inputClass` trae `w-full` a propósito para formularios verticales
+            — acá conviene explícitamente NO reutilizarlo (una clase propia,
+            sin `w-full`) porque `w-auto` en el mismo string no le gana en
+            especificidad y el select terminaba ocupando la fila entera. */}
+        <select
+          name="estado"
+          defaultValue={f.estado || ""}
+          aria-label="Estado"
+          className="rounded-lg border border-ink/10 bg-surface px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-800)]/30 focus:border-[var(--color-brand-800)]"
+        >
           <option value="">Estado: todos</option>
           <option value="pendiente_cotizacion">Pendiente de cotización</option>
           <option value="en_comparacion">En comparación</option>
