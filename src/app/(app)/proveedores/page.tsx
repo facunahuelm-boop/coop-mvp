@@ -9,6 +9,7 @@ import dayjs from "dayjs";
 import { cambiarEstadoProveedorFormAction } from "@/lib/actions/proveedores";
 import { ESTADO_PROVEEDOR, ESTADO_PROVEEDOR_LABEL } from "@/lib/constants";
 import { CrearProveedorForm } from "@/components/proveedores/ProveedoresFormularios";
+import { BuscadorFilas } from "@/components/BuscadorFilas";
 
 /**
  * Fase 08 del Plan Maestro ("ficha de Proveedores independiente"), ampliada
@@ -86,9 +87,13 @@ export default async function ProveedoresPage({ searchParams }: { searchParams: 
       </div>
 
       <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
+        {proveedores.length === 0 ? (
+          <EmptyState>No hay proveedores en esta pestaña.</EmptyState>
+        ) : (
+          <BuscadorFilas
+            placeholder="Buscar por nombre, rubro o contacto..."
+            claves={proveedores.map((p) => [p.nombre, p.rubro, p.telefono, p.email, p.contacto].filter(Boolean).join(" "))}
+            encabezado={
               <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
                 <th className="py-2 pr-3">Nombre</th>
                 <th className="py-2 pr-3">Rubro</th>
@@ -98,40 +103,38 @@ export default async function ProveedoresPage({ searchParams }: { searchParams: 
                 <th className="py-2 pr-3 text-right">Total comprado</th>
                 <th className="py-2 pr-3">Última compra</th>
               </tr>
-            </thead>
-            <tbody>
-              {proveedores.map((p) => (
-                <tr key={p.id} className="border-b border-ink/5 last:border-0">
-                  <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
-                    <Link href={`/proveedores/${p.id}`} className="hover:underline underline-offset-2">{p.nombre}</Link>
-                  </td>
-                  <td className="py-2 pr-3 text-ink/60">{p.rubro || "—"}</td>
-                  <td className="py-2 pr-3 text-ink/60">{p.telefono || p.email || p.contacto || "—"}</td>
-                  <td className="py-2 pr-3">
-                    {puedeEditar ? (
-                      <AutoSubmitSelect
-                        action={cambiarEstadoProveedorFormAction}
-                        hiddenFields={{ id: p.id }}
-                        name="estado"
-                        defaultValue={p.estado || "nuevo"}
-                        options={ESTADO_PROVEEDOR.map((e) => ({ value: e, label: ESTADO_PROVEEDOR_LABEL[e] }))}
-                        className="rounded-md border border-ink/10 bg-surface px-1.5 py-1 text-xs whitespace-nowrap"
-                      />
-                    ) : (
-                      <Badge color={ESTADO_COLOR[(p.estado || "nuevo") as (typeof ESTADO_PROVEEDOR)[number]]}>
-                        {ESTADO_PROVEEDOR_LABEL[(p.estado || "nuevo") as (typeof ESTADO_PROVEEDOR)[number]]}
-                      </Badge>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 text-right">{p.compras_realizadas}</td>
-                  <td className="py-2 pr-3 text-right font-medium">{Number(p.total_comprado) > 0 ? `$${Number(p.total_comprado).toLocaleString("es-UY")}` : "—"}</td>
-                  <td className="py-2 pr-3 text-ink/60">{p.ultima_compra ? dayjs(p.ultima_compra).format("DD/MM/YYYY") : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {proveedores.length === 0 && <EmptyState>No hay proveedores en esta pestaña.</EmptyState>}
-        </div>
+            }
+          >
+            {proveedores.map((p) => (
+              <tr key={p.id} className="border-b border-ink/5 last:border-0">
+                <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
+                  <Link href={`/proveedores/${p.id}`} className="hover:underline underline-offset-2">{p.nombre}</Link>
+                </td>
+                <td className="py-2 pr-3 text-ink/60">{p.rubro || "—"}</td>
+                <td className="py-2 pr-3 text-ink/60">{p.telefono || p.email || p.contacto || "—"}</td>
+                <td className="py-2 pr-3">
+                  {puedeEditar ? (
+                    <AutoSubmitSelect
+                      action={cambiarEstadoProveedorFormAction}
+                      hiddenFields={{ id: p.id }}
+                      name="estado"
+                      defaultValue={p.estado || "nuevo"}
+                      options={ESTADO_PROVEEDOR.map((e) => ({ value: e, label: ESTADO_PROVEEDOR_LABEL[e] }))}
+                      className="rounded-md border border-ink/10 bg-surface px-1.5 py-1 text-xs whitespace-nowrap"
+                    />
+                  ) : (
+                    <Badge color={ESTADO_COLOR[(p.estado || "nuevo") as (typeof ESTADO_PROVEEDOR)[number]]}>
+                      {ESTADO_PROVEEDOR_LABEL[(p.estado || "nuevo") as (typeof ESTADO_PROVEEDOR)[number]]}
+                    </Badge>
+                  )}
+                </td>
+                <td className="py-2 pr-3 text-right">{p.compras_realizadas}</td>
+                <td className="py-2 pr-3 text-right font-medium">{Number(p.total_comprado) > 0 ? `$${Number(p.total_comprado).toLocaleString("es-UY")}` : "—"}</td>
+                <td className="py-2 pr-3 text-ink/60">{p.ultima_compra ? dayjs(p.ultima_compra).format("DD/MM/YYYY") : "—"}</td>
+              </tr>
+            ))}
+          </BuscadorFilas>
+        )}
 
         {puedeEditar && <CrearProveedorForm />}
       </Card>
