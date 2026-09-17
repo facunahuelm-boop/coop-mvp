@@ -590,7 +590,7 @@ Desplegado (commit `7a59fe6`).
 
 Desplegado (commit `a0660b5`).
 
-**Corrección posterior (16/09)**: al intentar correr las migraciones, la cuenta usada devolvía "No autorizado" — `/api/admin/migraciones` exigía el rol exacto `admin`, distinto de `administracion`/`tesoreria`/`consejo_directivo` (roles de dirección que ya administran Finanzas pero no son el rol de sistema `admin`). Se amplió temporalmente `ROLES_PERMITIDOS_MIGRACIONES` en `src/app/api/admin/migraciones/route.ts` para aceptar también esos tres roles — **temporal a propósito**: apenas se confirme que las migraciones corrieron, hay que devolver esa lista a solo `["admin"]`, porque es una herramienta que ejecuta DDL con permisos elevados y no debe quedar abierta a más roles de los estrictamente necesarios. Desplegado (commit `d4e63dc`).
+**Corrección posterior (16/09)**: al intentar correr las migraciones, la cuenta usada devolvía "No autorizado" — `/api/admin/migraciones` exigía el rol exacto `admin`, distinto de `administracion`/`tesoreria`/`consejo_directivo` (roles de dirección que ya administran Finanzas pero no son el rol de sistema `admin`). Se amplió temporalmente `ROLES_PERMITIDOS_MIGRACIONES` en `src/app/api/admin/migraciones/route.ts` para aceptar también esos tres roles — **temporal a propósito**: apenas se confirme que las migraciones corrieron, hay que devolver esa lista a solo `["admin"]`, porque es una herramienta que ejecuta DDL con permisos elevados y no debe quedar abierta a más roles de los estrictamente necesarios. Desplegado (commit `d4e63dc`). Confirmado que las migraciones 0025/0026/0027 corrieron correctamente en producción, se revirtió `/api/admin/migraciones` a exigir solo `admin` (commit `c487294`).
 
 ### Tarjeta "Mi cuenta" del dashboard (16/09)
 
@@ -600,4 +600,12 @@ Desplegado (commit `a0660b5`).
 
 **Verificación**: `npx tsc --noEmit` sin errores (se corrigió un error real de tipos: `get(...).catch(() => null)` necesitaba un `?? null` explícito para no quedar tipado con `undefined`). `npx eslint`: sin errores nuevos, mismo patrón preexistente de `any` en las consultas SQL de esta pantalla, ninguno agregado por este cambio (el código nuevo usa el tipo `MovimientoCuentaSocio` ya existente). `npx next build` (con las mismas variables ficticias que el resto de esta fase, por la falta de `DATABASE_URL`/`AUTH_SECRET` en este sandbox): compila limpio, las 45 rutas generan sin errores.
 
-Desplegado (commit pendiente de confirmar en el siguiente mensaje).
+Desplegado (commit `a716262`).
+
+**Corrección posterior (17/09)**: el usuario aclaró que "Mi cuenta" tiene que verse desde cualquier rol, no solo desde un socio raso — "son todos núcleos" (una cuenta de directiva/administración/tesorería también representa un núcleo con su propia cuota, aunque además tenga acceso al detalle financiero de toda la cooperativa). La tarjeta estaba oculta para los roles de `ROLES_FINANZAS_DETALLE` bajo el supuesto de que esos roles ya veían todo en Finanzas — supuesto incorrecto, porque Finanzas muestra la cuenta de la cooperativa, no la cuenta personal de esa persona como socio. Se sacó la condición `!verFinanzasDetalle` tanto de la consulta que arma los datos personales como de la condición que renderiza la tarjeta, así que ahora se calcula y se muestra para cualquier usuario logueado que tenga una fila de socio asociada, sin importar su rol. La edición de movimientos sigue restringida a directiva/administración/tesorería por los permisos ya existentes a nivel de `actions` (`canEdit`) — no se tocó nada de eso.
+
+- **`src/app/(app)/dashboard/page.tsx`**: bloque de cálculo de "mi cuenta" y su `DashboardCardModal` ya no dependen de `verFinanzasDetalle`.
+
+**Verificación**: `npx tsc --noEmit` sin errores. `npx eslint`: mismo patrón preexistente de `any` en las 45 consultas SQL de esta pantalla, ninguno nuevo. `npx next build` (con las mismas variables ficticias por falta de `DATABASE_URL`/`AUTH_SECRET` en este sandbox): compila limpio, todas las rutas generan sin errores.
+
+Desplegado (commit `770de5e`).
