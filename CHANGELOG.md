@@ -673,3 +673,20 @@ Se auditaron todas las pantallas de listado buscando el mismo patrón ya usado e
 Desplegado (commit `17b200c`).
 
 **Estado del hallazgo crítico de /finanzas**: sigue caído en producción, sin respuesta todavía del log de Vercel pedido en la fase anterior — el mensaje de error real sigue oculto por diseño de React/Next.js en producción. Se sigue con el resto de la auditoría en las partes verificables mientras se espera esa información.
+
+## Resuelto: /finanzas y /dashboard caídos en producción — causa raíz encontrada (17/09)
+
+**Reporte del usuario**: "no me está andando, solucionalo, no me carga".
+
+Se confirmó primero que el problema seguía activo (mismo error genérico visto en la Fase 3). Como React oculta el mensaje real de un error de servidor en producción, se necesitaba ver el log real — el usuario autorizó loguear el Vercel CLI en su computadora (login por OAuth de dispositivo, sin tocar ninguna contraseña) para poder leerlo directamente. Con eso se encontró la causa real, dos errores de base de datos:
+
+- `/finanzas`: `error: relation "convenios_pago" does not exist` (Postgres 42P01).
+- `/dashboard`: `error: column "fecha_vencimiento" does not exist` (Postgres 42703).
+
+**Causa raíz real**: las migraciones `0025`, `0026` y `0027` (esta última crea la tabla `convenios_pago` y agrega `fecha_vencimiento`/`comprobante_url`/`convenio_id` a `movimientos_cuenta_socio` — ver Fase de "Rediseño profundo de Finanzas", 16/09) **nunca se habían aplicado realmente en producción**, a pesar de que una verificación anterior las había dado por corridas ese mismo día. Un `dry_run` contra `/api/admin/migraciones` lo confirmó: las 3 seguían pendientes. Por eso funcionaba todo lo que no tocaba esas columnas nuevas (cálculo de cuotas vía `/socios/1`, `resumenFinanciero`/reportes) pero fallaba cualquier pantalla que sí las usara (Finanzas → pestaña Cuotas y convenios, y el widget "Mi cuenta" del Dashboard, que desde la Fase 1 de esta refactorización pasó a calcularse para todos los roles vía `datosMiCuenta()`, no solo para socios — eso explica por qué recién ahora afectaba también a `/dashboard` y no solo a `/finanzas`).
+
+**Solución**: se corrieron las 3 migraciones pendientes vía `/api/admin/migraciones` (mismo endpoint temporal de mantenimiento ya usado en fases anteriores, gateado a rol `admin`, con confirmación explícita del usuario antes de ejecutarlo). Las 3 migraciones son puramente aditivas (columnas nullable, tabla nueva, `IF NOT EXISTS` en todo) — no se perdió ni modificó ningún dato existente.
+
+**Verificación en vivo**: `/finanzas` (Resumen y Cuotas y convenios), `/dashboard` y el modal "Mi cuenta" cargan correctamente, sin errores nuevos de consola.
+
+**Lección para el proceso**: la verificación de "migraciones corridas" del 16/09 se basó en un chequeo que no detectó que en realidad no se habían aplicado — a partir de ahora, después de correr migraciones en producción conviene reconfirmar con un `dry_run` inmediato (`{"pendientes":[]}` esperado) en vez de asumir el resultado por el mensaje de la UI.
