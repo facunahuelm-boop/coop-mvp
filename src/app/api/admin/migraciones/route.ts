@@ -25,9 +25,17 @@ export const maxDuration = 60;
 // migrations/README.md). Este archivo se borra del repo una vez usado: no
 // es una funcionalidad del producto, es una herramienta de mantenimiento
 // puntual.
+// Ampliación temporal (16/09): además de "admin", se acepta también a los
+// roles de dirección de confianza que ya administran Finanzas — la cuenta
+// real que se usa día a día para operar la cooperativa no siempre tiene el
+// rol literal "admin". Solo mientras se corre la migración 0027 pendiente;
+// después se vuelve a dejar esta lista en solo ["admin"], que es lo que
+// corresponde para una herramienta que ejecuta DDL con permisos elevados.
+const ROLES_PERMITIDOS_MIGRACIONES = ["admin", "administracion", "tesoreria", "consejo_directivo"];
+
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser().catch(() => null);
-  if (!user || user.rol !== "admin") {
+  if (!user || !ROLES_PERMITIDOS_MIGRACIONES.includes(user.rol)) {
     return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
   }
 
