@@ -144,6 +144,143 @@ export async function cuentasPorCobrar() {
 }
 
 /**
+ * Rediseño profundo de Finanzas (pedido explícito, 16/09) — cuotas y
+ * convenios de pago por socio, migración 0027.
+ *
+ * A propósito NO se guarda un estado "pendiente/vencida/pagada" en cada
+ * cargo (mismo criterio que ya usa el saldo general: una sola fuente de
+ * verdad). En cambio, esta función reparte los pagos contra los cargos más
+ * antiguos primero (FIFO — el pago más viejo cubre la cuota más vieja),
+ * exactamente como cualquier cuenta corriente real: un pago no dice "esto es
+ * para la cuota de julio", simplemente entra y cubre lo más atrasado.
+ */
+export type EstadoCuota = "pendiente" | "vencida" | "pagada" | "parcial";
+
+export type MovimientoCuentaSocio = {
+  id: number;
+  tipo: "cargo" | "pago";
+  concepto: string;
+  monto: number | string;
+  fecha: string;
+  fecha_vencimiento?: string | null;
+  convenio_id?: number | null;
+  comprobante_url?: string | null;
+};
+
+export type CuotaCalculada = {
+  id: number;
+  concepto: string;
+  monto: number;
+  fecha: string;
+  fechaVencimiento: string | null;
+  convenioId: number | null;
+  comprobanteUrl: string | null;
+  estado: EstadoCuota;
+  montoPendiente: number;
+};
+
+export function calcularCuotasSocio(movimientos: MovimientoCuentaSocio[]): { cuotas: CuotaCalculada[]; saldo: number } {
+  const hoy = dayjs().format("YYYY-MM-DD");
+  const cargos = movimientos
+    .filter((m) => m.tipo === "cargo")
+    .slice()
+    .sort((a, b) => (a.fecha_vencimiento || a.fecha).localeCompare(b.fecha_vencimiento || b.fecha) || a.id - b.id);
+  const pagos = movimientos
+    .filter((m) => m.tipo === "pago")
+    .slice()
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+
+  let disponible = pagos.reduce((acc, p) => acc + Number(p.monto), 0);
+  const cuotas: CuotaCalculada[] = cargos.map((c) => {
+    const monto = Number(c.monto);
+    const aplicado = Math.min(disponible, monto);
+    disponible -= aplicado;
+    const montoPendiente = Math.round((monto - aplicado) * 100) / 100;
+    let estado: EstadoCuota;
+    if (montoPendiente <= 0) estado = "pagada";
+    else if (aplicado > 0) estado = "parcial";
+    else if (c.fecha_vencimiento && c.fecha_vencimiento < hoy) estado = "vencida";
+    else estado = "pendiente";
+    return {
+      id: c.id,
+      concepto: c.concepto,
+      monto,
+      fecha: c.fecha,
+      fechaVencimiento: c.fecha_vencimiento || null,
+      convenioId: c.convenio_id ?? null,
+      comprobanteUrl: null, // los comprobantes van sobre el PAGO, no el cargo — ver movimientos originales para eso
+      estado,
+      montoPendiente,
+    };
+  });
+
+  const saldo =
+    cargos.reduce((a, c) => a + Number(c.monto), 0) - pagos.reduce((a, p) => a + Number(p.monto), 0);
+  return { cuotas, saldo: Math.round(saldo * 100) / 100 };
+}
+
+/**
+ * Vista consolidada para la nueva pestaña "Cuotas y convenios" de Finanzas:
+ * mismo cálculo que la ficha individual de cada socio (calcularCuotasSocio),
+ * para todos los socios activos a la vez — así Tesorería/Administración no
+ * tienen que entrar socio por socio para ver quién debe, quién tiene cuotas
+ * vencidas y quién tiene un convenio en curso.
+ */
+export async function resumenCuotasSocios() {
+  const [socios, movimientos, convenios] = await Promise.all([
+    all<{ id: number; nombre: string; vivienda_numero: string | null; nucleo_nombre: string | null }>(
+      `SELECT s.id, s.nombre, v.numero as vivienda_numero, n.nombre as nucleo_nombre
+       FROM socios s
+       LEFT JOIN viviendas v ON v.id = s.vivienda_id
+       LEFT JOIN nucleos_familiares n ON n.id = s.nucleo_id
+       WHERE s.estado != 'baja'
+       ORDER BY s.nombre ASC`
+    ),
+    all<MovimientoCuentaSocio & { socio_id: number }>(
+      `SELECT id, socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id
+       FROM movimientos_cuenta_socio ORDER BY socio_id, fecha ASC, id ASC`
+    ),
+    all<{ id: number; socio_id: number; motivo: string; monto_cuota: number }>(
+      `SELECT id, socio_id, motivo, monto_cuota FROM convenios_pago WHERE estado = 'activo'`
+    ),
+  ]);
+
+  const movimientosPorSocio = new Map<number, (MovimientoCuentaSocio & { socio_id: number })[]>();
+  for (const m of movimientos) {
+    if (!movimientosPorSocio.has(m.socio_id)) movimientosPorSocio.set(m.socio_id, []);
+    movimientosPorSocio.get(m.socio_id)!.push(m);
+  }
+  const convenioPorSocio = new Map<number, { id: number; motivo: string; monto_cuota: number }>();
+  for (const c of convenios) convenioPorSocio.set(c.socio_id, c);
+
+  const filas = socios.map((s) => {
+    const { cuotas, saldo } = calcularCuotasSocio(movimientosPorSocio.get(s.id) || []);
+    const pendientes = cuotas.filter((c) => c.estado === "pendiente" || c.estado === "parcial");
+    const vencidas = cuotas.filter((c) => c.estado === "vencida");
+    const proximoVencimiento = pendientes
+      .filter((c) => c.fechaVencimiento)
+      .map((c) => c.fechaVencimiento as string)
+      .sort()[0] || null;
+    return {
+      socioId: s.id,
+      nombre: s.nombre,
+      viviendaNumero: s.vivienda_numero,
+      nucleoNombre: s.nucleo_nombre,
+      totalAdeudado: Math.max(0, Math.round(saldo * 100) / 100),
+      cuotasPendientes: pendientes.length,
+      cuotasVencidas: vencidas.length,
+      proximoVencimiento,
+      convenio: convenioPorSocio.get(s.id) || null,
+    };
+  });
+
+  const totalAdeudado = filas.reduce((a, f) => a + f.totalAdeudado, 0);
+  const totalVencidas = filas.reduce((a, f) => a + f.cuotasVencidas, 0);
+  const convenioActivos = convenios.length;
+  return { filas, totalAdeudado: Math.round(totalAdeudado * 100) / 100, totalVencidas, convenioActivos };
+}
+
+/**
  * Rediseño "Color secundario + Top Bar" (puntos 11-12): datos para la
  * campanita de notificaciones de la Top Bar — se muestra en CUALQUIER
  * pantalla (vive en (app)/layout.tsx), a diferencia de recalcularAlertas()
