@@ -544,7 +544,7 @@ export function MonthCalendar({
                 className={`rounded-lg border transition-colors min-h-[76px] p-1 flex flex-col gap-0.5 ${
                   esSeleccionado
                     ? "border-[var(--color-brand-800)] bg-brand-50"
-                    : "border-transparent hover:border-border hover:bg-surface-sunken"
+                    : "border-border hover:border-ink/20 hover:bg-surface-sunken"
                 }`}
               >
                 <button

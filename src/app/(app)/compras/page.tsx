@@ -111,40 +111,54 @@ export default async function ComprasPage({ searchParams }: { searchParams: Prom
         </div>
       </Card>
 
-      <Card className="mb-5">
-        <SectionTitle action={hayFiltros ? <Link href="/compras" className="text-xs text-ink-muted underline underline-offset-2">Limpiar filtros</Link> : undefined}>
-          Filtros
-        </SectionTitle>
-        <form className="grid grid-cols-2 sm:grid-cols-4 gap-3" method="GET">
-          <div>
-            <Label>Estado</Label>
-            <select name="estado" defaultValue={f.estado || ""} className={inputClass}>
-              <option value="">Todos</option>
-              <option value="pendiente_cotizacion">Pendiente de cotización</option>
-              <option value="en_comparacion">En comparación</option>
-              <option value="aprobada">Aprobada</option>
-              <option value="pedida">Pedida a proveedor</option>
-              <option value="entregada">Entregada</option>
-              <option value="rechazada">Rechazada</option>
-            </select>
+      {/* Rediseño UX/UI general (17/09, secciones 3/6): la fila de filtros
+          pasa de ser una Card entera (título + grid de 3 selects, cada uno
+          con su propia etiqueta arriba, más un botón de ancho completo) a
+          una única fila compacta — el filtro más usado (Estado) siempre
+          visible, y los secundarios (Categoría, Comisión) adentro de "Más
+          filtros" (un <details> nativo: sin JS propio, accesible con
+          teclado, se abre solo si ya hay uno de esos dos filtros activo por
+          URL para que nunca quede un filtro aplicado escondido). Los mismos
+          3 `name` de siempre, mismo `method="GET"` — ningún cambio en cómo
+          se leen los filtros en el servidor. */}
+      <form className="mb-5 flex flex-wrap items-center gap-2" method="GET">
+        <select name="estado" defaultValue={f.estado || ""} aria-label="Estado" className={`${inputClass} w-auto text-xs py-1.5`}>
+          <option value="">Estado: todos</option>
+          <option value="pendiente_cotizacion">Pendiente de cotización</option>
+          <option value="en_comparacion">En comparación</option>
+          <option value="aprobada">Aprobada</option>
+          <option value="pedida">Pedida a proveedor</option>
+          <option value="entregada">Entregada</option>
+          <option value="rechazada">Rechazada</option>
+        </select>
+        <details className="relative" open={Boolean(f.categoria || f.comision_id)}>
+          <summary className="cursor-pointer select-none list-none rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-ink-muted hover:bg-surface-sunken [&::-webkit-details-marker]:hidden">
+            Más filtros {Boolean(f.categoria || f.comision_id) && "●"}
+          </summary>
+          <div className="absolute z-10 mt-2 w-60 space-y-2.5 rounded-xl border border-border bg-surface p-3 shadow-[var(--shadow-lg)]">
+            <div>
+              <Label>Categoría</Label>
+              <select name="categoria" defaultValue={f.categoria || ""} className={inputClass}>
+                <option value="">Todas</option>
+                {Object.entries(CATEGORIA_COMPRA_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Comisión</Label>
+              <select name="comision_id" defaultValue={f.comision_id || ""} className={inputClass}>
+                <option value="">Todas</option>
+                {comisionesActivas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </div>
           </div>
-          <div>
-            <Label>Categoría</Label>
-            <select name="categoria" defaultValue={f.categoria || ""} className={inputClass}>
-              <option value="">Todas</option>
-              {Object.entries(CATEGORIA_COMPRA_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </div>
-          <div>
-            <Label>Comisión</Label>
-            <select name="comision_id" defaultValue={f.comision_id || ""} className={inputClass}>
-              <option value="">Todas</option>
-              {comisionesActivas.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
-          </div>
-          <div className="flex items-end"><button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2 text-sm font-semibold w-full">Filtrar</button></div>
-        </form>
-      </Card>
+        </details>
+        <button className="rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-1.5 text-xs font-semibold">Filtrar</button>
+        {hayFiltros && (
+          <Link href="/compras" className="text-xs text-ink-muted underline underline-offset-2">
+            Limpiar filtros
+          </Link>
+        )}
+      </form>
 
       <SectionTitle>Solicitudes</SectionTitle>
       {solicitudes.length === 0 ? (
