@@ -58,3 +58,27 @@ export function SolicitudStatusBadge({ estado }: { estado: string }) {
 export function estadoSolicitudLabel(estado: string): string {
   return ESTADO_SOLICITUD_STYLE[estado as EstadoSolicitudCompra]?.label ?? estado.replace(/_/g, " ");
 }
+
+/**
+ * Rediseño de Compras (18/09): mismo criterio que `SolicitudStatusBadge` —
+ * un solo lugar para el color/label de `prioridad` (antes se armaba a mano
+ * en cada pantalla, ver el viejo `s.prioridad === "critica" ? ... : ...` en
+ * compras/page.tsx). Los 4 valores (`baja`/`media`/`alta`/`critica`) son los
+ * mismos que ya usa `PRIORIDAD_COMPRA` en actions/compras.ts — no se agrega
+ * ningún valor nuevo.
+ */
+const PRIORIDAD_COMPRA_STYLE: Record<string, { label: string; color: "gray" | "amarillo" | "brand" | "rojo" }> = {
+  baja: { label: "Baja", color: "gray" },
+  media: { label: "Media", color: "brand" },
+  alta: { label: "Alta", color: "amarillo" },
+  critica: { label: "🔴 Crítica", color: "rojo" },
+};
+
+export function PrioridadBadge({ prioridad }: { prioridad: string }) {
+  const s = PRIORIDAD_COMPRA_STYLE[prioridad] || { label: prioridad, color: "gray" as const };
+  return <Badge color={s.color}>{s.label}</Badge>;
+}
+
+export function prioridadLabel(prioridad: string): string {
+  return PRIORIDAD_COMPRA_STYLE[prioridad]?.label ?? prioridad;
+}
