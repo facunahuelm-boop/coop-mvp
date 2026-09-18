@@ -79,7 +79,7 @@ export async function resumenFinanciero() {
   const en30dias = dayjs().add(30, "day").format("YYYY-MM-DD");
   const inicioMes = dayjs().startOf("month").format("YYYY-MM-DD");
 
-  const [ingresosRow, egresosRow, comprometidoRow, gastosProyectadosRow, ingresosMesRow, egresosMesRow, porCategoria, presupuestoVsReal] =
+  const [ingresosRow, egresosRow, comprometidoRow, gastosProyectadosRow, ingresosMesRow, egresosMesRow, porCategoria, porCategoriaIngreso, presupuestoVsReal] =
     await Promise.all([
       get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso'`),
       get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso'`),
@@ -103,6 +103,14 @@ export async function resumenFinanciero() {
       ),
       all<{ categoria: string; total: number }>(
         `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='egreso' GROUP BY categoria ORDER BY total DESC`
+      ),
+      // Rediseño de Finanzas (18/09, pedido explícito: mismo patrón resumen
+      // → click → pop-up ya usado en Compras): antes sólo existía el
+      // desglose de EGRESOS por categoría (arriba) — el tile "Ingresos
+      // totales" no tenía nada real que mostrar en su pop-up. Misma consulta,
+      // sólo cambia el tipo.
+      all<{ categoria: string; total: number }>(
+        `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='ingreso' GROUP BY categoria ORDER BY total DESC`
       ),
       all<any>(
         `SELECT p.categoria, p.monto_presupuestado,
@@ -130,6 +138,7 @@ export async function resumenFinanciero() {
     ingresosMes,
     egresosMes,
     porCategoria,
+    porCategoriaIngreso,
     presupuestoVsReal,
   };
 }
