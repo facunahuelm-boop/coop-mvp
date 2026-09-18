@@ -18,19 +18,46 @@
    ============================================================ */
 
 :root {
-  /* --- Paleta de marca por defecto de COOVA --- */
-  --color-brand-900: #123240;
-  --color-brand-800: #1f4e5f;
-  --color-brand-700: #2e6b80;
-  --color-brand-600: #3a7a8c;
-  --color-brand-100: #e7eff1;
-  --color-brand-50: #f2f5f6;
+  /* --- Paleta de marca por defecto de COOVA ---
+     Rediseño visual global (18/09, pedido explícito: "verde moderno y
+     profesional... sensación de software empresarial premium, nada
+     exagerado"). Se remapean estos MISMOS tokens (no se crean nuevos)
+     porque ya los consume casi toda la app (ver ui.tsx/ui-client.tsx) —
+     cambiar acá alcanza para propagar el nuevo lenguaje visual sin
+     tocar 40+ archivos.
+
+     OJO con --color-brand-900: un audit de uso (grep de toda la app)
+     encontró que NO se usa como color de acción/marca sino como color
+     de TEXTO/TÍTULOS (48 de 49 usos son "text-[var(--color-brand-900)]"
+     para encabezados de sección — ver reclamos/page.tsx, socios/page.tsx,
+     configuracion/page.tsx, etc.). Por eso NO se pone verde acá: pasa a
+     ser el neutro oscuro del pedido ("TEXTO PRINCIPAL #1F2937"), para no
+     terminar con todos los títulos de la app en verde (pedido explícito:
+     "nada exagerado", el verde es un acento, no el color de todo el texto).
+     El verde protagonista es --color-brand-800 (93 usos: botones
+     primarios, links, foco — el token que sí funciona como "color de
+     marca/acción" hoy).
+
+     La numeración 900>800>700>600 ya no implica "más oscuro" de forma
+     estricta (era una convención de la vieja paleta navy) — cada uno se
+     eligió por el rol que ya cumple en el código (800 = acción principal,
+     700 = hover/foco más oscuro, 600 = variante clara para el gráfico de
+     Finanzas), no por una escala tonal continua. */
+  --color-brand-900: #1f2937; /* neutro oscuro (texto principal/títulos) — antes navy */
+  --color-brand-800: #16a34a; /* VERDE PRINCIPAL — botones, links, acción */
+  --color-brand-700: #15803d; /* VERDE OSCURO — hover de botones, foco, acentos */
+  --color-brand-600: #22c55e; /* verde claro — variante para gráficos/detalles */
+  --color-brand-100: #dcfce7; /* VERDE CLARO — fondos de estado seleccionado/hover */
+  --color-brand-50: #f0fdf4; /* VERDE MUY CLARO — bloques "sunken" dentro de una tarjeta */
 
   /* --- Semáforo de estado. Regla del sistema: el color nunca es la
      única señal — siempre va acompañado de texto o ícono (ver Badge
-     en ui.tsx), para que no dependa de poder distinguir colores. --- */
-  --color-verde: #1e7d4a;
-  --color-verde-bg: #e6f4ec;
+     en ui.tsx), para que no dependa de poder distinguir colores.
+     "verde" ahora comparte familia con el verde de marca (--color-brand-700),
+     así "Activo"/"al día" se lee con el mismo verde que el resto del
+     sistema en vez de un verde distinto sin relación. --- */
+  --color-verde: #15803d;
+  --color-verde-bg: #dcfce7;
   --color-amarillo: #a15c00;
   --color-amarillo-bg: #fdf1dc;
   --color-rojo: #b3261e;
@@ -40,21 +67,22 @@
      no de hex sueltos. Cambiar la identidad visual de la app
      (o el contraste, por accesibilidad) se hace acá. --- */
   --color-ink: var(--color-brand-900);            /* texto principal / títulos */
-  --color-ink-muted: rgba(18, 50, 64, 0.62);      /* texto secundario */
-  --color-ink-faint: rgba(18, 50, 64, 0.45);      /* texto terciario / ayudas */
+  --color-ink-muted: #6b7280;                     /* texto secundario (spec: TEXTO SECUNDARIO) */
+  --color-ink-faint: #9ca3af;                     /* texto terciario / ayudas */
   --color-surface: #ffffff;                       /* tarjetas, modales, menús */
   --color-surface-sunken: var(--color-brand-50);  /* bloques dentro de una tarjeta */
-  --color-page-bg: #f4f6f7;                       /* fondo de página */
-  --color-border: rgba(18, 50, 64, 0.08);
-  --color-border-strong: rgba(18, 50, 64, 0.16);
-  --color-focus-ring: var(--color-brand-700);
+  --color-page-bg: #f8fafc;                       /* fondo de página (spec: FONDO GENERAL) */
+  --color-border: #e5e7eb;                        /* spec: BORDES */
+  --color-border-strong: #d1d5db;
+  --color-focus-ring: var(--color-brand-600);     /* spec: foco de inputs (#22C55E) */
 
   /* --- Elevación: 3 niveles nada más, para no terminar con una
      sombra distinta por pantalla. sm = tarjetas, md = menús/popovers
-     flotantes, lg = modales. --- */
-  --shadow-sm: 0 1px 2px rgba(18, 50, 64, 0.06), 0 1px 1px rgba(18, 50, 64, 0.04);
-  --shadow-md: 0 4px 12px rgba(18, 50, 64, 0.10), 0 2px 4px rgba(18, 50, 64, 0.06);
-  --shadow-lg: 0 16px 40px rgba(18, 50, 64, 0.20), 0 4px 10px rgba(18, 50, 64, 0.08);
+     flotantes, lg = modales. Suavizadas en el rediseño (18/09, pedido
+     "sombras suaves, nada exagerado") y con tinte neutro en vez de navy. --- */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.16), 0 4px 10px rgba(15, 23, 42, 0.06);
 
   /* --- Radios: uno chico (inputs, badges, chips), uno grande
      (tarjetas, modales, botones). --- */

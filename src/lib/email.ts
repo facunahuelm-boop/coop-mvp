@@ -75,7 +75,7 @@ function getTransporter(cfg: ConfigEmail) {
  */
 function plantillaHtml({
   tituloTarjeta,
-  colorTarjeta = "#123240",
+  colorTarjeta = "#16a34a",
   cuerpoHtml,
   piePagina,
 }: {
@@ -157,7 +157,7 @@ export async function enviarEmailAlerta(alerta: AlertaParaEmail): Promise<void> 
       textoPlano: `${alerta.titulo}\n\n${alerta.descripcion || ""}\n\nMódulo: ${alerta.origen_modulo}`,
       tituloTarjeta: "COOVA — Alerta crítica",
       cuerpoHtml: `
-        <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#123240;">${escapeHtml(alerta.titulo)}</p>
+        <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#1f2937;">${escapeHtml(alerta.titulo)}</p>
         ${alerta.descripcion ? `<p style="margin:0 0 14px;font-size:13px;color:#555;line-height:1.5;">${escapeHtml(alerta.descripcion)}</p>` : ""}
       `,
       piePagina: `Módulo: ${alerta.origen_modulo}`,

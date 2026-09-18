@@ -37,7 +37,7 @@ function asegurarEspacio(doc: PDFKit.PDFDocument, necesario: number) {
 function tituloSeccion(doc: PDFKit.PDFDocument, texto: string) {
   asegurarEspacio(doc, 60);
   doc.moveDown(0.6);
-  doc.fontSize(12.5).font("Helvetica-Bold").fillColor("#123240").text(texto, MARGIN, doc.y, { lineBreak: true });
+  doc.fontSize(12.5).font("Helvetica-Bold").fillColor("#1f2937").text(texto, MARGIN, doc.y, { lineBreak: true });
   doc.moveDown(0.4);
 }
 
@@ -66,7 +66,7 @@ export async function GET() {
     doc.on("error", reject);
 
     // ---------- Encabezado ----------
-    doc.fontSize(19).font("Helvetica-Bold").fillColor("#123240").text("COOVA — Reporte Financiero");
+    doc.fontSize(19).font("Helvetica-Bold").fillColor("#1f2937").text("COOVA — Reporte Financiero");
     doc.moveDown(0.15);
     doc
       .fontSize(9.5)
@@ -74,7 +74,7 @@ export async function GET() {
       .fillColor("#666")
       .text(`Cooperativa de vivienda por ayuda mutua · generado el ${dayjs().format("DD/MM/YYYY [a las] HH:mm")}`);
     doc.moveDown(0.5);
-    doc.strokeColor("#123240").lineWidth(1.4).moveTo(MARGIN, doc.y).lineTo(PAGE_RIGHT, doc.y).stroke();
+    doc.strokeColor("#16a34a").lineWidth(1.4).moveTo(MARGIN, doc.y).lineTo(PAGE_RIGHT, doc.y).stroke();
 
     // ---------- Resumen general ----------
     tituloSeccion(doc, "Resumen general");
@@ -88,7 +88,7 @@ export async function GET() {
     ];
     resumen.forEach(([label, valor]) => fila(doc, [label, valor], [340, 150]));
     doc.moveDown(0.2);
-    doc.fontSize(10.5).font("Helvetica-Bold").fillColor(fin.disponiblePrudencial < 0 ? "#b0392c" : "#123240");
+    doc.fontSize(10.5).font("Helvetica-Bold").fillColor(fin.disponiblePrudencial < 0 ? "#b0392c" : "#1f2937");
     fila(doc, ["Disponible prudencial", money(fin.disponiblePrudencial)], [340, 150]);
     doc.fontSize(8.5).font("Helvetica").fillColor("#888").text(
       "Disponible prudencial = saldo actual menos lo ya comprometido. No es lo mismo que el saldo bancario.",

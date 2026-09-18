@@ -23,13 +23,19 @@ const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
 // relación con la paleta del sistema (globals.css) — se reemplaza por
 // variables CSS ya definidas ahí, para que un cambio de paleta a futuro
 // también actualice este gráfico sin tocar código.
+// Rediseño visual global (18/09): tras remapear la paleta de marca a verde,
+// brand-800/brand-600/--color-verde son ahora 3 tonos de verde — mal para un
+// gráfico donde cada categoría necesita distinguirse a simple vista. Se
+// reemplazan por acentos ya definidos en el sistema (los mismos 4 acentos de
+// módulo + amarillo/rojo del semáforo), evitando repetir el mismo hex en dos
+// lugares y sin agregar colores nuevos a la paleta.
 const CATEGORY_COLORS = [
   "var(--color-brand-800)",
-  "var(--color-brand-600)",
-  "var(--accent-teal)",
+  "var(--accent-blue)",
+  "var(--accent-violet)",
   "var(--color-amarillo)",
   "var(--color-rojo)",
-  "var(--color-verde)",
+  "var(--accent-teal)",
 ];
 const POR_PAGINA = 20;
 
@@ -78,7 +84,7 @@ export default async function FinanzasPage({
           detalle ? (
             <a
               href="/api/reportes/finanzas"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-brand-800)] text-white hover:bg-[var(--color-brand-900)] px-4 py-2.5 text-sm font-semibold transition-colors whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-brand-800)] text-white hover:bg-[var(--color-brand-700)] px-4 py-2.5 text-sm font-semibold transition-colors whitespace-nowrap"
             >
               📄 Descargar reporte PDF
             </a>

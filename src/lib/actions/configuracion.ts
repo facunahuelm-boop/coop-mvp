@@ -108,7 +108,7 @@ export async function actualizarModulosFormAction(_prev: ActionState, formData: 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 const brandingSchema = z.object({
   nombre: zTexto(200),
-  color_primario: z.string().trim().regex(HEX_COLOR, "Tiene que ser un color válido.").default("#123240"),
+  color_primario: z.string().trim().regex(HEX_COLOR, "Tiene que ser un color válido.").default("#16a34a"),
   color_secundario: z
     .string()
     .trim()

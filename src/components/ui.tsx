@@ -79,7 +79,12 @@ export function Button({
 }) {
   const styles =
     variant === "primary"
-      ? "bg-brand-800 text-white hover:bg-brand-900"
+      ? // Rediseño visual global (18/09): el hover de un botón sólido debería
+        // ser un tono MÁS OSCURO del mismo color, no un color distinto — antes
+        // usaba brand-900 (que funcionaba porque toda la escala navy era un
+        // solo tono). Ahora brand-900 es el neutro de texto, así que el hover
+        // pasa a brand-700 (verde oscuro), manteniendo "hover = más oscuro".
+        "bg-brand-800 text-white hover:bg-brand-700"
       : variant === "secondary"
       ? "bg-brand-100 text-brand-800 hover:bg-brand-100/70"
       : variant === "danger"

@@ -73,7 +73,10 @@ export function generarPdfBuffer(datos: DatosPdf): Promise<Buffer> {
       doc.on("end", () => resolve(Buffer.concat(chunks)));
       doc.on("error", reject);
 
-      const colorPrimario = datos.organizacion.color_primario || "#123240";
+      // Rediseño visual global (18/09): mismo verde nuevo que el resto del
+      // sistema para cooperativas que todavía no personalizaron su color de
+      // marca (ver migrations/0028 y Configuración → Marca).
+      const colorPrimario = datos.organizacion.color_primario || "#16a34a";
       const altoEncabezado = 80;
 
       doc.rect(0, 0, doc.page.width, altoEncabezado).fill(colorPrimario);
