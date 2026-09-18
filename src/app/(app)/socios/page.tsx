@@ -15,7 +15,8 @@ import {
   moverListaEsperaFormAction,
 } from "@/lib/actions/socios";
 import { NucleoLink } from "@/components/EntidadLink";
-import { BuscadorFilas } from "@/components/BuscadorFilas";
+import { TablaFiltrable, type FiltroDef } from "@/components/TablaFiltrable";
+import { FilaConDetalle, EstadoBadge } from "@/components/FilaConDetalle";
 import { CrearSocioForm, CrearViviendaForm, AgregarListaEsperaForm } from "@/components/socios/SociosFormularios";
 
 const ESTADOS_VIVIENDA = ["en_obra", "terminada", "ocupada"] as const;
@@ -76,6 +77,31 @@ export default async function SociosPage() {
     all<any>(`SELECT id, nombre FROM nucleos_familiares ORDER BY nombre ASC`),
   ]);
 
+  // Rediseño de Núcleos (18/09, pedido explícito con referencia visual de
+  // ERP): cada socio ES el titular de un núcleo — no existe una tabla de
+  // "núcleos de la cooperativa" separada del padrón (nucleos_familiares es
+  // otro modelo, ver lib/contactos.ts), así que el padrón de socios pasa a
+  // ser también el listado de núcleos que pidió el pedido: mismo patrón de
+  // filtros+tabla+modal que Contactos y Proveedores. "Etapa" y "cantidad de
+  // integrantes" (filtros que pide el pedido) no se agregan como filtro acá
+  // porque no son datos reales del socio en este modelo (etapa es un dato
+  // global de la cooperativa, no por núcleo) — se documenta como decisión de
+  // alcance en el CHANGELOG en vez de inventar un filtro sin datos reales.
+  const filtrosSocios: FiltroDef[] = [
+    {
+      id: "vivienda",
+      label: "Vivienda",
+      opciones: viviendas.map((v) => ({ value: String(v.id), label: v.numero })),
+      valores: socios.map((s) => (s.vivienda_id ? String(s.vivienda_id) : "")),
+    },
+    {
+      id: "estado",
+      label: "Estado",
+      opciones: ESTADOS_SOCIO.map((e) => ({ value: e, label: e })),
+      valores: socios.map((s) => s.estado),
+    },
+  ];
+
   const viviendasLibres = viviendas.filter((v) => !socios.some((s) => s.vivienda_id === v.id));
   // Solo los aspirantes "en_espera" compiten por posición (ver
   // moverListaEsperaAction) — se usa para saber si mostrar la flecha de
@@ -105,48 +131,57 @@ export default async function SociosPage() {
         </Card>
       </div>
 
-      {/* ---------- Socios ---------- */}
-      <SectionTitle>Padrón de socios</SectionTitle>
+      {/* ---------- Socios / Núcleos ---------- */}
+      <SectionTitle>Padrón de socios (núcleos)</SectionTitle>
       <Card className="mb-6">
         {socios.length === 0 ? (
           <EmptyState>Todavía no hay socios cargados.</EmptyState>
         ) : (
-          // Fase 8 (paginación/búsqueda/filtros): buscador client-side sobre
-          // las filas ya armadas por el servidor — ver BuscadorFilas.tsx
-          // sobre por qué acá conviene esto y no paginación real. Las filas
-          // (y el encabezado) se pasan como JSX ya armado (patrón estándar
-          // de Next.js para contenido renderizado en el servidor dentro de
-          // un Client Component) y las claves de búsqueda van aparte, en
-          // paralelo — sin ninguna función cruzando ese límite.
-          <BuscadorFilas
-            placeholder="Buscar socio por nombre, vivienda, núcleo, email o teléfono..."
-            sinResultadosTexto="No se encontró ningún socio con esa búsqueda."
+          <TablaFiltrable
+            placeholder="Buscar por núcleo, vivienda, titular, email o teléfono..."
+            sinResultadosTexto="No se encontró ningún núcleo con esa búsqueda."
             claves={socios.map((s) => [s.nombre, s.vivienda_numero, s.nucleo_nombre, s.email, s.telefono].filter(Boolean).join(" "))}
+            filtros={filtrosSocios}
             encabezado={
               <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
-                <th className="py-2 pr-3">N.º núcleo</th>
+                <th className="py-2 pr-3">Núcleo</th>
+                <th className="py-2 pr-3">Vivienda</th>
                 <th className="py-2 pr-3">Titular</th>
                 <th className="py-2 pr-3">Integrantes</th>
-                <th className="py-2 pr-3">Vivienda</th>
-                <th className="py-2 pr-3">Núcleo familiar</th>
                 <th className="py-2 pr-3">Contacto</th>
                 <th className="py-2 pr-3">Estado</th>
-                {puedeEditar && <th className="py-2 pr-3"></th>}
+                <th className="py-2 pr-3"></th>
               </tr>
             }
           >
             {socios.map((s) => (
-              <tr key={s.id} className="border-b border-ink/5 last:border-0">
+              <FilaConDetalle
+                key={s.id}
+                titulo={s.nombre}
+                subtitulo={s.vivienda_numero ? `Vivienda ${s.vivienda_numero}` : "Sin vivienda asignada"}
+                editarHref={`/socios/${s.id}`}
+                secciones={[
+                  {
+                    titulo: "Núcleo",
+                    items: [
+                      { label: "N.º de núcleo", valor: `#${s.id}` },
+                      { label: "Vivienda", valor: s.vivienda_numero || "Sin asignar" },
+                      { label: "Núcleo familiar", valor: s.nucleo_nombre || "—" },
+                      { label: "Integrantes", valor: Number(s.cantidad_integrantes) > 0 ? `+${s.cantidad_integrantes}` : "Sin integrantes cargados" },
+                    ],
+                  },
+                  {
+                    titulo: "Contacto del titular",
+                    items: [
+                      { label: "Email", valor: s.email || "—" },
+                      { label: "Teléfono", valor: s.telefono || "—" },
+                      { label: "Estado", valor: <EstadoBadge estado={s.estado} /> },
+                    ],
+                  },
+                ]}
+              >
                 <td className="py-2 pr-3 text-ink/50">#{s.id}</td>
-                <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
-                  <Link href={`/socios/${s.id}`} className="hover:underline underline-offset-2">
-                    {s.nombre}
-                  </Link>
-                </td>
-                <td className="py-2 pr-3 text-ink/60">
-                  {Number(s.cantidad_integrantes) > 0 ? `+${s.cantidad_integrantes}` : "—"}
-                </td>
-                <td className="py-2 pr-3">
+                <td className="py-2 pr-3" data-no-row-click>
                   {puedeEditar ? (
                     <AutoSubmitSelect
                       action={asignarViviendaSocioFormAction}
@@ -160,7 +195,15 @@ export default async function SociosPage() {
                     s.vivienda_numero || <span className="text-ink/30">—</span>
                   )}
                 </td>
-                <td className="py-2 pr-3 text-ink/60"><NucleoLink id={s.nucleo_id} nombre={s.nucleo_nombre} /></td>
+                <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
+                  <Link href={`/socios/${s.id}`} className="hover:underline underline-offset-2" data-no-row-click>
+                    {s.nombre}
+                  </Link>
+                  <div className="text-xs font-normal text-ink/50"><NucleoLink id={s.nucleo_id} nombre={s.nucleo_nombre} /></div>
+                </td>
+                <td className="py-2 pr-3 text-ink/60">
+                  {Number(s.cantidad_integrantes) > 0 ? `+${s.cantidad_integrantes}` : "—"}
+                </td>
                 <td className="py-2 pr-3 text-ink/60">
                   {s.email || s.telefono ? (
                     <>
@@ -171,7 +214,7 @@ export default async function SociosPage() {
                     "—"
                   )}
                 </td>
-                <td className="py-2 pr-3">
+                <td className="py-2 pr-3" data-no-row-click>
                   {puedeEditar ? (
                     <AutoSubmitSelect
                       action={actualizarSocioEstadoFormAction}
@@ -185,9 +228,9 @@ export default async function SociosPage() {
                     <Badge color={badgeSocio[s.estado] || "gray"}>{s.estado}</Badge>
                   )}
                 </td>
-              </tr>
+              </FilaConDetalle>
             ))}
-          </BuscadorFilas>
+          </TablaFiltrable>
         )}
 
         {puedeEditar && <CrearSocioForm viviendas={viviendas} nucleos={nucleos} />}

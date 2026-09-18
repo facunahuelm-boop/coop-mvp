@@ -35,8 +35,16 @@ export type Contacto = {
   id: number;
   nombre: string;
   subtitulo: string;
+  /** Rol específico dentro de su tipo (Titular, Cónyuge, Hijo/a, Proveedor…)
+   * — más fino que `tipo`, usado como columna/filtro propio en la tabla
+   * (rediseño 18/09). */
+  rol: string;
+  /** Nombre del núcleo familiar, cuando aplica (socios/integrantes) — null
+   * para proveedores, que no pertenecen a ningún núcleo. */
+  nucleo: string | null;
   email: string | null;
   telefono: string | null;
+  documento: string | null;
   estado: string;
   href: string;
 };
@@ -50,7 +58,7 @@ export async function obtenerContactos(rol: Role): Promise<Contacto[]> {
   if (canRead(rol, "socios")) {
     fuentes.push(
       all<any>(
-        `SELECT s.id, s.nombre, s.email, s.telefono, s.estado,
+        `SELECT s.id, s.nombre, s.email, s.telefono, s.documento, s.estado,
                 v.numero as vivienda_numero, n.nombre as nucleo_nombre
          FROM socios s
          LEFT JOIN viviendas v ON v.id = s.vivienda_id
@@ -66,8 +74,11 @@ export async function obtenerContactos(rol: Role): Promise<Contacto[]> {
             [r.vivienda_numero ? `Vivienda ${r.vivienda_numero}` : null, r.nucleo_nombre ? `Núcleo ${r.nucleo_nombre}` : null]
               .filter(Boolean)
               .join(" · ") || "Socio/a",
+          rol: "Titular",
+          nucleo: r.nucleo_nombre ?? null,
           email: r.email ?? null,
           telefono: r.telefono ?? null,
+          documento: r.documento ?? null,
           estado: r.estado as string,
           href: `/socios/${r.id}`,
         }))
@@ -76,10 +87,11 @@ export async function obtenerContactos(rol: Role): Promise<Contacto[]> {
       // motivo la migración 0019 todavía no corrió en algún entorno, esta
       // fuente se omite en vez de romper el resto de la pantalla.
       all<any>(
-        `SELECT si.id, si.nombre, si.apellido, si.email, si.telefono, si.relacion, si.estado,
-                si.socio_id, s.nombre as socio_nombre
+        `SELECT si.id, si.nombre, si.apellido, si.email, si.telefono, si.documento, si.relacion, si.estado,
+                si.socio_id, s.nombre as socio_nombre, n.nombre as nucleo_nombre
          FROM socio_integrantes si
          JOIN socios s ON s.id = si.socio_id
+         LEFT JOIN nucleos_familiares n ON n.id = s.nucleo_id
          WHERE si.estado = 'activo'
          ORDER BY si.nombre ASC`
       )
@@ -90,8 +102,11 @@ export async function obtenerContactos(rol: Role): Promise<Contacto[]> {
             id: r.id,
             nombre: [r.nombre, r.apellido].filter(Boolean).join(" "),
             subtitulo: `${RELACION_INTEGRANTE_LABEL[r.relacion as keyof typeof RELACION_INTEGRANTE_LABEL] || "Integrante"} de ${r.socio_nombre}`,
+            rol: RELACION_INTEGRANTE_LABEL[r.relacion as keyof typeof RELACION_INTEGRANTE_LABEL] || "Integrante",
+            nucleo: r.nucleo_nombre ?? null,
             email: r.email ?? null,
             telefono: r.telefono ?? null,
+            documento: r.documento ?? null,
             estado: r.estado as string,
             href: `/socios/${r.socio_id}`,
           }))
@@ -105,7 +120,7 @@ export async function obtenerContactos(rol: Role): Promise<Contacto[]> {
   if (canRead(rol, "compras")) {
     fuentes.push(
       all<any>(
-        `SELECT id, nombre, email, telefono, tipo, rubro, estado
+        `SELECT id, nombre, email, telefono, rut, tipo, rubro, estado
          FROM proveedores
          WHERE COALESCE(estado, 'nuevo') != 'inactivo'
          ORDER BY nombre ASC`
@@ -116,8 +131,11 @@ export async function obtenerContactos(rol: Role): Promise<Contacto[]> {
           nombre: r.nombre as string,
           subtitulo:
             (r.tipo && TIPO_PROVEEDOR_LABEL[r.tipo as keyof typeof TIPO_PROVEEDOR_LABEL]) || r.rubro || "Proveedor",
+          rol: "Proveedor",
+          nucleo: null,
           email: r.email ?? null,
           telefono: r.telefono ?? null,
+          documento: r.rut ?? null,
           estado: (r.estado as string) || "nuevo",
           href: `/proveedores/${r.id}`,
         }))
