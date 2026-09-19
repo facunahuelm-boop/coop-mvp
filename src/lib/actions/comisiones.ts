@@ -6,8 +6,15 @@ import { insert, update, get, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
-import { parseForm, zId, zTexto, zTextoOpcional } from "@/lib/validation";
+import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaOpcional } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+
+// Fase 2 del pedido "Comisiones como sistema de gestión" (19/09): tipo
+// permanente/temporal + objetivo + vigencia + subcomisiones + suplentes.
+// Ver ARQUITECTURA_COMISIONES.md para el diseño completo de las 12 fases.
+const ROLES_EN_COMISION = ["coordinador", "integrante", "suplente"] as const;
+const zRolEnComision = z.enum(ROLES_EN_COMISION).default("integrante");
+const zTipoComision = z.enum(["permanente", "temporal"]).default("permanente");
 
 // AUDITORÍA INTEGRAL (hallazgo de seguridad, sección 17): estas cuatro
 // acciones solo comprobaban canEdit(rol, "comisiones") — y en la matriz de
@@ -32,19 +39,64 @@ function esOversightComisiones(rol: Parameters<typeof canEdit>[0]): boolean {
   return canEdit(rol, "finanzas");
 }
 
-const crearComisionSchema = z.object({ nombre: zTexto(200), descripcion: zTextoOpcional(1000) });
+const crearComisionSchema = z
+  .object({
+    nombre: zTexto(200),
+    descripcion: zTextoOpcional(1000),
+    tipo: zTipoComision,
+    objetivo: zTextoOpcional(1000),
+    fecha_inicio: zFechaOpcional,
+    fecha_fin: zFechaOpcional,
+    comision_padre_id: zIdOpcional,
+  })
+  .refine((d) => d.tipo !== "temporal" || d.fecha_fin, {
+    message: "Una comisión temporal necesita fecha de finalización.",
+    path: ["fecha_fin"],
+  });
 
 export async function crearComisionAction(formData: FormData) {
   const user = await requireUser();
   if (!esOversightComisiones(user.rol)) throw new Error("Crear una comisión nueva requiere un rol de conducción (Admin, Consejo Directivo, Tesorería o Administración).");
   const datos = parseForm(crearComisionSchema, formData);
   const id = await insert("comisiones", datos);
-  await audit({ usuario_id: user.id, accion: "crear", entidad: "comisiones", entidad_id: id, valor_nuevo: { nombre: datos.nombre } });
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "comisiones", entidad_id: id, valor_nuevo: { nombre: datos.nombre, tipo: datos.tipo } });
   revalidatePath("/comisiones");
 }
 
 export async function crearComisionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => crearComisionAction(formData));
+}
+
+// Editar una comisión ya creada: mismo alcance de permiso que archivarla
+// (decisión estructural), no el de gestionar sus integrantes/tareas.
+const editarComisionSchema = z
+  .object({
+    id: zId,
+    nombre: zTexto(200),
+    descripcion: zTextoOpcional(1000),
+    tipo: zTipoComision,
+    objetivo: zTextoOpcional(1000),
+    fecha_inicio: zFechaOpcional,
+    fecha_fin: zFechaOpcional,
+    comision_padre_id: zIdOpcional,
+  })
+  .refine((d) => d.tipo !== "temporal" || d.fecha_fin, {
+    message: "Una comisión temporal necesita fecha de finalización.",
+    path: ["fecha_fin"],
+  });
+
+export async function editarComisionAction(formData: FormData) {
+  const user = await requireUser();
+  if (!esOversightComisiones(user.rol)) throw new Error("Editar una comisión requiere un rol de conducción (Admin, Consejo Directivo, Tesorería o Administración).");
+  const { id, ...datos } = parseForm(editarComisionSchema, formData);
+  if (datos.comision_padre_id === id) throw new Error("Una comisión no puede ser subcomisión de sí misma.");
+  await update("comisiones", id, datos);
+  await audit({ usuario_id: user.id, accion: "editar", entidad: "comisiones", entidad_id: id, valor_nuevo: datos });
+  revalidatePath("/comisiones");
+}
+
+export async function editarComisionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => editarComisionAction(formData));
 }
 
 export async function archivarComisionAction(formData: FormData) {
@@ -60,10 +112,26 @@ export async function archivarComisionFormAction(_prev: ActionState, formData: F
   return conEstadoDeAccion(() => archivarComisionAction(formData));
 }
 
+// Reactivar una comisión archivada (punto 6 del pedido: "Activar/
+// Desactivar") — nunca se borró información al archivar, así que
+// reactivar es simplemente volver a mostrarla.
+export async function reactivarComisionAction(formData: FormData) {
+  const user = await requireUser();
+  if (!esOversightComisiones(user.rol)) throw new Error("Reactivar una comisión requiere un rol de conducción (Admin, Consejo Directivo, Tesorería o Administración).");
+  const { id } = parseForm(z.object({ id: zId }), formData);
+  await update("comisiones", id, { activa: 1 });
+  await audit({ usuario_id: user.id, accion: "reactivar", entidad: "comisiones", entidad_id: id });
+  revalidatePath("/comisiones");
+}
+
+export async function reactivarComisionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => reactivarComisionAction(formData));
+}
+
 const agregarMiembroSchema = z.object({
   comision_id: zId,
   user_id: zId,
-  rol_en_comision: zTextoOpcional(100).transform((v) => v || "integrante"),
+  rol_en_comision: zRolEnComision,
 });
 
 export async function agregarMiembroAction(formData: FormData) {
@@ -101,4 +169,22 @@ export async function quitarMiembroAction(formData: FormData) {
 
 export async function quitarMiembroFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => quitarMiembroAction(formData));
+}
+
+const cambiarRolMiembroSchema = z.object({ id: zId, rol_en_comision: zRolEnComision });
+
+export async function cambiarRolMiembroAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const { id, rol_en_comision } = parseForm(cambiarRolMiembroSchema, formData);
+  const miembro = await get<{ comision_id: number }>(`SELECT comision_id FROM comision_miembros WHERE id = ?`, [id]);
+  if (!miembro) return;
+  if (!(await puedeGestionarComision(user, miembro.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
+  await update("comision_miembros", id, { rol_en_comision });
+  await audit({ usuario_id: user.id, accion: "cambiar_rol_miembro", entidad: "comision_miembros", entidad_id: id, valor_nuevo: { rol_en_comision } });
+  revalidatePath("/comisiones");
+}
+
+export async function cambiarRolMiembroFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => cambiarRolMiembroAction(formData));
 }
