@@ -35,6 +35,7 @@ import {
   Receipt,
   BookUser,
   Send,
+  Gavel,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -120,6 +121,7 @@ const GROUPS: NavGroup[] = [
       { href: "/comisiones", label: "Comisiones", icon: <Compass size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/solicitudes", label: "Solicitudes", icon: <Send size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/reuniones", label: "Reuniones", icon: <CalendarDays size={ICON_SIZE} />, mod: "comisiones" },
+      { href: "/decisiones", label: "Decisiones", icon: <Gavel size={ICON_SIZE} />, mod: "comisiones" },
     ],
   },
   {
@@ -150,7 +152,7 @@ const GROUPS: NavGroup[] = [
 // consulta día a día.
 const GRUPO_COLAPSABLE = {
   grupo: "Organización",
-  hrefsColapsados: ["/comisiones", "/solicitudes", "/reuniones"],
+  hrefsColapsados: ["/comisiones", "/solicitudes", "/reuniones", "/decisiones"],
   label: "Comisiones y reuniones",
   icon: <Compass size={ICON_SIZE} />,
 };
