@@ -111,6 +111,15 @@ export function CrearTareaForm({ comisionId, usuarios }: { comisionId: number; u
           <input name="fecha_vencimiento" type="date" className={inputClass} />
           <FieldError message={estado.fieldErrors?.fecha_vencimiento} />
         </div>
+        {/* Comisiones como sistema de gestión, Fase 4 (sección 12: "etiquetas"):
+            la dependencia con otra tarea deliberadamente no se ofrece acá —
+            recién se puede elegir con sentido una vez que existen las otras
+            tareas de la comisión, así que se agrega desde "Editar tarea"
+            dentro del detalle (TareaDetalleModal), no en este alta rápida. */}
+        <div>
+          <input name="etiquetas" placeholder="Etiquetas (opcional, separadas por coma)" className={inputClass} />
+          <FieldError message={estado.fieldErrors?.etiquetas} />
+        </div>
         <FormError message={estado.error} />
         <SubmitButton variant="add" className="text-xs px-3 py-2">Agregar tarea</SubmitButton>
       </form>

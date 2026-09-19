@@ -16,6 +16,7 @@ import {
 } from "@/lib/actions/comisiones";
 import { cambiarEstadoTareaFormAction } from "@/lib/actions/tareas";
 import { AgregarMiembroForm, CrearTareaForm, CrearComisionForm, EditarComisionForm } from "@/components/comisiones/ComisionesFormularios";
+import { TareaDetalleModal } from "@/components/comisiones/TareaDetalleModal";
 
 const ROL_MIEMBRO_LABEL: Record<string, string> = { coordinador: "Coordinador/a", integrante: "Integrante", suplente: "Suplente" };
 
@@ -45,7 +46,7 @@ export default async function ComisionesPage({
   // después va a rechazar por ser de otra comisión.
   const esOversightComisiones = canEdit(user.rol, "finanzas");
 
-  const [comisiones, comisionesArchivadas, miembros, usuarios, tareas, misComisiones] = await Promise.all([
+  const [comisiones, comisionesArchivadas, miembros, usuarios, tareas, misComisiones, colaboradoresTareas] = await Promise.all([
     all<any>(`SELECT * FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`),
     // Fase 2 (comisiones dinámicas): archivar nunca borró información, pero
     // hasta ahora no había forma de volver a verlas — memoria institucional
@@ -62,6 +63,13 @@ export default async function ComisionesPage({
        ORDER BY (t.estado = 'completada'), CASE t.prioridad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, t.creado_en DESC`
     ),
     all<{ comision_id: number }>(`SELECT comision_id FROM comision_miembros WHERE user_id = ? AND activo = 1`, [user.id]),
+    // Comisiones como sistema de gestión, Fase 4: colaboradores por tarea
+    // (tabla nueva de la migración 0029) — `.catch(() => [])` porque esta
+    // fase se documenta y despliega antes de que el usuario corra esa
+    // migración en producción, mismo criterio que el resto del proyecto.
+    all<any>(
+      `SELECT tc.*, u.nombre FROM tarea_colaboradores tc JOIN users u ON u.id = tc.user_id`
+    ).catch(() => [] as any[]),
   ]);
 
   const misComisionIds = new Set(misComisiones.map((m) => m.comision_id));
@@ -70,6 +78,16 @@ export default async function ComisionesPage({
   const miembrosPorComision = (comisionId: number) => miembros.filter((m) => m.comision_id === comisionId);
   const tareasPorComision = (comisionId: number) => tareas.filter((t) => t.comision_id === comisionId);
   const nombreComision = (id: number | null) => (id ? comisiones.find((c) => c.id === id)?.nombre : null);
+  // Fase 4: checklist llega como JSONB (array) — si la migración 0029
+  // todavía no corrió, la columna no existe y `t.checklist` viene undefined;
+  // se trata como checklist vacío en vez de romper el render.
+  const checklistDeTarea = (t: (typeof tareas)[number]): { texto: string; hecho: boolean }[] => (Array.isArray(t.checklist) ? t.checklist : []);
+  const colaboradoresDeTarea = (tareaId: number) => colaboradoresTareas.filter((c) => c.tarea_id === tareaId);
+  const dependenciaDeTarea = (t: (typeof tareas)[number]): { titulo: string; estado: string } | null => {
+    if (!t.depende_de_id) return null;
+    const dep = tareas.find((x) => x.id === t.depende_de_id);
+    return dep ? { titulo: dep.titulo, estado: dep.estado } : null;
+  };
 
   return (
     <div>
@@ -141,16 +159,37 @@ export default async function ComisionesPage({
               <div className="mt-4 pt-4 border-t border-ink/5">
                 <p className="text-xs font-semibold text-ink/60 mb-2">Tareas</p>
                 <div className="space-y-1.5">
-                  {tareasPorComision(c.id).map((t) => (
+                  {tareasPorComision(c.id).map((t) => {
+                    const checklist = checklistDeTarea(t);
+                    const hechos = checklist.filter((it) => it.hecho).length;
+                    return (
                     <div key={t.id} className="flex items-center justify-between gap-2 text-xs">
                       <div className="min-w-0">
-                        <p className={`truncate font-medium ${t.estado === "completada" ? "text-ink/40 line-through" : "text-[var(--color-brand-900)]"}`}>
-                          {t.titulo}
-                        </p>
+                        <TareaDetalleModal
+                          tarea={{
+                            id: t.id,
+                            comision_id: t.comision_id,
+                            titulo: t.titulo,
+                            descripcion: t.descripcion ?? null,
+                            prioridad: t.prioridad,
+                            estado: t.estado,
+                            fecha_vencimiento: t.fecha_vencimiento ?? null,
+                            etiquetas: t.etiquetas ?? null,
+                            responsable_id: t.responsable_id ?? null,
+                            depende_de_id: t.depende_de_id ?? null,
+                            checklist,
+                          }}
+                          usuarios={usuarios}
+                          otrasTareas={tareasPorComision(c.id).filter((x) => x.id !== t.id).map((x) => ({ id: x.id, titulo: x.titulo, estado: x.estado }))}
+                          colaboradores={colaboradoresDeTarea(t.id).map((cl) => ({ id: cl.id, user_id: cl.user_id, nombre: cl.nombre }))}
+                          dependencia={dependenciaDeTarea(t)}
+                          puedeGestionar={puedeGestionar}
+                        />
                         <p className="text-ink/40">
                           {PRIORIDAD_LABEL[t.prioridad] ?? t.prioridad} ·{" "}
                           <UsuarioLink id={t.responsable_id} nombre={t.responsable_nombre} fallback="sin asignar" />
                           {t.fecha_vencimiento ? ` · vence ${dayjs(t.fecha_vencimiento).format("DD/MM")}` : ""}
+                          {checklist.length > 0 ? ` · ☑ ${hechos}/${checklist.length}` : ""}
                         </p>
                       </div>
                       {puedeGestionar ? (
@@ -166,7 +205,8 @@ export default async function ComisionesPage({
                         <Badge color={ESTADO_TAREA_COLOR[t.estado] ?? "gray"}>{ESTADO_TAREA_LABEL[t.estado] ?? t.estado}</Badge>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                   {tareasPorComision(c.id).length === 0 && (
                     <p className="text-xs text-ink/40 italic">Sin tareas cargadas.</p>
                   )}
