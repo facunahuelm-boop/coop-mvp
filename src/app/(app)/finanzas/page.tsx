@@ -163,7 +163,7 @@ export default async function FinanzasPage({
       value: money(fin.comprometido),
       items: compromisos.map((c) => ({
         label: c.descripcion,
-        sublabel: `${money(c.monto)} · ${dayjs(c.fecha_estimada).format("DD/MM/YYYY")}`,
+        sublabel: `${c.origen} · ${dayjs(c.fecha_estimada).format("DD/MM/YYYY")} · ${money(c.monto)}`,
       })),
       vacioTexto: "Sin compromisos futuros cargados.",
     },
@@ -172,6 +172,7 @@ export default async function FinanzasPage({
       label: "Disponible prudencial",
       value: money(fin.disponiblePrudencial),
       color: fin.disponiblePrudencial < 0 ? "rojo" : fin.disponiblePrudencial < fin.gastosProyectados ? "amarillo" : "verde",
+      intro: "Saldo actual menos pagos y compromisos ya asumidos. Esto no es lo mismo que el saldo bancario: es lo que queda después de descontar lo comprometido.",
       items: [
         { label: "Saldo actual", sublabel: money(fin.saldo) },
         { label: "Comprometido", sublabel: `− ${money(fin.comprometido)}` },
@@ -253,67 +254,70 @@ export default async function FinanzasPage({
               label: "Resumen",
               content: (
                 <>
+                  {/* Rediseño visual (19/09, pedido explícito: "que no queden
+                      espacios largos", "todo en uno más lindo con pop-ups y
+                      súper práctico"). Dos cambios sobre la versión anterior:
+                      (1) la explicación de "disponible prudencial" (antes un
+                      párrafo siempre visible) pasa a ser el `intro` del pop-up
+                      de ese mismo tile — no se pierde el texto, sólo deja de
+                      ocupar espacio permanente en la pantalla; (2) "Gasto por
+                      categoría" y "Presupuesto vs. gasto real" pasan de estar
+                      apiladas (dos Cards angostas, una debajo de la otra) a
+                      una grilla de 2 columnas — mismo contenido, la mitad del
+                      alto. La vieja tabla "Próximos pagos / compromisos" se
+                      elimina por completo: es exactamente lo que ya muestra
+                      el pop-up del tile "Comprometido" de arriba (ahora con
+                      el origen incluido en el detalle) — mantenerla como
+                      tabla aparte era duplicar la misma información dos
+                      veces en la misma pantalla. */}
                   <ResumenFinanzas tiles={tilesResumen} columnas={4} />
 
-                  <p className="text-xs text-ink/50 mb-6">
-                    Saldo actual ({money(fin.saldo)}) menos pagos y compromisos ya asumidos ({money(fin.comprometido)}) = disponible prudencial. Esto no es lo mismo que el saldo bancario: es lo que queda después de descontar lo comprometido.
-                  </p>
-
-                  <SectionTitle>Gasto por categoría</SectionTitle>
-                  <Card className="mb-6">
-                    <div className="space-y-2">
-                      {fin.porCategoria.map((c: any, i: number) => (
-                        <div key={c.categoria} className="flex items-center gap-3 text-sm">
-                          <span className="w-32 shrink-0 text-ink/60 truncate">{c.categoria}</span>
-                          <div className="flex-1 h-3 rounded-full bg-ink/5 overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${(c.total / maxCategoria) * 100}%`, backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
-                          </div>
-                          <span className="w-24 text-right font-medium">{money(c.total)}</span>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+                    <div>
+                      <SectionTitle>Gasto por categoría</SectionTitle>
+                      <Card>
+                        <div className="space-y-2">
+                          {fin.porCategoria.map((c: any, i: number) => (
+                            <div key={c.categoria} className="flex items-center gap-3 text-sm">
+                              <span className="w-24 shrink-0 text-ink/60 truncate">{c.categoria}</span>
+                              <div className="flex-1 h-3 rounded-full bg-ink/5 overflow-hidden">
+                                <div className="h-full rounded-full" style={{ width: `${(c.total / maxCategoria) * 100}%`, backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
+                              </div>
+                              <span className="w-20 text-right font-medium">{money(c.total)}</span>
+                            </div>
+                          ))}
+                          {fin.porCategoria.length === 0 && <EmptyState>Sin egresos registrados.</EmptyState>}
                         </div>
-                      ))}
-                      {fin.porCategoria.length === 0 && <EmptyState>Sin egresos registrados.</EmptyState>}
+                      </Card>
                     </div>
-                  </Card>
 
-                  <SectionTitle>Presupuesto vs. gasto real</SectionTitle>
-                  <Card className="mb-6">
-                    <table className="w-full text-sm">
-                      <thead><tr className="text-left text-xs text-ink/50 border-b border-ink/10"><th className="py-2">Categoría</th><th>Presupuestado</th><th>Gastado</th><th>Desvío</th></tr></thead>
-                      <tbody>
-                        {fin.presupuestoVsReal.map((p: any) => {
-                          const desv = p.monto_presupuestado > 0 ? (p.gastado - p.monto_presupuestado) / p.monto_presupuestado : 0;
-                          return (
-                            <tr key={p.categoria} className="border-b border-ink/5 last:border-0">
-                              <td className="py-2">{p.categoria}</td>
-                              <td>{money(p.monto_presupuestado)}</td>
-                              <td>{money(p.gastado)}</td>
-                              <td className={desv > 0.15 ? "text-[var(--color-rojo)] font-semibold" : "text-ink/60"}>{Math.round(desv * 100)}%</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </Card>
-
-                  <SectionTitle>Próximos pagos / compromisos</SectionTitle>
-                  <Card className="mb-4">
-                    <table className="w-full text-sm">
-                      <thead><tr className="text-left text-xs text-ink/50 border-b border-ink/10"><th className="py-2">Descripción</th><th>Origen</th><th>Fecha</th><th className="text-right">Monto</th></tr></thead>
-                      <tbody>
-                        {compromisos.map((c) => (
-                          <tr key={c.id} className="border-b border-ink/5 last:border-0">
-                            <td className="py-2 font-medium">{c.descripcion}</td>
-                            <td className="text-ink/60">{c.origen}</td>
-                            <td className="text-ink/60">{dayjs(c.fecha_estimada).format("DD/MM/YYYY")}</td>
-                            <td className="text-right font-bold">{money(c.monto)}</td>
-                          </tr>
-                        ))}
-                        {compromisos.length === 0 && (
-                          <tr><td colSpan={4}><EmptyState>Sin compromisos futuros cargados.</EmptyState></td></tr>
+                    <div>
+                      <SectionTitle>Presupuesto vs. gasto real</SectionTitle>
+                      <Card>
+                        {fin.presupuestoVsReal.length === 0 ? (
+                          <EmptyState>Sin presupuesto cargado todavía.</EmptyState>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead><tr className="text-left text-xs text-ink/50 border-b border-ink/10"><th className="py-2">Categoría</th><th>Presup.</th><th>Gastado</th><th>Desvío</th></tr></thead>
+                            <tbody>
+                              {fin.presupuestoVsReal.map((p: any) => {
+                                const desv = p.monto_presupuestado > 0 ? (p.gastado - p.monto_presupuestado) / p.monto_presupuestado : 0;
+                                return (
+                                  <tr key={p.categoria} className="border-b border-ink/5 last:border-0">
+                                    <td className="py-2">{p.categoria}</td>
+                                    <td>{money(p.monto_presupuestado)}</td>
+                                    <td>{money(p.gastado)}</td>
+                                    <td className={desv > 0.15 ? "text-[var(--color-rojo)] font-semibold" : "text-ink/60"}>{Math.round(desv * 100)}%</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         )}
-                      </tbody>
-                    </table>
-                  </Card>
+                      </Card>
+                    </div>
+                  </div>
+
                   {puedeEditar && <AgregarCompromisoForm />}
                 </>
               ),

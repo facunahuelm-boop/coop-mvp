@@ -28,6 +28,12 @@ export type ResumenTileDef = {
   color?: "verde" | "amarillo" | "rojo";
   items: ResumenTileItem[];
   vacioTexto?: string;
+  /** Texto corto opcional mostrado arriba de los items, dentro del modal —
+   * pensado para una explicación breve del número (ver tile "Disponible
+   * prudencial" en Resumen), en vez de un párrafo aparte siempre visible en
+   * la pantalla. Rediseño 19/09 (pedido explícito: "que no queden espacios
+   * largos", "todo en pop-ups"). */
+  intro?: ReactNode;
 };
 
 export function ResumenFinanzas({ tiles, columnas = 4 }: { tiles: ResumenTileDef[]; columnas?: 3 | 4 | 5 }) {
@@ -62,6 +68,7 @@ export function ResumenFinanzas({ tiles, columnas = 4 }: { tiles: ResumenTileDef
       </div>
 
       <Modal open={Boolean(activo)} onClose={() => setAbiertoId(null)} title={activo?.label || ""} size="md">
+        {activo?.intro && <p className="text-xs text-ink-faint mb-3">{activo.intro}</p>}
         {activo &&
           (activo.items.length === 0 ? (
             <p className="text-sm text-ink-muted text-center py-6">
