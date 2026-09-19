@@ -34,6 +34,7 @@ import {
   Menu,
   Receipt,
   BookUser,
+  Send,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -117,6 +118,7 @@ const GROUPS: NavGroup[] = [
       // arriba. No hace falta ocultar el ítem del menú entero por rol.
       { href: "/contactos", label: "Contactos", icon: <BookUser size={ICON_SIZE} /> },
       { href: "/comisiones", label: "Comisiones", icon: <Compass size={ICON_SIZE} />, mod: "comisiones" },
+      { href: "/solicitudes", label: "Solicitudes", icon: <Send size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/reuniones", label: "Reuniones", icon: <CalendarDays size={ICON_SIZE} />, mod: "comisiones" },
     ],
   },
@@ -148,7 +150,7 @@ const GROUPS: NavGroup[] = [
 // consulta día a día.
 const GRUPO_COLAPSABLE = {
   grupo: "Organización",
-  hrefsColapsados: ["/comisiones", "/reuniones"],
+  hrefsColapsados: ["/comisiones", "/solicitudes", "/reuniones"],
   label: "Comisiones y reuniones",
   icon: <Compass size={ICON_SIZE} />,
 };
