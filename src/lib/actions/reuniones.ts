@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, all, audit } from "@/lib/db";
+import { insert, update, get, all, run, audit } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
@@ -19,6 +19,9 @@ const TIPO_LABEL: Record<string, string> = {
 };
 const TIPOS_REUNION = ["asamblea", "consejo_directivo", "comision"] as const;
 const PRIORIDAD_TAREA = ["alta", "media", "baja"] as const;
+// Comisiones como sistema de gestión, Fase 5 (19/09, secciones 15-17: "cada
+// reunión con modalidad, agenda estructurada, asistencia real y actas").
+const MODALIDADES_REUNION = ["presencial", "virtual", "hibrida"] as const;
 
 // AUDITORÍA INTEGRAL (mismo hallazgo que comisiones.ts, tareas.ts y
 // compras.ts): las cuatro acciones de este archivo solo comprobaban el
@@ -54,6 +57,7 @@ const crearReunionSchema = z.object({
   fecha: zFechaHora,
   lugar: zTextoOpcional(200),
   orden_del_dia: zTextoOpcional(3000),
+  modalidad: zEnumSeguro(MODALIDADES_REUNION, "presencial"),
 });
 
 export async function crearReunionAction(formData: FormData) {
@@ -69,6 +73,7 @@ export async function crearReunionAction(formData: FormData) {
     fecha: datos.fecha,
     lugar: datos.lugar,
     orden_del_dia: datos.orden_del_dia,
+    modalidad: datos.modalidad,
     estado: "planificada",
     creado_por_id: user.id,
   });
@@ -134,6 +139,171 @@ export async function registrarAsistenciaFormAction(_prev: ActionState, formData
   return conEstadoDeAccion(() => registrarAsistenciaAction(formData));
 }
 
+// ---------- Agenda estructurada (sección 15: "agenda estructurada", tabla
+// reunion_agenda_items de la migración 0029) ----------
+//
+// A diferencia de "orden_del_dia" (texto libre, ya existía y sigue
+// funcionando igual — no se reemplaza nada de lo que ya andaba), esto agrega
+// una lista real de puntos con responsable y resultado, para reuniones que
+// quieran ese nivel de detalle. Se puede agregar/editar/borrar puntos
+// mientras la reunión sigue "planificada" — una vez cerrada (con su acta ya
+// generada a partir del estado de la agenda en ese momento), la agenda queda
+// fija, mismo criterio de "cerrado no se puede tocar" que ya usan
+// Solicitudes y Tareas.
+
+async function reunionParaAgenda(reunionId: number) {
+  const reunion = await get<{ tipo: string; comision_id: number | null; estado: string }>(
+    `SELECT tipo, comision_id, estado FROM reuniones WHERE id = ?`,
+    [reunionId]
+  );
+  if (!reunion) throw new Error("Esa reunión ya no existe.");
+  return reunion;
+}
+
+const agregarAgendaItemSchema = z.object({
+  reunion_id: zId,
+  titulo: zTexto(200),
+  descripcion: zTextoOpcional(1000),
+  responsable_id: zIdOpcional,
+});
+
+export async function agregarAgendaItemAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const datos = parseForm(agregarAgendaItemSchema, formData);
+  const reunion = await reunionParaAgenda(datos.reunion_id);
+  if (reunion.estado !== "planificada") throw new Error("Esta reunión ya está cerrada o cancelada — no se puede modificar su agenda.");
+  await verificarPermisoReunion(user, reunion.tipo, reunion.comision_id);
+
+  const { total } = (await get<{ total: string }>(`SELECT COUNT(*) as total FROM reunion_agenda_items WHERE reunion_id = ?`, [datos.reunion_id])) ?? { total: "0" };
+  await insert("reunion_agenda_items", { ...datos, orden: Number(total) });
+  revalidatePath(`/reuniones/${datos.reunion_id}`);
+}
+
+export async function agregarAgendaItemFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarAgendaItemAction(formData));
+}
+
+const editarResultadoAgendaSchema = z.object({ id: zId, resultado: zTextoOpcional(2000) });
+
+export async function editarResultadoAgendaAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const { id, resultado } = parseForm(editarResultadoAgendaSchema, formData);
+  const item = await get<{ reunion_id: number }>(`SELECT reunion_id FROM reunion_agenda_items WHERE id = ?`, [id]);
+  if (!item) throw new Error("Ese punto de agenda ya no existe.");
+  const reunion = await reunionParaAgenda(item.reunion_id);
+  await verificarPermisoReunion(user, reunion.tipo, reunion.comision_id);
+
+  await update("reunion_agenda_items", id, { resultado });
+  revalidatePath(`/reuniones/${item.reunion_id}`);
+}
+
+export async function editarResultadoAgendaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => editarResultadoAgendaAction(formData));
+}
+
+export async function eliminarAgendaItemAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const { id } = parseForm(z.object({ id: zId }), formData);
+  const item = await get<{ reunion_id: number }>(`SELECT reunion_id FROM reunion_agenda_items WHERE id = ?`, [id]);
+  if (!item) return; // ya no existe
+  const reunion = await reunionParaAgenda(item.reunion_id);
+  if (reunion.estado !== "planificada") throw new Error("Esta reunión ya está cerrada o cancelada — no se puede modificar su agenda.");
+  await verificarPermisoReunion(user, reunion.tipo, reunion.comision_id);
+
+  await run(`DELETE FROM reunion_agenda_items WHERE id = ?`, [id]);
+  revalidatePath(`/reuniones/${item.reunion_id}`);
+}
+
+export async function eliminarAgendaItemFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => eliminarAgendaItemAction(formData));
+}
+
+// ---------- Asistencia por persona (sección 15-16: tabla reunion_invitados
+// de la migración 0029) ----------
+//
+// La asistencia por núcleo (arriba, registrarAsistenciaAction) ya existía y
+// sigue exactamente igual — tiene sentido para una Asamblea, donde el que
+// vota es el núcleo/hogar. Para una reunión de Comisión o de Consejo
+// Directivo, en cambio, lo que importa es qué PERSONA vino, no qué núcleo —
+// por eso esto se agrega como una sección aparte, no reemplaza la anterior.
+
+async function invitadoConReunion(id: number) {
+  const invitado = await get<{ reunion_id: number; confirmado: boolean; presente: boolean }>(
+    `SELECT reunion_id, confirmado, presente FROM reunion_invitados WHERE id = ?`,
+    [id]
+  );
+  if (!invitado) return null;
+  const reunion = await reunionParaAgenda(invitado.reunion_id);
+  return { ...invitado, reunion };
+}
+
+const agregarInvitadoSchema = z.object({ reunion_id: zId, user_id: zId });
+
+export async function agregarInvitadoAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const { reunion_id, user_id } = parseForm(agregarInvitadoSchema, formData);
+  const reunion = await reunionParaAgenda(reunion_id);
+  await verificarPermisoReunion(user, reunion.tipo, reunion.comision_id);
+
+  const yaExiste = await get<{ id: number }>(`SELECT id FROM reunion_invitados WHERE reunion_id = ? AND user_id = ?`, [reunion_id, user_id]);
+  if (yaExiste) return;
+  await insert("reunion_invitados", { reunion_id, user_id });
+  revalidatePath(`/reuniones/${reunion_id}`);
+}
+
+export async function agregarInvitadoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarInvitadoAction(formData));
+}
+
+export async function alternarConfirmadoInvitadoAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const { id } = parseForm(z.object({ id: zId }), formData);
+  const invitado = await invitadoConReunion(id);
+  if (!invitado) throw new Error("Ese invitado ya no existe.");
+  await verificarPermisoReunion(user, invitado.reunion.tipo, invitado.reunion.comision_id);
+  await update("reunion_invitados", id, { confirmado: !invitado.confirmado });
+  revalidatePath(`/reuniones/${invitado.reunion_id}`);
+}
+
+export async function alternarConfirmadoInvitadoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => alternarConfirmadoInvitadoAction(formData));
+}
+
+export async function alternarPresenteInvitadoAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const { id } = parseForm(z.object({ id: zId }), formData);
+  const invitado = await invitadoConReunion(id);
+  if (!invitado) throw new Error("Ese invitado ya no existe.");
+  await verificarPermisoReunion(user, invitado.reunion.tipo, invitado.reunion.comision_id);
+  await update("reunion_invitados", id, { presente: !invitado.presente });
+  revalidatePath(`/reuniones/${invitado.reunion_id}`);
+}
+
+export async function alternarPresenteInvitadoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => alternarPresenteInvitadoAction(formData));
+}
+
+export async function quitarInvitadoAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const { id } = parseForm(z.object({ id: zId }), formData);
+  const invitado = await invitadoConReunion(id);
+  if (!invitado) return;
+  await verificarPermisoReunion(user, invitado.reunion.tipo, invitado.reunion.comision_id);
+  await run(`DELETE FROM reunion_invitados WHERE id = ?`, [id]);
+  revalidatePath(`/reuniones/${invitado.reunion_id}`);
+}
+
+export async function quitarInvitadoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => quitarInvitadoAction(formData));
+}
+
 /**
  * Cierra una reunión: la marca como realizada y genera (o reutiliza) el acta
  * correspondiente, enlazada a la reunión. La tabla "actas" ya existía en el
@@ -171,6 +341,26 @@ export async function cerrarReunionAction(formData: FormData) {
   );
   const presentes = asistencias.filter((a: any) => a.presente).length;
 
+  // Fase 5 (secciones 15-17): agenda estructurada e invitados por persona,
+  // de la migración 0029 — `.catch(() => [])` porque el cierre de una
+  // reunión (esta acción) ya existía y funcionaba antes de esa migración, y
+  // tiene que seguir cerrando y generando el acta igual aunque esas dos
+  // tablas todavía no existan en esta base (el acta simplemente sale sin
+  // esas dos secciones extra hasta que la migración corra).
+  const agendaItems = await all<{ titulo: string; descripcion: string | null; resultado: string | null; responsable_nombre: string | null }>(
+    `SELECT ai.titulo, ai.descripcion, ai.resultado, u.nombre as responsable_nombre
+     FROM reunion_agenda_items ai LEFT JOIN users u ON u.id = ai.responsable_id
+     WHERE ai.reunion_id = ? ORDER BY ai.orden ASC`,
+    [reunion_id]
+  ).catch(() => []);
+  const invitados = await all<{ confirmado: boolean; presente: boolean; user_nombre: string }>(
+    `SELECT ri.confirmado, ri.presente, u.nombre as user_nombre
+     FROM reunion_invitados ri JOIN users u ON u.id = ri.user_id
+     WHERE ri.reunion_id = ? ORDER BY u.nombre ASC`,
+    [reunion_id]
+  ).catch(() => []);
+  const invitadosPresentes = invitados.filter((i) => i.presente).length;
+
   // Tareas resultantes cargadas en el formulario de cierre (filas paralelas,
   // se descartan las filas sin título). Cada valor se sanitiza acá porque
   // llegan como listas sueltas (formData.getAll), no como un objeto que
@@ -205,13 +395,33 @@ export async function cerrarReunionAction(formData: FormData) {
         ...(reunion.orden_del_dia
           ? [{ tipo: "texto" as const, encabezado: "Orden del día", parrafos: [reunion.orden_del_dia] }]
           : []),
+        ...(agendaItems.length > 0
+          ? [
+              {
+                tipo: "tabla" as const,
+                encabezado: "Agenda detallada",
+                columnas: ["Punto", "Responsable", "Resultado"],
+                filas: agendaItems.map((it) => [it.titulo, it.responsable_nombre || "—", it.resultado || "—"]),
+              },
+            ]
+          : []),
         { tipo: "texto" as const, encabezado: "Resumen y resoluciones", parrafos: resumen.split("\n").filter(Boolean) },
         {
           tipo: "tabla" as const,
-          encabezado: `Asistencia (${presentes}/${asistencias.length})`,
+          encabezado: `Asistencia por núcleo (${presentes}/${asistencias.length})`,
           columnas: ["Núcleo familiar", "Presente", "Justificación"],
           filas: asistencias.map((a: any) => [a.nucleo_nombre, a.presente ? "Sí" : "No", a.justificacion || ""]),
         },
+        ...(invitados.length > 0
+          ? [
+              {
+                tipo: "tabla" as const,
+                encabezado: `Asistencia por persona (${invitadosPresentes}/${invitados.length})`,
+                columnas: ["Persona", "Confirmó", "Presente"],
+                filas: invitados.map((i) => [i.user_nombre, i.confirmado ? "Sí" : "No", i.presente ? "Sí" : "No"]),
+              },
+            ]
+          : []),
         ...(tareasResultantes.length > 0
           ? [
               {

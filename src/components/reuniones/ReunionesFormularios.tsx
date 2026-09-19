@@ -7,7 +7,13 @@
 // (cambios de estado / toggles por fila, no altas con validación real).
 
 import { useActionState, useEffect, useRef } from "react";
-import { crearReunionFormAction, cerrarReunionFormAction } from "@/lib/actions/reuniones";
+import {
+  crearReunionFormAction,
+  cerrarReunionFormAction,
+  agregarAgendaItemFormAction,
+  editarResultadoAgendaFormAction,
+  agregarInvitadoFormAction,
+} from "@/lib/actions/reuniones";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
 import { Card, Label, inputClass } from "@/components/ui";
@@ -60,6 +66,14 @@ export function CrearReunionForm({ comisiones, esOversightReuniones }: { comisio
             <Label>Fecha y hora</Label>
             <input type="datetime-local" name="fecha" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.fecha} />
+          </div>
+          <div>
+            <Label>Modalidad</Label>
+            <select name="modalidad" className={inputClass} defaultValue="presencial">
+              <option value="presencial">Presencial</option>
+              <option value="virtual">Virtual</option>
+              <option value="hibrida">Híbrida</option>
+            </select>
           </div>
           <div>
             <Label>Lugar</Label>
@@ -132,5 +146,96 @@ export function CerrarReunionForm({ reunionId, usuarios }: { reunionId: number; 
         <SubmitButton pendingLabel="Cerrando…">Cerrar reunión y generar acta</SubmitButton>
       </form>
     </Card>
+  );
+}
+
+// Comisiones como sistema de gestión, Fase 5 (19/09, sección 15: "agenda
+// estructurada"). Se agrega bajo un <details> propio, aparte del bloque de
+// "Orden del día" en texto libre que ya existía — no lo reemplaza, es un
+// nivel de detalle opcional para quien lo quiera usar.
+export function AgregarAgendaItemForm({ reunionId, usuarios }: { reunionId: number; usuarios: Opcion[] }) {
+  const [estado, formAction] = useActionState(agregarAgendaItemFormAction, ESTADO_INICIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) {
+      formRef.current?.reset();
+      show("Punto de agenda agregado.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+      <input type="hidden" name="reunion_id" value={reunionId} />
+      <div className="sm:col-span-2">
+        <input name="titulo" required placeholder="Punto a tratar" className={inputClass + " text-xs !py-1.5"} />
+        <FieldError message={estado.fieldErrors?.titulo} />
+      </div>
+      <div>
+        <select name="responsable_id" className={inputClass + " text-xs !py-1.5"} defaultValue="">
+          <option value="">Sin responsable</option>
+          {usuarios.map((u) => (
+            <option key={u.id} value={u.id}>{u.nombre}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <SubmitButton variant="add" className="text-xs px-2.5 py-1.5">Agregar punto</SubmitButton>
+      </div>
+      <div className="sm:col-span-2">
+        <FormError message={estado.error} />
+      </div>
+    </form>
+  );
+}
+
+export function ResultadoAgendaForm({ id, resultadoActual }: { id: number; resultadoActual: string | null }) {
+  const [estado, formAction] = useActionState(editarResultadoAgendaFormAction, ESTADO_INICIAL);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) show("Resultado guardado.");
+    if (estado.error) show(estado.error, "error");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form action={formAction} className="flex items-center gap-1.5 mt-1">
+      <input type="hidden" name="id" value={id} />
+      <input name="resultado" defaultValue={resultadoActual ?? ""} placeholder="Resultado de este punto…" className={inputClass + " text-xs !py-1"} />
+      <SubmitButton variant="ghost" className="text-xs px-2 py-1 whitespace-nowrap">Guardar</SubmitButton>
+    </form>
+  );
+}
+
+// Sección 15-16: asistencia por persona (reunion_invitados) — complementa,
+// sin reemplazar, la asistencia por núcleo que ya existía en la ficha.
+export function AgregarInvitadoForm({ reunionId, usuarios }: { reunionId: number; usuarios: Opcion[] }) {
+  const [estado, formAction] = useActionState(agregarInvitadoFormAction, ESTADO_INICIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) {
+      formRef.current?.reset();
+      show("Invitado agregado.");
+    }
+    if (estado.error) show(estado.error, "error");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form ref={formRef} action={formAction} className="flex items-center gap-2 mt-2">
+      <input type="hidden" name="reunion_id" value={reunionId} />
+      <select name="user_id" required className={inputClass + " text-xs !py-1.5"} defaultValue="">
+        <option value="" disabled>Invitar a…</option>
+        {usuarios.map((u) => (
+          <option key={u.id} value={u.id}>{u.nombre}</option>
+        ))}
+      </select>
+      <SubmitButton variant="add" className="text-xs px-2.5 py-1.5 whitespace-nowrap">Invitar</SubmitButton>
+    </form>
   );
 }

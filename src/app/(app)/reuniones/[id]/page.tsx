@@ -10,16 +10,23 @@ import dayjs from "dayjs";
 import {
   registrarAsistenciaFormAction,
   cancelarReunionFormAction,
+  eliminarAgendaItemFormAction,
+  alternarConfirmadoInvitadoFormAction,
+  alternarPresenteInvitadoFormAction,
+  quitarInvitadoFormAction,
 } from "@/lib/actions/reuniones";
 import { cambiarEstadoTareaFormAction } from "@/lib/actions/tareas";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
-import { CerrarReunionForm } from "@/components/reuniones/ReunionesFormularios";
+import { CerrarReunionForm, AgregarAgendaItemForm, ResultadoAgendaForm, AgregarInvitadoForm } from "@/components/reuniones/ReunionesFormularios";
+import { AutoSubmitCheckbox } from "@/components/AutoSubmitCheckbox";
 
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",
   consejo_directivo: "Consejo Directivo",
   comision: "Comisión",
 };
+
+const MODALIDAD_LABEL: Record<string, string> = { presencial: "Presencial", virtual: "Virtual", hibrida: "Híbrida" };
 
 // Fase 09 del Plan Maestro — el acta puede dejar tareas resultantes cargadas
 // directamente (ver cerrarReunionAction), en vez de que haya que copiarlas a
@@ -29,13 +36,18 @@ const ESTADO_TAREA_LABEL: Record<string, string> = { pendiente: "Pendiente", en_
 const ESTADO_TAREA_COLOR: Record<string, "verde" | "amarillo" | "brand"> = { pendiente: "amarillo", en_curso: "brand", completada: "verde" };
 const PRIORIDAD_LABEL: Record<string, string> = { alta: "🔴 Alta", media: "🟡 Media", baja: "⚪ Baja" };
 
+// Comisiones como sistema de gestión, Fase 5: filas de las dos tablas nuevas
+// de la migración 0029 (reunion_agenda_items, reunion_invitados).
+type AgendaItemRow = { id: number; titulo: string; resultado: string | null; responsable_id: number | null; responsable_nombre: string | null };
+type InvitadoRow = { id: number; user_id: number; user_nombre: string; confirmado: boolean; presente: boolean };
+
 export default async function ReunionDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canRead(user.rol, "comisiones")) redirect("/dashboard");
 
-  const [reunion, nucleos, asistencias, usuarios, tareas] = await Promise.all([
+  const [reunion, nucleos, asistencias, usuarios, tareas, agendaItems, invitados] = await Promise.all([
     get<any>(`SELECT r.*, c.nombre as comision_nombre FROM reuniones r LEFT JOIN comisiones c ON c.id = r.comision_id WHERE r.id = ?`, [id]),
     all<any>(`SELECT * FROM nucleos_familiares ORDER BY nombre ASC`),
     all<any>(`SELECT * FROM reunion_asistencias WHERE reunion_id = ?`, [id]),
@@ -46,6 +58,19 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
        ORDER BY (t.estado = 'completada'), CASE t.prioridad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, t.creado_en DESC`,
       [id]
     ),
+    // Comisiones como sistema de gestión, Fase 5: agenda estructurada e
+    // invitados por persona (tablas de la migración 0029) — `.catch(() =>
+    // [])` porque esta ficha ya existía y funcionaba antes de esa migración.
+    all<AgendaItemRow>(
+      `SELECT ai.*, u.nombre as responsable_nombre FROM reunion_agenda_items ai LEFT JOIN users u ON u.id = ai.responsable_id
+       WHERE ai.reunion_id = ? ORDER BY ai.orden ASC`,
+      [id]
+    ).catch(() => [] as AgendaItemRow[]),
+    all<InvitadoRow>(
+      `SELECT ri.*, u.nombre as user_nombre FROM reunion_invitados ri JOIN users u ON u.id = ri.user_id
+       WHERE ri.reunion_id = ? ORDER BY u.nombre ASC`,
+      [id]
+    ).catch(() => [] as InvitadoRow[]),
   ]);
   if (!reunion) notFound();
 
@@ -71,7 +96,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
     <div>
       <PageHeader
         title={reunion.titulo}
-        subtitle={`${TIPO_LABEL[reunion.tipo] ?? reunion.tipo}${reunion.comision_nombre ? ` — ${reunion.comision_nombre}` : ""} · ${dayjs(reunion.fecha).format("DD/MM/YYYY HH:mm")}${reunion.lugar ? ` · ${reunion.lugar}` : ""}`}
+        subtitle={`${TIPO_LABEL[reunion.tipo] ?? reunion.tipo}${reunion.comision_nombre ? ` — ${reunion.comision_nombre}` : ""} · ${dayjs(reunion.fecha).format("DD/MM/YYYY HH:mm")} · ${MODALIDAD_LABEL[reunion.modalidad] ?? "Presencial"}${reunion.lugar ? ` · ${reunion.lugar}` : ""}`}
         action={<Badge color={reunion.estado === "realizada" ? "verde" : reunion.estado === "cancelada" ? "gray" : "brand"}>{reunion.estado}</Badge>}
       />
 
@@ -183,6 +208,77 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
               </Card>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Comisiones como sistema de gestión, Fase 5: agenda estructurada,
+          adicional al "Orden del día" en texto libre de más arriba. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+        <div>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Agenda</h3>
+          <Card>
+            <div className="space-y-2">
+              {agendaItems.map((a) => (
+                <div key={a.id} className="pb-2 border-b border-ink/5 last:border-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[var(--color-brand-900)]">{a.titulo}</p>
+                      <p className="text-xs text-ink/40">
+                        <UsuarioLink id={a.responsable_id} nombre={a.responsable_nombre} fallback="sin responsable" />
+                      </p>
+                    </div>
+                    {puedeGestionar && reunion.estado === "planificada" && (
+                      <ActionForm action={eliminarAgendaItemFormAction}>
+                        <input type="hidden" name="id" value={a.id} />
+                        <button className="text-xs text-ink/30 hover:text-[var(--color-rojo)]" title="Quitar punto">✕</button>
+                      </ActionForm>
+                    )}
+                  </div>
+                  {puedeGestionar ? (
+                    <ResultadoAgendaForm id={a.id} resultadoActual={a.resultado} />
+                  ) : (
+                    a.resultado && <p className="text-xs text-ink/60 mt-1">→ {a.resultado}</p>
+                  )}
+                </div>
+              ))}
+              {agendaItems.length === 0 && <EmptyState>No hay puntos de agenda cargados.</EmptyState>}
+              {puedeGestionar && reunion.estado === "planificada" && <AgregarAgendaItemForm reunionId={reunion.id} usuarios={usuarios} />}
+            </div>
+          </Card>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Asistencia por persona ({invitados.filter((i) => i.presente).length}/{invitados.length})</h3>
+          <Card>
+            <div className="space-y-1.5">
+              {invitados.map((i) => (
+                <div key={i.id} className="flex items-center justify-between gap-2 py-1 border-b border-ink/5 last:border-0 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <UsuarioLink id={i.user_id} nombre={i.user_nombre} />
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-ink/60 whitespace-nowrap">
+                    {puedeGestionar ? (
+                      <>
+                        <AutoSubmitCheckbox action={alternarConfirmadoInvitadoFormAction} hiddenFields={{ id: i.id }} defaultChecked={!!i.confirmado} label="Confirmó" />
+                        <AutoSubmitCheckbox action={alternarPresenteInvitadoFormAction} hiddenFields={{ id: i.id }} defaultChecked={!!i.presente} label="Presente" />
+                        <ActionForm action={quitarInvitadoFormAction}>
+                          <input type="hidden" name="id" value={i.id} />
+                          <button className="text-ink/30 hover:text-[var(--color-rojo)]" title="Quitar invitado">✕</button>
+                        </ActionForm>
+                      </>
+                    ) : (
+                      <>
+                        <span>{i.confirmado ? "✔ Confirmó" : "— Sin confirmar"}</span>
+                        <span>{i.presente ? "✔ Presente" : "— Ausente"}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {invitados.length === 0 && <EmptyState>No hay invitados cargados.</EmptyState>}
+              {puedeGestionar && <AgregarInvitadoForm reunionId={reunion.id} usuarios={usuarios} />}
+            </div>
+          </Card>
         </div>
       </div>
     </div>
