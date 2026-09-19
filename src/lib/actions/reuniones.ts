@@ -11,6 +11,7 @@ import { saveGeneratedFile } from "@/lib/upload";
 import dayjs from "dayjs";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaHora, zEnumSeguro, zCheckbox } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { crearNotificacion } from "@/lib/actions/notificaciones";
 
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",
@@ -152,8 +153,8 @@ export async function registrarAsistenciaFormAction(_prev: ActionState, formData
 // Solicitudes y Tareas.
 
 async function reunionParaAgenda(reunionId: number) {
-  const reunion = await get<{ tipo: string; comision_id: number | null; estado: string }>(
-    `SELECT tipo, comision_id, estado FROM reuniones WHERE id = ?`,
+  const reunion = await get<{ tipo: string; comision_id: number | null; estado: string; titulo: string }>(
+    `SELECT tipo, comision_id, estado, titulo FROM reuniones WHERE id = ?`,
     [reunionId]
   );
   if (!reunion) throw new Error("Esa reunión ya no existe.");
@@ -252,6 +253,18 @@ export async function agregarInvitadoAction(formData: FormData) {
   const yaExiste = await get<{ id: number }>(`SELECT id FROM reunion_invitados WHERE reunion_id = ? AND user_id = ?`, [reunion_id, user_id]);
   if (yaExiste) return;
   await insert("reunion_invitados", { reunion_id, user_id });
+
+  // Fase 7 (notificaciones): avisa a la persona invitada.
+  if (user_id !== user.id) {
+    await crearNotificacion({
+      user_id,
+      tipo: "reunion_creada",
+      titulo: `Te invitaron a la reunión "${reunion.titulo}"`,
+      ref_tabla: "reuniones",
+      ref_id: reunion_id,
+    });
+  }
+
   revalidatePath(`/reuniones/${reunion_id}`);
 }
 

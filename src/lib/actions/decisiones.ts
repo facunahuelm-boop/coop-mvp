@@ -2,12 +2,13 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, run, audit } from "@/lib/db";
+import { insert, update, get, all, run, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { parseForm, zId, zTexto, zTextoOpcional, zFecha, zEnumSeguro } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { crearNotificacionesParaUsuarios } from "@/lib/actions/notificaciones";
 
 // Fase 6 del sistema de gestión de Comisiones (19/09, pedido explícito,
 // sección "decisiones/votaciones"): registro formal de decisiones de
@@ -107,6 +108,18 @@ export async function decidirDecisionAction(formData: FormData) {
 
   await update("decisiones_comision", id, { resultado, decidido_por_id: user.id });
   await audit({ usuario_id: user.id, accion: "decidir", entidad: "decisiones_comision", entidad_id: id, valor_nuevo: { resultado } });
+
+  // Fase 7 (notificaciones): avisa a los integrantes activos de la comisión.
+  const tema = (await get<{ tema: string }>(`SELECT tema FROM decisiones_comision WHERE id = ?`, [id]))?.tema ?? "";
+  const miembros = await all<{ user_id: number }>(
+    `SELECT user_id FROM comision_miembros WHERE comision_id = ? AND activo = 1`,
+    [decision.comision_id]
+  ).catch(() => []);
+  await crearNotificacionesParaUsuarios(
+    miembros.map((m) => m.user_id).filter((uid) => uid !== user.id),
+    { tipo: "decision_publicada", titulo: `Decisión ${resultado === "aprobada" ? "aprobada" : "rechazada"}: ${tema}`, ref_tabla: "decisiones_comision", ref_id: id }
+  );
+
   revalidatePath("/decisiones");
   revalidatePath(`/decisiones/${id}`);
 }
@@ -186,6 +199,19 @@ export async function crearVotacionAction(formData: FormData) {
     creado_por_id: user.id,
   });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "votaciones", entidad_id: id, valor_nuevo: { pregunta: datos.pregunta, decision_id: datos.decision_id } });
+
+  // Fase 7 (notificaciones): avisa a los integrantes activos de la comisión
+  // — el link apunta directo a la decisión (no a la votación, que no tiene
+  // ficha propia), donde ya se puede votar.
+  const miembrosVotacion = await all<{ user_id: number }>(
+    `SELECT user_id FROM comision_miembros WHERE comision_id = ? AND activo = 1`,
+    [decision.comision_id]
+  ).catch(() => []);
+  await crearNotificacionesParaUsuarios(
+    miembrosVotacion.map((m) => m.user_id).filter((uid) => uid !== user.id),
+    { tipo: "votacion_abierta", titulo: `Nueva votación: ${datos.pregunta}`, ref_tabla: "decisiones_comision", ref_id: datos.decision_id }
+  );
+
   revalidatePath(`/decisiones/${datos.decision_id}`);
 }
 

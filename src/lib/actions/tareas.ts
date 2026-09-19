@@ -8,6 +8,7 @@ import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaOpcional, zEnumSeguro } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { crearNotificacion } from "@/lib/actions/notificaciones";
 
 // Fase 06 del Plan Maestro — tareas genéricas por comisión (no solo Obra o
 // Trabajo). El comentario original decía "quien puede editar la comisión
@@ -104,6 +105,19 @@ export async function crearTareaAction(formData: FormData) {
     entidad_id: id,
     valor_nuevo: { comision_id: datos.comision_id, titulo: datos.titulo, prioridad: datos.prioridad },
   });
+
+  // Fase 7 (notificaciones): "me asignaron una tarea" es el otro ejemplo
+  // textual de la sección 24 del pedido original.
+  if (datos.responsable_id && datos.responsable_id !== user.id) {
+    await crearNotificacion({
+      user_id: datos.responsable_id,
+      tipo: "tarea_asignada",
+      titulo: `Te asignaron la tarea "${datos.titulo}"`,
+      ref_tabla: "tareas",
+      ref_id: id,
+    });
+  }
+
   revalidatePath("/comisiones");
 }
 
@@ -125,7 +139,7 @@ export async function editarTareaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
   const datos = parseForm(editarTareaSchema, formData);
-  const tarea = await get<{ comision_id: number }>(`SELECT comision_id FROM tareas WHERE id = ?`, [datos.id]);
+  const tarea = await get<{ comision_id: number; responsable_id: number | null }>(`SELECT comision_id, responsable_id FROM tareas WHERE id = ?`, [datos.id]);
   if (!tarea) throw new Error("Esa tarea ya no existe.");
   if (!(await puedeGestionarComision(user, tarea.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
   await validarDependencia(tarea.comision_id, datos.depende_de_id, datos.id);
@@ -133,6 +147,20 @@ export async function editarTareaAction(formData: FormData) {
   const { id, ...cambios } = datos;
   await update("tareas", id, { ...cambios, etiquetas: normalizarEtiquetas(formData.get("etiquetas")) });
   await audit({ usuario_id: user.id, accion: "editar", entidad: "tareas", entidad_id: id, valor_nuevo: { titulo: datos.titulo } });
+
+  // Fase 7 (notificaciones): sólo avisa cuando el responsable CAMBIA a
+  // alguien nuevo — evita re-notificar en cada edición si sigue siendo la
+  // misma persona.
+  if (datos.responsable_id && datos.responsable_id !== tarea.responsable_id && datos.responsable_id !== user.id) {
+    await crearNotificacion({
+      user_id: datos.responsable_id,
+      tipo: "tarea_asignada",
+      titulo: `Te asignaron la tarea "${datos.titulo}"`,
+      ref_tabla: "tareas",
+      ref_id: id,
+    });
+  }
+
   revalidatePath("/comisiones");
 }
 

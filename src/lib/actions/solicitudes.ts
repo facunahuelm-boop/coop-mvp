@@ -2,12 +2,13 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, run, audit } from "@/lib/db";
+import { insert, update, get, all, run, audit } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaOpcional, zEnumSeguro } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { crearNotificacion, crearNotificacionesParaUsuarios } from "@/lib/actions/notificaciones";
 
 // Fase 3 del sistema de gestión de Comisiones (19/09, pedido explícito,
 // sección 3): solicitudes entre comisiones con derivación y trazabilidad
@@ -80,6 +81,19 @@ export async function crearSolicitudComisionAction(formData: FormData) {
     usuario_id: user.id,
   });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "solicitudes_comision", entidad_id: id, valor_nuevo: { titulo: datos.titulo, comision_destino_id: datos.comision_destino_id } });
+
+  // Fase 7 (notificaciones): avisa a los integrantes activos de la comisión
+  // destino — "recibí una solicitud" es el ejemplo textual de la sección 24
+  // del pedido original. Nunca hace fallar la creación si algo sale mal acá.
+  const miembrosDestino = await all<{ user_id: number }>(
+    `SELECT user_id FROM comision_miembros WHERE comision_id = ? AND activo = 1`,
+    [datos.comision_destino_id]
+  ).catch(() => []);
+  await crearNotificacionesParaUsuarios(
+    miembrosDestino.map((m) => m.user_id).filter((uid) => uid !== user.id),
+    { tipo: "solicitud_recibida", titulo: `Nueva solicitud: ${datos.titulo}`, ref_tabla: "solicitudes_comision", ref_id: id }
+  );
+
   revalidatePath("/solicitudes");
 }
 
@@ -101,8 +115,8 @@ export async function responderSolicitudAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
   const { id, estado, responsable_id, motivo } = parseForm(responderSchema, formData);
-  const solicitud = await get<{ comision_destino_id: number; estado: string }>(
-    `SELECT comision_destino_id, estado FROM solicitudes_comision WHERE id = ?`,
+  const solicitud = await get<{ comision_destino_id: number; estado: string; creado_por_id: number; titulo: string }>(
+    `SELECT comision_destino_id, estado, creado_por_id, titulo FROM solicitudes_comision WHERE id = ?`,
     [id]
   );
   if (!solicitud) throw new Error("Esa solicitud ya no existe.");
@@ -116,6 +130,18 @@ export async function responderSolicitudAction(formData: FormData) {
   await update("solicitudes_comision", id, cambios);
   await insert("solicitud_eventos", { solicitud_id: id, evento: estado, usuario_id: user.id, detalle: motivo || null });
   await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "solicitudes_comision", entidad_id: id, valor_nuevo: { estado } });
+
+  // Fase 7 (notificaciones): avisa a quien la creó de que cambió de estado.
+  if (solicitud.creado_por_id !== user.id) {
+    await crearNotificacion({
+      user_id: solicitud.creado_por_id,
+      tipo: "solicitud_cambio_estado",
+      titulo: `Tu solicitud "${solicitud.titulo}" pasó a "${estado}"`,
+      ref_tabla: "solicitudes_comision",
+      ref_id: id,
+    });
+  }
+
   revalidatePath("/solicitudes");
   revalidatePath(`/solicitudes/${id}`);
 }
