@@ -793,3 +793,24 @@ Cero cambios de permisos, de lógica de negocio (cálculo de cuotas FIFO, conven
 **Nota de honestidad sobre el alcance de esta verificación**: a diferencia de las fases anteriores, esta vez no se pudo hacer clic a clic en el navegador del usuario dentro de esta sesión — el puente a su computadora sólo permite ver la pantalla de Chrome (no interactuar) y el navegador propio de esta sesión no tiene la sesión logueada de la app. La verificación de esta fase se apoya en: build de producción limpio, confirmación de que el deployment nuevo (con el commit `cdad9a8`) está efectivamente aliasado a `coop-mvp.vercel.app`, y una revisión manual de código línea por línea contra el patrón ya probado en Compras/Proveedores (mismos componentes, mismas convenciones). Queda pendiente que el usuario confirme visualmente los pop-ups de Resumen/Cuotas, el filtro "Situación" y los filtros de Movimientos la próxima vez que entre a Finanzas.
 
 Desplegado (commit `cdad9a8`, alias de producción corregido manualmente).
+
+### Addendum — Resumen de Finanzas: sin espacios largos, todo más compacto (19/09)
+
+**Pedido**: "hacelo mismo con la parte de resumen de finanzas, mejoralo visualmente que no queden espacios largos, que esté todo en uno más lindo visualmente con pop ups y súper práctico" — pedido puntual sobre la pestaña "Resumen" ya rediseñada arriba: eliminar los tramos de espacio vertical vacío/apilado y consolidar más contenido detrás de los pop-ups.
+
+**Cambios** (`src/components/finanzas/ResumenFinanzas.tsx`, `src/app/(app)/finanzas/page.tsx`):
+
+- Se agrega el campo opcional `intro` a `ResumenTileDef`: un texto corto que aparece arriba de la lista de items, dentro del pop-up. Se usa en el tile "Disponible prudencial" para mover ahí la explicación del cálculo (saldo actual menos comprometido) que antes vivía como párrafo aparte siempre visible en la pantalla — el pop-up ya lista Saldo actual/Comprometido/Disponible prudencial/Gastos proyectados, así que el párrafo era redundante una vez con el `intro`.
+- El tile "Comprometido" ahora muestra el origen de cada compromiso en el pop-up (`origen · fecha · monto`) — dato que antes sólo aparecía en la tabla "Próximos pagos" de abajo.
+- Se elimina la tabla "Próximos pagos / compromisos" (quedaba duplicada: mismo contenido que ya lista el pop-up de "Comprometido", ahora con el origen incluido). Su único acceso pasa a ser el pop-up del tile.
+- Los dos bloques "Gasto por categoría" y "Presupuesto vs. gasto real" (antes apilados, cada uno ocupando el ancho completo) pasan a una grilla de 2 columnas (`lg:grid-cols-2`) que se apila solo en pantallas chicas — mismo contenido, sin el espacio vacío que dejaban al ser angostos pero de ancho completo.
+
+Cero cambios de datos, cálculos o permisos — mismo alcance que el resto de esta fase: presentación y organización visual únicamente.
+
+**Verificación**: `tsc --noEmit` limpio; `eslint` sobre los 2 archivos tocados → mismos 5 errores preexistentes en `finanzas/page.tsx` (confirmado contra la base ya establecida en el rediseño anterior, sin errores nuevos); `next build` limpio.
+
+**Despliegue**: commit `d7fb155` pusheado a `main`. Esta vez `vercel --prod --yes` sí quedó aliasado automáticamente a `coop-mvp.vercel.app` en el mismo comando ("Ready in 46s" + "Aliased ... https://coop-mvp.vercel.app") — no fue necesario el paso manual de `vercel alias set` que sí hizo falta en las dos fases anteriores. No hay datos suficientes todavía para saber si esto significa que la integración Git→Vercel se restableció sola o si fue específico de este deploy manual; se sigue recomendando revisar Project Settings → Git en el dashboard de Vercel para confirmarlo de forma definitiva.
+
+**Misma nota de honestidad que la fase anterior**: no se pudo hacer clic a clic en el navegador del usuario dentro de esta sesión (mismas limitaciones de acceso al Chrome real del usuario). La verificación se apoya en build limpio y en la confirmación del alias de producción. Queda pendiente que el usuario confirme visualmente el pop-up de "Disponible prudencial" (con el texto explicativo adentro), el pop-up de "Comprometido" (con origen), la grilla de 2 columnas y que ya no aparece la tabla "Próximos pagos" como bloque aparte.
+
+Desplegado (commit `d7fb155`, aliasado automáticamente a producción).
