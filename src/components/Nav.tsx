@@ -38,6 +38,7 @@ import {
   Gavel,
   MessageSquare,
   Inbox,
+  ListChecks,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -91,6 +92,12 @@ const GROUPS: NavGroup[] = [
       // "Alertas", con quien comparte grupo por ser conceptualmente afines
       // (ambas son "cosas que me llegaron"), aunque son bandejas distintas.
       { href: "/notificaciones", label: "Notificaciones", icon: <Inbox size={ICON_SIZE} /> },
+      // Fase 10 de Comisiones (20/09): vista PERSONAL que reordena por
+      // persona lo que el resto del sistema ya tiene ordenado por módulo
+      // (tareas, solicitudes, reuniones, votaciones, mensajes). Sin "mod",
+      // igual que Notificaciones: es de cualquier usuario logueado, y cada
+      // consulta ya viene filtrada por el usuario o sus comisiones.
+      { href: "/mi-trabajo", label: "Mi trabajo", icon: <ListChecks size={ICON_SIZE} /> },
       { href: "/calendario", label: "Calendario", icon: <CalendarDays size={ICON_SIZE} /> },
     ],
   },
