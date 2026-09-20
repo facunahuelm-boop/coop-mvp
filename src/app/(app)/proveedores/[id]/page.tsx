@@ -96,6 +96,7 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
               <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
                 <th className="py-2 pr-3">Fecha</th>
                 <th className="py-2 pr-3">Material</th>
+                <th className="py-2 pr-3">Comisión</th>
                 <th className="py-2 pr-3 text-right">Monto</th>
               </tr>
             </thead>
@@ -106,6 +107,7 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
                   <td className="py-2 pr-3">
                     <Link href={`/compras/${h.solicitud_id}`} className="text-[var(--color-brand-900)] hover:underline underline-offset-2">{h.material}</Link>
                   </td>
+                  <td className="py-2 pr-3 text-ink/60">{h.comision_nombre || "—"}</td>
                   <td className="py-2 pr-3 text-right font-medium">${Number(h.monto || 0).toLocaleString("es-UY")}</td>
                 </tr>
               ))}

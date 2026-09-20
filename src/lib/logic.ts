@@ -79,7 +79,7 @@ export async function resumenFinanciero() {
   const en30dias = dayjs().add(30, "day").format("YYYY-MM-DD");
   const inicioMes = dayjs().startOf("month").format("YYYY-MM-DD");
 
-  const [ingresosRow, egresosRow, comprometidoRow, gastosProyectadosRow, ingresosMesRow, egresosMesRow, porCategoria, porCategoriaIngreso, presupuestoVsReal] =
+  const [ingresosRow, egresosRow, comprometidoRow, gastosProyectadosRow, ingresosMesRow, egresosMesRow, porCategoria, porCategoriaIngreso, presupuestoVsReal, porComision] =
     await Promise.all([
       get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso'`),
       get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso'`),
@@ -117,6 +117,22 @@ export async function resumenFinanciero() {
            COALESCE((SELECT SUM(monto) FROM movimientos_financieros m WHERE m.categoria = p.categoria AND m.tipo='egreso'), 0) as gastado
          FROM presupuesto_general p`
       ),
+      // Fase 9 del sistema de gestión de Comisiones (20/09, "integración
+      // Compras/Proveedores/Finanzas"): Finanzas no mostraba nada agrupado
+      // por comisión pese a que gastos_comision.comision_id existe desde la
+      // Fase "Gastos por Comisión" — no se anula ni pagado, porque un gasto
+      // anulado nunca generó plata real y uno pendiente todavía no salió de
+      // la cuenta (mismo criterio que "egresos": movimientos_financieros ya
+      // sólo cuenta lo efectivamente pagado). `.catch(() => [])` por si esta
+      // base es muy vieja y gastos_comision todavía no existiera (mismo
+      // criterio defensivo que gastos.ts, que sigue tratando esta tabla como
+      // no garantizada incluso hoy).
+      all<{ comision: string; total: number }>(
+        `SELECT c.nombre as comision, COALESCE(SUM(g.importe),0) as total
+           FROM gastos_comision g JOIN comisiones c ON c.id = g.comision_id
+          WHERE g.estado = 'pagado'
+          GROUP BY c.nombre ORDER BY total DESC`
+      ).catch(() => [] as { comision: string; total: number }[]),
     ]);
 
   const ingresos = ingresosRow?.s ?? 0;
@@ -140,6 +156,7 @@ export async function resumenFinanciero() {
     porCategoria,
     porCategoriaIngreso,
     presupuestoVsReal,
+    porComision,
   };
 }
 
@@ -837,14 +854,32 @@ export async function buscarGlobal(q: string, rol: Role): Promise<ResultadoBusqu
 }
 
 export async function historialProveedor(proveedorId: number) {
+  // Fase 9 del sistema de gestión de Comisiones (20/09, "integración
+  // Compras/Proveedores/Finanzas"): se agrega qué comisión hizo cada compra
+  // (sc.comision_id, columna vieja de la migración 0020) — antes la ficha
+  // de un proveedor no dejaba ver, de un vistazo, qué comisiones lo usan más.
+  // `.catch()` cae a la consulta original (sin comisión) si esa columna
+  // todavía no existiera en una base muy vieja, mismo criterio que el resto
+  // del proyecto con columnas agregadas después del alta de una tabla.
   const compras = await all<any>(
-    `SELECT sc.material, dc.monto, dc.fecha, sc.id as solicitud_id
+    `SELECT sc.material, dc.monto, dc.fecha, sc.id as solicitud_id, c.nombre as comision_nombre
      FROM decisiones_compra dc
      JOIN presupuestos_proveedor pp ON pp.id = dc.presupuesto_id
      JOIN solicitudes_compra sc ON sc.id = dc.solicitud_id
+     LEFT JOIN comisiones c ON c.id = sc.comision_id
      WHERE pp.proveedor_id = ?
      ORDER BY dc.fecha DESC`,
     [proveedorId]
+  ).catch(() =>
+    all<any>(
+      `SELECT sc.material, dc.monto, dc.fecha, sc.id as solicitud_id
+       FROM decisiones_compra dc
+       JOIN presupuestos_proveedor pp ON pp.id = dc.presupuesto_id
+       JOIN solicitudes_compra sc ON sc.id = dc.solicitud_id
+       WHERE pp.proveedor_id = ?
+       ORDER BY dc.fecha DESC`,
+      [proveedorId]
+    )
   );
   return compras;
 }

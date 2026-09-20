@@ -24,6 +24,7 @@ import {
   clavesDe,
 } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { crearNotificacion } from "@/lib/actions/notificaciones";
 
 const PRIORIDAD_COMPRA = ["baja", "media", "alta", "critica"] as const;
 
@@ -268,6 +269,23 @@ export async function decidirCompraAction(formData: FormData) {
     });
   }
 
+  // Fase 9 del sistema de gestión de Comisiones (20/09, sección "integración
+  // Compras/Proveedores/Finanzas"): quien pidió la compra hoy se entera de
+  // que se aprobó (y con qué proveedor) solo si vuelve a mirar /compras a
+  // mano — se avisa por la bandeja de notificaciones (Fase 7), mismo
+  // criterio que decidirDecisionAction en decisiones.ts. Nunca se notifica a
+  // quien hizo la aprobación a sí mismo (Tesorería/Consejo Directivo suele
+  // ser distinto de quien pidió, pero por las dudas).
+  if (solicitud?.solicitante_id && solicitud.solicitante_id !== user.id) {
+    await crearNotificacion({
+      user_id: solicitud.solicitante_id,
+      tipo: "compra_aprobada",
+      titulo: `Se aprobó tu solicitud de compra: ${solicitud.material}`,
+      ref_tabla: "solicitudes_compra",
+      ref_id: solicitudId,
+    });
+  }
+
   revalidatePath(`/compras/${solicitudId}`);
   revalidatePath("/compras");
   revalidatePath("/gastos");
@@ -311,8 +329,24 @@ export async function marcarEntregadaAction(formData: FormData) {
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
   const { id } = parseForm(z.object({ id: zId }), formData);
   await verificarPermisoSobreSolicitud(user, id);
+  const solicitud = await get<{ solicitante_id: number | null; material: string }>(
+    `SELECT solicitante_id, material FROM solicitudes_compra WHERE id = ?`,
+    [id]
+  );
   await update("solicitudes_compra", id, { estado: "entregada" });
   await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "solicitudes_compra", entidad_id: id, valor_nuevo: { estado: "entregada" } });
+  // Fase 9 ("integración Compras/Proveedores/Finanzas"): cierra el circuito
+  // avisándole a quien pidió la compra que ya llegó — mismo criterio que la
+  // notificación de aprobación en decidirCompraAction, arriba.
+  if (solicitud?.solicitante_id && solicitud.solicitante_id !== user.id) {
+    await crearNotificacion({
+      user_id: solicitud.solicitante_id,
+      tipo: "compra_entregada",
+      titulo: `Llegó tu compra: ${solicitud.material}`,
+      ref_tabla: "solicitudes_compra",
+      ref_id: id,
+    });
+  }
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
 }
@@ -334,8 +368,24 @@ export async function rechazarSolicitudAction(formData: FormData) {
   const user = await requireUser();
   if (!canApprove(user.rol, "compras")) throw new Error("No autorizado: esta decisión requiere un rol con permiso de aprobación (Tesorería o Consejo Directivo).");
   const { id, motivo } = parseForm(z.object({ id: zId, motivo: zTextoOpcional(1000) }), formData);
+  const solicitud = await get<{ solicitante_id: number | null; material: string }>(
+    `SELECT solicitante_id, material FROM solicitudes_compra WHERE id = ?`,
+    [id]
+  );
   await update("solicitudes_compra", id, { estado: "rechazada" });
   await audit({ usuario_id: user.id, accion: "rechazar_compra", entidad: "solicitudes_compra", entidad_id: id, valor_nuevo: { motivo } });
+  // Fase 9: la otra cara de la notificación de decidirCompraAction — que no
+  // se apruebe también es una respuesta que quien pidió necesita conocer.
+  if (solicitud?.solicitante_id && solicitud.solicitante_id !== user.id) {
+    await crearNotificacion({
+      user_id: solicitud.solicitante_id,
+      tipo: "compra_rechazada",
+      titulo: `Se rechazó tu solicitud de compra: ${solicitud.material}`,
+      cuerpo: motivo || null,
+      ref_tabla: "solicitudes_compra",
+      ref_id: id,
+    });
+  }
   revalidatePath("/compras");
   revalidatePath(`/compras/${id}`);
 }

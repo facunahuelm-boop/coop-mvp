@@ -47,6 +47,13 @@ export default async function NotificacionesPage() {
         return `/reuniones/${n.ref_id}`;
       case "comunicaciones":
         return "/comunicaciones";
+      // Fase 9 ("integración Compras/Proveedores/Finanzas"): solicitudes_compra
+      // sí tiene ficha propia por id; gastos_comision no (mismo criterio que
+      // comunicaciones arriba: sin ficha propia, al listado general).
+      case "solicitudes_compra":
+        return `/compras/${n.ref_id}`;
+      case "gastos_comision":
+        return "/gastos";
       default:
         return null;
     }

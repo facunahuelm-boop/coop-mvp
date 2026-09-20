@@ -180,6 +180,20 @@ export default async function FinanzasPage({
         { label: "Gastos proyectados (30 días)", sublabel: money(fin.gastosProyectados) },
       ],
     },
+    // Fase 9 del sistema de gestión de Comisiones (20/09, "integración
+    // Compras/Proveedores/Finanzas"): mismo patrón resumen→click→pop-up que
+    // el resto de esta pestaña, agregando qué comisión gastó cuánto (dato
+    // que ya existe en gastos_comision desde hace fases, pero que Finanzas
+    // nunca mostraba agrupado).
+    {
+      id: "por-comision",
+      label: "Gastos por comisión",
+      value: money(fin.porComision.reduce((acc, c) => acc + Number(c.total || 0), 0)),
+      items: fin.porComision
+        .filter((c) => Number(c.total) > 0)
+        .map((c) => ({ label: c.comision, sublabel: money(Number(c.total)) })),
+      vacioTexto: "Ninguna comisión tiene gastos pagados todavía.",
+    },
   ];
 
   const tilesCuotas: ResumenTileDef[] = [
@@ -270,7 +284,7 @@ export default async function FinanzasPage({
                       el origen incluido en el detalle) — mantenerla como
                       tabla aparte era duplicar la misma información dos
                       veces en la misma pantalla. */}
-                  <ResumenFinanzas tiles={tilesResumen} columnas={4} />
+                  <ResumenFinanzas tiles={tilesResumen} columnas={5} />
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
                     <div>

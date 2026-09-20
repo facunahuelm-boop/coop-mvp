@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, audit, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
+import { insert, update, get, all, audit, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION, puedeUsarGastos } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
@@ -19,6 +19,7 @@ import {
   clavesDe,
 } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { crearNotificacionesParaUsuarios } from "@/lib/actions/notificaciones";
 
 // Gastos por Comisión (pedido explícito): cada comisión (Compras, Seguridad,
 // Administrativa, Trabajo, Obra, o cualquiera creada a futuro) puede cargar
@@ -221,6 +222,29 @@ export async function marcarGastoPagadoAction(formData: FormData) {
     await relanzarConMensajeSiFaltaTabla(err, MENSAJE_GASTOS_TABLA_FALTANTE, { usuario_id: user.id, accion: "marcar_pagado", entidad: "gastos_comision", entidad_id: id });
   }
   await audit({ usuario_id: user.id, accion: "marcar_pagado", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { movimientoId } });
+
+  // Fase 9 del sistema de gestión de Comisiones (20/09, sección "integración
+  // Compras/Proveedores/Finanzas"): la propia comisión que cargó el gasto se
+  // entera de que ya se pagó (antes solo lo veía quien mira /gastos o
+  // /finanzas seguido) — mismo criterio de "avisar a los integrantes activos
+  // de la comisión" que ya usa comunicaciones.ts para "entre_comision".
+  // `.catch(() => [])` porque comision_miembros es una tabla vieja que no
+  // debería fallar nunca, pero una notificación no puede tumbar el pago ya
+  // confirmado si algo puntual sale mal acá.
+  const miembros = await all<{ user_id: number }>(
+    `SELECT user_id FROM comision_miembros WHERE comision_id = ? AND activo = 1`,
+    [gasto.comision_id]
+  ).catch(() => []);
+  await crearNotificacionesParaUsuarios(
+    miembros.map((m) => m.user_id).filter((uid) => uid !== user.id),
+    {
+      tipo: "gasto_pagado",
+      titulo: `Se pagó el gasto de ${gasto.comision_nombre}: ${gasto.descripcion}`,
+      ref_tabla: "gastos_comision",
+      ref_id: id,
+    }
+  );
+
   revalidatePath("/gastos");
   revalidatePath("/finanzas");
   revalidatePath("/dashboard");
