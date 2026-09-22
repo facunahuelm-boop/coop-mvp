@@ -39,6 +39,7 @@ import {
   MessageSquare,
   Inbox,
   ListChecks,
+  BookOpen,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -143,7 +144,14 @@ const GROUPS: NavGroup[] = [
   },
   {
     label: "Documentos",
-    items: [{ href: "/documentos", label: "Documentos", icon: <FileText size={ICON_SIZE} />, mod: "documentos" }],
+    items: [
+      { href: "/documentos", label: "Documentos", icon: <FileText size={ICON_SIZE} />, mod: "documentos" },
+      // Sub-fase 1.2 ("Libros Sociales digitales", 22/09): usa "comisiones"
+      // como mod porque el contenido (actas de Asamblea/Consejo Directivo,
+      // registro de socios) ya es transparente a toda la cooperativa bajo
+      // ese mismo módulo — no hace falta un módulo nuevo.
+      { href: "/libros-sociales", label: "Libros Sociales", icon: <BookOpen size={ICON_SIZE} />, mod: "comisiones" },
+    ],
   },
   {
     label: "Herramientas",

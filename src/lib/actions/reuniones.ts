@@ -469,6 +469,19 @@ export async function cerrarReunionAction(formData: FormData) {
 
   let actaId = reunion.acta_id;
   if (!actaId) {
+    // Sub-fase 1.2 ("Libros Sociales digitales"): Asamblea y Consejo
+    // Directivo son libros sociales exigidos por la normativa y llevan
+    // folio correlativo propio (nunca se recalcula después); las actas de
+    // comisiones internas (organo='comision') no son un libro social y no
+    // llevan folio. Ver migrations/0031_libros_sociales.sql.
+    let numeroLibro: number | null = null;
+    if (reunion.tipo === "asamblea" || reunion.tipo === "consejo_directivo") {
+      const ultimo = await get<{ max: number | null }>(
+        `SELECT MAX(numero_libro) as max FROM actas WHERE organo = ?`,
+        [reunion.tipo]
+      );
+      numeroLibro = (ultimo?.max || 0) + 1;
+    }
     actaId = await insert("actas", {
       organo: reunion.tipo, // asamblea | consejo_directivo | comision
       fecha: reunion.fecha,
@@ -476,6 +489,7 @@ export async function cerrarReunionAction(formData: FormData) {
       resumen,
       reunion_id,
       documento_id: documentoId,
+      numero_libro: numeroLibro,
     });
   } else {
     await update("actas", actaId, documentoId ? { resumen, documento_id: documentoId } : { resumen });
