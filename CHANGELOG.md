@@ -1258,3 +1258,23 @@ Desplegado: commit `0fb6c2d`, `vercel --prod` aliasado a `coop-mvp.vercel.app`.
 **Nota de honestidad sobre el alcance**: no se pudo probar en vivo con una cuenta de un rol sin acceso a Finanzas/Compras (por ejemplo `comision_obra`) por no contar con esas credenciales en este entorno — se confirmó por revisión de código que `detalleFinanzas`/`detalleCompras` (los dos `const` que gatean los links "Ver el detalle completo") son `false` para cualquier rol sin `canRead` en ese módulo, así que esos links no deberían aparecer, pero falta la confirmación visual con una cuenta así.
 
 **Pendiente**: confirmar visualmente con un rol sin acceso a Finanzas/Compras cuando haya credenciales disponibles. Sigue Sub-fase 2.2 (Auditoría — sumar filtro por fecha/acción al `/auditoria` ya existente).
+
+## Fase 2 (Transparencia, Auditoría, Historial, Cumplimiento) — Sub-fase 2.2: filtros de Auditoría (22/09)
+
+**Pedido**: sección 11 de la especificación ("Auditoría / Trazabilidad") — la sección pide explícitamente extender lo que ya existe, no crear un sistema paralelo, y agrega dos requisitos que `/auditoria` todavía no tenía: filtro por fecha y por acción (además de usuario y módulo, que ya tenía desde la Fase 8 del Prompt Maestro), y mostrar valor anterior/valor nuevo del cambio (la sección trae el ejemplo textual "Antes: $18.000 / Después: $20.500").
+
+**Auditoría previa**: `/auditoria` ya era sólida — tabla `auditoria` append-only, función `audit()` centralizada en `db.ts` (usuario/fecha/acción/entidad/entidad_id/valor_anterior/valor_nuevo), paginación real, filtro por usuario y por tipo de entidad (módulo). Le faltaba puntualmente lo que pide la sección 11: fecha y acción. La columna `valor_anterior` ya existía y ya se guardaba en varias acciones (por ejemplo `aprobar_compra`), pero la pantalla solo mostraba `valor_nuevo`.
+
+**Qué se hizo** (todo dentro del mismo archivo ya existente, sin pantalla nueva):
+- Dos condiciones SQL nuevas: `accion = ?` y `fecha::date >= ?::date` / `fecha::date <= ?::date` (mismo patrón de casteo a fecha que ya usa el filtro de vencimientos de Documentos).
+- Un tercer `<select>` en el formulario de filtros ("Acción", con las opciones que salen de `SELECT DISTINCT accion`, mismo patrón que ya usaba "Módulo") y dos `<input type="date">` ("Desde"/"Hasta") — el formulario pasó de 3 a 6 columnas en pantallas grandes para que entren los 5 filtros + el botón sin amontonarse.
+- Cada fila ahora muestra `valor_anterior → valor_nuevo` cuando el registro tiene ambos (la mayoría de las acciones solo registran `valor_nuevo`, en cuyo caso se sigue mostrando igual que antes).
+- El link "Limpiar" y el mensaje de "sin resultados" ahora consideran los 5 filtros, no solo los 2 originales.
+
+**Fuera de alcance a propósito**: no se agregó un campo `motivo` (mencionado en la sección 11 como "cuando corresponda") — hacerlo útil de verdad requeriría tocar cada uno de los ~50 call-sites de `audit()`/`registrarAuditoria()` para que alguno lo empiece a completar, lo cual es un cambio mucho más grande que "sumar un filtro" y no fue lo pedido para esta sub-fase. Tampoco se agregó un filtro por "registro" (entidad_id) puntual — es un caso de uso raro (rara vez alguien sabe de antemano el id numérico de un registro) y ya se puede llegar a un registro puntual navegando desde su propia ficha (ver Sub-fase 2.3, Historial, que es justamente eso). No se estandarizaron los ~50 valores de `accion` existentes a las 10 categorías genéricas que sugiere la sección 11 (Crear/Editar/Eliminar/Archivar/Aprobar/Rechazar/Cerrar/Exportar/Cambiar permisos/Cambiar configuración) — son mucho más específicos y descriptivos tal como están (`aprobar_compra`, `cambiar_rol_miembro`, etc.), y reescribirlos sería un cambio masivo y riesgoso sobre datos históricos ya guardados, sin beneficio real more allá de calzar con una lista genérica.
+
+**Archivos editados**: `src/app/(app)/auditoria/page.tsx`. Sin migración (todas las columnas usadas ya existían).
+
+**Verificación**: `tsc --noEmit` limpio. `eslint`: los 2 `any` que reporta el archivo son los mismos 2 que ya tenía `origin/main` sin tocar (confirmado corriendo `eslint` contra la versión sin editar) — solo cambiaron de número de línea por el código nuevo, cero deuda agregada. `next build` limpio, `/auditoria` sigue generándose correctamente entre las rutas de la app.
+
+**Pendiente**: desplegar y verificar en producción (sin migración que aplicar). Sigue Sub-fase 2.3 (Historial).

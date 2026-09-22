@@ -14,7 +14,7 @@ export default async function AuditoriaPage({
 }: {
   // Next.js 16: searchParams llega como Promise — ver la nota en
   // documentos/page.tsx sobre el bug que esto causa si no se hace await.
-  searchParams: Promise<{ page?: string; usuario_id?: string; entidad?: string }>;
+  searchParams: Promise<{ page?: string; usuario_id?: string; entidad?: string; accion?: string; desde?: string; hasta?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -24,13 +24,22 @@ export default async function AuditoriaPage({
   const page = paginaDe(sp);
   const usuarioIdFiltro = sp.usuario_id?.trim() || "";
   const entidadFiltro = sp.entidad?.trim() || "";
+  // Fase 2 ("Auditoría", sección 11, sub-fase 2.2): la pantalla ya tenía
+  // filtro por usuario y por tipo de entidad (módulo) — la sección 11 pide
+  // además poder filtrar por acción y por fecha, así que se suman acá sobre
+  // la misma pantalla ya existente (no se crea una segunda vista de
+  // auditoría en paralelo).
+  const accionFiltro = sp.accion?.trim() || "";
+  const desdeFiltro = sp.desde?.trim() || "";
+  const hastaFiltro = sp.hasta?.trim() || "";
+  const hayFiltros = !!(usuarioIdFiltro || entidadFiltro || accionFiltro || desdeFiltro || hastaFiltro);
 
   // Fase 8 del Prompt Maestro ("paginación/búsqueda/filtros"), hallazgo H-10:
   // esta pantalla tenía un LIMIT 200 fijo — con más de 200 movimientos en el
   // sistema, los más viejos quedaban invisibles sin ninguna forma de verlos.
-  // Se reemplaza por paginación real (COUNT + LIMIT/OFFSET) y se agregan dos
-  // filtros (usuario, tipo de entidad) para que encontrar un registro puntual
-  // no dependa de recorrer página por página.
+  // Se reemplaza por paginación real (COUNT + LIMIT/OFFSET) y se agregan
+  // filtros (usuario, tipo de entidad, acción, rango de fechas) para que
+  // encontrar un registro puntual no dependa de recorrer página por página.
   const condiciones: string[] = [];
   const valores: any[] = [];
   if (usuarioIdFiltro) {
@@ -41,9 +50,21 @@ export default async function AuditoriaPage({
     condiciones.push("a.entidad = ?");
     valores.push(entidadFiltro);
   }
+  if (accionFiltro) {
+    condiciones.push("a.accion = ?");
+    valores.push(accionFiltro);
+  }
+  if (desdeFiltro) {
+    condiciones.push("a.fecha::date >= ?::date");
+    valores.push(desdeFiltro);
+  }
+  if (hastaFiltro) {
+    condiciones.push("a.fecha::date <= ?::date");
+    valores.push(hastaFiltro);
+  }
   const whereSql = condiciones.length > 0 ? `WHERE ${condiciones.join(" AND ")}` : "";
 
-  const [totalRow, registros, usuarios, entidades] = await Promise.all([
+  const [totalRow, registros, usuarios, entidades, acciones] = await Promise.all([
     get<{ total: string }>(`SELECT COUNT(*) as total FROM auditoria a ${whereSql}`, valores),
     all<any>(
       `SELECT a.*, u.nombre as usuario_nombre FROM auditoria a LEFT JOIN users u ON u.id = a.usuario_id ${whereSql} ORDER BY a.fecha DESC LIMIT ? OFFSET ?`,
@@ -51,6 +72,7 @@ export default async function AuditoriaPage({
     ),
     all<{ id: number; nombre: string }>(`SELECT id, nombre FROM users ORDER BY nombre ASC`),
     all<{ entidad: string }>(`SELECT DISTINCT entidad FROM auditoria ORDER BY entidad ASC`),
+    all<{ accion: string }>(`SELECT DISTINCT accion FROM auditoria ORDER BY accion ASC`),
   ]);
   const total = Number(totalRow?.total || 0);
   const totalPages = Math.max(1, Math.ceil(total / POR_PAGINA));
@@ -60,7 +82,7 @@ export default async function AuditoriaPage({
       <PageHeader title="Auditoría" subtitle="Registro de solo lectura: quién hizo qué, cuándo y qué cambió. No se puede editar ni borrar." />
 
       <Card className="mb-4">
-        <form className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end" method="get">
+        <form className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end" method="get">
           <div>
             <Label>Usuario</Label>
             <select name="usuario_id" defaultValue={usuarioIdFiltro} className={inputClass}>
@@ -71,7 +93,7 @@ export default async function AuditoriaPage({
             </select>
           </div>
           <div>
-            <Label>Tipo</Label>
+            <Label>Módulo</Label>
             <select name="entidad" defaultValue={entidadFiltro} className={inputClass}>
               <option value="">Todos</option>
               {entidades.map((e) => (
@@ -79,9 +101,26 @@ export default async function AuditoriaPage({
               ))}
             </select>
           </div>
+          <div>
+            <Label>Acción</Label>
+            <select name="accion" defaultValue={accionFiltro} className={inputClass}>
+              <option value="">Todas</option>
+              {acciones.map((a) => (
+                <option key={a.accion} value={a.accion}>{a.accion.replace(/_/g, " ")}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Desde</Label>
+            <input type="date" name="desde" defaultValue={desdeFiltro} className={inputClass} />
+          </div>
+          <div>
+            <Label>Hasta</Label>
+            <input type="date" name="hasta" defaultValue={hastaFiltro} className={inputClass} />
+          </div>
           <div className="flex gap-2">
             <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2.5 text-sm font-semibold">Filtrar</button>
-            {(usuarioIdFiltro || entidadFiltro) && (
+            {hayFiltros && (
               <Link href="/auditoria" className="rounded-xl bg-ink/5 text-ink-muted px-4 py-2.5 text-sm font-semibold">Limpiar</Link>
             )}
           </div>
@@ -107,10 +146,16 @@ export default async function AuditoriaPage({
                 — {r.accion.replace(/_/g, " ")} en <span className="font-mono text-xs bg-ink/5 rounded px-1">{r.entidad}</span>{r.entidad_id ? ` #${r.entidad_id}` : ""}
               </p>
               <p className="text-xs text-ink/40">{dayjs(r.fecha).format("DD/MM/YYYY HH:mm")}</p>
-              {r.valor_nuevo && <p className="text-xs text-ink/50 mt-0.5 font-mono truncate">{r.valor_nuevo}</p>}
+              {r.valor_anterior && r.valor_nuevo ? (
+                <p className="text-xs text-ink/50 mt-0.5 font-mono truncate">
+                  {r.valor_anterior} → {r.valor_nuevo}
+                </p>
+              ) : (
+                r.valor_nuevo && <p className="text-xs text-ink/50 mt-0.5 font-mono truncate">{r.valor_nuevo}</p>
+              )}
             </div>
           ))}
-          {registros.length === 0 && <EmptyState>Sin registros de auditoría {usuarioIdFiltro || entidadFiltro ? "con este filtro." : "todavía."}</EmptyState>}
+          {registros.length === 0 && <EmptyState>Sin registros de auditoría {hayFiltros ? "con este filtro." : "todavía."}</EmptyState>}
         </div>
       </Card>
 
