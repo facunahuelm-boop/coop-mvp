@@ -1277,4 +1277,8 @@ Desplegado: commit `0fb6c2d`, `vercel --prod` aliasado a `coop-mvp.vercel.app`.
 
 **Verificación**: `tsc --noEmit` limpio. `eslint`: los 2 `any` que reporta el archivo son los mismos 2 que ya tenía `origin/main` sin tocar (confirmado corriendo `eslint` contra la versión sin editar) — solo cambiaron de número de línea por el código nuevo, cero deuda agregada. `next build` limpio, `/auditoria` sigue generándose correctamente entre las rutas de la app.
 
-**Pendiente**: desplegar y verificar en producción (sin migración que aplicar). Sigue Sub-fase 2.3 (Historial).
+Desplegado: commit `bb903b1`, `vercel --prod` aliasado a `coop-mvp.vercel.app`.
+
+**Verificación en vivo (22/09)**: `/auditoria` en producción muestra los 3 `<select>` (Usuario/Módulo/Acción) con los valores reales de la base y los 2 `<input type="date">`. Probado un filtro real combinado (`?accion=resolver_alerta&desde=2026-09-22&hasta=2026-09-22`, 200) — devolvió únicamente los registros de "resolver alerta" de esa fecha, con "Limpiar" visible. Confirmado también que un filtro solo por módulo (`?entidad=solicitudes_compra`) sigue funcionando igual que antes. No se pudo confirmar visualmente el caso "valor anterior → valor nuevo" porque ningún registro real en esta base tiene ambos campos cargados a la vez (la mayoría de las acciones solo graban `valor_nuevo`) — por revisión de código el `ternary` es puramente aditivo: cuando `valor_anterior` falta, se sigue mostrando exactamente como antes (ya verificado arriba). Sin regresiones: `/fiscal` (que también lee la tabla `auditoria`) sigue devolviendo 200.
+
+**Pendiente**: ninguno técnico. Sigue Sub-fase 2.3 (Historial).
