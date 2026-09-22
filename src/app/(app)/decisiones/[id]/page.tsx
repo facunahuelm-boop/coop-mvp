@@ -68,7 +68,17 @@ export default async function DecisionDetallePage({ params }: { params: Promise<
 
   const esOversight = canEdit(user.rol, "finanzas");
   const puedeEditarModulo = canEdit(user.rol, "comisiones");
-  const puedeGestionar = puedeEditarModulo && (await puedeGestionarComision(user, decision.comision_id));
+  const esParteDeLaComision = await puedeGestionarComision(user, decision.comision_id);
+  const puedeGestionar = puedeEditarModulo && esParteDeLaComision;
+
+  // Fase 12 (pruebas end-to-end) — mismo hallazgo y mismo criterio que
+  // solicitudes/[id]/page.tsx: /decisiones sí filtra por comisión en el
+  // listado para roles que no son de conducción (ver decisiones/page.tsx,
+  // misComisionIds), así que la ficha no puede ser menos estricta — acá
+  // además se filtran los resultados detallados de la votación (nombre y
+  // voto de cada persona), que es información todavía más sensible que el
+  // listado.
+  if (!esParteDeLaComision) notFound();
 
   const hayVotacionAbierta = votacionesConRespuestas.some((v) => v.estado === "abierta");
 

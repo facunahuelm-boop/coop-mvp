@@ -74,6 +74,18 @@ export default async function SolicitudDetallePage({ params }: { params: Promise
     puedeGestionarComision(user, solicitud.comision_destino_id),
   ]);
 
+  // Fase 12 (pruebas end-to-end) — hallazgo dejado pendiente en la Fase 11:
+  // canRead(rol, "comisiones") da true para TODOS los roles a propósito (ver
+  // el comentario en roles.ts: comisiones/reuniones son transparentes para
+  // toda la cooperativa). Pero /solicitudes SÍ filtra por comisión en el
+  // listado para cualquier rol que no sea de conducción (ver
+  // solicitudes/page.tsx, misComisionIds) — así que esta ficha tiene que
+  // aplicar el mismo criterio, o alguien podía entrar por URL directa con
+  // un id ajeno (son enteros consecutivos, no hace falta ni adivinar mucho)
+  // y ver el contenido completo —comentarios internos incluidos— de una
+  // solicitud entre dos comisiones en las que no participa.
+  if (!puedeGestionarOrigen && !puedeGestionarDestino) notFound();
+
   const estadoActual = estadoEfectivo(solicitud.estado, solicitud.fecha_limite);
   const estaCerrada = ["resuelta", "rechazada", "cancelada"].includes(solicitud.estado);
 
