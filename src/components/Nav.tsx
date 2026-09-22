@@ -42,6 +42,7 @@ import {
   BookOpen,
   Landmark,
   UserCog,
+  ClipboardCheck,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -170,6 +171,11 @@ const GROUPS: NavGroup[] = [
     label: "Configuración",
     items: [
       { href: "/configuracion", label: "Configuración", icon: <Settings size={ICON_SIZE} /> },
+      // Sub-fase 1.5 ("Panel de Comisión Fiscal"): usa "auditoria" como mod
+      // porque ese es exactamente el grupo de roles con lectura de control
+      // (tesorería, consejo directivo, fiscal, admin) — mismo criterio que
+      // ya usa el ítem de Auditoría de acá abajo.
+      { href: "/fiscal", label: "Panel Fiscal", icon: <ClipboardCheck size={ICON_SIZE} />, mod: "auditoria" },
       { href: "/auditoria", label: "Auditoría", icon: <History size={ICON_SIZE} />, mod: "auditoria" },
     ],
   },
