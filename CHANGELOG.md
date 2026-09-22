@@ -1251,4 +1251,10 @@ Desplegado: commit `88bc6a7`, `vercel --prod` aliasado a `coop-mvp.vercel.app`.
 
 **Nota de honestidad sobre el alcance**: no se probó todavía en producción real con las 4 tarjetas y la vista de Compras/Presupuesto con datos reales — falta desplegar y verificar visualmente, incluido confirmar que un rol sin acceso a Finanzas/Compras (por ejemplo `comision_obra`) efectivamente ve `/transparencia` en su menú y la pantalla completa, sin ver el link "Ver el detalle completo" (que debe quedar oculto para ese rol).
 
-**Pendiente**: desplegar y verificar en producción (sin migración que aplicar). Sigue Sub-fase 2.2 (Auditoría — sumar filtro por fecha/acción al `/auditoria` ya existente).
+Desplegado: commit `0fb6c2d`, `vercel --prod` aliasado a `coop-mvp.vercel.app`.
+
+**Verificación en vivo (22/09)**: `/transparencia` en producción muestra datos reales y coincidentes con el resto del sistema (saldo $274.500 y disponible prudencial -$87.500, iguales a los que ya mostraba `/fiscal`), Compras con conteos reales por estado, Presupuesto vs. ejecución con las 5 categorías reales (incluida "Estructura" al 103%, mostrando que el diseño de la barra roja por sobre-ejecución funciona), y Cobros mostrando el total agregado ($2.900) sin ningún nombre de socio. Los links "Ver el detalle completo" aparecieron (la cuenta de prueba usada tiene acceso a Finanzas/Compras). Sin regresiones: `/finanzas` y `/compras` devuelven 200 sin errores nuevos.
+
+**Nota de honestidad sobre el alcance**: no se pudo probar en vivo con una cuenta de un rol sin acceso a Finanzas/Compras (por ejemplo `comision_obra`) por no contar con esas credenciales en este entorno — se confirmó por revisión de código que `detalleFinanzas`/`detalleCompras` (los dos `const` que gatean los links "Ver el detalle completo") son `false` para cualquier rol sin `canRead` en ese módulo, así que esos links no deberían aparecer, pero falta la confirmación visual con una cuenta así.
+
+**Pendiente**: confirmar visualmente con un rol sin acceso a Finanzas/Compras cuando haya credenciales disponibles. Sigue Sub-fase 2.2 (Auditoría — sumar filtro por fecha/acción al `/auditoria` ya existente).
