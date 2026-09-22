@@ -6,7 +6,7 @@
 // `cancelarReunionAction`/`registrarAsistenciaAction` quedan sin tocar
 // (cambios de estado / toggles por fila, no altas con validación real).
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   crearReunionFormAction,
   cerrarReunionFormAction,
@@ -20,29 +20,39 @@ import { Card, Label, inputClass } from "@/components/ui";
 
 type Opcion = { id: number; nombre: string };
 
-export function CrearReunionForm({ comisiones, esOversightReuniones }: { comisiones: Opcion[]; esOversightReuniones: boolean }) {
+export function CrearReunionForm({ comisiones, esOversightReuniones, tipoInicial }: { comisiones: Opcion[]; esOversightReuniones: boolean; tipoInicial?: string }) {
   const [estado, formAction] = useActionState(crearReunionFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const detailsRef = useRef<HTMLDetailsElement>(null);
+  // Sub-fase 1.3 ("Asambleas como módulo propio"): la convocatoria formal
+  // (tipo ordinaria/extraordinaria, primera/segunda, fecha de convocatoria)
+  // solo tiene sentido para una Asamblea — se muestra nomás cuando se elige
+  // ese tipo, mismo criterio condicional que ya usa "Vincular a" en el
+  // formulario de Documentos (contextoTipo).
+  const [tipo, setTipo] = useState(tipoInicial || "comision");
   const { show } = useToast();
 
   useEffect(() => {
     if (estado.ok) {
       formRef.current?.reset();
       if (detailsRef.current) detailsRef.current.open = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTipo(tipoInicial || "comision");
       show("Reunión agendada.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
   return (
-    <details ref={detailsRef}>
-      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Agendar reunión</summary>
+    <details ref={detailsRef} open={!!tipoInicial}>
+      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">
+        {tipoInicial === "asamblea" ? "+ Convocar asamblea" : "+ Agendar reunión"}
+      </summary>
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <Label>Tipo</Label>
-            <select name="tipo" className={inputClass} defaultValue="comision">
+            <select name="tipo" className={inputClass} value={tipo} onChange={(e) => setTipo(e.target.value)}>
               {esOversightReuniones && <option value="asamblea">Asamblea</option>}
               {esOversightReuniones && <option value="consejo_directivo">Consejo Directivo</option>}
               <option value="comision">Comisión</option>
@@ -57,6 +67,30 @@ export function CrearReunionForm({ comisiones, esOversightReuniones }: { comisio
               ))}
             </select>
           </div>
+          {tipo === "asamblea" && (
+            <>
+              <div>
+                <Label>Tipo de asamblea</Label>
+                <select name="tipo_asamblea" className={inputClass} defaultValue="ordinaria">
+                  <option value="ordinaria">Ordinaria</option>
+                  <option value="extraordinaria">Extraordinaria</option>
+                </select>
+              </div>
+              <div>
+                <Label>Convocatoria</Label>
+                <select name="convocatoria" className={inputClass} defaultValue="primera">
+                  <option value="primera">Primera</option>
+                  <option value="segunda">Segunda</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Fecha de convocatoria (opcional)</Label>
+                <input type="date" name="fecha_convocatoria" className={inputClass} />
+                <p className="text-xs text-ink/40 mt-1">Fecha en que se publicó/envió la convocatoria — solo para mostrar la antelación, informativo.</p>
+                <FieldError message={estado.fieldErrors?.fecha_convocatoria} />
+              </div>
+            </>
+          )}
           <div className="sm:col-span-2">
             <Label>Título</Label>
             <input name="titulo" required className={inputClass} />
@@ -89,7 +123,7 @@ export function CrearReunionForm({ comisiones, esOversightReuniones }: { comisio
             <FormError message={estado.error} />
           </div>
           <div className="sm:col-span-2">
-            <SubmitButton pendingLabel="Agendando…">Agendar reunión</SubmitButton>
+            <SubmitButton pendingLabel="Agendando…">{tipo === "asamblea" ? "Convocar asamblea" : "Agendar reunión"}</SubmitButton>
           </div>
         </form>
       </Card>

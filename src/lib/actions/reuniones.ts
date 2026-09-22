@@ -9,7 +9,7 @@ import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisi
 import { generarPdfBuffer } from "@/lib/pdf";
 import { saveGeneratedFile } from "@/lib/upload";
 import dayjs from "dayjs";
-import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaHora, zEnumSeguro, zCheckbox } from "@/lib/validation";
+import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaHora, zFechaOpcional, zEnumSeguro, zCheckbox } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { crearNotificacion } from "@/lib/notificaciones";
 
@@ -51,6 +51,9 @@ async function verificarPermisoReunion(user: SessionUser, tipo: string, comision
   }
 }
 
+const TIPOS_ASAMBLEA = ["ordinaria", "extraordinaria"] as const;
+const CONVOCATORIAS = ["primera", "segunda"] as const;
+
 const crearReunionSchema = z.object({
   tipo: zEnumSeguro(TIPOS_REUNION, "comision"),
   comision_id: zIdOpcional,
@@ -59,6 +62,12 @@ const crearReunionSchema = z.object({
   lugar: zTextoOpcional(200),
   orden_del_dia: zTextoOpcional(3000),
   modalidad: zEnumSeguro(MODALIDADES_REUNION, "presencial"),
+  // Sub-fase 1.3 ("Asambleas como módulo propio"): solo tienen sentido
+  // cuando tipo='asamblea' — para cualquier otro tipo se ignoran y quedan
+  // null, igual que ya pasa con comision_id cuando tipo no es 'comision'.
+  tipo_asamblea: zEnumSeguro(TIPOS_ASAMBLEA, "ordinaria"),
+  convocatoria: zEnumSeguro(CONVOCATORIAS, "primera"),
+  fecha_convocatoria: zFechaOpcional,
 });
 
 export async function crearReunionAction(formData: FormData) {
@@ -67,6 +76,7 @@ export async function crearReunionAction(formData: FormData) {
   const datos = parseForm(crearReunionSchema, formData);
   await verificarPermisoReunion(user, datos.tipo, datos.tipo === "comision" ? datos.comision_id ?? null : null);
 
+  const esAsamblea = datos.tipo === "asamblea";
   const id = await insert("reuniones", {
     tipo: datos.tipo,
     comision_id: datos.tipo === "comision" ? datos.comision_id : null,
@@ -77,6 +87,9 @@ export async function crearReunionAction(formData: FormData) {
     modalidad: datos.modalidad,
     estado: "planificada",
     creado_por_id: user.id,
+    tipo_asamblea: esAsamblea ? datos.tipo_asamblea : null,
+    convocatoria: esAsamblea ? datos.convocatoria : null,
+    fecha_convocatoria: esAsamblea ? datos.fecha_convocatoria : null,
   });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "reuniones", entidad_id: id, valor_nuevo: { titulo: datos.titulo, fecha: datos.fecha, tipo: datos.tipo } });
   revalidatePath("/reuniones");

@@ -40,6 +40,7 @@ import {
   Inbox,
   ListChecks,
   BookOpen,
+  Landmark,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -138,6 +139,7 @@ const GROUPS: NavGroup[] = [
       { href: "/comisiones", label: "Comisiones", icon: <Compass size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/solicitudes", label: "Solicitudes", icon: <Send size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/reuniones", label: "Reuniones", icon: <CalendarDays size={ICON_SIZE} />, mod: "comisiones" },
+      { href: "/asambleas", label: "Asambleas", icon: <Landmark size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/decisiones", label: "Decisiones", icon: <Gavel size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/comunicaciones", label: "Comunicaciones", icon: <MessageSquare size={ICON_SIZE} />, mod: "comisiones" },
     ],
