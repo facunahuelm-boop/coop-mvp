@@ -43,6 +43,7 @@ import {
   Landmark,
   UserCog,
   ClipboardCheck,
+  Eye,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -118,6 +119,13 @@ const GROUPS: NavGroup[] = [
       { href: "/gastos", label: "Gastos", icon: <Receipt size={ICON_SIZE} /> },
       { href: "/reclamos", label: "Reclamos", icon: <Wrench size={ICON_SIZE} />, mod: "reclamos" },
       { href: "/finanzas", label: "Finanzas", icon: <Wallet size={ICON_SIZE} />, mod: "finanzas" },
+      // Fase 2 ("Transparencia", sección 10, 22/09): sin "mod" a propósito —
+      // es "transparencia básica", la ve cualquier usuario autenticado
+      // (mismo criterio sin mod que ya usan Gastos/Contactos/Mi trabajo),
+      // a diferencia de Finanzas/Compras de arriba que sí dependen de
+      // canRead. Solo muestra agregados de toda la cooperativa, nunca datos
+      // de un socio en particular.
+      { href: "/transparencia", label: "Transparencia", icon: <Eye size={ICON_SIZE} /> },
     ],
   },
   {
