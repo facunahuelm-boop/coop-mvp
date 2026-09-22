@@ -20,10 +20,18 @@ export default async function LibrosSocialesPage() {
 
   const puedeGenerar = canApprove(user.rol, "comisiones");
 
+  // .catch(): si la migración 0031 todavía no corrió en esta base, la
+  // columna numero_libro no existe todavía — la página tiene que seguir
+  // mostrando la cantidad de actas igual (solo sin folio) en vez de romperse.
   const [resumenActas, resumenSocios, generados] = await Promise.all([
     all<{ organo: string; cantidad: number; ultimo_folio: number | null; ultima_fecha: string | null }>(
       `SELECT organo, COUNT(*) as cantidad, MAX(numero_libro) as ultimo_folio, MAX(fecha) as ultima_fecha
        FROM actas WHERE organo IN ('asamblea', 'consejo_directivo') GROUP BY organo`
+    ).catch(() =>
+      all<{ organo: string; cantidad: number; ultima_fecha: string | null }>(
+        `SELECT organo, COUNT(*) as cantidad, MAX(fecha) as ultima_fecha
+         FROM actas WHERE organo IN ('asamblea', 'consejo_directivo') GROUP BY organo`
+      ).then((filas) => filas.map((f) => ({ ...f, ultimo_folio: null })))
     ),
     all<{ estado: string; cantidad: number }>(`SELECT estado, COUNT(*) as cantidad FROM socios GROUP BY estado`),
     all<any>(
@@ -42,7 +50,7 @@ export default async function LibrosSocialesPage() {
       icon: "📗",
       nombre: "Libro de Actas — Asamblea",
       resumen: porOrgano.asamblea
-        ? `${porOrgano.asamblea.cantidad} acta(s) · último folio N°${porOrgano.asamblea.ultimo_folio} (${dayjs(porOrgano.asamblea.ultima_fecha).format("DD/MM/YYYY")})`
+        ? `${porOrgano.asamblea.cantidad} acta(s)${porOrgano.asamblea.ultimo_folio ? ` · último folio N°${porOrgano.asamblea.ultimo_folio}` : ""} (${dayjs(porOrgano.asamblea.ultima_fecha).format("DD/MM/YYYY")})`
         : "Todavía no hay actas de Asamblea registradas.",
       action: generarLibroActasFormAction,
       hidden: { organo: "asamblea" },
@@ -52,7 +60,7 @@ export default async function LibrosSocialesPage() {
       icon: "📘",
       nombre: "Libro de Actas — Consejo Directivo",
       resumen: porOrgano.consejo_directivo
-        ? `${porOrgano.consejo_directivo.cantidad} acta(s) · último folio N°${porOrgano.consejo_directivo.ultimo_folio} (${dayjs(porOrgano.consejo_directivo.ultima_fecha).format("DD/MM/YYYY")})`
+        ? `${porOrgano.consejo_directivo.cantidad} acta(s)${porOrgano.consejo_directivo.ultimo_folio ? ` · último folio N°${porOrgano.consejo_directivo.ultimo_folio}` : ""} (${dayjs(porOrgano.consejo_directivo.ultima_fecha).format("DD/MM/YYYY")})`
         : "Todavía no hay actas de Consejo Directivo registradas.",
       action: generarLibroActasFormAction,
       hidden: { organo: "consejo_directivo" },

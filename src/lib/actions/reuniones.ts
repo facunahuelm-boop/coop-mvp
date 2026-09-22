@@ -474,13 +474,16 @@ export async function cerrarReunionAction(formData: FormData) {
     // folio correlativo propio (nunca se recalcula después); las actas de
     // comisiones internas (organo='comision') no son un libro social y no
     // llevan folio. Ver migrations/0031_libros_sociales.sql.
+    // .catch(() => null): si la migración 0031 todavía no corrió en esta
+    // base, la columna numero_libro no existe todavía — cerrar la reunión
+    // tiene que seguir funcionando igual (sin folio) en vez de romperse acá.
     let numeroLibro: number | null = null;
     if (reunion.tipo === "asamblea" || reunion.tipo === "consejo_directivo") {
       const ultimo = await get<{ max: number | null }>(
         `SELECT MAX(numero_libro) as max FROM actas WHERE organo = ?`,
         [reunion.tipo]
-      );
-      numeroLibro = (ultimo?.max || 0) + 1;
+      ).catch(() => null);
+      numeroLibro = ultimo ? (ultimo.max || 0) + 1 : null;
     }
     actaId = await insert("actas", {
       organo: reunion.tipo, // asamblea | consejo_directivo | comision

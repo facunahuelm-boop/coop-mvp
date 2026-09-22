@@ -54,10 +54,12 @@ export async function generarLibroActasAction(formData: FormData) {
 
   const { organo } = parseForm(z.object({ organo: zEnumSeguro(ORGANO_LIBRO) }), formData);
 
+  // .catch(): si la migración 0031 todavía no corrió, numero_libro no
+  // existe como columna — se ordena solo por fecha/id en vez de romper.
   const actas = await all<any>(
     `SELECT * FROM actas WHERE organo = ? ORDER BY numero_libro ASC NULLS LAST, fecha ASC, id ASC`,
     [organo]
-  );
+  ).catch(() => all<any>(`SELECT * FROM actas WHERE organo = ? ORDER BY fecha ASC, id ASC`, [organo]));
 
   const titulo = `Libro de Actas — ${ORGANO_LABEL[organo]}`;
   const secciones: SeccionPdf[] = [
