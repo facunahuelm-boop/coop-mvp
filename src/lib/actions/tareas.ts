@@ -8,7 +8,7 @@ import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaOpcional, zEnumSeguro } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
-import { crearNotificacion } from "@/lib/actions/notificaciones";
+import { crearNotificacion } from "@/lib/notificaciones";
 
 // Fase 06 del Plan Maestro — tareas genéricas por comisión (no solo Obra o
 // Trabajo). El comentario original decía "quien puede editar la comisión

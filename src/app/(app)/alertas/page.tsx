@@ -15,7 +15,11 @@ const MOD_LABEL: Record<string, string> = { obra: "🏗️ Obra", trabajo: "🤝
 export default async function AlertasPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  await recalcularAlertas();
+  // Fase 11 (hallazgo R-1): el panel ahora saltea el recálculo si ya se hizo
+  // hace menos de un minuto, pero ESTA pantalla es la que existe justamente
+  // para mirar las alertas, así que acá siempre se fuerza el recálculo
+  // completo — siempre hay una forma de ver el estado fresco.
+  await recalcularAlertas({ forzar: true });
 
   const [abiertas, resueltas] = await Promise.all([
     all<any>(`SELECT * FROM alertas WHERE estado='abierta' ORDER BY CASE severidad WHEN 'critica' THEN 0 WHEN 'importante' THEN 1 ELSE 2 END, fecha DESC`),

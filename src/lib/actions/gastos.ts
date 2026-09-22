@@ -19,7 +19,7 @@ import {
   clavesDe,
 } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
-import { crearNotificacionesParaUsuarios } from "@/lib/actions/notificaciones";
+import { crearNotificacionesParaUsuarios } from "@/lib/notificaciones";
 
 // Gastos por Comisión (pedido explícito): cada comisión (Compras, Seguridad,
 // Administrativa, Trabajo, Obra, o cualquiera creada a futuro) puede cargar

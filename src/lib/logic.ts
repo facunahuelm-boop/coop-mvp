@@ -475,7 +475,40 @@ export async function alertasParaTopBar(limite: number = 5) {
 // ============ MOTOR DE ALERTAS ============
 // Recalcula alertas automáticas a partir de los datos actuales.
 // Los umbrales son un punto de partida configurable (ver sección 12 del análisis).
-export async function recalcularAlertas() {
+//
+// Fase 11 (auditoría de rendimiento, 22/09) — HALLAZGO R-1.
+// Esta función es cara y corre en el camino más caliente del sistema: se
+// llama al principio de /dashboard (la pantalla a la que cae todo el mundo
+// al entrar) y de /alertas, ANTES de poder renderizar nada. Medido sobre el
+// código: ~10 consultas de lectura propias (más las de tareasObraConSemaforo()
+// y resumenFinanciero(), que son varias cada una) y, por cada fila que genera
+// una alerta, un crearAlerta() → upsertAlerta() que son DOS viajes más a la
+// base (un SELECT para ver si ya existe + un UPDATE o INSERT). Todo en serie:
+// no hay un solo Promise.all en las ~186 líneas del cuerpo.
+//
+// Con las 16 alertas abiertas que tiene hoy la cooperativa de producción, eso
+// da del orden de 50 viajes secuenciales a la base en cada carga del panel —
+// y ~16 UPDATE que reescriben filas con exactamente los mismos valores,
+// porque upsertAlerta siempre actualiza la alerta existente aunque nada haya
+// cambiado. O sea: cada vez que alguien mira el panel, genera escritura.
+//
+// El arreglo es deliberadamente conservador: NO se toca la lógica de las
+// reglas (los umbrales, qué alerta se crea y con qué severidad siguen
+// idénticos), solo se evita repetir el recálculo completo cuando ya se hizo
+// hace muy poco. `/alertas` puede forzarlo para que siempre haya una forma de
+// ver el estado fresco. La marca vive en memoria del proceso, así que un
+// arranque en frío recalcula igual — que es el comportamiento correcto.
+const RECALCULO_TTL_MS = 60_000;
+let ultimoRecalculo = 0;
+
+export async function recalcularAlertas(opciones?: { forzar?: boolean }) {
+  const ahora = Date.now();
+  if (!opciones?.forzar && ahora - ultimoRecalculo < RECALCULO_TTL_MS) return;
+  ultimoRecalculo = ahora;
+  return recalcularAlertasAhora();
+}
+
+async function recalcularAlertasAhora() {
   // Documentos de seguridad vencidos / próximos a vencer
   const docs = await all<any>(`SELECT * FROM documentos_seguridad WHERE fecha_vencimiento IS NOT NULL`);
   const hoy = dayjs();

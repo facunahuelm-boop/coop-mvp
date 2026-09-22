@@ -11,7 +11,7 @@ import { saveGeneratedFile } from "@/lib/upload";
 import dayjs from "dayjs";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaHora, zEnumSeguro, zCheckbox } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
-import { crearNotificacion } from "@/lib/actions/notificaciones";
+import { crearNotificacion } from "@/lib/notificaciones";
 
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",

@@ -8,7 +8,7 @@ import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { parseForm, zId, zTexto, zTextoOpcional, zFecha, zEnumSeguro } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
-import { crearNotificacionesParaUsuarios } from "@/lib/actions/notificaciones";
+import { crearNotificacionesParaUsuarios } from "@/lib/notificaciones";
 
 // Fase 6 del sistema de gestión de Comisiones (19/09, pedido explícito,
 // sección "decisiones/votaciones"): registro formal de decisiones de

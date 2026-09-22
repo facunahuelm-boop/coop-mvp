@@ -24,7 +24,7 @@ import {
   clavesDe,
 } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
-import { crearNotificacion } from "@/lib/actions/notificaciones";
+import { crearNotificacion } from "@/lib/notificaciones";
 
 const PRIORIDAD_COMPRA = ["baja", "media", "alta", "critica"] as const;
 

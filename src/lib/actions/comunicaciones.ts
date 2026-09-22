@@ -8,7 +8,7 @@ import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { parseForm, zId, zIdOpcional, zTexto, zEnumSeguro } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
-import { crearNotificacion, crearNotificacionesParaUsuarios } from "@/lib/actions/notificaciones";
+import { crearNotificacion, crearNotificacionesParaUsuarios } from "@/lib/notificaciones";
 import { TIPO_COMUNICACION, TIPOS_COMUNICACION_OVERSIGHT } from "@/components/comunicaciones/ComunicacionStatus";
 
 // Fase 7 del sistema de gestión de Comisiones (19/09, pedido explícito,
