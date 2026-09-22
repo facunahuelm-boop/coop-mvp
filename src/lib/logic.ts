@@ -539,6 +539,49 @@ async function recalcularAlertasAhora() {
     }
   }
 
+  // Sub-fase 1.1 de la evolución de la plataforma (22/09, "Centro
+  // Documental"): vencimientos de documentos EN GENERAL (contratos,
+  // habilitaciones, pólizas, convenios...), no sólo los de
+  // documentos_seguridad de arriba (que sigue igual, no se toca). Mismos
+  // umbrales (15 días) para no introducir un criterio nuevo. Se excluyen:
+  // documentos archivados (ya salieron de circulación a propósito) y
+  // versiones superadas (una fila a la que OTRO documento reemplaza vía
+  // reemplaza_a_id) — alertar sobre una versión vieja que ya nadie mira
+  // sería ruido. `.catch(() => [])` por si todavía no corrió la migración
+  // 0030 en este entorno.
+  const docsPorVencer = await all<any>(
+    `SELECT d.* FROM documentos d
+      WHERE d.fecha_vencimiento IS NOT NULL
+        AND d.estado != 'archivado'
+        AND NOT EXISTS (SELECT 1 FROM documentos d2 WHERE d2.reemplaza_a_id = d.id)`
+  ).catch(() => [] as any[]);
+  for (const d of docsPorVencer) {
+    const dias = dayjs(d.fecha_vencimiento).diff(hoy, "day");
+    if (dias < 0) {
+      await crearAlerta({
+        tipo: "documento_vencido",
+        severidad: "importante",
+        origen_modulo: "documentos",
+        titulo: `Documento vencido: ${d.nombre}`,
+        descripcion: `Venció el ${d.fecha_vencimiento}.`,
+        asignado_a_rol: "administracion",
+        ref_tabla: "documentos",
+        ref_id: d.id,
+      });
+    } else if (dias <= 15) {
+      await crearAlerta({
+        tipo: "documento_por_vencer",
+        severidad: "informativa",
+        origen_modulo: "documentos",
+        titulo: `Documento próximo a vencer: ${d.nombre}`,
+        descripcion: `Vence el ${d.fecha_vencimiento} (${dias} día(s)).`,
+        asignado_a_rol: "administracion",
+        ref_tabla: "documentos",
+        ref_id: d.id,
+      });
+    }
+  }
+
   // Incidentes de seguridad críticos abiertos
   const incidentesCriticos = await all<any>(
     `SELECT * FROM incidentes_seguridad WHERE estado != 'resuelto' AND severidad = 'critica'`

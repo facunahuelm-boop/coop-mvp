@@ -1,12 +1,20 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import dayjs from "dayjs";
 import { eliminarDocumentoFormAction } from "@/lib/actions/documentos";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
-import { SubirDocumentoForm, CrearCategoriaDocumentoForm, SubirNuevaVersionForm } from "@/components/documentos/DocumentosFormularios";
+import {
+  SubirDocumentoForm,
+  CrearCategoriaDocumentoForm,
+  SubirNuevaVersionForm,
+  EstadoDocumentoSelect,
+  DestacadoDocumentoToggle,
+} from "@/components/documentos/DocumentosFormularios";
+import { DocumentoStatusBadge, estadoEfectivoDocumento, type EstadoDocumentoGuardado } from "@/components/documentos/DocumentoStatus";
 
 const CATEGORIAS_BASE = ["actas", "asambleas", "presupuestos", "facturas", "contratos", "tecnicos", "obra", "socios", "seguridad", "compras", "reglamentos", "informes", "comunicaciones"];
 const CAT_LABEL_BASE: Record<string, string> = {
@@ -48,6 +56,13 @@ type DocumentoRow = {
   comunicacion_id?: number | null;
   version?: number | null;
   reemplaza_a_id?: number | null;
+  // Sub-fase 1.1 ("Centro Documental", 22/09): estado guardado + vencimiento
+  // + destacado — agregados por la migración 0030. `estado` puede no venir
+  // en bases sin esa migración todavía (queda undefined y se trata como
+  // "vigente" más abajo, ver DEFAULT de la columna).
+  estado?: EstadoDocumentoGuardado | null;
+  fecha_vencimiento?: string | null;
+  destacado?: boolean | null;
   comision_nombre?: string | null;
   solicitud_titulo?: string | null;
   tarea_titulo?: string | null;
@@ -78,15 +93,23 @@ export default async function DocumentosPage({
   // esto, cualquier lectura de searchParams.algo da undefined en runtime sin
   // tirar error (el filtro por etiqueta quedaba siempre vacío pese a que la
   // URL sí tenía ?etiqueta=... — mismo bug que en /buscar, ver ese archivo).
-  searchParams: Promise<{ etiqueta?: string }>;
+  //
+  // Sub-fase 1.1 ("buscador + filtros compactos dentro de /documentos"): se
+  // suman `q` (texto libre, nombre/descripción) y `estado` — mismo patrón de
+  // filtro por querystring que ya usa /auditoria (form method="get", sin
+  // JavaScript), no un buscador nuevo con su propia lógica.
+  searchParams: Promise<{ etiqueta?: string; q?: string; estado?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canRead(user.rol, "documentos")) redirect("/dashboard");
 
   const puedeEditar = canEdit(user.rol, "documentos");
-  const { etiqueta } = await searchParams;
+  const { etiqueta, q, estado } = await searchParams;
   const etiquetaFiltro = etiqueta?.trim() || "";
+  const qFiltro = q?.trim() || "";
+  const estadoFiltro = estado?.trim() || "";
+  const hayFiltrosActivos = Boolean(etiquetaFiltro || qFiltro || estadoFiltro);
 
   // Fase 8: la consulta ampliada trae, además de lo de siempre, las 6
   // columnas de contexto (con sus nombres ya resueltos por LEFT JOIN) y
@@ -148,16 +171,100 @@ export default async function DocumentosPage({
   }
   const vigentes = docsSinFiltrar.filter((d) => !idsSuperados.has(d.id));
 
-  const todasLasEtiquetas = Array.from(new Set(vigentes.flatMap((d) => etiquetasDe(d)))).sort((a, b) => a.localeCompare(b, "es"));
-  const docs = etiquetaFiltro ? vigentes.filter((d) => etiquetasDe(d).includes(etiquetaFiltro)) : vigentes;
+  // Sub-fase 1.1 — filtro por estado: por defecto (sin elegir nada en el
+  // select) se esconden los archivados, mismo criterio que un archivo real
+  // (no aparece en el uso diario, pero sigue ahí si alguien lo busca a
+  // propósito con el filtro "Archivados"). `estado` puede no existir todavía
+  // en bases sin la migración 0030 corrida — se trata como "vigente".
+  const estadoEfectivoDe = (d: DocumentoRow) => estadoEfectivoDocumento(d.estado || "vigente", d.fecha_vencimiento);
+  const porEstado = vigentes.filter((d) => (estadoFiltro ? estadoEfectivoDe(d) === estadoFiltro : estadoEfectivoDe(d) !== "archivado"));
+
+  const todasLasEtiquetas = Array.from(new Set(porEstado.flatMap((d) => etiquetasDe(d)))).sort((a, b) => a.localeCompare(b, "es"));
+  const porEtiqueta = etiquetaFiltro ? porEstado.filter((d) => etiquetasDe(d).includes(etiquetaFiltro)) : porEstado;
+
+  // Buscador (texto libre por nombre/descripción, sin distinguir mayúsculas).
+  const qNormalizado = qFiltro.toLowerCase();
+  const docs = qNormalizado
+    ? porEtiqueta.filter((d) => d.nombre.toLowerCase().includes(qNormalizado) || (d.descripcion || "").toLowerCase().includes(qNormalizado))
+    : porEtiqueta;
 
   const CATEGORIAS = [...CATEGORIAS_BASE, ...categoriasPropias.map((c) => c.nombre)];
   const CAT_LABEL: Record<string, string> = { ...CAT_LABEL_BASE, ...Object.fromEntries(categoriasPropias.map((c) => [c.nombre, c.nombre])) };
   const porCategoria = CATEGORIAS.map((c) => ({ c, docs: docs.filter((d) => d.categoria === c) })).filter((g) => g.docs.length > 0);
 
+  // Sub-fase 1.1 ("recientes/destacados"): sólo se muestran cuando no hay
+  // ningún filtro activo, mismo criterio que ya usa la sección "Actas y
+  // resoluciones" de más abajo (evita mezclar un resumen con un resultado de
+  // búsqueda, que sería confuso).
+  const recientes = [...porEstado].sort((a, b) => (a.fecha < b.fecha ? 1 : -1)).slice(0, 5);
+  const destacados = porEstado.filter((d) => d.destacado);
+
   return (
     <div>
       <PageHeader title="Documentos" subtitle="Repositorio institucional de la cooperativa" />
+
+      <Card className="mb-4">
+        <form className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 items-end" method="get">
+          {etiquetaFiltro && <input type="hidden" name="etiqueta" value={etiquetaFiltro} />}
+          <div>
+            <Label>Buscar</Label>
+            <input name="q" defaultValue={qFiltro} placeholder="Nombre o descripción…" className={inputClass} />
+          </div>
+          <div>
+            <Label>Estado</Label>
+            <select name="estado" defaultValue={estadoFiltro} className={inputClass}>
+              <option value="">Todos (sin archivados)</option>
+              <option value="vigente">Vigentes</option>
+              <option value="pendiente">Pendientes</option>
+              <option value="vencido">Vencidos</option>
+              <option value="archivado">Archivados</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2.5 text-sm font-semibold whitespace-nowrap">Filtrar</button>
+            {hayFiltrosActivos && (
+              <Link href="/documentos" className="rounded-xl bg-ink/5 text-ink-muted px-4 py-2.5 text-sm font-semibold whitespace-nowrap">Limpiar</Link>
+            )}
+          </div>
+        </form>
+      </Card>
+
+      {!hayFiltrosActivos && destacados.length > 0 && (
+        <>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">★ Destacados</h3>
+          <div className="space-y-2 mb-6">
+            {destacados.map((d) => (
+              <Card key={d.id} className="flex items-center justify-between">
+                <div className="min-w-0 flex items-center gap-2">
+                  <span className="text-sm text-[var(--color-amarillo)]">★</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{d.nombre}</p>
+                    <p className="text-xs text-ink/50">{CAT_LABEL[d.categoria] || d.categoria} · {dayjs(d.fecha).format("DD/MM/YYYY")}</p>
+                  </div>
+                </div>
+                {d.archivo_url && <a href={`/api/archivos/documento/${d.id}`} target="_blank" className="text-xs text-[var(--color-brand-800)] underline whitespace-nowrap">Descargar</a>}
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+
+      {!hayFiltrosActivos && recientes.length > 0 && (
+        <>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Subidos recientemente</h3>
+          <div className="space-y-2 mb-6">
+            {recientes.map((d) => (
+              <Card key={d.id} className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{d.nombre}</p>
+                  <p className="text-xs text-ink/50">{CAT_LABEL[d.categoria] || d.categoria} · {d.subido_por && `subido por ${d.subido_por} · `}{dayjs(d.fecha).format("DD/MM/YYYY")}</p>
+                </div>
+                {d.archivo_url && <a href={`/api/archivos/documento/${d.id}`} target="_blank" className="text-xs text-[var(--color-brand-800)] underline whitespace-nowrap">Descargar</a>}
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
 
       {todasLasEtiquetas.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 mb-5">
@@ -175,7 +282,7 @@ export default async function DocumentosPage({
         </div>
       )}
 
-      {actas.length > 0 && !etiquetaFiltro && (
+      {actas.length > 0 && !hayFiltrosActivos && (
         <>
           <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Actas y resoluciones</h3>
           <div className="space-y-2 mb-6">
@@ -200,16 +307,22 @@ export default async function DocumentosPage({
             {ds.map((d) => {
               const contexto = contextoDe(d);
               const historial = historialDe(d);
+              const efectivo = estadoEfectivoDe(d);
               return (
                 <Card key={d.id} className="flex items-center justify-between">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold">
-                      {d.nombre}
-                      {Boolean(d.version && d.version > 1) && (
-                        <span className="ml-1.5 inline-block align-middle"><Badge color="brand">v{d.version}</Badge></span>
-                      )}
+                    {/* div, no <p>: DestacadoDocumentoToggle renderiza un <form>, que no
+                        es contenido de fraseo válido dentro de un párrafo. */}
+                    <div className="text-sm font-semibold flex items-center flex-wrap gap-1.5">
+                      {puedeEditar && <DestacadoDocumentoToggle documentoId={d.id} destacado={Boolean(d.destacado)} />}
+                      <span>{d.nombre}</span>
+                      {Boolean(d.version && d.version > 1) && <Badge color="brand">v{d.version}</Badge>}
+                      {efectivo !== "vigente" && <DocumentoStatusBadge estado={efectivo} />}
+                    </div>
+                    <p className="text-xs text-ink/50">
+                      {d.descripcion} {d.subido_por && `· subido por ${d.subido_por}`} · {dayjs(d.fecha).format("DD/MM/YYYY")}
+                      {d.fecha_vencimiento && ` · vence ${dayjs(d.fecha_vencimiento).format("DD/MM/YYYY")}`}
                     </p>
-                    <p className="text-xs text-ink/50">{d.descripcion} {d.subido_por && `· subido por ${d.subido_por}`} · {dayjs(d.fecha).format("DD/MM/YYYY")}</p>
                     {contexto && (
                       <a href={contexto.href} className="text-[11px] text-[var(--color-brand-800)] hover:underline">{contexto.texto}</a>
                     )}
@@ -238,6 +351,7 @@ export default async function DocumentosPage({
                   </div>
                   <div className="flex flex-col items-end gap-1 ml-3">
                     {d.archivo_url ? <a href={`/api/archivos/documento/${d.id}`} target="_blank" className="text-xs text-[var(--color-brand-800)] underline whitespace-nowrap">Descargar</a> : <span className="text-xs text-ink/30">sin archivo</span>}
+                    {puedeEditar && <EstadoDocumentoSelect documentoId={d.id} estado={d.estado || "vigente"} />}
                     {puedeEditar && <SubirNuevaVersionForm documentoId={d.id} nombre={d.nombre} />}
                     {user.rol === "admin" && (
                       <details>
@@ -261,7 +375,9 @@ export default async function DocumentosPage({
           </div>
         </div>
       ))}
-      {docs.length === 0 && <EmptyState>No hay documentos cargados todavía.</EmptyState>}
+      {docs.length === 0 && (
+        <EmptyState>{hayFiltrosActivos ? "Ningún documento coincide con este filtro." : "No hay documentos cargados todavía."}</EmptyState>
+      )}
 
       {puedeEditar && (
         <>

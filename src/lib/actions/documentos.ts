@@ -6,8 +6,14 @@ import { insert, get, run, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
-import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zEnumSeguro } from "@/lib/validation";
+import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zEnumSeguro, zFechaOpcional } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+
+// Sub-fase 1.1 ("Centro Documental", 22/09) — mismo valor que
+// ESTADO_DOCUMENTO en components/documentos/DocumentoStatus.tsx, repetido
+// acá (en vez de importado) a propósito: este archivo es "use server" y no
+// debe importar nada de un módulo que también exporta componentes React.
+const ESTADO_DOCUMENTO = ["vigente", "pendiente", "archivado"] as const;
 
 /**
  * Normaliza una lista de etiquetas escritas a mano ("obra, etapa 2 ,,urgente")
@@ -66,10 +72,17 @@ function columnasDeContexto(tipo: ContextoDocumentoTipo, id: number | null): Rec
   return columnas;
 }
 
+// Sub-fase 1.1 ("Centro Documental", 22/09): fecha_vencimiento opcional al
+// subir (facturas, contratos, seguros, habilitaciones, etc. que vencen) —
+// el estado inicial siempre es "vigente", no se pide en este formulario:
+// "pendiente"/"archivado" son cambios de estado posteriores (ver
+// cambiarEstadoDocumentoAction), no algo que tenga sentido elegir al cargar
+// un documento nuevo.
 const subirDocumentoSchema = z.object({
   categoria: zTextoOpcional(100).transform((v) => v || "informes"),
   nombre: zTexto(200),
   descripcion: zTextoOpcional(1000),
+  fecha_vencimiento: zFechaOpcional,
   contexto_tipo: zEnumSeguro(CONTEXTO_DOCUMENTO_TIPOS, "ninguno"),
   contexto_id: zIdOpcional,
 });
@@ -84,14 +97,14 @@ export async function subirDocumentoAction(formData: FormData) {
   });
   // `insert()` ya descarta sola cualquier columna que la base todavía no
   // tenga (conFallbackColumnaFaltante, ver db.ts) — así que si el usuario
-  // todavía no corrió la migración 0029, las 6 columnas de contexto (y
-  // version/reemplaza_a_id más abajo) se ignoran solas y el documento se
-  // guarda igual que antes de esta fase, sin romper nada.
+  // todavía no corrió la migración 0029/0030, esas columnas se ignoran solas
+  // y el documento se guarda igual que antes de esas fases, sin romper nada.
   const id = await insert("documentos", {
     categoria: datos.categoria,
     nombre: datos.nombre,
     descripcion: datos.descripcion,
     etiquetas: normalizarEtiquetas(formData.get("etiquetas")),
+    fecha_vencimiento: datos.fecha_vencimiento,
     archivo_url: archivoUrl,
     subido_por_id: user.id,
     ...columnasDeContexto(datos.contexto_tipo, datos.contexto_id),
@@ -162,6 +175,15 @@ export async function subirNuevaVersionDocumentoAction(formData: FormData) {
     nombre: anterior.nombre,
     descripcion: descripcion || anterior.descripcion,
     etiquetas: anterior.etiquetas,
+    // Sub-fase 1.1: fecha_vencimiento y destacado se heredan igual que el
+    // resto de los metadatos (misma lógica que ya explica el comentario de
+    // arriba para categoría/nombre/etiquetas/contexto). El estado en cambio
+    // NO se hereda — siempre arranca "vigente": si la versión anterior
+    // estaba archivada, subir una nueva versión es justamente lo que la
+    // vuelve a poner en circulación.
+    fecha_vencimiento: anterior.fecha_vencimiento ?? null,
+    destacado: anterior.destacado ?? false,
+    estado: "vigente",
     archivo_url: archivoUrl,
     subido_por_id: user.id,
     comision_id: anterior.comision_id ?? null,
@@ -186,6 +208,68 @@ export async function subirNuevaVersionDocumentoAction(formData: FormData) {
 
 export async function subirNuevaVersionDocumentoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => subirNuevaVersionDocumentoAction(formData));
+}
+
+/**
+ * Sub-fase 1.1 ("Centro Documental", 22/09, sección "estados y
+ * vencimientos"): cambiar el estado guardado de un documento (vigente ⇄
+ * pendiente ⇄ archivado). "Archivado" es la alternativa real a borrar un
+ * documento que ya no está en uso pero que no se quiere perder — mismo
+ * espíritu que el resto del sistema usa con `estado` en vez de DELETE
+ * (socios, viviendas, solicitudes_compra, reclamos): la memoria
+ * institucional no debería depender de que nadie apriete "eliminar" por
+ * error. No reemplaza la papelera real de la sección 18 del pedido nuevo
+ * (eliminación con permiso especial + auditoría), que queda para una fase
+ * posterior — esto es sólo dejar de tener un único estado implícito.
+ */
+const cambiarEstadoDocumentoSchema = z.object({
+  id: zId,
+  estado: zEnumSeguro(ESTADO_DOCUMENTO, "vigente"),
+});
+
+export async function cambiarEstadoDocumentoAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "documentos")) throw new Error("No autorizado");
+  const { id, estado } = parseForm(cambiarEstadoDocumentoSchema, formData);
+  const documento = await get<any>(`SELECT id, estado FROM documentos WHERE id = ?`, [id]);
+  if (!documento) throw new Error("El documento ya no existe.");
+  await run(`UPDATE documentos SET estado = ? WHERE id = ?`, [estado, id]);
+  await audit({
+    usuario_id: user.id,
+    accion: "cambiar_estado",
+    entidad: "documentos",
+    entidad_id: id,
+    valor_anterior: { estado: documento.estado },
+    valor_nuevo: { estado },
+  });
+  revalidatePath("/documentos");
+}
+
+export async function cambiarEstadoDocumentoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => cambiarEstadoDocumentoAction(formData));
+}
+
+/** Sub-fase 1.1 ("recientes/destacados"): marcar/desmarcar un documento como
+ * destacado, para que aparezca en la sección "Destacados" de /documentos —
+ * mismo criterio de "el servidor invierte el valor actual" que ya usa
+ * alternarItemChecklistAction en actions/tareas.ts (AutoSubmitCheckbox no
+ * manda el valor nuevo, sólo dispara el POST). */
+const alternarDestacadoSchema = z.object({ id: zId });
+
+export async function alternarDestacadoDocumentoAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "documentos")) throw new Error("No autorizado");
+  const { id } = parseForm(alternarDestacadoSchema, formData);
+  const documento = await get<any>(`SELECT id, destacado FROM documentos WHERE id = ?`, [id]);
+  if (!documento) throw new Error("El documento ya no existe.");
+  const nuevo = !documento.destacado;
+  await run(`UPDATE documentos SET destacado = ? WHERE id = ?`, [nuevo, id]);
+  await audit({ usuario_id: user.id, accion: "alternar_destacado", entidad: "documentos", entidad_id: id, valor_nuevo: { destacado: nuevo } });
+  revalidatePath("/documentos");
+}
+
+export async function alternarDestacadoDocumentoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => alternarDestacadoDocumentoAction(formData));
 }
 
 /**

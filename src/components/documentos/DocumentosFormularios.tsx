@@ -15,10 +15,14 @@ import {
   subirDocumentoFormAction,
   crearCategoriaDocumentoFormAction,
   subirNuevaVersionDocumentoFormAction,
+  cambiarEstadoDocumentoFormAction,
+  alternarDestacadoDocumentoFormAction,
 } from "@/lib/actions/documentos";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
 import { AddButtonSummary, Card, Label, inputClass } from "@/components/ui";
+import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
+import { ESTADO_DOCUMENTO, ESTADO_DOCUMENTO_LABEL, type EstadoDocumentoGuardado } from "@/components/documentos/DocumentoStatus";
 
 type Opcion = { id: number; label: string };
 
@@ -107,6 +111,11 @@ export function SubirDocumentoForm({
             <input name="etiquetas" placeholder="separadas por coma, ej: obra-etapa-2, urgente" className={inputClass} />
           </div>
           <div>
+            <Label>Vence el (opcional)</Label>
+            <input type="date" name="fecha_vencimiento" className={inputClass} />
+            <FieldError message={estado.fieldErrors?.fecha_vencimiento} />
+          </div>
+          <div>
             <Label>Vincular a (opcional)</Label>
             <select
               name="contexto_tipo"
@@ -192,6 +201,53 @@ export function SubirNuevaVersionForm({ documentoId, nombre }: { documentoId: nu
         </form>
       </Modal>
     </>
+  );
+}
+
+/**
+ * Sub-fase 1.1 ("Centro Documental", 22/09): cambiar el estado de un
+ * documento (vigente/pendiente/archivado) sin abrir ningún modal ni salir
+ * de la fila — mismo patrón ya usado en /socios para el estado de un socio
+ * (AutoSubmitSelect: cambia y guarda solo, sin botón aparte). "Vencido" no
+ * es una opción elegible acá a propósito: se calcula solo a partir de la
+ * fecha de vencimiento (ver estadoEfectivoDocumento).
+ */
+export function EstadoDocumentoSelect({ documentoId, estado }: { documentoId: number; estado: EstadoDocumentoGuardado }) {
+  return (
+    <AutoSubmitSelect
+      action={cambiarEstadoDocumentoFormAction}
+      hiddenFields={{ id: documentoId }}
+      name="estado"
+      defaultValue={estado}
+      options={ESTADO_DOCUMENTO.map((e) => ({ value: e, label: ESTADO_DOCUMENTO_LABEL[e] }))}
+      className="text-[11px] rounded-md border border-ink/10 bg-transparent px-1.5 py-0.5 text-ink/60"
+    />
+  );
+}
+
+/** Estrella para marcar/desmarcar un documento como destacado — mismo
+ * criterio de botón-formulario-de-un-toque que ya usa ConfirmarEliminar,
+ * sin necesidad de un checkbox visible (el ícono ya comunica el estado). */
+export function DestacadoDocumentoToggle({ documentoId, destacado }: { documentoId: number; destacado: boolean }) {
+  const [estado, formAction] = useActionState(alternarDestacadoDocumentoFormAction, ESTADO_INICIAL);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.error) show(estado.error, "error");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form action={formAction} className="inline">
+      <input type="hidden" name="id" value={documentoId} />
+      <button
+        type="submit"
+        title={destacado ? "Quitar de destacados" : "Marcar como destacado"}
+        className={`text-sm leading-none ${destacado ? "text-[var(--color-amarillo)]" : "text-ink/20 hover:text-ink/40"}`}
+      >
+        {destacado ? "★" : "☆"}
+      </button>
+    </form>
   );
 }
 

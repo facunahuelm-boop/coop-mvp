@@ -10,7 +10,7 @@ import { resolverAlertaFormAction } from "@/lib/actions/alertas";
 
 const SEV_LABEL: Record<string, string> = { critica: "🔴 Crítica", importante: "🟠 Importante", informativa: "🟢 Informativa" };
 const SEV_COLOR: Record<string, "rojo" | "amarillo" | "verde"> = { critica: "rojo", importante: "amarillo", informativa: "verde" };
-const MOD_LABEL: Record<string, string> = { obra: "🏗️ Obra", trabajo: "🤝 Trabajo", compras: "🛒 Compras", seguridad: "🦺 Seguridad", finanzas: "💰 Finanzas" };
+const MOD_LABEL: Record<string, string> = { obra: "🏗️ Obra", trabajo: "🤝 Trabajo", compras: "🛒 Compras", seguridad: "🦺 Seguridad", finanzas: "💰 Finanzas", documentos: "📄 Documentos", reclamos: "📣 Reclamos" };
 
 export default async function AlertasPage() {
   const user = await getCurrentUser();
