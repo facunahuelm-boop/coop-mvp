@@ -168,9 +168,24 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     // (migrations/0036): una cuenta que nunca cambió la contraseña desde
     // que existe esta columna no invalida nada acá.
     if (row.password_changed_en && typeof payload.iat === "number") {
-      const cambiadaEn = new Date(row.password_changed_en).getTime();
-      const tokenEmitidoEn = payload.iat * 1000;
-      if (tokenEmitidoEn < cambiadaEn) return null;
+      // HALLAZGO EN VERIFICACIÓN EN VIVO (23/09, corregido antes de cerrar
+      // la sub-fase): comparar milisegundo a milisegundo rompía el propio
+      // caso que cambiarPasswordAction está pensado para no romper — la
+      // reemisión de la MISMA sesión. `iat` (jose/JWT) tiene precisión de
+      // SEGUNDOS (trunca los milisegundos), pero `password_changed_en` se
+      // guarda con milisegundos completos (`toISOString()`). Si el cambio de
+      // contraseña y la reemisión de la cookie caen en el mismo segundo de
+      // reloj (el caso normal — son dos pasos seguidos de la misma acción),
+      // el `iat` truncado quedaba comparado contra un `password_changed_en`
+      // con milisegundos de sobra dentro de ESE MISMO segundo, así que el
+      // token recién emitido parecía anterior al cambio y la propia persona
+      // quedaba deslogueada de su propia sesión actual — se detectó
+      // probando esto mismo en producción. Truncar `password_changed_en` al
+      // segundo (mismo grano que `iat`) resuelve el empate a favor de la
+      // sesión recién emitida sin debilitar el chequeo para sesiones
+      // genuinamente viejas (emitidas en un segundo anterior real).
+      const cambiadaEnSegundos = Math.floor(new Date(row.password_changed_en).getTime() / 1000);
+      if (payload.iat < cambiadaEnSegundos) return null;
     }
     return {
       id: row.id,
