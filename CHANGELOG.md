@@ -1389,3 +1389,9 @@ Desplegado: commit `2a8f0ae`, migración `0034_configuracion_reglas.sql` aplicad
 **Archivos**: `src/app/(app)/cumplimiento/page.tsx` (nueva sección y query; sin archivo nuevo).
 
 **Verificación**: `tsc --noEmit` limpio. `eslint`: 0 errores, igual que `origin/main` (sin debt nuevo). `next build` limpio.
+
+Desplegado: commit `53b0981`, `vercel --prod` aliasado a `coop-mvp.vercel.app`.
+
+**Verificación en vivo (23/09)**: `/cumplimiento` en producción muestra la nueva sección "Normativa vigente (Estatuto y Reglamentos)" con datos reales de ambos casos — "[Prueba Fase 07] Estatuto vigente" (categoría propia "[Prueba Fase 07] Estatuto", matcheada por el criterio de substring "estatuto") y "Reglamento de Obra y Ayuda Mutua" (categoría base "Reglamentos", match exacto) — ambos mostrando el badge "✓ Vigente" correctamente. Sin regresiones: el resto de `/cumplimiento` (documentos vencidos, reuniones sin cerrar, cargos vacantes, informe fiscal) siguió mostrando exactamente los mismos datos que antes de este cambio; `/documentos` sigue devolviendo 200.
+
+**Pendiente**: ninguno técnico. Cierra la Sub-fase 3.2. Sigue la Sub-fase 3.3 (Motor de reglas evento-condición-acción) — última de la Fase 3.
