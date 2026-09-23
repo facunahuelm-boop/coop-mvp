@@ -6,6 +6,7 @@ import { all, get } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, StatTile } from "@/components/ui";
 import { CARGO_LABEL, type CargoConsejo } from "@/lib/consejoDirectivoCargos";
 import { obtenerReglasCooperativa } from "@/lib/reglas";
+import { DocumentoStatusBadge, estadoEfectivoDocumento } from "@/components/documentos/DocumentoStatus";
 import dayjs from "dayjs";
 
 // Fase 2 ("Transparencia, Auditoría, Historial, Cumplimiento", sección 37) —
@@ -29,6 +30,23 @@ import dayjs from "dayjs";
 // Ningún dato de acá es nuevo: todo se lee de tablas que ya existen
 // (documentos, reuniones, reportes_generados, consejo_directivo_cargos).
 // Sin tabla nueva, sin migración.
+//
+// Fase 3 ("Reglas de la cooperativa, Estatuto/Reglamentos como
+// configuración, Motor de reglas evento-condición-acción") — Sub-fase 3.2:
+// Estatuto/Reglamentos como configuración (sección 13). Mismo problema de
+// texto original perdido que la sección 15 de arriba; alcance confirmado
+// con el usuario: el Centro Documental (Sub-fase 1.1) YA guarda el
+// estatuto/reglamentos como cualquier otro documento (categoría libre,
+// versionado con `reemplaza_a_id`, estado vigente/pendiente/archivado) —
+// no hacía falta ningún módulo nuevo para "guardarlo como configuración".
+// Lo único que faltaba de verdad era la sección "Normativa vigente" de
+// abajo: un lugar directo para ver cuáles son los documentos normativos
+// actuales sin tener que filtrarlos a mano en /documentos. Se identifican
+// por categoría — "reglamentos" (categoría base ya existente) o cualquier
+// categoría que contenga "estatuto" (las cooperativas suelen crear esa
+// categoría propia, ver el placeholder del formulario de categorías) — y
+// se excluyen archivados y versiones ya reemplazadas, mismo criterio que
+// ya usa recalcularAlertas() para "documento por vencer".
 export default async function CumplimientoPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -47,7 +65,7 @@ export default async function CumplimientoPage() {
   // antes hardcodeado en 15 acá también. Ver src/lib/reglas.ts.
   const reglas = await obtenerReglasCooperativa();
 
-  const [documentosConVencimiento, ultimaAsambleaOrdinaria, reunionesPendientesDeCerrar, informesFiscales, cargosVigentes] = await Promise.all([
+  const [documentosConVencimiento, ultimaAsambleaOrdinaria, reunionesPendientesDeCerrar, informesFiscales, cargosVigentes, normativaVigente] = await Promise.all([
     // Mismo criterio y mismos umbrales que ya usa recalcularAlertas() para
     // "documento_vencido"/"documento_por_vencer" sobre documentos en
     // general (lib/logic.ts): se excluyen archivados y versiones
@@ -94,6 +112,20 @@ export default async function CumplimientoPage() {
     all<{ cargo: string }>(
       `SELECT cargo FROM consejo_directivo_cargos WHERE fecha_fin IS NULL AND cargo IN ('presidente','secretario','tesorero')`
     ).catch(() => [] as { cargo: string }[]),
+    // Sub-fase 3.2 ("Estatuto/Reglamentos como configuración"): documentos
+    // normativos vigentes — "reglamentos" es una categoría base exacta
+    // (ver CATEGORIAS_BASE en documentos/page.tsx); "estatuto" es una
+    // categoría propia de texto libre que cada cooperativa crea a su
+    // manera (el formulario de categorías lo sugiere como ejemplo), por
+    // eso se matchea por substring. Mismo criterio de exclusión que el
+    // resto de esta pantalla: sin archivados, sin versiones reemplazadas.
+    all<{ id: number; nombre: string; categoria: string; estado: string; fecha_vencimiento: string | null; archivo_url: string | null }>(
+      `SELECT d.id, d.nombre, d.categoria, d.estado, d.fecha_vencimiento, d.archivo_url FROM documentos d
+       WHERE (LOWER(d.categoria) = 'reglamentos' OR LOWER(d.categoria) LIKE '%estatuto%')
+         AND d.estado != 'archivado'
+         AND NOT EXISTS (SELECT 1 FROM documentos d2 WHERE d2.reemplaza_a_id = d.id)
+       ORDER BY d.categoria ASC, d.nombre ASC`
+    ).catch(() => [] as { id: number; nombre: string; categoria: string; estado: string; fecha_vencimiento: string | null; archivo_url: string | null }[]),
   ]);
 
   const documentosVencidos = documentosConVencimiento.filter((d) => dayjs(d.fecha_vencimiento).diff(hoy, "day") < 0);
@@ -217,6 +249,35 @@ export default async function CumplimientoPage() {
           </Card>
           <Link href="/fiscal" className="text-xs text-[var(--color-brand-800)] underline mt-1.5 inline-block">Ver Panel Fiscal completo</Link>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Normativa vigente (Estatuto y Reglamentos)</h3>
+        <div className="space-y-1.5">
+          {normativaVigente.length === 0 && (
+            <EmptyState>
+              Todavía no hay ningún documento cargado en la categoría &quot;Reglamentos&quot; ni en una categoría propia que contenga
+              &quot;Estatuto&quot;.
+            </EmptyState>
+          )}
+          {normativaVigente.map((d) => (
+            <Card key={d.id} className="!py-2 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium truncate">{d.nombre}</p>
+                <p className="text-xs text-ink/40 capitalize">{d.categoria}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <DocumentoStatusBadge estado={estadoEfectivoDocumento(d.estado, d.fecha_vencimiento)} />
+                {d.archivo_url && (
+                  <a href={`/api/archivos/documento/${d.id}`} target="_blank" className="text-xs text-[var(--color-brand-800)] underline">
+                    Descargar
+                  </a>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+        <Link href="/documentos" className="text-xs text-[var(--color-brand-800)] underline mt-1.5 inline-block">Ver Documentos completo</Link>
       </div>
     </div>
   );
