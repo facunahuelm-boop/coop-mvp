@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { rootGet, get, insert } from "@/lib/db";
+import { rootGet, get, insert, audit } from "@/lib/db";
 import { verifyPassword, createSessionCookie, clearSessionCookie } from "@/lib/auth";
 import { setOrgContext } from "@/lib/tenant";
 
@@ -49,7 +49,16 @@ export async function loginAction(_prev: { error?: string } | undefined, formDat
      WHERE organization_id = ? AND email = ? AND exitoso = 0
        AND creado_en > NOW() - (?::text || ' minutes')::interval`,
     [org.id, email, VENTANA_MINUTOS]
-  ).catch(() => undefined);
+  ).catch((err) => {
+    // Antes este error quedaba completamente silencioso — dejar entrar sin
+    // límite de intentos (ver comentario arriba) sigue siendo lo correcto,
+    // pero sin loggear no había forma de distinguir "la migración 0013
+    // todavía no corrió acá" (esperable, transitorio) de un problema real de
+    // conexión a la base tapado por este mismo catch (ver auditoría,
+    // Sub-fase 4.2).
+    console.error("[login] No se pudo verificar el límite de intentos fallidos:", err);
+    return undefined;
+  });
   if (Number(intentosRecientes?.cantidad || 0) >= MAX_INTENTOS) {
     return { error: `Demasiados intentos fallidos. Esperá ${VENTANA_MINUTOS} minutos e intentá de nuevo.` };
   }
@@ -72,6 +81,27 @@ export async function loginAction(_prev: { error?: string } | undefined, formDat
     await insert("login_intentos", { organization_id: org.id, email, exitoso: ok ? 1 : 0 });
   } catch (err) {
     console.error("[login] No se pudo registrar el intento de login:", err);
+  }
+
+  // Sub-fase 4.2 (sesiones y auditoría de accesos): a diferencia de
+  // login_intentos (arriba, pensado solo para el límite de fuerza bruta y
+  // sin usuario_id), esto deja el login exitoso/fallido en la auditoría
+  // general — visible en /auditoria (filtro "Acción", ya dinámico desde la
+  // Sub-fase 2.2) y en el historial de la propia cuenta
+  // (historialCuentaUsuario, Sub-fase 2.3) sin agregar ninguna pantalla
+  // nueva. usuario_id/entidad_id van en null cuando el email no corresponde
+  // a ningún usuario de esta cooperativa (auditoria.usuario_id ya es
+  // nullable — ver schema.postgres.sql) — nunca se inventa un id. Igual que
+  // el insert de arriba, un fallo acá nunca puede impedir un login válido.
+  try {
+    await audit({
+      usuario_id: user?.id ?? null,
+      accion: ok ? "login_exitoso" : "login_fallido",
+      entidad: "users",
+      entidad_id: user?.id ?? null,
+    });
+  } catch (err) {
+    console.error("[login] No se pudo registrar el intento en la auditoría:", err);
   }
   if (!user || !ok) return { error: "Email o contraseña incorrectos." };
 

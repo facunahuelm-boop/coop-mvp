@@ -268,11 +268,18 @@ export async function update(table: string, id: number, data: Record<string, any
 }
 
 // Auditoría (append-only): registra quién hizo qué y cuándo
+//
+// Sub-fase 4.2 (sesiones y auditoría de accesos): usuario_id ahora acepta
+// null — un login fallido contra un email que no existe en esta cooperativa
+// no tiene ningún usuario a quien atribuirle el intento (a diferencia de un
+// login fallido por contraseña incorrecta, que sí conoce el id). auditoria.
+// usuario_id ya era nullable en el schema (migrations iniciales) — esto solo
+// abre el tipo de TypeScript para que ese caso se pueda registrar.
 type AuditParams = {
-  usuario_id: number;
+  usuario_id: number | null;
   accion: string;
   entidad: string;
-  entidad_id: number;
+  entidad_id: number | null;
   valor_anterior?: any;
   valor_nuevo?: any;
 };

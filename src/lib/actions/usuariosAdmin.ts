@@ -193,7 +193,13 @@ export async function restablecerPasswordUsuarioAction(formData: FormData) {
   if (!usuario) throw new Error("Ese usuario ya no existe.");
 
   const hash = await hashPassword(password);
-  await update("users", id, { password_hash: hash });
+  // Sub-fase 4.2: password_changed_en invalida (vía getCurrentUser en
+  // auth.ts) cualquier sesión ya abierta de ESA cuenta con la contraseña
+  // vieja — a diferencia de cambiarPasswordAction (usuarios.ts), acá no hace
+  // falta reemitir ninguna cookie: quien ejecuta esta acción es el admin, no
+  // la persona dueña de la cuenta, así que no hay ninguna sesión propia que
+  // preservar.
+  await update("users", id, { password_hash: hash, password_changed_en: new Date().toISOString() });
   // Sin valor_anterior/valor_nuevo a propósito, mismo criterio que
   // cambiarPasswordAction: la auditoría registra QUE cambió, nunca su
   // contenido.

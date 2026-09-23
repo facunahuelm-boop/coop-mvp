@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { requireUser, verifyPassword, hashPassword } from "@/lib/auth";
+import { requireUser, verifyPassword, hashPassword, createSessionCookie } from "@/lib/auth";
 import { get, update, audit } from "@/lib/db";
 import { saveUploadedFile, TIPOS_IMAGEN } from "@/lib/upload";
 import { revalidatePath } from "next/cache";
@@ -44,11 +44,21 @@ export async function cambiarPasswordAction(formData: FormData) {
   }
 
   const nuevoHash = await hashPassword(datos.nueva);
-  await update("users", user.id, { password_hash: nuevoHash });
+  const ahora = new Date().toISOString();
+  await update("users", user.id, { password_hash: nuevoHash, password_changed_en: ahora });
 
   // Sin valor_anterior/valor_nuevo a propósito: la auditoría registra que la
   // contraseña cambió, nunca su contenido (ni el hash viejo ni el nuevo).
   await audit({ usuario_id: user.id, accion: "cambiar_password", entidad: "users", entidad_id: user.id });
+
+  // Sub-fase 4.2: cambiar la contraseña invalida (vía password_changed_en,
+  // ver getCurrentUser en auth.ts) cualquier OTRA sesión ya abierta de esta
+  // cuenta — pero sin esto, invalidaría también la sesión ACTUAL de quien
+  // acaba de cambiarla (su propio token fue firmado antes de este
+  // instante), obligándola a volver a loguearse de inmediato después de una
+  // acción que ella misma acaba de hacer con éxito. Reemitir la cookie acá
+  // mantiene viva justo esta sesión, con un token nuevo posterior al cambio.
+  await createSessionCookie({ id: user.id, rol: user.rol, organization_id: user.organization_id });
 }
 
 export async function cambiarPasswordFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

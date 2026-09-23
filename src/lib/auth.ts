@@ -117,7 +117,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     // organizations no tiene organization_id (es la tabla raíz, sin RLS) —
     // se puede traer con un JOIN normal en la misma consulta.
     const row = await get<any>(
-      `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, u.avatar_url, o.etapa,
+      `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, u.avatar_url,
+              u.password_changed_en, o.etapa,
               o.modulos_override,
               o.nombre as org_nombre, o.logo_url as org_logo_url,
               o.color_primario as org_color_primario, o.color_secundario as org_color_secundario
@@ -129,6 +130,21 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     // si por lo que sea el usuario ya no pertenece a la cooperativa del
     // token, la sesión se trata como inválida en vez de confiar en el token.
     if (!row || !row.activo || row.organization_id !== orgId) return null;
+
+    // Sub-fase 4.2 (sesiones y auditoría de accesos): si la contraseña
+    // cambió DESPUÉS de que se firmó este token (`iat`, en segundos —
+    // ver jose), la sesión se trata como inválida, igual que con
+    // `activo = 0` arriba. Sin esto, cambiar una contraseña (propia,
+    // Sub-fase 4.1, o por un admin) no cerraba ninguna otra sesión ya
+    // abierta con la contraseña vieja — el JWT (14 días de vigencia)
+    // seguía sirviendo igual. `password_changed_en` es nullable
+    // (migrations/0036): una cuenta que nunca cambió la contraseña desde
+    // que existe esta columna no invalida nada acá.
+    if (row.password_changed_en && typeof payload.iat === "number") {
+      const cambiadaEn = new Date(row.password_changed_en).getTime();
+      const tokenEmitidoEn = payload.iat * 1000;
+      if (tokenEmitidoEn < cambiadaEn) return null;
+    }
     return {
       id: row.id,
       nombre: row.nombre,

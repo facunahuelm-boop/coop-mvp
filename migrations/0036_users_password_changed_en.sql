@@ -1,0 +1,21 @@
+-- Fase 4 ("Seguridad y permisos granulares(16) + Seguridad de cuentas/2FA/
+-- sesiones(17) + Eliminación segura(18)") — Sub-fase 4.2: Sesiones y
+-- auditoría de accesos (sección 17, sin 2FA — deferido a propósito, ver
+-- CHANGELOG).
+--
+-- Hallazgo de la auditoría: los intentos de login ya quedaban en
+-- login_intentos (migrations/0013_login_intentos.sql), pero NINGÚN login
+-- exitoso ni fallido quedaba en la auditoría general (tabla `auditoria`), así
+-- que no aparecían en /auditoria ni en el historial de la propia cuenta
+-- (historialCuentaUsuario en logic.ts). Tampoco existía ninguna forma de que
+-- cambiar una contraseña (propia o por un admin, Sub-fase 4.1) cerrara otras
+-- sesiones ya abiertas con la contraseña vieja — el JWT de sesión (14 días de
+-- vigencia, ver auth.ts) seguía siendo válido igual después del cambio.
+--
+-- password_changed_en guarda cuándo fue el último cambio de contraseña de
+-- cada cuenta. getCurrentUser() (auth.ts) compara esto contra el `iat`
+-- (issued-at) del JWT: un token firmado ANTES de este momento se trata como
+-- inválido, igual que ya hace con `activo = 0`. Nullable a propósito: una
+-- cuenta que nunca cambió la contraseña desde que existe esta columna no
+-- tiene por qué invalidar nada retroactivamente.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_en TIMESTAMPTZ;
