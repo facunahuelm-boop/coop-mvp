@@ -44,6 +44,7 @@ import {
   UserCog,
   ClipboardCheck,
   Eye,
+  FileCheck2,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -185,6 +186,10 @@ const GROUPS: NavGroup[] = [
       // ya usa el ítem de Auditoría de acá abajo.
       { href: "/fiscal", label: "Panel Fiscal", icon: <ClipboardCheck size={ICON_SIZE} />, mod: "auditoria" },
       { href: "/auditoria", label: "Auditoría", icon: <History size={ICON_SIZE} />, mod: "auditoria" },
+      // Fase 2, Sub-fase 2.4 ("Centro de Cumplimiento", sección 15): mismo
+      // "mod" que Panel Fiscal y Auditoría — mismo grupo de control
+      // (tesorería, consejo directivo, fiscal, admin), sin ampliar nada.
+      { href: "/cumplimiento", label: "Cumplimiento", icon: <FileCheck2 size={ICON_SIZE} />, mod: "auditoria" },
     ],
   },
 ];

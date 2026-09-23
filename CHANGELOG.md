@@ -1318,3 +1318,32 @@ Desplegado: commit `da9f3bc`, `vercel --prod` aliasado a `coop-mvp.vercel.app`.
 - Sin regresiones: `/fiscal` y `/auditoria` siguen devolviendo 200.
 
 **Pendiente**: ninguno técnico. Cierra Sub-fase 2.3. Sigue Sub-fase 2.4 (Centro de Cumplimiento, sección 15) — última de la Fase 2.
+
+## Fase 2 (Transparencia, Auditoría, Historial, Cumplimiento) — Sub-fase 2.4: Centro de Cumplimiento (23/09)
+
+**Pedido**: sección 15 ("Centro de Cumplimiento"), última de la Fase 2.
+
+**Nota de honestidad**: el texto original de esta sección no se pudo recuperar — a diferencia de Transparencia/Auditoría/Historial (sub-fases 2.1 a 2.3), donde el usuario pudo volver a pasar o confirmar el pedido exacto, acá el usuario confirmó que tampoco tiene ese texto. Se le propuso explícitamente un alcance concreto (los 5 puntos de abajo) antes de escribir una sola línea de código, y lo confirmó — no se inventó ni se asumió contenido legalmente significativo sin decírselo primero, siguiendo el mismo criterio no negociable de toda esta fase.
+
+**Auditoría previa**: se revisó qué datos de cumplimiento ya calcula el sistema en distintos lugares (alertas de documentos vencidos en `lib/logic.ts`, el propio `/fiscal`, las columnas de convocatoria de Asambleas de la Sub-fase 1.3, `consejo_directivo_cargos` de la Sub-fase 1.4) para no duplicar ninguna consulta ni inventar un criterio nuevo de vencimiento.
+
+**Qué se hizo**: pantalla nueva `/cumplimiento` que junta, en un solo lugar, 5 hechos de cumplimiento administrativo ya calculables con datos existentes — sin tabla nueva, sin migración:
+- Documentos vencidos y próximos a vencer (15 días) — misma consulta y mismo umbral que ya usa `recalcularAlertas()` para documentos en general (excluye archivados y versiones reemplazadas).
+- Última Asamblea Ordinaria realizada este año calendario (o el hecho de que no hay ninguna registrada) — solo el dato, nunca un veredicto de si eso "cumple" con el estatuto.
+- Reuniones planificadas cuya fecha ya pasó y siguen sin cerrar.
+- Cantidad y fecha del último informe de la Comisión Fiscal generado (reusa `reportes_generados`, mismo dato que ya muestra `/fiscal`, acá solo resumido).
+- Cargos unipersonales del Consejo Directivo (Presidente/Secretario/Tesorero) sin titular vigente.
+
+Cada bloque linkea a la pantalla completa correspondiente (Documentos/Asambleas/Reuniones/Consejo Directivo/Fiscal) — el Centro de Cumplimiento es un resumen, no reemplaza a ninguna.
+
+**Guardrail no negociable**: mismo criterio que ya rige Asambleas desde la Sub-fase 1.3 — esta pantalla NUNCA declara si algo "cumple" o "no cumple", solo muestra hechos (fechas, conteos, vacantes). Un banner en la propia pantalla lo deja explícito para quien la usa.
+
+**Hallazgo real (cambió el alcance confirmado)**: el punto originalmente propuesto era "reuniones realizadas sin acta cerrada". Al auditar `cerrarReunionAction` (`actions/reuniones.ts`) se encontró que eso no puede pasar nunca — esa acción pone `estado='realizada'` y `acta_id` en la MISMA actualización, así que toda reunión "realizada" ya tiene acta por construcción; ese punto siempre iba a mostrar cero. Se reemplazó por la señal real equivalente: reuniones planificadas para una fecha que ya pasó y que siguen sin cerrarse (ni realizadas ni canceladas) — esas sí reflejan algo pendiente de una acción real.
+
+**Decisión de permisos**: mismo `mod` que ya usan Panel Fiscal y Auditoría — `canRead(rol, "auditoria")` (tesorería, consejo directivo, fiscal, admin). No se amplía ni se restringe ningún permiso existente; se reutiliza el más estricto que ya protegía contenido parecido, mismo criterio que Historial (Sub-fase 2.3) en Socios/Reuniones/Obra/Trabajo.
+
+**Fuera de alcance a propósito**: no se agregó ninguna alerta ni notificación nueva a partir de estos hechos (ya existe el motor de alertas para eso, sin tocar); no se agregó ningún campo de "responsable de resolver esto" (sería agregar un flujo de trabajo nuevo, no pedido); no se calculó "quórum" ni ninguna otra conclusión estatutaria.
+
+**Archivos**: `src/app/(app)/cumplimiento/page.tsx` (nuevo), `src/components/Nav.tsx` (ítem de menú nuevo, mismo `mod` que Panel Fiscal/Auditoría).
+
+**Verificación**: `tsc --noEmit` limpio. `eslint` en ambos archivos: 0 errores (2 warnings preexistentes de `<img>` en Nav.tsx, no relacionados). `next build` limpio, `/cumplimiento` se genera correctamente entre las rutas de la app.
