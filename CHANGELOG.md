@@ -1305,3 +1305,16 @@ Se detectaron 6 fichas con auditoría real registrada en la tabla `auditoria` pe
 **Archivos**: `src/components/HistorialAuditoria.tsx` (nuevo), `src/lib/logic.ts` (6 funciones nuevas), `src/lib/actions/trabajo.ts` (corrección de `entidad_id`), `src/app/(app)/socios/[id]/page.tsx`, `src/app/(app)/usuarios/[id]/page.tsx`, `src/app/(app)/decisiones/[id]/page.tsx`, `src/app/(app)/reuniones/[id]/page.tsx`, `src/app/(app)/obra/[id]/page.tsx`, `src/app/(app)/trabajo/[id]/page.tsx`.
 
 **Verificación**: `tsc --noEmit` limpio. `eslint` en los 9 archivos tocados (incluido el componente nuevo, 0 errores) — diferencia contra `origin/main` sin editar confirma **cero deuda nueva** en cada uno de los 7 archivos que ya tenían `any` (mismo conteo de errores antes/después: socios 6/6, usuarios 6/6, decisiones 0/0, reuniones 9/9, obra 4/4, trabajo page 4/4, trabajo.ts 3/3, logic.ts 34/34) — las 12 ocurrencias nuevas de `all<...>` en `logic.ts` usan un tipo propio (`RegistroAuditoriaJoin`) en vez de `any`, así que no suman al conteo. `next build` limpio, las 6 rutas siguen generándose.
+
+Desplegado: commit `da9f3bc`, `vercel --prod` aliasado a `coop-mvp.vercel.app`.
+
+**Verificación en vivo (23/09)**: con datos reales de producción —
+- `/socios/1`: sección "Historial" muestra 3 movimientos reales (crear, asignar vivienda, editar) con quién y cuándo, orden DESC correcto.
+- `/usuarios/11`: "Actividad reciente" (ya existente) y la nueva "Historial de la cuenta" conviven y muestran cosas DISTINTAS — la primera 20 acciones que hizo esa persona en todo el sistema, la segunda solo 1 entrada ("cambiar foto perfil") que es lo único que le pasó a esa cuenta puntual. Confirma que el filtro por `entidad='users'` funciona.
+- `/decisiones/1`: Historial muestra las 4 entradas esperadas (crear decisión, crear votación, cerrar votación, decidir) — confirma el JOIN secundario con `votaciones`.
+- `/reuniones/5`: Historial muestra crear + cerrar reunión correctamente.
+- `/obra/6`: Historial muestra "actualizar estado" real.
+- `/trabajo/9`: Historial muestra correctamente "Sin movimientos registrados todavía" — esta jornada nunca tuvo asistencia registrada, así que es un vacío legítimo, no un error. No se pudo probar en vivo el caso que SÍ ejercita la corrección del hallazgo (`entidad_id` de jornada en vez de núcleo), porque los formularios de esta ficha no respondieron a la automatización de browser disponible en esta verificación — queda confirmado por revisión de código (el cambio es un `entidad_id` distinto en una sola línea, mismo patrón ya verificado funcionando en Socios/Decisiones/Reuniones/Obra arriba) en vez de por prueba end-to-end.
+- Sin regresiones: `/fiscal` y `/auditoria` siguen devolviendo 200.
+
+**Pendiente**: ninguno técnico. Cierra Sub-fase 2.3. Sigue Sub-fase 2.4 (Centro de Cumplimiento, sección 15) — última de la Fase 2.
