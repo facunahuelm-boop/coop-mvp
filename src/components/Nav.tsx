@@ -46,6 +46,7 @@ import {
   Eye,
   FileCheck2,
   Zap,
+  UserPlus,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -198,6 +199,12 @@ const GROUPS: NavGroup[] = [
       // el mismo "auditoria" (tesorería/fiscal no podrían hacer nada ahí
       // aunque la vieran). La restricción real la hace la propia página.
       { href: "/reglas-automaticas", label: "Reglas automáticas", icon: <Zap size={ICON_SIZE} /> },
+      // Fase 4, Sub-fase 4.1 ("Gestión de usuarios", sección 16): mismo
+      // criterio que Configuración/Reglas automáticas de acá arriba — sin
+      // "mod" (el ítem se muestra a todos en el menú), la restricción real
+      // (solo admin, más estricta que las otras dos) la hace la propia
+      // página al entrar.
+      { href: "/usuarios", label: "Gestión de usuarios", icon: <UserPlus size={ICON_SIZE} /> },
     ],
   },
 ];
