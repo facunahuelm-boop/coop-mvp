@@ -1347,3 +1347,9 @@ Cada bloque linkea a la pantalla completa correspondiente (Documentos/Asambleas/
 **Archivos**: `src/app/(app)/cumplimiento/page.tsx` (nuevo), `src/components/Nav.tsx` (ítem de menú nuevo, mismo `mod` que Panel Fiscal/Auditoría).
 
 **Verificación**: `tsc --noEmit` limpio. `eslint` en ambos archivos: 0 errores (2 warnings preexistentes de `<img>` en Nav.tsx, no relacionados). `next build` limpio, `/cumplimiento` se genera correctamente entre las rutas de la app.
+
+Desplegado: commit `941486f`, `vercel --prod` aliasado a `coop-mvp.vercel.app`.
+
+**Verificación en vivo (23/09)**: `/cumplimiento` en producción muestra los 5 bloques con datos reales — 0 documentos vencidos, 0 por vencer, **1 reunión vencida sin cerrar** ("Asamblea General", planificada para el 12/09/2026 y todavía sin cerrar — confirma en vivo el hallazgo de esta sub-fase), **2 cargos vacantes** (Secretario y Tesorero, Presidente sí tiene titular), ninguna Asamblea Ordinaria registrada este año, y 1 informe fiscal generado (22/09/2026) — todos datos reales de la base de producción, no de prueba. Sin regresiones: `/fiscal`, `/asambleas` y `/consejo-directivo` siguen devolviendo 200.
+
+**Pendiente**: ninguno técnico. **Cierra la Fase 2 (4 de 4 sub-fases: Transparencia, Auditoría, Historial, Cumplimiento).** Sigue la Fase 3 (Reglas de la cooperativa, Estatuto/Reglamentos como configuración, Motor de reglas evento-condición-acción).
