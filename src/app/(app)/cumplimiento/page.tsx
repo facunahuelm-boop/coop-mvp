@@ -5,6 +5,7 @@ import { canRead } from "@/lib/roles";
 import { all, get } from "@/lib/db";
 import { Card, PageHeader, Badge, EmptyState, StatTile } from "@/components/ui";
 import { CARGO_LABEL, type CargoConsejo } from "@/lib/consejoDirectivoCargos";
+import { obtenerReglasCooperativa } from "@/lib/reglas";
 import dayjs from "dayjs";
 
 // Fase 2 ("Transparencia, Auditoría, Historial, Cumplimiento", sección 37) —
@@ -41,6 +42,10 @@ export default async function CumplimientoPage() {
   const hoy = dayjs();
   const hoyStr = hoy.format("YYYY-MM-DD");
   const inicioAno = hoy.startOf("year").format("YYYY-MM-DD");
+  // Fase 3, Sub-fase 3.1 ("Reglas de la cooperativa"): mismo umbral
+  // configurable que usa recalcularAlertas() para "documento_por_vencer" —
+  // antes hardcodeado en 15 acá también. Ver src/lib/reglas.ts.
+  const reglas = await obtenerReglasCooperativa();
 
   const [documentosConVencimiento, ultimaAsambleaOrdinaria, reunionesPendientesDeCerrar, informesFiscales, cargosVigentes] = await Promise.all([
     // Mismo criterio y mismos umbrales que ya usa recalcularAlertas() para
@@ -94,7 +99,7 @@ export default async function CumplimientoPage() {
   const documentosVencidos = documentosConVencimiento.filter((d) => dayjs(d.fecha_vencimiento).diff(hoy, "day") < 0);
   const documentosPorVencer = documentosConVencimiento.filter((d) => {
     const dias = dayjs(d.fecha_vencimiento).diff(hoy, "day");
-    return dias >= 0 && dias <= 15;
+    return dias >= 0 && dias <= reglas.diasAlertaVencimiento;
   });
 
   const CARGOS_UNIPERSONALES: CargoConsejo[] = ["presidente", "secretario", "tesorero"];
@@ -118,7 +123,7 @@ export default async function CumplimientoPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <StatTile label="Documentos vencidos" value={String(documentosVencidos.length)} color={documentosVencidos.length > 0 ? "rojo" : "verde"} />
-        <StatTile label="Por vencer (15 días)" value={String(documentosPorVencer.length)} color={documentosPorVencer.length > 0 ? "amarillo" : "verde"} />
+        <StatTile label={`Por vencer (${reglas.diasAlertaVencimiento} días)`} value={String(documentosPorVencer.length)} color={documentosPorVencer.length > 0 ? "amarillo" : "verde"} />
         <StatTile label="Reuniones vencidas sin cerrar" value={String(reunionesPendientesDeCerrar.length)} color={reunionesPendientesDeCerrar.length > 0 ? "amarillo" : "verde"} />
         <StatTile label="Cargos vacantes (Consejo)" value={String(cargosVacantes.length)} color={cargosVacantes.length > 0 ? "rojo" : "verde"} />
       </div>
@@ -139,7 +144,7 @@ export default async function CumplimientoPage() {
         </div>
 
         <div>
-          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Próximos a vencer (15 días)</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Próximos a vencer ({reglas.diasAlertaVencimiento} días)</h3>
           <div className="space-y-1.5">
             {documentosPorVencer.length === 0 && <EmptyState>Sin documentos próximos a vencer.</EmptyState>}
             {documentosPorVencer.map((d) => (

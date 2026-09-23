@@ -3,6 +3,7 @@ import { all, get } from "./db";
 import { tareasObraConSemaforo, resumenFinanciero, compararPresupuestos } from "./logic";
 import type { SessionUser } from "./auth";
 import { canRead } from "./roles";
+import { obtenerReglasCooperativa } from "./reglas";
 
 export type IaSource = { label: string; detail: string };
 export type IaAnswer = { answer: string; sources: IaSource[]; engine: "local" | "claude" };
@@ -118,11 +119,14 @@ async function dineroDisponible(user: SessionUser): Promise<IaAnswer> {
 }
 
 async function documentosPorVencer(): Promise<IaAnswer> {
+  // Fase 3, Sub-fase 3.1 ("Reglas de la cooperativa"): mismo umbral
+  // configurable que usa recalcularAlertas() — antes hardcodeado en 15.
+  const reglas = await obtenerReglasCooperativa();
   const docs = await all<any>(`SELECT * FROM documentos_seguridad WHERE fecha_vencimiento IS NOT NULL ORDER BY fecha_vencimiento ASC`);
   const hoy = dayjs();
-  const relevantes = docs.filter((d) => dayjs(d.fecha_vencimiento).diff(hoy, "day") <= 15);
+  const relevantes = docs.filter((d) => dayjs(d.fecha_vencimiento).diff(hoy, "day") <= reglas.diasAlertaVencimiento);
   if (relevantes.length === 0) {
-    return { answer: "No hay documentos de seguridad vencidos ni próximos a vencer en los próximos 15 días.", engine: "local", sources: [{ label: "Módulo Seguridad", detail: "Documentación" }] };
+    return { answer: `No hay documentos de seguridad vencidos ni próximos a vencer en los próximos ${reglas.diasAlertaVencimiento} días.`, engine: "local", sources: [{ label: "Módulo Seguridad", detail: "Documentación" }] };
   }
   const lineas = relevantes.map((d) => {
     const dias = dayjs(d.fecha_vencimiento).diff(hoy, "day");

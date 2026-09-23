@@ -7,6 +7,7 @@ import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
 import { resolverIncidenteFormAction } from "@/lib/actions/seguridad";
 import { CHECKLIST_BASE } from "@/lib/constants";
+import { obtenerReglasCooperativa } from "@/lib/reglas";
 import { UsuarioLink } from "@/components/EntidadLink";
 import { CargarDocumentoSeguridadForm, RegistrarIncidenteForm, NuevaInspeccionForm } from "@/components/seguridad/SeguridadFormularios";
 
@@ -16,10 +17,13 @@ export default async function SeguridadPage() {
   if (!canRead(user.rol, "seguridad")) redirect("/dashboard");
 
   const puedeEditar = canEdit(user.rol, "seguridad");
-  const [docs, incidentes, inspecciones] = await Promise.all([
+  const [docs, incidentes, inspecciones, reglas] = await Promise.all([
     all<any>(`SELECT * FROM documentos_seguridad ORDER BY fecha_vencimiento ASC`),
     all<any>(`SELECT i.*, u.nombre as autor_nombre FROM incidentes_seguridad i LEFT JOIN users u ON u.id = i.autor_id ORDER BY fecha DESC`),
     all<any>(`SELECT i.*, u.nombre as autor_nombre FROM inspecciones_seguridad i LEFT JOIN users u ON u.id = i.autor_id ORDER BY fecha DESC LIMIT 5`),
+    // Fase 3, Sub-fase 3.1 ("Reglas de la cooperativa"): mismo umbral
+    // configurable que usa recalcularAlertas() — antes hardcodeado en 15.
+    obtenerReglasCooperativa(),
   ]);
   const hoy = dayjs();
 
@@ -31,7 +35,7 @@ export default async function SeguridadPage() {
       <div className="space-y-2 mb-6">
         {docs.map((d) => {
           const dias = d.fecha_vencimiento ? dayjs(d.fecha_vencimiento).diff(hoy, "day") : null;
-          const color = dias == null ? "gray" : dias < 0 ? "rojo" : dias <= 15 ? "amarillo" : "verde";
+          const color = dias == null ? "gray" : dias < 0 ? "rojo" : dias <= reglas.diasAlertaVencimiento ? "amarillo" : "verde";
           return (
             <Card key={d.id} className="flex items-center justify-between">
               <div>

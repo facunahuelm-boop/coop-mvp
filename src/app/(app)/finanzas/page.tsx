@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { all, get } from "@/lib/db";
 import { resumenFinanciero, resumenCuotasSocios } from "@/lib/logic";
+import { obtenerReglasCooperativa } from "@/lib/reglas";
 import { Card, PageHeader, EmptyState, SectionTitle, Badge, Label, inputClass } from "@/components/ui";
 import { Tabs } from "@/components/ui-client";
 import Link from "next/link";
@@ -119,7 +120,7 @@ export default async function FinanzasPage({
   // Fase 8 (paginación/búsqueda/filtros), hallazgo H-10: tenía un LIMIT 15
   // fijo — se reemplaza por paginación real (COUNT + LIMIT/OFFSET), y la
   // sección deja de llamarse "recientes" porque ahora sí se puede ver todo.
-  const [fin, totalMovimientosRow, movimientos, categoriasMovimiento, compromisos, cuotas, socios] = await Promise.all([
+  const [fin, totalMovimientosRow, movimientos, categoriasMovimiento, compromisos, cuotas, socios, reglas] = await Promise.all([
     resumenFinanciero(),
     get<{ total: string }>(`SELECT COUNT(*) as total FROM movimientos_financieros m ${where}`, params),
     all<any>(
@@ -133,6 +134,10 @@ export default async function FinanzasPage({
     // cuotas/convenios — ver resumenCuotasSocios() en logic.ts.
     resumenCuotasSocios(),
     all<{ id: number; nombre: string }>(`SELECT id, nombre FROM socios WHERE estado != 'baja' ORDER BY nombre ASC`),
+    // Fase 3, Sub-fase 3.1 ("Reglas de la cooperativa"): mismo umbral de
+    // desvío de presupuesto que usa recalcularAlertas() — antes hardcodeado
+    // en 0.15 acá también, solo para el color de esta celda.
+    obtenerReglasCooperativa(),
   ]);
   const totalMovimientos = Number(totalMovimientosRow?.total || 0);
   const totalPages = Math.max(1, Math.ceil(totalMovimientos / POR_PAGINA));
@@ -321,7 +326,7 @@ export default async function FinanzasPage({
                                     <td className="py-2">{p.categoria}</td>
                                     <td>{money(p.monto_presupuestado)}</td>
                                     <td>{money(p.gastado)}</td>
-                                    <td className={desv > 0.15 ? "text-[var(--color-rojo)] font-semibold" : "text-ink/60"}>{Math.round(desv * 100)}%</td>
+                                    <td className={desv > reglas.porcentajeDesvioPresupuesto ? "text-[var(--color-rojo)] font-semibold" : "text-ink/60"}>{Math.round(desv * 100)}%</td>
                                   </tr>
                                 );
                               })}

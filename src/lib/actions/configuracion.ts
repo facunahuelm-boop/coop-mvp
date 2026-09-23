@@ -261,3 +261,66 @@ export async function actualizarAlertasEmailAction(formData: FormData) {
 export async function actualizarAlertasEmailFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => actualizarAlertasEmailAction(formData));
 }
+
+// Fase 3 ("Reglas de la cooperativa, Estatuto/Reglamentos como
+// configuración, Motor de reglas evento-condición-acción") — Sub-fase 3.1:
+// Reglas de la cooperativa (sección 12). Ver migración 0034 y
+// src/lib/reglas.ts para el detalle completo de qué dos umbrales se
+// volvieron configurables y por qué. Mismo guard que el resto de esta
+// pantalla (admin/consejo_directivo), sin agregar ningún módulo nuevo a
+// roles.ts — sigue el mismo criterio que ya usan config_email/alertas_email.
+const reglasCooperativaSchema = z.object({
+  dias_alerta_vencimiento: z.coerce
+    .number()
+    .int("Tiene que ser un número entero.")
+    .min(1, "Mínimo 1 día.")
+    .max(90, "Máximo 90 días."),
+  porcentaje_desvio_presupuesto: z.coerce
+    .number()
+    .int("Tiene que ser un número entero.")
+    .min(1, "Mínimo 1%.")
+    .max(100, "Máximo 100%."),
+});
+
+export async function guardarReglasCooperativaAction(formData: FormData) {
+  const user = await requireAdminOConsejo();
+
+  const datos = parseForm(reglasCooperativaSchema, formData);
+  const cambios: Record<string, number> = {};
+
+  for (const [clave, valorNumerico] of Object.entries(datos)) {
+    const valor = String(valorNumerico);
+    const existe = (
+      await all<{ id: number }>(`SELECT id FROM configuracion_reglas WHERE clave = ?`, [clave])
+    )[0];
+
+    if (existe) {
+      await update("configuracion_reglas", existe.id, {
+        valor,
+        actualizado_por_id: user.id,
+        actualizado_en: new Date().toISOString(),
+      });
+    } else {
+      await insert("configuracion_reglas", {
+        organization_id: user.organization_id,
+        clave,
+        valor,
+        actualizado_por_id: user.id,
+      });
+    }
+    cambios[clave] = valorNumerico;
+  }
+
+  await audit({
+    usuario_id: user.id,
+    accion: "guardar_reglas_cooperativa",
+    entidad: "configuracion_reglas",
+    entidad_id: user.organization_id,
+    valor_nuevo: cambios,
+  });
+  revalidatePath("/configuracion");
+}
+
+export async function guardarReglasCooperativaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => guardarReglasCooperativaAction(formData));
+}

@@ -8,7 +8,9 @@ import {
   ModulosForm,
   ConfigEmailForm,
   AlertasEmailForm,
+  ReglasCooperativaForm,
 } from "@/components/configuracion/ConfiguracionFormularios";
+import { obtenerReglasCooperativa } from "@/lib/reglas";
 
 export default async function ConfiguracionPage() {
   const user = await getCurrentUser();
@@ -19,7 +21,7 @@ export default async function ConfiguracionPage() {
     redirect("/dashboard");
   }
 
-  const [config, alertasEmail, usuariosActivosRow, organizacion] = await Promise.all([
+  const [config, alertasEmail, usuariosActivosRow, organizacion, reglas] = await Promise.all([
     all<any>(`SELECT * FROM config_email`),
     all<any>(
       `SELECT ae.*, u.nombre as usuario_nombre FROM alertas_email ae
@@ -28,6 +30,9 @@ export default async function ConfiguracionPage() {
     ),
     all<any>(`SELECT COUNT(*) as c FROM users WHERE activo = 1`),
     rootGet<any>(`SELECT * FROM organizations WHERE id = ?`, [user.organization_id]),
+    // Fase 3, Sub-fase 3.1 ("Reglas de la cooperativa"): ver migración 0034
+    // y src/lib/reglas.ts.
+    obtenerReglasCooperativa(),
   ]);
   const configObj = Object.fromEntries(config.map((c: any) => [c.clave, c.valor]));
   const usuariosActivos = usuariosActivosRow[0]?.c ?? 0;
@@ -79,6 +84,18 @@ export default async function ConfiguracionPage() {
           Configura qué alertas se envían por email automáticamente.
         </p>
         <AlertasEmailForm />
+      </Card>
+
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Reglas de la cooperativa</h3>
+      <Card className="mb-6">
+        <p className="text-xs text-ink/60 mb-4">
+          Umbrales que usa el sistema para generar alertas automáticas. Si no los cambiás, se usan los valores
+          por defecto de siempre (15 días, 15%).
+        </p>
+        <ReglasCooperativaForm
+          diasAlertaVencimiento={reglas.diasAlertaVencimiento}
+          porcentajeDesvioPresupuesto={Math.round(reglas.porcentajeDesvioPresupuesto * 100)}
+        />
       </Card>
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Info del sistema</h3>

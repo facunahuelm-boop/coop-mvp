@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import { all, get, upsertAlerta, insert } from "./db";
 import { enviarEmailAlerta } from "./email";
 import { canRead, type Role } from "./roles";
+import { obtenerReglasCooperativa } from "./reglas";
 
 // Auditoría funcional Finanzas↔Socios (17/09): la app corre en un servidor
 // cuya hora local puede no ser la de Uruguay (por ejemplo, Vercel corre en
@@ -509,6 +510,13 @@ export async function recalcularAlertas(opciones?: { forzar?: boolean }) {
 }
 
 async function recalcularAlertasAhora() {
+  // Fase 3, Sub-fase 3.1 ("Reglas de la cooperativa"): los dos umbrales de
+  // esta función (días para "por vencer" y % de desvío de presupuesto) ya
+  // no están hardcodeados acá — se leen de configuracion_reglas (o de los
+  // mismos valores por defecto de siempre si la cooperativa no configuró
+  // nada). Ver src/lib/reglas.ts.
+  const reglas = await obtenerReglasCooperativa();
+
   // Documentos de seguridad vencidos / próximos a vencer
   const docs = await all<any>(`SELECT * FROM documentos_seguridad WHERE fecha_vencimiento IS NOT NULL`);
   const hoy = dayjs();
@@ -525,7 +533,7 @@ async function recalcularAlertasAhora() {
         ref_tabla: "documentos_seguridad",
         ref_id: d.id,
       });
-    } else if (dias <= 15) {
+    } else if (dias <= reglas.diasAlertaVencimiento) {
       await crearAlerta({
         tipo: "documento_por_vencer",
         severidad: "importante",
@@ -542,8 +550,9 @@ async function recalcularAlertasAhora() {
   // Sub-fase 1.1 de la evolución de la plataforma (22/09, "Centro
   // Documental"): vencimientos de documentos EN GENERAL (contratos,
   // habilitaciones, pólizas, convenios...), no sólo los de
-  // documentos_seguridad de arriba (que sigue igual, no se toca). Mismos
-  // umbrales (15 días) para no introducir un criterio nuevo. Se excluyen:
+  // documentos_seguridad de arriba (que sigue igual, no se toca). Mismo
+  // umbral configurable que arriba (reglas.diasAlertaVencimiento) para no
+  // introducir un criterio nuevo. Se excluyen:
   // documentos archivados (ya salieron de circulación a propósito) y
   // versiones superadas (una fila a la que OTRO documento reemplaza vía
   // reemplaza_a_id) — alertar sobre una versión vieja que ya nadie mira
@@ -568,7 +577,7 @@ async function recalcularAlertasAhora() {
         ref_tabla: "documentos",
         ref_id: d.id,
       });
-    } else if (dias <= 15) {
+    } else if (dias <= reglas.diasAlertaVencimiento) {
       await crearAlerta({
         tipo: "documento_por_vencer",
         severidad: "informativa",
@@ -692,14 +701,19 @@ async function recalcularAlertasAhora() {
     });
   }
 
-  // Presupuesto vs real: desviación > 15%
+  // Presupuesto vs real: desviación > reglas.porcentajeDesvioPresupuesto
+  // (Fase 3, Sub-fase 3.1 — antes hardcodeado en 0.15). La severidad
+  // "crítica" se mantiene en el doble del umbral configurado, para
+  // preservar exactamente el mismo comportamiento de siempre en una
+  // cooperativa que no cambie nada (0.15 configurado → crítica a partir de
+  // 0.30, igual que antes).
   for (const p of fin.presupuestoVsReal as any[]) {
     if (p.monto_presupuestado > 0) {
       const desv = (p.gastado - p.monto_presupuestado) / p.monto_presupuestado;
-      if (desv > 0.15) {
+      if (desv > reglas.porcentajeDesvioPresupuesto) {
         await crearAlerta({
           tipo: "desvio_presupuesto",
-          severidad: desv > 0.3 ? "critica" : "importante",
+          severidad: desv > reglas.porcentajeDesvioPresupuesto * 2 ? "critica" : "importante",
           origen_modulo: "finanzas",
           titulo: `Desviación de presupuesto en ${p.categoria}`,
           descripcion: `Gastado $${p.gastado.toLocaleString("es-UY")} vs. presupuestado $${p.monto_presupuestado.toLocaleString("es-UY")} (${Math.round(desv * 100)}% de más).`,

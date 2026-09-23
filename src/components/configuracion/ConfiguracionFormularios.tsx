@@ -13,6 +13,7 @@ import {
   actualizarModulosFormAction,
   guardarConfigEmailFormAction,
   actualizarAlertasEmailFormAction,
+  guardarReglasCooperativaFormAction,
 } from "@/lib/actions/configuracion";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
@@ -258,6 +259,61 @@ export function AlertasEmailForm() {
       </div>
       <FormError message={estado.error} />
       <SubmitButton pendingLabel="Guardando…">Actualizar preferencias</SubmitButton>
+    </form>
+  );
+}
+
+// Fase 3, Sub-fase 3.1 ("Reglas de la cooperativa"): ver migración 0034 y
+// src/lib/reglas.ts. Los dos umbrales que antes estaban hardcodeados en el
+// código (mismo valor en todas las cooperativas) ahora se configuran acá,
+// por cooperativa.
+export function ReglasCooperativaForm({
+  diasAlertaVencimiento,
+  porcentajeDesvioPresupuesto,
+}: {
+  diasAlertaVencimiento: number;
+  porcentajeDesvioPresupuesto: number;
+}) {
+  const [estado, formAction] = useActionState(guardarReglasCooperativaFormAction, ESTADO_INICIAL);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) show("Reglas de la cooperativa actualizadas.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form action={formAction} className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <Label>Días de anticipación para &quot;por vencer&quot;</Label>
+          <input
+            name="dias_alerta_vencimiento"
+            type="number"
+            min={1}
+            max={90}
+            defaultValue={diasAlertaVencimiento}
+            className={inputClass}
+          />
+          <p className="text-xs text-ink/40 mt-1">A cuántos días de vencer se marca un documento como &quot;próximo a vencer&quot;.</p>
+          <FieldError message={estado.fieldErrors?.dias_alerta_vencimiento} />
+        </div>
+        <div>
+          <Label>% de desvío de presupuesto que alerta</Label>
+          <input
+            name="porcentaje_desvio_presupuesto"
+            type="number"
+            min={1}
+            max={100}
+            defaultValue={porcentajeDesvioPresupuesto}
+            className={inputClass}
+          />
+          <p className="text-xs text-ink/40 mt-1">Qué % de más entre gasto real y presupuestado dispara una alerta de desvío.</p>
+          <FieldError message={estado.fieldErrors?.porcentaje_desvio_presupuesto} />
+        </div>
+      </div>
+      <FormError message={estado.error} />
+      <SubmitButton pendingLabel="Guardando…">Guardar reglas</SubmitButton>
     </form>
   );
 }
