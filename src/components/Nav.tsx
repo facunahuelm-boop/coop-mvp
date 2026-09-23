@@ -45,6 +45,7 @@ import {
   ClipboardCheck,
   Eye,
   FileCheck2,
+  Zap,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
@@ -190,6 +191,13 @@ const GROUPS: NavGroup[] = [
       // "mod" que Panel Fiscal y Auditoría — mismo grupo de control
       // (tesorería, consejo directivo, fiscal, admin), sin ampliar nada.
       { href: "/cumplimiento", label: "Cumplimiento", icon: <FileCheck2 size={ICON_SIZE} />, mod: "auditoria" },
+      // Fase 3, Sub-fase 3.3 ("Motor de reglas evento-condición-acción"):
+      // sin "mod" a propósito, igual que el ítem de Configuración de arriba
+      // — es una pantalla de configuración (admin/consejo_directivo), no de
+      // consulta como sus hermanas de este grupo, así que no correspondía
+      // el mismo "auditoria" (tesorería/fiscal no podrían hacer nada ahí
+      // aunque la vieran). La restricción real la hace la propia página.
+      { href: "/reglas-automaticas", label: "Reglas automáticas", icon: <Zap size={ICON_SIZE} /> },
     ],
   },
 ];

@@ -1,5 +1,6 @@
 import "server-only";
 import { insert } from "@/lib/db";
+import { ejecutarReglasAutomaticas } from "./reglasAutomaticas";
 
 // Fase 11 (auditoría de seguridad, 22/09) — HALLAZGO S-1.
 //
@@ -30,9 +31,21 @@ import { insert } from "@/lib/db";
 // (marcar leída / marcar todas), que sí deben ser endpoints y sí validan
 // sesión con requireUser().
 
-/** Crea una notificación para un usuario. Nunca hace fallar la acción real
- * que la dispara: si algo sale mal, lo loguea y sigue. */
-export async function crearNotificacion(params: {
+// Fase 3, Sub-fase 3.3 ("Motor de reglas evento-condición-acción"): estos
+// dos helpers son, de hecho, el único choke point por el que ya pasan los
+// 12 tipos de evento que le interesan al motor (ver EVENTOS_DISPONIBLES en
+// reglasAutomaticas.ts) — cada uno de los 14 lugares donde algo pasa en el
+// sistema (una solicitud, una tarea asignada, una reunión creada...) ya
+// termina llamando a uno de estos dos. Por eso el motor se engancha ACÁ, sin
+// tocar ninguno de esos 14 lugares.
+//
+// El insert de la fila en sí se separó en `insertarNotificacionEnDB` para
+// poder llamar a ejecutarReglasAutomaticas UNA sola vez por ocurrencia real
+// del evento — no una vez por cada persona notificada. Si no se separaba
+// así, un evento que notifica a 5 integrantes de una comisión (ej.
+// "solicitud_recibida") habría ejecutado la regla 5 veces en vez de 1.
+
+async function insertarNotificacionEnDB(params: {
   user_id: number;
   tipo: string;
   titulo: string;
@@ -59,6 +72,20 @@ export async function crearNotificacion(params: {
   }
 }
 
+/** Crea una notificación para un usuario. Nunca hace fallar la acción real
+ * que la dispara: si algo sale mal, lo loguea y sigue. */
+export async function crearNotificacion(params: {
+  user_id: number;
+  tipo: string;
+  titulo: string;
+  cuerpo?: string | null;
+  ref_tabla?: string | null;
+  ref_id?: number | null;
+}): Promise<void> {
+  await insertarNotificacionEnDB(params);
+  await ejecutarReglasAutomaticas(params.tipo, params);
+}
+
 /** Mismo helper que arriba, para avisar a varias personas del mismo evento
  * (ej: todos los integrantes activos de una comisión). Deduplica ids por si
  * alguna consulta los trae repetidos. */
@@ -68,6 +95,9 @@ export async function crearNotificacionesParaUsuarios(
 ): Promise<void> {
   const unicos = Array.from(new Set(userIds));
   for (const user_id of unicos) {
-    await crearNotificacion({ ...datos, user_id });
+    await insertarNotificacionEnDB({ ...datos, user_id });
+  }
+  if (unicos.length > 0) {
+    await ejecutarReglasAutomaticas(datos.tipo, datos);
   }
 }

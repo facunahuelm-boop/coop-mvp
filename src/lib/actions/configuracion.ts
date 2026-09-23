@@ -32,7 +32,11 @@ const ROLES_CONFIG = ["admin", "consejo_directivo"] as const;
  * insuficiente → Error con mensaje claro, que además ahora puede mostrarse
  * en el propio formulario en vez de la pantalla genérica (ver actionState.ts).
  */
-async function requireAdminOConsejo() {
+// Exportada desde la Sub-fase 3.3 ("Motor de reglas evento-condición-
+// acción") para que actions/reglasAutomaticas.ts reuse el mismo guard en
+// vez de reimplementarlo — misma restricción admin/consejo_directivo que
+// ya usa el resto de /configuracion.
+export async function requireAdminOConsejo() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!ROLES_CONFIG.includes(user.rol as (typeof ROLES_CONFIG)[number])) {

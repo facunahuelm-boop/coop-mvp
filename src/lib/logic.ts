@@ -23,7 +23,12 @@ export function hoyEnUruguay(): string {
 
 // Crea o actualiza una alerta y, si es realmente nueva (no existía ya abierta),
 // dispara el email a la casilla configurada en Configuración (si hay una cargada).
-async function crearAlerta(params: Parameters<typeof upsertAlerta>[0]) {
+// Exportada desde la Sub-fase 3.3 ("Motor de reglas evento-condición-acción")
+// para que reglasAutomaticas.ts la reuse tal cual en vez de reimplementar el
+// mismo upsert+email — es exactamente el mismo motor de alertas de siempre,
+// solo que ahora también lo puede disparar una regla configurada por la
+// cooperativa, no solo recalcularAlertasAhora().
+export async function crearAlerta(params: Parameters<typeof upsertAlerta>[0]) {
   const { esNueva } = await upsertAlerta(params);
   if (esNueva) {
     await enviarEmailAlerta({
