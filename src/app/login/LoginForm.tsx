@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { loginAction } from "@/lib/actions/auth";
 import { inputClass, Label } from "@/components/ui";
 import { Logo3D } from "@/components/Logo3D";
@@ -30,9 +31,14 @@ type Props = {
   nombre: string;
   logoUrl: string;
   colorPrimario: string;
+  /** Sub-fase 4.3: viene de /login?recuperada=1 — restablecerPasswordAction
+   * redirige acá después de un cambio de contraseña por recuperación
+   * exitoso, para confirmarle a la persona que ya puede iniciar sesión con
+   * la contraseña nueva. */
+  mensajeRecuperacion?: boolean;
 };
 
-export function LoginForm({ nombre, logoUrl, colorPrimario }: Props) {
+export function LoginForm({ nombre, logoUrl, colorPrimario, mensajeRecuperacion }: Props) {
   const [state, formAction, pending] = useActionState(loginAction, undefined);
 
   return (
@@ -46,6 +52,12 @@ export function LoginForm({ nombre, logoUrl, colorPrimario }: Props) {
           )}
           <p className="text-sm text-ink/55 mt-1">Ingresá con tu usuario para continuar</p>
         </div>
+
+        {mensajeRecuperacion && (
+          <p className="mb-4 text-sm text-center text-[var(--color-verde)] bg-[var(--color-verde)]/10 rounded-lg py-2 px-3">
+            Contraseña actualizada — ya podés iniciar sesión con la nueva.
+          </p>
+        )}
 
         <form action={formAction} className="bg-surface rounded-2xl shadow-sm border border-ink/5 p-5 space-y-4">
           <div>
@@ -65,6 +77,9 @@ export function LoginForm({ nombre, logoUrl, colorPrimario }: Props) {
           >
             {pending ? "Entrando…" : "Entrar"}
           </button>
+          <Link href="/recuperar-password" className="block text-center text-xs text-ink/50 hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
         </form>
 
         <details className="mt-4 bg-surface/60 rounded-xl border border-ink/5 p-3 text-xs text-ink/60">

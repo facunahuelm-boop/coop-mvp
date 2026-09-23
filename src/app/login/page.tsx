@@ -10,9 +10,14 @@ import { LoginForm } from "./LoginForm";
 // logo y color de la cooperativa correcta antes de que el usuario ingrese.
 const DEFAULT_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG || "coova";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ recuperada?: string }>;
+}) {
   const store = await cookies();
   const slug = store.get("coop_slug")?.value || DEFAULT_SLUG;
+  const { recuperada } = await searchParams;
 
   const organizacion = await rootGet<{ nombre: string; logo_url: string | null; color_primario: string }>(
     `SELECT nombre, logo_url, color_primario FROM organizations WHERE slug = ?`,
@@ -24,6 +29,7 @@ export default async function LoginPage() {
       nombre={organizacion?.nombre || "COOVA"}
       logoUrl={organizacion?.logo_url || "/logo-coova.png"}
       colorPrimario={organizacion?.color_primario || "#16a34a"}
+      mensajeRecuperacion={recuperada === "1"}
     />
   );
 }

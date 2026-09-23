@@ -231,6 +231,41 @@ export async function enviarEmailPersonalizado(
   });
 }
 
+/**
+ * Sub-fase 4.3 (recuperación de contraseña por email): a diferencia de
+ * `enviarEmailPersonalizado` (pensado para un mensaje "a mano" de alguien de
+ * la cooperativa a otra persona, con esa persona en copia oculta y "Enviado
+ * por X" al pie), este mail lo manda el SISTEMA a una única persona — sin
+ * BCC (no hay más destinatarios que ocultar) y sin atribuirlo a nadie de la
+ * cooperativa. Si SMTP no está configurado todavía, devuelve `ok:false` en
+ * vez de tirar una excepción (a diferencia de `enviarEmailPersonalizado`):
+ * quien llama a esta función nunca debe dejar que este resultado cambie el
+ * mensaje que ve la persona que pidió recuperar su contraseña (mismo
+ * criterio anti-enumeración que ya usa el login) — solo lo loggea para que
+ * quede visible en el servidor.
+ */
+export async function enviarEmailRecuperacion(destinatario: string, nombre: string, link: string): Promise<ResultadoEnvio> {
+  const cfg = await getConfigEmail();
+  if (!cfg.smtp_host || !cfg.smtp_user) {
+    return { ok: false, error: "SMTP no configurado en esta cooperativa (Configuración → Configuración de Email)." };
+  }
+  return enviarEmailBase(cfg, {
+    to: destinatario,
+    subject: "Recuperar tu contraseña — COOVA",
+    textoPlano:
+      `Hola ${nombre},\n\n` +
+      `Pediste recuperar tu contraseña. Entrá a este enlace para elegir una nueva (válido por 1 hora, se puede usar una sola vez):\n\n${link}\n\n` +
+      `Si vos no pediste esto, ignorá este email — tu contraseña actual sigue funcionando igual.`,
+    tituloTarjeta: "COOVA — Recuperar contraseña",
+    cuerpoHtml: `
+      <p style="margin:0 0 12px;font-size:13px;color:#333;line-height:1.6;">Hola ${escapeHtml(nombre)},</p>
+      <p style="margin:0 0 16px;font-size:13px;color:#333;line-height:1.6;">Pediste recuperar tu contraseña. Tocá el botón para elegir una nueva — el enlace vale por 1 hora y se puede usar una sola vez.</p>
+      <p style="margin:0 0 16px;"><a href="${link}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:bold;">Elegir nueva contraseña</a></p>
+      <p style="margin:0;font-size:11px;color:#999;">Si vos no pediste esto, ignorá este email — tu contraseña actual sigue funcionando igual.</p>
+    `,
+  });
+}
+
 function escapeHtml(s: string) {
   return s
     .replace(/&/g, "&amp;")
