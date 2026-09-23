@@ -986,3 +986,113 @@ export async function historialSolicitud(solicitudId: number) {
     [solicitudId, solicitudId]
   ).catch(() => [] as any[]);
 }
+
+// Fase 2 ("Transparencia, Auditoría, Historial, Cumplimiento", sección 37),
+// Sub-fase 2.3: "Historial" no es una pantalla global nueva (eso ya lo hace
+// /auditoria desde la Sub-fase 2.2) — es historial POR REGISTRO, mismo
+// criterio que ya usaba `historialSolicitud` de más arriba desde el
+// rediseño de Compras. Se generaliza ese mismo patrón (leer `auditoria`
+// filtrada por entidad+entidad_id, sin tabla nueva) a las fichas que todavía
+// no lo tenían: Socios, Usuarios (además de la actividad ya existente),
+// Decisiones, Reuniones, Obra y Trabajo. A diferencia de `historialSolicitud`
+// (que sigue con `all<any>`, código ya existente que no se tocó), estas
+// funciones nuevas usan un tipo propio para no sumar deuda de lint nueva.
+type RegistroAuditoriaJoin = {
+  id: number;
+  accion: string;
+  entidad: string;
+  entidad_id: number;
+  fecha: string;
+  usuario_nombre: string | null;
+  valor_anterior: string | null;
+  valor_nuevo: string | null;
+};
+
+export async function historialSocio(socioId: number) {
+  return all<RegistroAuditoriaJoin>(
+    `SELECT a.*, u.nombre as usuario_nombre
+     FROM auditoria a
+     LEFT JOIN users u ON u.id = a.usuario_id
+     WHERE (a.entidad = 'socios' AND a.entidad_id = ?)
+        OR (a.entidad = 'socio_integrantes' AND a.entidad_id IN (
+              SELECT id FROM socio_integrantes WHERE socio_id = ?
+            ))
+     ORDER BY a.fecha DESC`,
+    [socioId, socioId]
+  ).catch(() => [] as RegistroAuditoriaJoin[]);
+}
+
+// Distinto de "Actividad reciente" (ya existente en usuarios/[id]/page.tsx,
+// que muestra `auditoria.usuario_id = ?` — lo que ESA persona hizo). Esto es
+// lo que le pasó a SU CUENTA (`entidad = 'users'`, ej. cambio de contraseña
+// o de foto) — hoy son pocas acciones porque alta/cambio de rol de una
+// cuenta todavía no pasa por `audit()`, pero se deja el mismo patrón listo
+// para cuando esa pantalla de gestión de usuarios exista.
+export async function historialCuentaUsuario(userId: number) {
+  return all<RegistroAuditoriaJoin>(
+    `SELECT a.*, u.nombre as usuario_nombre
+     FROM auditoria a
+     LEFT JOIN users u ON u.id = a.usuario_id
+     WHERE a.entidad = 'users' AND a.entidad_id = ?
+     ORDER BY a.fecha DESC`,
+    [userId]
+  ).catch(() => [] as RegistroAuditoriaJoin[]);
+}
+
+export async function historialDecision(decisionId: number) {
+  return all<RegistroAuditoriaJoin>(
+    `SELECT a.*, u.nombre as usuario_nombre
+     FROM auditoria a
+     LEFT JOIN users u ON u.id = a.usuario_id
+     WHERE (a.entidad = 'decisiones_comision' AND a.entidad_id = ?)
+        OR (a.entidad = 'votaciones' AND a.entidad_id IN (
+              SELECT id FROM votaciones WHERE decision_id = ?
+            ))
+     ORDER BY a.fecha DESC`,
+    [decisionId, decisionId]
+  ).catch(() => [] as RegistroAuditoriaJoin[]);
+}
+
+export async function historialReunion(reunionId: number) {
+  return all<RegistroAuditoriaJoin>(
+    `SELECT a.*, u.nombre as usuario_nombre
+     FROM auditoria a
+     LEFT JOIN users u ON u.id = a.usuario_id
+     WHERE a.entidad = 'reuniones' AND a.entidad_id = ?
+     ORDER BY a.fecha DESC`,
+    [reunionId]
+  ).catch(() => [] as RegistroAuditoriaJoin[]);
+}
+
+export async function historialTareaObra(tareaId: number) {
+  return all<RegistroAuditoriaJoin>(
+    `SELECT a.*, u.nombre as usuario_nombre
+     FROM auditoria a
+     LEFT JOIN users u ON u.id = a.usuario_id
+     WHERE (a.entidad = 'tareas_obra' AND a.entidad_id = ?)
+        OR (a.entidad = 'problemas_obra' AND a.entidad_id IN (
+              SELECT id FROM problemas_obra WHERE tarea_id = ?
+            ))
+     ORDER BY a.fecha DESC`,
+    [tareaId, tareaId]
+  ).catch(() => [] as RegistroAuditoriaJoin[]);
+}
+
+// NOTA (hallazgo real de esta sub-fase): `registrarAsistenciaAction`
+// (actions/trabajo.ts) auditaba con `entidad_id = nucleoId`, no la jornada
+// — no había forma de armar "el historial de ESTA jornada" a partir de eso.
+// Se corrigió esa acción (ver CHANGELOG) para auditar con `entidad_id =
+// jornadaId` y guardar `nucleoId` dentro de `valor_nuevo` en su lugar. Los
+// registros de auditoría anteriores a ese cambio quedan con el id viejo (no
+// se reescribe historial ya guardado) y por lo tanto no van a aparecer acá
+// — el historial de una jornada empieza a completarse desde este cambio.
+export async function historialJornadaTrabajo(jornadaId: number) {
+  return all<RegistroAuditoriaJoin>(
+    `SELECT a.*, u.nombre as usuario_nombre
+     FROM auditoria a
+     LEFT JOIN users u ON u.id = a.usuario_id
+     WHERE a.entidad = 'asistencias' AND a.entidad_id = ?
+     ORDER BY a.fecha DESC`,
+    [jornadaId]
+  ).catch(() => [] as RegistroAuditoriaJoin[]);
+}

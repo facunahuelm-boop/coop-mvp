@@ -3,8 +3,9 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { get, all } from "@/lib/db";
-import { calcularCuotasSocio, type EstadoCuota } from "@/lib/logic";
+import { calcularCuotasSocio, historialSocio, type EstadoCuota } from "@/lib/logic";
 import { Card, PageHeader, SectionTitle, EmptyState, Badge, StatTile } from "@/components/ui";
+import { HistorialAuditoria } from "@/components/HistorialAuditoria";
 import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
 import { cambiarEstadoIntegranteFormAction } from "@/lib/actions/socios";
@@ -77,6 +78,13 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
   const puedeVerCuenta = ROLES_FINANZAS_DETALLE.includes(user.rol) || esElPropioSocio;
   const puedeRegistrar = canEdit(user.rol, "finanzas");
   const puedeEditar = canEdit(user.rol, "socios");
+  // Fase 2, Sub-fase 2.3 ("Historial"): a diferencia del resto de esta
+  // ficha (que la lee cualquiera con acceso a Socios — prácticamente todos
+  // los roles), esto muestra auditoría cruda (quién cambió qué y cuándo),
+  // así que se gatea con el mismo permiso que ya protege a /auditoria — no
+  // se amplía ni se restringe ningún permiso existente, solo se reutiliza.
+  const puedeVerHistorial = canRead(user.rol, "auditoria");
+  const historial = puedeVerHistorial ? await historialSocio(Number(id)) : [];
 
   const movimientos = puedeVerCuenta
     ? await all<any>(
@@ -270,6 +278,15 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
             </div>
 
             {puedeRegistrar && <RegistrarMovimientoCuentaForm socioId={socio.id} />}
+          </Card>
+        </>
+      )}
+
+      {puedeVerHistorial && (
+        <>
+          <SectionTitle>Historial</SectionTitle>
+          <Card>
+            <HistorialAuditoria registros={historial} />
           </Card>
         </>
       )}

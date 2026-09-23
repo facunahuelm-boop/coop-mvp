@@ -2,13 +2,14 @@ import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { get, all } from "@/lib/db";
-import { semaforoTarea } from "@/lib/logic";
+import { semaforoTarea, historialTareaObra } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
 import { resolverProblemaFormAction, cambiarEstadoTareaFormAction } from "@/lib/actions/obra";
 import { UsuarioLink } from "@/components/EntidadLink";
 import { AgregarAvanceForm, AgregarProblemaForm } from "@/components/obra/ObraFormularios";
+import { HistorialAuditoria } from "@/components/HistorialAuditoria";
 
 const semColor: Record<string, "verde" | "amarillo" | "rojo"> = { verde: "verde", amarillo: "amarillo", rojo: "rojo" };
 
@@ -26,6 +27,13 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
   if (!tarea) notFound();
   const semaforo = await semaforoTarea(tarea);
   const puedeEditar = canEdit(user.rol, "obra");
+  // Fase 2, Sub-fase 2.3 ("Historial"): mismo criterio que Socios/Usuarios/
+  // Reuniones — canRead(rol,"obra") es prácticamente universal, así que el
+  // historial de auditoría cruda (además de Avances/Problemas de más abajo,
+  // que ya cumplen ese rol para el día a día) se gatea con el permiso de
+  // /auditoria, sin tocar ningún permiso existente.
+  const puedeVerHistorial = canRead(user.rol, "auditoria");
+  const historial = puedeVerHistorial ? await historialTareaObra(Number(id)) : [];
 
   return (
     <div>
@@ -95,6 +103,15 @@ export default async function TareaObraPage({ params }: { params: Promise<{ id: 
           {puedeEditar && <AgregarProblemaForm tareaId={tarea.id} />}
         </div>
       </div>
+
+      {puedeVerHistorial && (
+        <div className="mt-5">
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Historial</h3>
+          <Card>
+            <HistorialAuditoria registros={historial} />
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

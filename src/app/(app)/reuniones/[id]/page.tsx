@@ -17,8 +17,10 @@ import {
 } from "@/lib/actions/reuniones";
 import { cambiarEstadoTareaFormAction } from "@/lib/actions/tareas";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
+import { historialReunion } from "@/lib/logic";
 import { CerrarReunionForm, AgregarAgendaItemForm, ResultadoAgendaForm, AgregarInvitadoForm } from "@/components/reuniones/ReunionesFormularios";
 import { AutoSubmitCheckbox } from "@/components/AutoSubmitCheckbox";
+import { HistorialAuditoria } from "@/components/HistorialAuditoria";
 
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",
@@ -91,6 +93,14 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
     : null;
   const asistenciaPorNucleo = new Map(asistencias.map((a: any) => [a.nucleo_id, a]));
   const presentes = asistencias.filter((a: any) => a.presente).length;
+
+  // Fase 2, Sub-fase 2.3 ("Historial"): a diferencia de Decisiones, esta
+  // ficha NO filtra por pertenencia a la comisión (canRead(rol,"comisiones")
+  // ya es prácticamente universal), así que — mismo criterio que Socios y
+  // Usuarios — el historial de auditoría cruda se gatea con el mismo
+  // permiso que ya protege a /auditoria, sin ampliar ni restringir nada.
+  const puedeVerHistorial = canRead(user.rol, "auditoria");
+  const historial = puedeVerHistorial ? await historialReunion(Number(id)) : [];
 
   return (
     <div>
@@ -281,6 +291,15 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
           </Card>
         </div>
       </div>
+
+      {puedeVerHistorial && (
+        <div className="mt-5">
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Historial</h3>
+          <Card>
+            <HistorialAuditoria registros={historial} />
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

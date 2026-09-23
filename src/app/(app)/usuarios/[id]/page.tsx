@@ -3,7 +3,9 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, ROLE_LABELS } from "@/lib/roles";
 import { get, all } from "@/lib/db";
+import { historialCuentaUsuario } from "@/lib/logic";
 import { Card, PageHeader, SectionTitle, EmptyState, Badge } from "@/components/ui";
+import { HistorialAuditoria } from "@/components/HistorialAuditoria";
 import { CambiarPasswordForm } from "@/components/CambiarPasswordForm";
 import { CambiarFotoForm } from "@/components/CambiarFotoForm";
 import { Avatar } from "@/components/EntidadLink";
@@ -60,6 +62,11 @@ export default async function UsuarioDetallePage({ params }: { params: Promise<{
   const actividad = puedeVerActividad
     ? await all<any>(`SELECT * FROM auditoria WHERE usuario_id = ? ORDER BY fecha DESC LIMIT 20`, [id]).catch(() => [] as any[])
     : [];
+  // Fase 2, Sub-fase 2.3 ("Historial"): distinto de "Actividad reciente" de
+  // más abajo (lo que ESTA persona hizo, usuario_id = id) — esto es lo que
+  // le pasó a SU CUENTA (entidad = 'users', ej. cambio de contraseña o de
+  // foto). Mismo gate ya usado para Actividad reciente, sin ampliarlo.
+  const historialCuenta = puedeVerActividad ? await historialCuentaUsuario(Number(id)) : [];
 
   return (
     <div>
@@ -147,6 +154,15 @@ export default async function UsuarioDetallePage({ params }: { params: Promise<{
                 ))}
               </div>
             )}
+          </Card>
+        </>
+      )}
+
+      {puedeVerActividad && (
+        <>
+          <SectionTitle>Historial de la cuenta</SectionTitle>
+          <Card>
+            <HistorialAuditoria registros={historialCuenta} />
           </Card>
         </>
       )}

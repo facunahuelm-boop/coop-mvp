@@ -4,7 +4,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
+import { historialDecision } from "@/lib/logic";
 import { Card, PageHeader, Label, EmptyState, Badge } from "@/components/ui";
+import { HistorialAuditoria } from "@/components/HistorialAuditoria";
 import { UsuarioLink } from "@/components/EntidadLink";
 import dayjs from "dayjs";
 import {
@@ -79,6 +81,12 @@ export default async function DecisionDetallePage({ params }: { params: Promise<
   // voto de cada persona), que es información todavía más sensible que el
   // listado.
   if (!esParteDeLaComision) notFound();
+
+  // Fase 2, Sub-fase 2.3 ("Historial"): a diferencia de Socios/Usuarios, acá
+  // no se agrega un gate nuevo — quien llega hasta acá ya pasó el filtro de
+  // pertenencia a la comisión (arriba), el mismo criterio con el que ya se
+  // ve el resto de esta ficha (mismo patrón que el historial de Compras).
+  const historial = await historialDecision(Number(id));
 
   const hayVotacionAbierta = votacionesConRespuestas.some((v) => v.estado === "abierta");
 
@@ -195,6 +203,13 @@ export default async function DecisionDetallePage({ params }: { params: Promise<
               <CrearVotacionForm decisionId={decision.id} />
             </div>
           )}
+        </Card>
+      </div>
+
+      <div className="mt-5">
+        <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Historial</h3>
+        <Card>
+          <HistorialAuditoria registros={historial} />
         </Card>
       </div>
 

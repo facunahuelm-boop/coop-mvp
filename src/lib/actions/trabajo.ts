@@ -102,7 +102,12 @@ export async function registrarAsistenciaAction(formData: FormData) {
     const nucleo = await get<any>(`SELECT * FROM nucleos_familiares WHERE id = ?`, [nucleoId]);
     await update("nucleos_familiares", nucleoId, { horas_acumuladas: (nucleo?.horas_acumuladas || 0) + horas });
   }
-  await audit({ usuario_id: user.id, accion: "registrar_asistencia", entidad: "asistencias", entidad_id: nucleoId, valor_nuevo: { jornadaId, presente, horas } });
+  // Fase 2, Sub-fase 2.3 ("Historial"): esto auditaba con entidad_id =
+  // nucleoId, lo que hacía imposible armar "el historial de ESTA jornada"
+  // (no había forma de encontrar estas filas por jornadaId). Se corrige acá
+  // para que entidad_id sea la jornada — el núcleo pasa a viajar dentro de
+  // valor_nuevo, donde ya viajaba jornadaId antes de este cambio.
+  await audit({ usuario_id: user.id, accion: "registrar_asistencia", entidad: "asistencias", entidad_id: jornadaId, valor_nuevo: { nucleoId, presente, horas } });
   revalidatePath(`/trabajo/${jornadaId}`);
 }
 

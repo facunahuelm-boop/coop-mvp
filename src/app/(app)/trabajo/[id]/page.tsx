@@ -6,7 +6,9 @@ import { Card, PageHeader, Badge, inputClass } from "@/components/ui";
 import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
 import { registrarAsistenciaFormAction, marcarJornadaRealizadaFormAction } from "@/lib/actions/trabajo";
+import { historialJornadaTrabajo } from "@/lib/logic";
 import { NucleoLink } from "@/components/EntidadLink";
+import { HistorialAuditoria } from "@/components/HistorialAuditoria";
 
 export default async function JornadaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -24,6 +26,12 @@ export default async function JornadaPage({ params }: { params: Promise<{ id: st
   const asistenciaPorNucleo = Object.fromEntries(asistencias.map((a) => [a.nucleo_id, a]));
   const presentes = asistencias.filter((a) => a.presente).length;
   const totalHoras = asistencias.reduce((s, a) => s + (a.horas || 0), 0);
+  // Fase 2, Sub-fase 2.3 ("Historial"): mismo criterio que el resto de esta
+  // sub-fase — gate con el permiso de /auditoria. Ver nota en
+  // historialJornadaTrabajo (lib/logic.ts) sobre el hallazgo real de
+  // entidad_id corregido en registrarAsistenciaAction.
+  const puedeVerHistorial = canRead(user.rol, "auditoria");
+  const historial = puedeVerHistorial ? await historialJornadaTrabajo(Number(id)) : [];
 
   return (
     <div>
@@ -70,6 +78,15 @@ export default async function JornadaPage({ params }: { params: Promise<{ id: st
           </tbody>
         </table>
       </Card>
+
+      {puedeVerHistorial && (
+        <div className="mt-5">
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Historial</h3>
+          <Card>
+            <HistorialAuditoria registros={historial} />
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
