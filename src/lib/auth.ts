@@ -116,16 +116,43 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
     // organizations no tiene organization_id (es la tabla raíz, sin RLS) —
     // se puede traer con un JOIN normal en la misma consulta.
-    const row = await get<any>(
-      `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, u.avatar_url,
-              u.password_changed_en, o.etapa,
-              o.modulos_override,
-              o.nombre as org_nombre, o.logo_url as org_logo_url,
-              o.color_primario as org_color_primario, o.color_secundario as org_color_secundario
-       FROM users u JOIN organizations o ON o.id = u.organization_id
-       WHERE u.id = ?`,
-      [uid]
-    );
+    let row: any;
+    try {
+      row = await get<any>(
+        `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, u.avatar_url,
+                u.password_changed_en, o.etapa,
+                o.modulos_override,
+                o.nombre as org_nombre, o.logo_url as org_logo_url,
+                o.color_primario as org_color_primario, o.color_secundario as org_color_secundario
+         FROM users u JOIN organizations o ON o.id = u.organization_id
+         WHERE u.id = ?`,
+        [uid]
+      );
+    } catch (err: any) {
+      // INCIDENTE REAL (23/09, corregido en el mismo despliegue): el orden
+      // "deploy código → aplicar migración" que usa todo este proyecto (ver
+      // conFallbackColumnaFaltante en db.ts, mismo criterio) tiene un hueco
+      // acá — entre el deploy de este código y la migración 0036, esta
+      // consulta fallaba con "column does not exist" (42703), el catch
+      // general de abajo lo trataba como sesión inválida, y ESO deslogueaba
+      // a TODO el mundo, incluido el admin — que es justo quien tiene que
+      // entrar a /api/admin/migraciones para correr la migración. Se
+      // reintenta sin esa columna solo para este código de error puntual;
+      // cualquier otro error sigue subiendo sin ocultarse.
+      if (err?.code !== "42703") throw err;
+      console.error(
+        "[auth] password_changed_en todavía no existe (migración 0036 pendiente) — sesión validada sin ese chequeo."
+      );
+      row = await get<any>(
+        `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, u.avatar_url,
+                o.etapa, o.modulos_override,
+                o.nombre as org_nombre, o.logo_url as org_logo_url,
+                o.color_primario as org_color_primario, o.color_secundario as org_color_secundario
+         FROM users u JOIN organizations o ON o.id = u.organization_id
+         WHERE u.id = ?`,
+        [uid]
+      );
+    }
     // Chequeo extra a nivel de aplicación (además de Row-Level Security):
     // si por lo que sea el usuario ya no pertenece a la cooperativa del
     // token, la sesión se trata como inválida en vez de confiar en el token.
