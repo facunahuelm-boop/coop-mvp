@@ -61,6 +61,15 @@ export type SessionUser = {
     color_primario: string;
     color_secundario: string | null;
   };
+  /**
+   * Fase 5, Sub-fase 5.1 ("Administrador de plataforma", sección 20): flag
+   * independiente del `rol` (que siempre es tenant-scoped, ver roles.ts) —
+   * distingue a la persona que opera la PLATAFORMA entera (todas las
+   * cooperativas: /plataforma) de quien es 'admin' dentro de una sola
+   * cooperativa. No hay ninguna acción en la app que pueda poner esto en
+   * true — se fija a mano en la migración 0039, nunca vía UI.
+   */
+  es_platform_admin: boolean;
 };
 
 export async function hashPassword(pw: string) {
@@ -98,6 +107,41 @@ export async function clearSessionCookie() {
   store.delete(COOKIE_NAME);
 }
 
+// Columnas de `users` que alguna sub-fase agregó DESPUÉS de que
+// getCurrentUser() ya las necesitara en cada pedido autenticado — la
+// consulta de acá abajo las pide siempre, pero cualquiera de ellas puede no
+// existir todavía en el hueco entre "se desplegó el código" y "se aplicó la
+// migración" (mismo orden que usa todo este proyecto). INCIDENTE REAL
+// (23/09, Sub-fase 4.2): esa ventana con `password_changed_en` deslogueaba a
+// TODO el mundo, incluido el admin que tenía que entrar a correr la
+// migración — el catch de acá reintenta sacando SOLO la columna puntual que
+// Postgres dice que falta (42703), nunca asume cuál es, así que la Sub-fase
+// 5.1 puede sumar `es_platform_admin` a esta misma lista sin repetir el
+// incidente ni tener que escribir un tercer SELECT a mano si mañana se suma
+// una cuarta columna.
+const COLUMNAS_OPCIONALES_SESION = ["password_changed_en", "es_platform_admin"] as const;
+
+async function filaDeSesion(uid: number): Promise<any> {
+  let columnas: string[] = [...COLUMNAS_OPCIONALES_SESION];
+  for (let intento = 0; intento <= COLUMNAS_OPCIONALES_SESION.length; intento++) {
+    const opcionales = columnas.map((c) => `u.${c}`);
+    const select = ["u.id", "u.nombre", "u.email", "u.rol", "u.nucleo_id", "u.activo", "u.organization_id", "u.avatar_url", ...opcionales, "o.etapa", "o.modulos_override", "o.nombre as org_nombre", "o.logo_url as org_logo_url", "o.color_primario as org_color_primario", "o.color_secundario as org_color_secundario"].join(", ");
+    try {
+      return await get<any>(
+        `SELECT ${select} FROM users u JOIN organizations o ON o.id = u.organization_id WHERE u.id = ?`,
+        [uid]
+      );
+    } catch (err: any) {
+      if (err?.code !== "42703") throw err;
+      const columnaFaltante = /column "([^"]+)" of relation/.exec(String(err?.message || ""))?.[1];
+      if (!columnaFaltante || !columnas.includes(columnaFaltante)) throw err;
+      console.error(`[auth] ${columnaFaltante} todavía no existe (migración pendiente) — sesión validada sin ese chequeo.`);
+      columnas = columnas.filter((c) => c !== columnaFaltante);
+    }
+  }
+  throw new Error("No se pudo resolver la sesión: demasiadas columnas faltantes en la base.");
+}
+
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const store = await cookies();
   const token = store.get(COOKIE_NAME)?.value;
@@ -116,43 +160,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
     // organizations no tiene organization_id (es la tabla raíz, sin RLS) —
     // se puede traer con un JOIN normal en la misma consulta.
-    let row: any;
-    try {
-      row = await get<any>(
-        `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, u.avatar_url,
-                u.password_changed_en, o.etapa,
-                o.modulos_override,
-                o.nombre as org_nombre, o.logo_url as org_logo_url,
-                o.color_primario as org_color_primario, o.color_secundario as org_color_secundario
-         FROM users u JOIN organizations o ON o.id = u.organization_id
-         WHERE u.id = ?`,
-        [uid]
-      );
-    } catch (err: any) {
-      // INCIDENTE REAL (23/09, corregido en el mismo despliegue): el orden
-      // "deploy código → aplicar migración" que usa todo este proyecto (ver
-      // conFallbackColumnaFaltante en db.ts, mismo criterio) tiene un hueco
-      // acá — entre el deploy de este código y la migración 0036, esta
-      // consulta fallaba con "column does not exist" (42703), el catch
-      // general de abajo lo trataba como sesión inválida, y ESO deslogueaba
-      // a TODO el mundo, incluido el admin — que es justo quien tiene que
-      // entrar a /api/admin/migraciones para correr la migración. Se
-      // reintenta sin esa columna solo para este código de error puntual;
-      // cualquier otro error sigue subiendo sin ocultarse.
-      if (err?.code !== "42703") throw err;
-      console.error(
-        "[auth] password_changed_en todavía no existe (migración 0036 pendiente) — sesión validada sin ese chequeo."
-      );
-      row = await get<any>(
-        `SELECT u.id, u.nombre, u.email, u.rol, u.nucleo_id, u.activo, u.organization_id, u.avatar_url,
-                o.etapa, o.modulos_override,
-                o.nombre as org_nombre, o.logo_url as org_logo_url,
-                o.color_primario as org_color_primario, o.color_secundario as org_color_secundario
-         FROM users u JOIN organizations o ON o.id = u.organization_id
-         WHERE u.id = ?`,
-        [uid]
-      );
-    }
+    const row = await filaDeSesion(uid);
     // Chequeo extra a nivel de aplicación (además de Row-Level Security):
     // si por lo que sea el usuario ya no pertenece a la cooperativa del
     // token, la sesión se trata como inválida en vez de confiar en el token.
@@ -203,6 +211,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
         color_primario: row.org_color_primario,
         color_secundario: row.org_color_secundario,
       },
+      es_platform_admin: row.es_platform_admin === true,
     };
   } catch {
     return null;
@@ -212,5 +221,18 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 export async function requireUser(): Promise<SessionUser> {
   const u = await getCurrentUser();
   if (!u) throw new Error("UNAUTHENTICATED");
+  return u;
+}
+
+/**
+ * Fase 5, Sub-fase 5.1: gate para /plataforma y sus Server Actions — nunca
+ * `rol === "admin"` (eso es tenant-scoped, ver SessionUser.es_platform_admin
+ * más arriba). Mismo mensaje genérico que el resto de los gates admin-only
+ * del sistema, sin revelar que existe un nivel "por encima" del admin de
+ * cooperativa a quien no lo tiene.
+ */
+export async function requirePlatformAdmin(): Promise<SessionUser> {
+  const u = await requireUser();
+  if (!u.es_platform_admin) throw new Error("No autorizado.");
   return u;
 }

@@ -47,9 +47,10 @@ import {
   FileCheck2,
   Zap,
   UserPlus,
+  Building2,
 } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module };
+type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module; soloPlataforma?: boolean };
 type NavGroup = { label: string; items: NavItem[] };
 
 // Navegación agrupada (Fase 2 del plan de transformación a plataforma;
@@ -205,6 +206,15 @@ const GROUPS: NavGroup[] = [
       // (solo admin, más estricta que las otras dos) la hace la propia
       // página al entrar.
       { href: "/usuarios", label: "Gestión de usuarios", icon: <UserPlus size={ICON_SIZE} /> },
+      // Fase 5, Sub-fase 5.1 ("Administrador de plataforma", sección 20):
+      // a diferencia de "Gestión de usuarios" de acá arriba (visible para
+      // todos en el menú, la propia página redirige si no sos admin), este
+      // ítem usa `soloPlataforma` — ni siquiera aparece en el menú de quien
+      // no tiene `es_platform_admin` (ver auth.ts). No es un módulo de una
+      // cooperativa, es una herramienta que opera sobre TODAS a la vez, así
+      // que no tiene sentido mostrárselo a nadie más como algo "que existe
+      // pero no podés usar".
+      { href: "/plataforma", label: "Panel de plataforma", icon: <Building2 size={ICON_SIZE} />, soloPlataforma: true },
     ],
   },
 ];
@@ -238,9 +248,9 @@ function moduloVisible(mod: Module | undefined, etapa: string, overrides: Record
 }
 
 function itemsFor(user: SessionUser) {
-  return ALL_ITEMS.filter((i) => moduloVisible(i.mod, user.etapa, user.modulos_override)).filter(
-    (i) => !i.mod || canRead(user.rol, i.mod)
-  );
+  return ALL_ITEMS.filter((i) => moduloVisible(i.mod, user.etapa, user.modulos_override))
+    .filter((i) => !i.mod || canRead(user.rol, i.mod))
+    .filter((i) => !i.soloPlataforma || user.es_platform_admin);
 }
 
 function groupsFor(user: SessionUser): NavGroup[] {
@@ -248,7 +258,8 @@ function groupsFor(user: SessionUser): NavGroup[] {
     label: g.label,
     items: g.items
       .filter((i) => moduloVisible(i.mod, user.etapa, user.modulos_override))
-      .filter((i) => !i.mod || canRead(user.rol, i.mod)),
+      .filter((i) => !i.mod || canRead(user.rol, i.mod))
+      .filter((i) => !i.soloPlataforma || user.es_platform_admin),
   })).filter((g) => g.items.length > 0);
 }
 
