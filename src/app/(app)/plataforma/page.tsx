@@ -62,7 +62,7 @@ export default async function PlataformaPage() {
   if (!user) redirect("/login");
   if (!user.es_platform_admin) redirect("/dashboard");
 
-  const { cooperativas, migracionesPendientes, errorMigraciones, diagnosticoRls, errorDiagnostico } =
+  const { cooperativas, errorConteoUsuarios, migracionesPendientes, errorMigraciones, diagnosticoRls, errorDiagnostico } =
     await obtenerEstadoPlataforma();
 
   const rlsSeguro = diagnosticoRls?.es_superusuario === false && diagnosticoRls?.puede_saltar_rls === false;
@@ -83,6 +83,11 @@ export default async function PlataformaPage() {
       </Card>
 
       <h2 className="text-sm font-semibold text-ink/70 mb-2">Cooperativas ({cooperativas.length})</h2>
+      {errorConteoUsuarios && (
+        <p className="text-xs text-[var(--color-rojo)] mb-2">
+          No se pudo verificar cuántos usuarios activos tiene cada cooperativa: {errorConteoUsuarios}
+        </p>
+      )}
       <div className="space-y-2 mb-6">
         {cooperativas.map((c) => {
           const esLaMia = c.id === user.organization_id;

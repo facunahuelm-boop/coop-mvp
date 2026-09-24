@@ -73,6 +73,7 @@ export type CooperativaResumen = {
 
 export type EstadoPlataforma = {
   cooperativas: CooperativaResumen[];
+  errorConteoUsuarios: string | null;
   migracionesPendientes: string[];
   errorMigraciones: string | null;
   diagnosticoRls: { rol_conectado: string; es_superusuario: boolean; puede_saltar_rls: boolean } | null;
@@ -96,13 +97,55 @@ export async function obtenerEstadoPlataforma(): Promise<EstadoPlataforma> {
     plan: string;
     activo: number;
     creado_en: string;
-    usuarios_activos: string;
   }>(
-    `SELECT o.id, o.slug, o.nombre, o.etapa, o.plan, o.activo, o.creado_en,
-            (SELECT count(*)::text FROM users u WHERE u.organization_id = o.id AND u.activo = 1) AS usuarios_activos
+    `SELECT o.id, o.slug, o.nombre, o.etapa, o.plan, o.activo, o.creado_en
      FROM organizations o
      ORDER BY o.id ASC`
   );
+
+  // Conexión elevada compartida por el resto de esta función (usuarios
+  // activos por cooperativa + migraciones pendientes) — se crea una sola vez
+  // acá y se cierra al final.
+  let poolElevado: Pool | null = null;
+  try {
+    poolElevado = crearPoolMigraciones();
+  } catch {
+    poolElevado = null; // sin DATABASE_URL en este entorno — se degrada, no rompe la pantalla.
+  }
+
+  // HALLAZGO EN VERIFICACIÓN EN VIVO (Sub-fase 5.2, 24/09): la versión
+  // anterior de esta consulta (Sub-fase 5.1) contaba usuarios activos con una
+  // subconsulta correlacionada sobre `users` corrida con rootAll — es decir,
+  // con la conexión NORMAL de la app (`pool` de db.ts, rol app_user), que
+  // nunca fija `app.current_org_id` (withRootClient no lo toca). Como `users`
+  // tiene Row-Level Security FORZADA (migrations/0003), esa columna en los
+  // hechos mostraba el conteo de CUALQUIER cooperativa cuya consulta hubiera
+  // dejado esa variable de sesión pegada en la misma conexión física del
+  // pool (reutilizada entre pedidos) — con una sola cooperativa real en
+  // producción hasta hoy, siempre coincidía por casualidad. Al crear acá
+  // mismo la primera cooperativa nueva de la historia de este sistema
+  // ("Cooperativa de Prueba QA"), apareció con "0 usuarios activos" a pesar
+  // de que el alta había funcionado perfectamente (confirmado iniciando
+  // sesión con esa cuenta) — la cuenta en sí nunca estuvo mal, era esta
+  // lectura. Se arregla usando la misma conexión elevada (bypass RLS) que ya
+  // usan las migraciones: es la única forma correcta de ver usuarios de
+  // TODAS las cooperativas a la vez sin depender de qué conexión del pool
+  // normal toque en cada pedido.
+  let conteos = new Map<number, number>();
+  let errorConteoUsuarios: string | null = null;
+  if (poolElevado) {
+    try {
+      const { rows } = await poolElevado.query<{ organization_id: number; cantidad: string }>(
+        `SELECT organization_id, count(*)::text AS cantidad FROM users WHERE activo = 1 GROUP BY organization_id`
+      );
+      conteos = new Map(rows.map((r) => [Number(r.organization_id), Number(r.cantidad)]));
+    } catch (err) {
+      errorConteoUsuarios = err instanceof Error ? err.message : String(err);
+    }
+  } else {
+    errorConteoUsuarios = "Falta la variable de entorno DATABASE_URL en este entorno.";
+  }
+
   const cooperativas: CooperativaResumen[] = filas.map((f) => ({
     id: f.id,
     slug: f.slug,
@@ -111,20 +154,18 @@ export async function obtenerEstadoPlataforma(): Promise<EstadoPlataforma> {
     plan: f.plan,
     activo: f.activo === 1,
     creado_en: f.creado_en,
-    usuarios_activos: Number(f.usuarios_activos || 0),
+    usuarios_activos: conteos.get(f.id) ?? 0,
   }));
 
   let migracionesPendientes: string[] = [];
   let errorMigraciones: string | null = null;
   try {
-    const pool = crearPoolMigraciones();
-    try {
-      migracionesPendientes = await listarMigracionesPendientes(pool);
-    } finally {
-      await pool.end();
-    }
+    if (!poolElevado) throw new Error("Falta la variable de entorno DATABASE_URL en este entorno.");
+    migracionesPendientes = await listarMigracionesPendientes(poolElevado);
   } catch (err) {
     errorMigraciones = err instanceof Error ? err.message : String(err);
+  } finally {
+    if (poolElevado) await poolElevado.end();
   }
 
   let diagnosticoRls: EstadoPlataforma["diagnosticoRls"] = null;
@@ -145,7 +186,7 @@ export async function obtenerEstadoPlataforma(): Promise<EstadoPlataforma> {
     errorDiagnostico = err instanceof Error ? err.message : String(err);
   }
 
-  return { cooperativas, migracionesPendientes, errorMigraciones, diagnosticoRls, errorDiagnostico };
+  return { cooperativas, errorConteoUsuarios, migracionesPendientes, errorMigraciones, diagnosticoRls, errorDiagnostico };
 }
 
 const alternarActivoCoopSchema = z.object({ id: zId, activo: zEnumSeguro(["true", "false"] as const) });
