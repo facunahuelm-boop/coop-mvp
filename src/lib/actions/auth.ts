@@ -27,9 +27,18 @@ export async function loginAction(_prev: { error?: string } | undefined, formDat
     return { error: "Completá el email y la contraseña." };
   }
 
-  // El middleware (src/middleware.ts) ya resolvió, por subdominio, a qué
-  // cooperativa pertenece este pedido de login y lo dejó en esta cookie.
-  const slug = (await cookies()).get("coop_slug")?.value || DEFAULT_SLUG;
+  // El middleware (src/proxy.ts) ya resolvió, por subdominio, a qué
+  // cooperativa pertenece este pedido de login y lo dejó en esta cookie —
+  // eso sigue siendo la fuente normal. Fase 5, Sub-fase 5.2 (Alta de
+  // cooperativas): mientras no haya un dominio propio con subdominios
+  // configurado en el hosting, *.vercel.app resuelve SIEMPRE a la misma
+  // cooperativa por defecto (ver src/proxy.ts) — sin una forma de indicar
+  // otra, ninguna cooperativa nueva sería alcanzable por login. El campo
+  // opcional "Cooperativa" del formulario (LoginForm.tsx) permite escribir
+  // el identificador a mano; si viene completo, tiene prioridad sobre la
+  // cookie. En blanco, el comportamiento es EXACTAMENTE el de antes.
+  const slugForm = String(formData.get("coop_slug") || "").trim().toLowerCase().slice(0, 100);
+  const slug = slugForm || (await cookies()).get("coop_slug")?.value || DEFAULT_SLUG;
   const org = await rootGet<{ id: number; activo: number; etapa: string }>(
     `SELECT id, activo, etapa FROM organizations WHERE slug = ?`,
     [slug]

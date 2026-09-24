@@ -6,6 +6,7 @@ import {
   AlternarActivoCooperativaButton,
   EstadoCooperativaBadge,
   AplicarMigracionesBoton,
+  CrearCooperativaForm,
 } from "@/components/plataforma/PlataformaFormularios";
 import dayjs from "dayjs";
 
@@ -25,16 +26,22 @@ const ETAPA_LABEL: Record<string, string> = {
  *
  * El texto original de las secciones 19-22 del plan de 44 está
  * irrecuperable (mismo problema de siempre). Alcance confirmado con el
- * usuario tras auditar a fondo: el multi-tenant (RLS) ya es real y está
- * probado en producción con 2 cooperativas, pero no existía ningún rol
- * "admin de plataforma" separado del 'admin' de cada cooperativa — el mismo
- * admin de CUALQUIER cooperativa podía correr migraciones de schema o ver
- * el diagnóstico de RLS de TODA la base vía dos endpoints temporales
- * (`/api/admin/migraciones`, `/api/admin/diagnostico-rls`), ambos marcados
- * en su propio código como "se borra del repo una vez usado". Esta pantalla
- * los reemplaza (retirados del repo) y agrega lo mínimo de gestión de
- * cooperativas que hoy solo se podía hacer con SQL directo (activar/
- * desactivar).
+ * usuario tras auditar a fondo: el multi-tenant (RLS) ya es real, pero no
+ * existía ningún rol "admin de plataforma" separado del 'admin' de cada
+ * cooperativa — el mismo admin de CUALQUIER cooperativa podía correr
+ * migraciones de schema o ver el diagnóstico de RLS de TODA la base vía dos
+ * endpoints temporales (`/api/admin/migraciones`, `/api/admin/diagnostico-
+ * rls`), ambos marcados en su propio código como "se borra del repo una vez
+ * usado". Esta pantalla los reemplaza (retirados del repo) y agrega lo
+ * mínimo de gestión de cooperativas que hoy solo se podía hacer con SQL
+ * directo (activar/desactivar).
+ *
+ * CORRECCIÓN (verificación en vivo, 24/09): la auditoría previa a esta
+ * sub-fase había inferido "al menos 2 cooperativas" a partir de texto del
+ * CHANGELOG — la consulta real de acá abajo mostró que producción tenía en
+ * ese momento UNA sola ("coova", renombrada a "Ufama" por personalización de
+ * marca). La Sub-fase 5.2 (alta de cooperativas, más abajo) es la primera
+ * vez que este sistema tiene de verdad más de una cooperativa activa.
  *
  * Gate: `es_platform_admin` (ver auth.ts) — NO `rol === "admin"`. Es un
  * flag aparte, sin ninguna forma de auto-otorgárselo desde la app (se fija
@@ -42,9 +49,13 @@ const ETAPA_LABEL: Record<string, string> = {
  * directa, se lo manda a /dashboard, mismo criterio que el resto de las
  * pantallas admin-only del sistema.
  *
- * A propósito NO incluye en esta sub-fase: alta de una cooperativa nueva
- * (Sub-fase 5.2, "Alta de cooperativas"), planes/módulos comerciales
- * (Sub-fase 5.3) ni soporte (Sub-fase 5.4).
+ * Sub-fase 5.2 (sección 19, "Alta de cooperativas") agregó el botón "Nueva
+ * cooperativa" de acá abajo — ver crearCooperativaAction en actions/
+ * plataforma.ts para el detalle de por qué necesita su propia transacción
+ * en vez de los helpers insert()/update() normales de db.ts.
+ *
+ * A propósito NO incluye todavía: planes/módulos comerciales (Sub-fase 5.3)
+ * ni soporte (Sub-fase 5.4).
  */
 export default async function PlataformaPage() {
   const user = await getCurrentUser();
@@ -61,6 +72,7 @@ export default async function PlataformaPage() {
       <PageHeader
         title="Panel de plataforma"
         subtitle="Operación entre cooperativas — visible solo para el administrador de la plataforma"
+        action={<CrearCooperativaForm />}
       />
 
       <Card className="mb-6 bg-[var(--color-brand-50)] border-[var(--color-brand-100)]">

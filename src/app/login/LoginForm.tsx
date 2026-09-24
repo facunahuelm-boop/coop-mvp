@@ -68,6 +68,34 @@ export function LoginForm({ nombre, logoUrl, colorPrimario, mensajeRecuperacion 
             <Label>Contraseña</Label>
             <input name="password" type="password" required className={inputClass} placeholder="••••••••" autoComplete="current-password" />
           </div>
+
+          {/* Fase 5, Sub-fase 5.2 (Alta de cooperativas): mientras no haya un
+              dominio propio con subdominios configurado, src/proxy.ts resuelve
+              SIEMPRE a la misma cooperativa por defecto en *.vercel.app (ver
+              comentario ahí) — sin este campo, cualquier cooperativa nueva
+              sería técnicamente inaccesible por login. Colapsado y opcional a
+              propósito: en blanco se comporta exactamente igual que antes
+              (cooperativa resuelta por la cookie `coop_slug`/subdominio), así
+              que no le agrega nada a la pantalla de quien ya inicia sesión
+              hoy. */}
+          <details className="group">
+            <summary className="cursor-pointer text-xs text-ink/45 hover:underline select-none">
+              ¿Ingresás a otra cooperativa?
+            </summary>
+            <div className="mt-2">
+              <Label>Cooperativa</Label>
+              <input
+                name="coop_slug"
+                type="text"
+                className={inputClass}
+                placeholder="identificador de tu cooperativa"
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+              />
+            </div>
+          </details>
+
           {state?.error && <p className="text-sm text-[var(--color-rojo)]">{state.error}</p>}
           <button
             type="submit"

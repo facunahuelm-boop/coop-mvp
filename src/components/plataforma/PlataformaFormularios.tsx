@@ -7,12 +7,15 @@
 // (aplicar migraciones — mismo patrón que AnularMovimientoBoton en
 // finanzas/FinanzasFormularios.tsx).
 
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   alternarActivoCooperativaFormAction,
   aplicarMigracionesPendientesFormAction,
+  crearCooperativaFormAction,
 } from "@/lib/actions/plataforma";
-import { ActionForm } from "@/components/ui-client";
-import { Badge } from "@/components/ui";
+import { ESTADO_INICIAL } from "@/lib/actionState";
+import { ActionForm, FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
+import { AddButton, Label, inputClass, Badge } from "@/components/ui";
 
 export function AlternarActivoCooperativaButton({
   id,
@@ -41,6 +44,116 @@ export function AlternarActivoCooperativaButton({
 
 export function EstadoCooperativaBadge({ activo }: { activo: boolean }) {
   return <Badge color={activo ? "verde" : "rojo"}>{activo ? "Activa" : "Desactivada"}</Badge>;
+}
+
+// Fase 5, Sub-fase 5.2 (Alta de cooperativas): sugiere un identificador a
+// partir del nombre para no obligar a escribirlo dos veces — sigue siendo
+// editable a mano (ver CrearCooperativaForm), esto es solo un punto de
+// partida razonable. Nunca se manda tal cual sin pasar por la validación real
+// del lado del servidor (crearCooperativaAction, misma regla ahí).
+function sugerirSlug(nombre: string): string {
+  return nombre
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // saca acentos (á -> a)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/^(?=[0-9])/, "c-") // el slug tiene que empezar con una letra
+    .slice(0, 40);
+}
+
+export function CrearCooperativaForm() {
+  const [open, setOpen] = useState(false);
+  const [slug, setSlug] = useState("");
+  const [slugTocado, setSlugTocado] = useState(false);
+  const [estado, formAction] = useActionState(crearCooperativaFormAction, ESTADO_INICIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) {
+      formRef.current?.reset();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false);
+      setSlug("");
+      setSlugTocado(false);
+      show("Cooperativa creada.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <>
+      <AddButton onClick={() => setOpen(true)}>Nueva cooperativa</AddButton>
+      <Modal open={open} onClose={() => setOpen(false)} title="Nueva cooperativa" size="lg">
+        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
+          <div className="sm:col-span-2">
+            <Label>Nombre de la cooperativa</Label>
+            <input
+              name="nombre"
+              required
+              placeholder="Nombre de la cooperativa"
+              className={inputClass}
+              onChange={(e) => {
+                if (!slugTocado) setSlug(sugerirSlug(e.target.value));
+              }}
+            />
+            <FieldError message={estado.fieldErrors?.nombre} />
+          </div>
+
+          <div className="sm:col-span-2">
+            <Label>Identificador (slug)</Label>
+            <input
+              name="slug"
+              required
+              placeholder="mi-cooperativa"
+              className={inputClass}
+              value={slug}
+              onChange={(e) => {
+                setSlugTocado(true);
+                setSlug(e.target.value);
+              }}
+            />
+            <p className="text-xs text-ink/40 mt-1">
+              Solo minúsculas, números y guiones. Es lo que la persona va a escribir en &quot;¿Ingresás a otra cooperativa?&quot; al iniciar sesión, hasta que esta cooperativa tenga su propio subdominio.
+            </p>
+            <FieldError message={estado.fieldErrors?.slug} />
+          </div>
+
+          <div className="sm:col-span-2 pt-2 border-t border-ink/10">
+            <p className="text-xs font-semibold text-ink/60">Primer usuario (administrador de esta cooperativa)</p>
+          </div>
+
+          <div className="sm:col-span-2">
+            <Label>Nombre</Label>
+            <input name="adminNombre" required placeholder="Nombre y apellido" className={inputClass} />
+            <FieldError message={estado.fieldErrors?.adminNombre} />
+          </div>
+
+          <div>
+            <Label>Email</Label>
+            <input name="adminEmail" type="email" required placeholder="persona@ejemplo.com" className={inputClass} />
+            <FieldError message={estado.fieldErrors?.adminEmail} />
+          </div>
+
+          <div>
+            <Label>Contraseña inicial</Label>
+            <input name="adminPassword" type="text" required minLength={8} placeholder="Mínimo 8 caracteres" className={inputClass} />
+            <FieldError message={estado.fieldErrors?.adminPassword} />
+          </div>
+
+          <p className="sm:col-span-2 text-xs text-ink/40">
+            Esta persona entra como administradora de ESA cooperativa (no de la plataforma) — compartile la contraseña por un medio seguro.
+          </p>
+
+          <FormError message={estado.error} />
+          <div className="sm:col-span-2">
+            <SubmitButton pendingLabel="Creando…">Crear cooperativa</SubmitButton>
+          </div>
+        </form>
+      </Modal>
+    </>
+  );
 }
 
 export function AplicarMigracionesBoton({ cantidad }: { cantidad: number }) {

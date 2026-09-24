@@ -6,8 +6,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
 import { rootAll, rootGet, update, audit, pool as appPool } from "@/lib/db";
-import { requirePlatformAdmin } from "@/lib/auth";
-import { parseForm, zId, zEnumSeguro } from "@/lib/validation";
+import { requirePlatformAdmin, hashPassword } from "@/lib/auth";
+import { parseForm, zId, zTexto, zEnumSeguro, ValidationError } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 /**
@@ -238,4 +238,123 @@ export async function aplicarMigracionesPendientesAction(formData: FormData) {
 
 export async function aplicarMigracionesPendientesFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => aplicarMigracionesPendientesAction(formData));
+}
+
+// ---------------------------------------------------------------------------
+// Sub-fase 5.2: Alta de cooperativas (sección 19).
+//
+// Hallazgo de la auditoría (ver comentario de src/app/api/setup/route.ts, que
+// ya anticipaba esto): no existía ninguna forma de dar de alta una
+// cooperativa nueva más que con SQL directo contra la base — `/api/setup`
+// es exclusivamente para sembrar datos de demostración en "coova" y
+// explícitamente dice que NO es el camino para esto. Acá se cubren las dos
+// mitades del alta: la fila de `organizations` y el primer usuario 'admin'
+// (tenant-scoped, no `es_platform_admin`) de esa cooperativa — sin ninguna
+// de las dos, la cooperativa quedaría creada pero sin nadie que pueda entrar,
+// o con un usuario sin cooperativa real detrás.
+//
+// Por qué NO se usa insert("users", ...) de db.ts para el segundo paso: esa
+// función (como get/all/update) pasa siempre por withTenantClient, que fija
+// `app.current_org_id` a la cooperativa de QUIEN EJECUTA LA ACCIÓN (el admin
+// de plataforma, vía requireOrgContext()) — la política de Row-Level Security
+// de `users` (migrations/0003_rls_policies.sql, WITH CHECK) rechazaría de
+// entrada un INSERT con organization_id de una cooperativa distinta a esa.
+// En vez de forzar el contexto global de la ejecución completa (arriesgando
+// que la auditoría de esta misma acción, más abajo, quede mal atribuida a la
+// cooperativa nueva en vez de a la del admin de plataforma), se abre acá una
+// única conexión/transacción del pool normal de la app y se fija
+// `app.current_org_id` a la cooperativa NUEVA solo en ESA conexión — la
+// fila de `organizations` no tiene RLS (es la tabla raíz), así que el mismo
+// INSERT le sirve sin ningún cambio de contexto. Todo el alta queda atómica:
+// si el segundo INSERT fallara, el primero se revierte y no queda una
+// cooperativa fantasma sin ningún usuario que pueda entrar.
+const slugCooperativa = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(2, "Mínimo 2 caracteres.")
+  .max(40, "Máximo 40 caracteres.")
+  .regex(/^[a-z][a-z0-9-]*$/, "Solo minúsculas, números y guiones — tiene que empezar con una letra.");
+
+const emailAdminCooperativa = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(200, "Máximo 200 caracteres.")
+  .refine((v) => z.string().email().safeParse(v).success, "Ingresá un email válido.");
+
+const passwordInicialCooperativa = z
+  .string()
+  .min(8, "Tiene que tener al menos 8 caracteres.")
+  .max(200, "Máximo 200 caracteres.");
+
+const crearCooperativaSchema = z.object({
+  nombre: zTexto(200),
+  slug: slugCooperativa,
+  adminNombre: zTexto(200),
+  adminEmail: emailAdminCooperativa,
+  adminPassword: passwordInicialCooperativa,
+});
+
+const PG_UNIQUE_VIOLATION = "23505";
+
+export async function crearCooperativaAction(formData: FormData) {
+  const admin = await requirePlatformAdmin();
+  const datos = parseForm(crearCooperativaSchema, formData);
+
+  // Chequeo previo con mensaje claro pegado al campo — mismo criterio que
+  // crearUsuarioAction (usuariosAdmin.ts) con el email: sin esto, el mismo
+  // caso cae en la restricción UNIQUE(slug) de la base y sale como un error
+  // técnico genérico (ver esErrorTecnico en actionState.ts).
+  const existente = await rootGet<{ id: number }>(`SELECT id FROM organizations WHERE slug = ?`, [datos.slug]);
+  if (existente) throw new ValidationError("slug", "Ya existe una cooperativa con ese identificador.");
+
+  const hash = await hashPassword(datos.adminPassword);
+
+  let nuevaOrgId: number;
+  const client = await appPool.connect();
+  try {
+    await client.query("BEGIN");
+    // Fase 5, Sub-fase 5.1: etapa NO usa el default de la columna ('obra',
+    // pensado para las cooperativas que ya existían al agregar esta columna
+    // — ver migrations/0001) — una cooperativa recién dada de alta arranca
+    // en 'pre_obra' (decisión confirmada con el usuario, 24/09).
+    const { rows } = await client.query(
+      `INSERT INTO organizations (slug, nombre, etapa) VALUES ($1, $2, 'pre_obra') RETURNING id`,
+      [datos.slug, datos.nombre]
+    );
+    nuevaOrgId = rows[0].id;
+    await client.query("SELECT set_config('app.current_org_id', $1, false)", [String(nuevaOrgId)]);
+    await client.query(
+      `INSERT INTO users (organization_id, nombre, email, password_hash, rol, activo) VALUES ($1, $2, $3, $4, 'admin', 1)`,
+      [nuevaOrgId, datos.adminNombre, datos.adminEmail, hash]
+    );
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    if (err && typeof err === "object" && (err as { code?: string }).code === PG_UNIQUE_VIOLATION) {
+      throw new ValidationError("slug", "Ya existe una cooperativa con ese identificador.");
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // Sin la contraseña en la auditoría, ni en texto plano ni el hash — mismo
+  // criterio que crearUsuarioAction. Queda en la auditoría de la cooperativa
+  // del propio admin de plataforma que la ejecuta (mismo criterio ya
+  // documentado en aplicarMigracionesPendientesAction, más arriba: no existe
+  // una tabla de auditoría "de plataforma" separada).
+  await audit({
+    usuario_id: admin.id,
+    accion: "crear_cooperativa",
+    entidad: "organizations",
+    entidad_id: nuevaOrgId,
+    valor_nuevo: { slug: datos.slug, nombre: datos.nombre, admin_email: datos.adminEmail },
+  });
+  revalidatePath("/plataforma");
+}
+
+export async function crearCooperativaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearCooperativaAction(formData));
 }
