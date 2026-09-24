@@ -12,10 +12,12 @@ import {
   alternarActivoCooperativaFormAction,
   aplicarMigracionesPendientesFormAction,
   crearCooperativaFormAction,
+  cambiarPlanCooperativaFormAction,
 } from "@/lib/actions/plataforma";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { ActionForm, FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
 import { AddButton, Label, inputClass, Badge } from "@/components/ui";
+import { PLANES, PLAN_LABELS, PLAN_DESCRIPCIONES, type Plan } from "@/lib/planes";
 
 export function AlternarActivoCooperativaButton({
   id,
@@ -66,6 +68,7 @@ export function CrearCooperativaForm() {
   const [open, setOpen] = useState(false);
   const [slug, setSlug] = useState("");
   const [slugTocado, setSlugTocado] = useState(false);
+  const [planElegido, setPlanElegido] = useState<Plan>("trial");
   const [estado, formAction] = useActionState(crearCooperativaFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const { show } = useToast();
@@ -77,6 +80,7 @@ export function CrearCooperativaForm() {
       setOpen(false);
       setSlug("");
       setSlugTocado(false);
+      setPlanElegido("trial");
       show("Cooperativa creada.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -120,6 +124,17 @@ export function CrearCooperativaForm() {
             <FieldError message={estado.fieldErrors?.slug} />
           </div>
 
+          <div className="sm:col-span-2">
+            <Label>Plan</Label>
+            <select name="plan" defaultValue="trial" className={inputClass} onChange={(e) => setPlanElegido(e.target.value as Plan)}>
+              {PLANES.map((p) => (
+                <option key={p} value={p}>{PLAN_LABELS[p]}</option>
+              ))}
+            </select>
+            <p className="text-xs text-ink/40 mt-1">{PLAN_DESCRIPCIONES[planElegido]}</p>
+            <FieldError message={estado.fieldErrors?.plan} />
+          </div>
+
           <div className="sm:col-span-2 pt-2 border-t border-ink/10">
             <p className="text-xs font-semibold text-ink/60">Primer usuario (administrador de esta cooperativa)</p>
           </div>
@@ -153,6 +168,40 @@ export function CrearCooperativaForm() {
         </form>
       </Modal>
     </>
+  );
+}
+
+/**
+ * Fase 5, Sub-fase 5.3 ("Planes y módulos"): a diferencia de
+ * AlternarActivoCooperativaButton (un solo click, reversible con otro
+ * click), cambiar el plan PISA el `modulos_override` que la cooperativa haya
+ * configurado a mano (ver crearCooperativaAction/cambiarPlanCooperativaAction
+ * en actions/plataforma.ts) — por eso no se autoguarda al elegir una opción
+ * del select (mismo patrón que CambiarRolForm en usuarios), sino que pide un
+ * click aparte en "Guardar", con el aviso siempre visible al lado.
+ */
+export function CambiarPlanCooperativaForm({ id, planActual }: { id: number; planActual: string }) {
+  const [estado, formAction] = useActionState(cambiarPlanCooperativaFormAction, ESTADO_INICIAL);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.error) show(estado.error, "error");
+    else if (estado.ok) show("Plan actualizado.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form action={formAction} className="flex items-center gap-2">
+      <input type="hidden" name="id" value={id} />
+      <select name="plan" defaultValue={planActual} className={inputClass + " !py-1 !text-xs !w-auto"} title="Cambiar el plan reemplaza los módulos visibles por el preset del plan nuevo">
+        {PLANES.map((p) => (
+          <option key={p} value={p}>{PLAN_LABELS[p]}</option>
+        ))}
+      </select>
+      <button type="submit" className="text-xs underline text-[var(--color-brand-800)] whitespace-nowrap">
+        Guardar
+      </button>
+    </form>
   );
 }
 

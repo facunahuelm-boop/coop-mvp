@@ -7,7 +7,9 @@ import {
   EstadoCooperativaBadge,
   AplicarMigracionesBoton,
   CrearCooperativaForm,
+  CambiarPlanCooperativaForm,
 } from "@/components/plataforma/PlataformaFormularios";
+import { PLAN_LABELS, type Plan } from "@/lib/planes";
 import dayjs from "dayjs";
 
 export const dynamic = "force-dynamic";
@@ -54,8 +56,15 @@ const ETAPA_LABEL: Record<string, string> = {
  * plataforma.ts para el detalle de por qué necesita su propia transacción
  * en vez de los helpers insert()/update() normales de db.ts.
  *
- * A propósito NO incluye todavía: planes/módulos comerciales (Sub-fase 5.3)
- * ni soporte (Sub-fase 5.4).
+ * Sub-fase 5.3 (sección 21, "Planes y módulos") conectó `organizations.plan`
+ * (existía desde la Fase 0 pero no se leía en ningún lado) con el mecanismo
+ * de módulos ya existente (etapa + modulos_override, Fase D): un plan es un
+ * preset con nombre de modulos_override (ver lib/planes.ts) — elegible acá
+ * abajo al crear una cooperativa, y cambiable después con el select "Plan"
+ * de cada fila (que PISA el modulos_override actual con el preset nuevo,
+ * avisado en el propio control).
+ *
+ * A propósito NO incluye todavía: soporte (Sub-fase 5.4, última de la Fase 5).
  */
 export default async function PlataformaPage() {
   const user = await getCurrentUser();
@@ -88,6 +97,10 @@ export default async function PlataformaPage() {
           No se pudo verificar cuántos usuarios activos tiene cada cooperativa: {errorConteoUsuarios}
         </p>
       )}
+      <p className="text-xs text-ink/40 mb-2">
+        Cambiar el plan de una cooperativa reemplaza los módulos que tiene visibles por el preset del plan nuevo — pisa
+        cualquier ajuste manual que haya hecho desde Configuración → Módulos.
+      </p>
       <div className="space-y-2 mb-6">
         {cooperativas.map((c) => {
           const esLaMia = c.id === user.organization_id;
@@ -99,7 +112,7 @@ export default async function PlataformaPage() {
                     {c.nombre} {esLaMia && <span className="text-ink/40 font-normal">(la tuya)</span>}
                   </p>
                   <p className="text-xs text-ink/50">
-                    /{c.slug} · {ETAPA_LABEL[c.etapa] ?? c.etapa} · plan &quot;{c.plan}&quot; · {c.usuarios_activos} usuario
+                    /{c.slug} · {ETAPA_LABEL[c.etapa] ?? c.etapa} · {c.usuarios_activos} usuario
                     {c.usuarios_activos === 1 ? "" : "s"} activo{c.usuarios_activos === 1 ? "" : "s"}
                   </p>
                   <p className="text-xs text-ink/35">Creada {dayjs(c.creado_en).format("DD/MM/YYYY")}</p>
@@ -108,6 +121,12 @@ export default async function PlataformaPage() {
                   <EstadoCooperativaBadge activo={c.activo} />
                   <AlternarActivoCooperativaButton id={c.id} activo={c.activo} disabled={esLaMia && c.activo} />
                 </div>
+              </div>
+              <div className="mt-2 pt-2 border-t border-ink/5 flex items-center gap-2">
+                <span className="text-xs text-ink/50">
+                  Plan actual: <span className="font-medium text-ink/70">{PLAN_LABELS[c.plan as Plan] ?? c.plan}</span>
+                </span>
+                <CambiarPlanCooperativaForm id={c.id} planActual={c.plan} />
               </div>
             </Card>
           );

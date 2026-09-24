@@ -9,6 +9,7 @@ import { rootAll, rootGet, update, audit, pool as appPool } from "@/lib/db";
 import { requirePlatformAdmin, hashPassword } from "@/lib/auth";
 import { parseForm, zId, zTexto, zEnumSeguro, ValidationError } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { PLANES, PLAN_PRESET_MODULOS } from "@/lib/planes";
 
 /**
  * Fase 5 (Multicooperativa/arquitectura SaaS(19) + Administrador de
@@ -332,6 +333,12 @@ const passwordInicialCooperativa = z
 const crearCooperativaSchema = z.object({
   nombre: zTexto(200),
   slug: slugCooperativa,
+  // Fase 5, Sub-fase 5.3 ("Planes y módulos"): con fallback a "trial" — el
+  // mismo default que ya tiene la columna organizations.plan desde la Fase 0
+  // — para que un envío directo del formulario sin tocar el select (o desde
+  // cualquier otro lugar que llame a esta acción) no rompa por un campo
+  // ausente.
+  plan: zEnumSeguro(PLANES, "trial"),
   adminNombre: zTexto(200),
   adminEmail: emailAdminCooperativa,
   adminPassword: passwordInicialCooperativa,
@@ -360,9 +367,14 @@ export async function crearCooperativaAction(formData: FormData) {
     // pensado para las cooperativas que ya existían al agregar esta columna
     // — ver migrations/0001) — una cooperativa recién dada de alta arranca
     // en 'pre_obra' (decisión confirmada con el usuario, 24/09).
+    //
+    // Fase 5, Sub-fase 5.3: `plan` y su preset de `modulos_override` (ver
+    // lib/planes.ts) se fijan acá mismo, en la misma fila — a diferencia de
+    // cambiarPlanCooperativaAction (más abajo, para una cooperativa ya
+    // existente), acá no hay ningún ajuste manual previo que se pueda pisar.
     const { rows } = await client.query(
-      `INSERT INTO organizations (slug, nombre, etapa) VALUES ($1, $2, 'pre_obra') RETURNING id`,
-      [datos.slug, datos.nombre]
+      `INSERT INTO organizations (slug, nombre, etapa, plan, modulos_override) VALUES ($1, $2, 'pre_obra', $3, $4) RETURNING id`,
+      [datos.slug, datos.nombre, datos.plan, JSON.stringify(PLAN_PRESET_MODULOS[datos.plan])]
     );
     nuevaOrgId = rows[0].id;
     await client.query("SELECT set_config('app.current_org_id', $1, false)", [String(nuevaOrgId)]);
@@ -391,11 +403,51 @@ export async function crearCooperativaAction(formData: FormData) {
     accion: "crear_cooperativa",
     entidad: "organizations",
     entidad_id: nuevaOrgId,
-    valor_nuevo: { slug: datos.slug, nombre: datos.nombre, admin_email: datos.adminEmail },
+    valor_nuevo: { slug: datos.slug, nombre: datos.nombre, admin_email: datos.adminEmail, plan: datos.plan },
   });
   revalidatePath("/plataforma");
 }
 
 export async function crearCooperativaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => crearCooperativaAction(formData));
+}
+
+// ---------------------------------------------------------------------------
+// Sub-fase 5.3: cambiar el plan de una cooperativa YA existente.
+//
+// A diferencia del alta (donde el preset se escribe en una fila que todavía
+// no tiene ningún ajuste manual), acá SÍ puede haber un `modulos_override`
+// que la propia cooperativa configuró a mano desde Configuración → Módulos —
+// cambiar el plan lo REEMPLAZA por el preset del plan nuevo a propósito (ver
+// lib/planes.ts): un plan que solo "sugiriera" módulos sin aplicarlos no
+// sería un preset. La pantalla (/plataforma) avisa esto explícitamente antes
+// de guardar.
+const cambiarPlanSchema = z.object({ id: zId, plan: zEnumSeguro(PLANES) });
+
+export async function cambiarPlanCooperativaAction(formData: FormData) {
+  const admin = await requirePlatformAdmin();
+  const { id, plan } = parseForm(cambiarPlanSchema, formData);
+
+  const coop = await rootGet<{ nombre: string; slug: string; plan: string }>(
+    `SELECT nombre, slug, plan FROM organizations WHERE id = ?`,
+    [id]
+  );
+  if (!coop) throw new Error("Esa cooperativa ya no existe.");
+  if (coop.plan === plan) return; // nada que hacer, evita una fila de auditoría vacía
+
+  const preset: Record<string, "mostrar" | "ocultar"> = PLAN_PRESET_MODULOS[plan];
+  await update("organizations", id, { plan, modulos_override: preset });
+  await audit({
+    usuario_id: admin.id,
+    accion: "cambiar_plan_cooperativa",
+    entidad: "organizations",
+    entidad_id: id,
+    valor_anterior: { plan: coop.plan },
+    valor_nuevo: { plan, modulos_override: preset },
+  });
+  revalidatePath("/plataforma");
+}
+
+export async function cambiarPlanCooperativaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => cambiarPlanCooperativaAction(formData));
 }

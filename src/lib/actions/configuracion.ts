@@ -70,14 +70,32 @@ export async function actualizarEtapaFormAction(_prev: ActionState, formData: Fo
 }
 
 /**
- * Fase D (etapas + módulos): guarda el override manual de visibilidad para
- * los módulos que por defecto dependen de la etapa (obra, trabajo,
- * seguridad, reclamos) — ver moduloVisible() en components/Nav.tsx. "auto"
- * borra el override de ese módulo (vuelve a depender de la etapa); "mostrar"/
- * "ocultar" lo fuerzan. Nunca toca los datos de esos módulos: sólo cambia
- * qué aparece en el menú.
+ * Fase D (etapas + módulos): guarda el override manual de visibilidad de
+ * módulos — ver moduloVisible() en components/Nav.tsx. "auto" borra el
+ * override de ese módulo (vuelve al default: la etapa para los primeros 4,
+ * siempre visible para el resto); "mostrar"/"ocultar" lo fuerzan. Nunca toca
+ * los datos de esos módulos: sólo cambia qué aparece en el menú.
+ *
+ * Fase 5, Sub-fase 5.3 ("Planes y módulos"): esta lista tenía solo los 4
+ * módulos que dependen de la etapa — se extendió a los 10 que reconoce
+ * roles.ts, ahora que moduloVisible() (Nav.tsx) también respeta el override
+ * para los otros 6. Es el mismo mecanismo que usa el preset de un plan (ver
+ * lib/planes.ts) — un plan simplemente escribe este mismo
+ * `modulos_override`, así que la cooperativa puede seguir ajustándolo acá
+ * módulo por módulo después de elegir un plan.
  */
-const MODULOS_CON_OVERRIDE = ["obra", "trabajo", "seguridad", "reclamos"] as const;
+const MODULOS_CON_OVERRIDE = [
+  "obra",
+  "trabajo",
+  "seguridad",
+  "reclamos",
+  "compras",
+  "finanzas",
+  "documentos",
+  "auditoria",
+  "comisiones",
+  "socios",
+] as const;
 const VALORES_OVERRIDE = ["auto", "mostrar", "ocultar"] as const;
 
 export async function actualizarModulosAction(formData: FormData) {

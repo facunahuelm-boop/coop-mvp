@@ -233,17 +233,29 @@ const GRUPO_COLAPSABLE = {
 const ALL_ITEMS: NavItem[] = GROUPS.flatMap((g) => g.items);
 
 /**
- * Decide si un módulo de los que dependen de la etapa (obra/trabajo/
- * seguridad) se muestra. El override manual de Configuración → Módulos
- * siempre gana; si no hay override, la etapa es el default: sólo se
- * muestran mientras la cooperativa está "en obra".
+ * Decide si un módulo se muestra. El override manual (Configuración →
+ * Módulos, o el preset de un plan — ver lib/planes.ts) siempre gana, para
+ * CUALQUIERA de los 10 módulos. Si no hay override:
+ * - Los 4 que dependen de la etapa (obra/trabajo/seguridad/reclamos) usan el
+ *   default de ETAPA_DEFAULT — sólo se muestran en la etapa que corresponde.
+ * - Los otros 6 (compras/finanzas/documentos/auditoria/comisiones/socios) no
+ *   tienen ningún concepto de etapa — se muestran siempre.
+ *
+ * Fase 5, Sub-fase 5.3 ("Planes y módulos"): antes de esta sub-fase, esta
+ * función devolvía `true` de entrada para cualquier módulo sin entrada en
+ * ETAPA_DEFAULT, ignorando el override por completo para esos 6 — un plan
+ * (o un ajuste manual desde Configuración) no podía ocultarlos. Se extendió
+ * para que el override aplique parejo a los 10, sin cambiar ningún
+ * comportamiento existente: mientras nadie fije un override para esos 6
+ * módulos, siguen mostrándose siempre, exactamente igual que antes.
  */
 function moduloVisible(mod: Module | undefined, etapa: string, overrides: Record<string, string>): boolean {
-  const etapasDefault = mod ? ETAPA_DEFAULT[mod] : undefined;
-  if (!mod || !etapasDefault) return true;
+  if (!mod) return true;
   const forzado = overrides[mod];
   if (forzado === "mostrar") return true;
   if (forzado === "ocultar") return false;
+  const etapasDefault = ETAPA_DEFAULT[mod];
+  if (!etapasDefault) return true;
   return etapasDefault.includes(etapa);
 }
 

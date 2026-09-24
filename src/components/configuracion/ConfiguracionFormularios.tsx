@@ -30,7 +30,19 @@ const MODULOS_LABEL: Record<string, string> = {
   trabajo: "Trabajo (jornadas de ayuda mutua)",
   seguridad: "Seguridad e higiene",
   reclamos: "Reclamos y mantenimiento (una vez habitada)",
+  // Fase 5, Sub-fase 5.3 ("Planes y módulos"): estos 6 no dependen de la
+  // etapa de la cooperativa (a diferencia de los 4 de arriba) — "Automático"
+  // para ellos significa "visible siempre", no "según la etapa" (ver
+  // MODULOS_CON_ETAPA más abajo, que ajusta el texto de la opción).
+  compras: "Compras y proveedores",
+  finanzas: "Finanzas",
+  documentos: "Documentos",
+  auditoria: "Auditoría, Panel Fiscal y Cumplimiento",
+  comisiones: "Comisiones, Reuniones, Decisiones y Comunicaciones",
+  socios: "Socios",
 };
+
+const MODULOS_CON_ETAPA = new Set(["obra", "trabajo", "seguridad", "reclamos"]);
 
 type Organizacion = {
   nombre?: string | null;
@@ -137,7 +149,7 @@ export function ModulosForm({ overrides }: { overrides: Record<string, string> |
         <div key={mod} className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm text-ink">{label}</span>
           <select name={mod} defaultValue={overrides?.[mod] || "auto"} className={inputClass + " sm:w-56"}>
-            <option value="auto">Automático (según la etapa)</option>
+            <option value="auto">{MODULOS_CON_ETAPA.has(mod) ? "Automático (según la etapa)" : "Automático (visible siempre)"}</option>
             <option value="mostrar">Mostrar siempre</option>
             <option value="ocultar">Ocultar siempre</option>
           </select>
