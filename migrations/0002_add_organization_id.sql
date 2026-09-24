@@ -25,7 +25,21 @@ DECLARE
 BEGIN
   SELECT id INTO ufama_id FROM organizations WHERE slug = 'ufama';
   IF ufama_id IS NULL THEN
-    RAISE EXCEPTION 'No existe la cooperativa "ufama" — correr primero 0001_organizations.sql';
+    -- Hallazgo de la auditoría de la Fase 5 (Sub-fase 5.1, 24/09): esta
+    -- migración ya corrió hace tiempo en producción, contra una base que sí
+    -- tenía "ufama" (la cooperativa real) — pero 0001_organizations.sql, tal
+    -- como está HOY en el repo, solo siembra "coova" (la cooperativa de
+    -- prueba/QA). Un ambiente nuevo desde cero (ej. staging) que corriera
+    -- las migraciones en orden se rompería acá, sin ningún dato legacy real
+    -- que reasignar. En vez de exigir "ufama" a rajatabla, se usa cualquier
+    -- cooperativa ya sembrada por 0001 como dueña temporal de estas 28
+    -- tablas — en una instalación nueva estarán vacías de todos modos, así
+    -- que no hay ningún dato real en juego. En producción esto no cambia
+    -- nada (ufama ya existe, sigue siendo la que se usa).
+    SELECT id INTO ufama_id FROM organizations ORDER BY id ASC LIMIT 1;
+  END IF;
+  IF ufama_id IS NULL THEN
+    RAISE EXCEPTION 'No existe ninguna cooperativa — correr primero 0001_organizations.sql';
   END IF;
 
   FOREACH tabla IN ARRAY tablas LOOP

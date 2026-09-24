@@ -1,0 +1,35 @@
+-- Fase 5 (Multicooperativa/arquitectura SaaS(19) + Administrador de
+-- plataforma(20) + Planes y módulos(21) + Soporte(22)) — Sub-fase 5.1:
+-- Administrador de plataforma (sección 20, primera de esta fase — texto
+-- original irrecuperable, mismo problema de siempre; alcance confirmado con
+-- el usuario antes de escribir código).
+--
+-- Auditoría previa (con un subagente dedicado, dado el tamaño de la
+-- superficie): el multi-tenant (RLS) es real y ya está probado en
+-- producción con 2 cooperativas (Ufama real + Coova de prueba) — pero no
+-- existe ningún rol "admin de plataforma" separado del 'admin' de cada
+-- cooperativa (users.rol, tenant-scoped, MATRIX de roles.ts). Hoy, el mismo
+-- 'admin' de CUALQUIER cooperativa puede disparar /api/admin/migraciones
+-- (corre DDL sobre toda la base) o leer /api/admin/diagnostico-rls
+-- (diagnóstico de RLS de toda la base) — operaciones que afectan a TODOS
+-- los tenants, no solo al suyo, sin ninguna separación real entre "admin de
+-- mi cooperativa" y "opera la plataforma entera".
+--
+-- es_platform_admin es un flag en `users`, no un rol nuevo del enum de
+-- roles.ts: una persona sigue siendo, por ejemplo, 'admin' DENTRO de su
+-- propia cooperativa para todo lo de siempre (Gestión de usuarios,
+-- Configuración, etc. — Sub-fase 4.1), y ADEMÁS, si este flag da true,
+-- puede entrar a /plataforma — un panel nuevo que opera fuera de cualquier
+-- organization_id (listado de cooperativas, activar/desactivar, correr
+-- migraciones pendientes, diagnóstico RLS). Ninguna acción de
+-- usuarios.ts/usuariosAdmin.ts toca esta columna — no hay forma de
+-- auto-otorgarse este flag desde la aplicación, a propósito.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS es_platform_admin BOOLEAN NOT NULL DEFAULT false;
+
+-- Bootstrap único, confirmado con el usuario: admin@coop.uy es la cuenta
+-- admin de "coova" (la cooperativa de prueba/QA ya usada en todo este
+-- proyecto para verificar en vivo cada fase) — no se toca ninguna cuenta de
+-- Ufama. Re-correr esta migración (no debería pasar, `schema_migrations` la
+-- marca aplicada) sería inofensivo de todos modos: vuelve a dejar el mismo
+-- valor, no lo alterna.
+UPDATE users SET es_platform_admin = true WHERE email = 'admin@coop.uy';
