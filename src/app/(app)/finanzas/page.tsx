@@ -16,7 +16,7 @@ import {
   AgregarCompromisoForm,
   RegistrarMovimientoForm,
   EditarMovimientoForm,
-  EliminarMovimientoBoton,
+  AnularMovimientoBoton,
   GenerarCuotaMensualForm,
   NuevoConvenioFormConSelector,
 } from "@/components/finanzas/FinanzasFormularios";
@@ -102,6 +102,11 @@ export default async function FinanzasPage({
 
   const detalle = ROLES_FINANZAS_DETALLE.includes(user.rol);
   const puedeEditar = canEdit(user.rol, "finanzas");
+  // Sub-fase 4.4: anular un movimiento queda restringido a admin (antes lo
+  // podía hacer cualquiera con canEdit(finanzas) — administración, tesorería
+  // y consejo directivo también) — ver anularMovimientoAction en
+  // actions/finanzas.ts para el porqué. Editar sigue igual que siempre.
+  const puedeAnular = user.rol === "admin";
   const f = await searchParams;
   const page = paginaDe(f);
 
@@ -488,29 +493,37 @@ export default async function FinanzasPage({
                       <thead>
                         <tr className="text-left text-xs text-ink/50 border-b border-ink/10">
                           <th className="py-2">Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th className="text-right">Monto</th>
-                          {puedeEditar && <th className="text-right">Acciones</th>}
+                          {(puedeEditar || puedeAnular) && <th className="text-right">Acciones</th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {movimientos.map((m) => (
-                          <tr key={m.id} className="border-b border-ink/5 last:border-0">
+                        {movimientos.map((m) => {
+                          const anulado = m.estado === "anulado";
+                          return (
+                          <tr key={m.id} className={`border-b border-ink/5 last:border-0${anulado ? " opacity-50" : ""}`}>
                             <td className="py-2">{dayjs(m.fecha).format("DD/MM")}</td>
-                            <td>{m.tipo === "ingreso" ? "🟢 ingreso" : "🔴 egreso"}</td>
+                            <td>
+                              {m.tipo === "ingreso" ? "🟢 ingreso" : "🔴 egreso"}
+                              {anulado && <Badge color="gray">Anulado</Badge>}
+                            </td>
                             <td>{m.categoria}</td>
                             <td className="text-ink/60">{m.descripcion}</td>
                             <td className="text-right font-medium">{money(m.monto)}</td>
-                            {puedeEditar && (
+                            {(puedeEditar || puedeAnular) && (
                               <td className="text-right">
-                                <div className="flex items-center justify-end gap-3">
-                                  <EditarMovimientoForm movimiento={m} />
-                                  <EliminarMovimientoBoton id={m.id} categoria={m.categoria} />
-                                </div>
+                                {!anulado && (
+                                  <div className="flex items-center justify-end gap-3">
+                                    {puedeEditar && <EditarMovimientoForm movimiento={m} />}
+                                    {puedeAnular && <AnularMovimientoBoton id={m.id} categoria={m.categoria} />}
+                                  </div>
+                                )}
                               </td>
                             )}
                           </tr>
-                        ))}
+                          );
+                        })}
                         {movimientos.length === 0 && (
-                          <tr><td colSpan={puedeEditar ? 6 : 5}><EmptyState>{hayFiltrosMovimientos ? "No hay movimientos que coincidan con estos filtros." : "Sin movimientos registrados todavía."}</EmptyState></td></tr>
+                          <tr><td colSpan={(puedeEditar || puedeAnular) ? 6 : 5}><EmptyState>{hayFiltrosMovimientos ? "No hay movimientos que coincidan con estos filtros." : "Sin movimientos registrados todavía."}</EmptyState></td></tr>
                         )}
                       </tbody>
                     </table>

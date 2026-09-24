@@ -145,11 +145,13 @@ export async function GET() {
       doc.fontSize(9).font("Helvetica-Bold").fillColor("#666");
       fila(doc, ["Fecha", "Tipo", "Categoría", "Descripción", "Monto"], [60, 55, 110, 195, 60]);
       doc.font("Helvetica").fillColor("#333");
+      // Sub-fase 4.4: un movimiento anulado ya no cuenta en el resumen de
+      // arriba (fin.*), pero sigue listado acá para trazabilidad — marcado.
       movimientos.forEach((m: any) => {
         asegurarEspacio(doc, ALTO_FILA + 5);
         fila(
           doc,
-          [dayjs(m.fecha).format("DD/MM/YY"), m.tipo === "ingreso" ? "Ingreso" : "Egreso", m.categoria || "-", m.descripcion || "-", money(m.monto)],
+          [dayjs(m.fecha).format("DD/MM/YY"), (m.tipo === "ingreso" ? "Ingreso" : "Egreso") + (m.estado === "anulado" ? " (anulado)" : ""), m.categoria || "-", m.descripcion || "-", money(m.monto)],
           [60, 55, 110, 195, 60]
         );
       });

@@ -322,7 +322,7 @@ export default async function DashboardPage() {
     if (misocio) {
       miSocioId = misocio.id;
       const movimientos = await all<MovimientoCuentaSocio>(
-        `SELECT id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id FROM movimientos_cuenta_socio WHERE socio_id = ?`,
+        `SELECT id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, estado FROM movimientos_cuenta_socio WHERE socio_id = ?`,
         [misocio.id]
       );
       const { cuotas, saldo } = calcularCuotasSocio(movimientos);

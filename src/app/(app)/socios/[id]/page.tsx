@@ -17,7 +17,7 @@ import {
   EditarIntegranteForm,
   RegistrarMovimientoCuentaForm,
   EditarMovimientoCuentaForm,
-  EliminarMovimientoCuentaBoton,
+  AnularMovimientoCuentaBoton,
   NuevoConvenioForm,
   GestionConvenioAcciones,
 } from "@/components/socios/SocioDetalleFormularios";
@@ -77,6 +77,10 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
   const esElPropioSocio = user.rol === "socio" && socio.user_id === user.id;
   const puedeVerCuenta = ROLES_FINANZAS_DETALLE.includes(user.rol) || esElPropioSocio;
   const puedeRegistrar = canEdit(user.rol, "finanzas");
+  // Sub-fase 4.4: anular un movimiento de la cuenta de un socio queda
+  // restringido a admin — mismo criterio y mismo motivo que en /finanzas
+  // (ver anularMovimientoCuentaSocioAction en actions/cuentaSocios.ts).
+  const puedeAnular = user.rol === "admin";
   const puedeEditar = canEdit(user.rol, "socios");
   // Fase 2, Sub-fase 2.3 ("Historial"): a diferencia del resto de esta
   // ficha (que la lee cualquiera con acceso a Socios — prácticamente todos
@@ -238,19 +242,28 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
                     <th className="py-2 pr-3">Estado</th>
                     <th className="py-2 pr-3">Comprobante</th>
                     <th className="py-2 pr-3 text-right">Monto</th>
-                    {puedeRegistrar && <th className="py-2 pr-3 text-right">Acciones</th>}
+                    {(puedeRegistrar || puedeAnular) && <th className="py-2 pr-3 text-right">Acciones</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {movimientos.map((m) => {
-                    const cuota = m.tipo === "cargo" ? estadoPorCargoId.get(m.id) : null;
+                    const anulado = m.estado === "anulado";
+                    const cuota = !anulado && m.tipo === "cargo" ? estadoPorCargoId.get(m.id) : null;
                     return (
-                      <tr key={m.id} className="border-b border-ink/5 last:border-0">
+                      <tr key={m.id} className={`border-b border-ink/5 last:border-0${anulado ? " opacity-50" : ""}`}>
                         <td className="py-2 pr-3">{dayjs(m.fecha).format("DD/MM/YYYY")}</td>
                         <td className="py-2 pr-3">{m.tipo === "cargo" ? "🔴 cargo" : "🟢 pago"}</td>
                         <td className="py-2 pr-3 text-ink/60">{m.concepto}</td>
                         <td className="py-2 pr-3 text-ink/50">{m.fecha_vencimiento ? dayjs(m.fecha_vencimiento).format("DD/MM/YYYY") : "—"}</td>
-                        <td className="py-2 pr-3">{cuota ? <Badge color={ESTADO_CUOTA_COLOR[cuota.estado]}>{ESTADO_CUOTA_LABEL[cuota.estado]}</Badge> : "—"}</td>
+                        <td className="py-2 pr-3">
+                          {anulado ? (
+                            <Badge color="gray">Anulado</Badge>
+                          ) : cuota ? (
+                            <Badge color={ESTADO_CUOTA_COLOR[cuota.estado]}>{ESTADO_CUOTA_LABEL[cuota.estado]}</Badge>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                         <td className="py-2 pr-3">
                           {m.comprobante_url ? (
                             <a href={`/api/archivos/cuota/${m.id}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2">
@@ -261,12 +274,14 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
                           )}
                         </td>
                         <td className="py-2 pr-3 text-right font-medium">{money(m.monto)}</td>
-                        {puedeRegistrar && (
+                        {(puedeRegistrar || puedeAnular) && (
                           <td className="py-2 pr-3">
-                            <div className="flex items-center justify-end gap-3">
-                              <EditarMovimientoCuentaForm movimiento={m} />
-                              <EliminarMovimientoCuentaBoton id={m.id} concepto={m.concepto} />
-                            </div>
+                            {!anulado && (
+                              <div className="flex items-center justify-end gap-3">
+                                {puedeRegistrar && <EditarMovimientoCuentaForm movimiento={m} />}
+                                {puedeAnular && <AnularMovimientoCuentaBoton id={m.id} concepto={m.concepto} />}
+                              </div>
+                            )}
                           </td>
                         )}
                       </tr>

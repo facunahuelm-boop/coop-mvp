@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, run, all, get, audit } from "@/lib/db";
+import { insert, update, all, get, audit, esColumnaInexistente } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import {
@@ -111,11 +111,23 @@ export async function editarMovimientoCuentaSocioAction(formData: FormData) {
     formData
   );
 
-  const movimiento = await get<{ id: number; socio_id: number; comprobante_url: string | null }>(
-    `SELECT id, socio_id, comprobante_url FROM movimientos_cuenta_socio WHERE id = ?`,
+  const movimiento = await get<{ id: number; socio_id: number; comprobante_url: string | null; estado?: string }>(
+    `SELECT id, socio_id, comprobante_url, estado FROM movimientos_cuenta_socio WHERE id = ?`,
     [id]
-  );
+  ).catch(async (err) => {
+    // Sub-fase 4.4 todavía no migrada en este entorno (columna `estado`
+    // inexistente, 42703) — sin esa columna un movimiento nunca puede estar
+    // anulado, así que se sigue exactamente igual que antes de esta sub-fase.
+    if (!esColumnaInexistente(err)) throw err;
+    return get<{ id: number; socio_id: number; comprobante_url: string | null; estado?: string }>(
+      `SELECT id, socio_id, comprobante_url FROM movimientos_cuenta_socio WHERE id = ?`,
+      [id]
+    );
+  });
   if (!movimiento) throw new Error("Ese movimiento ya no existe.");
+  if (movimiento.estado === "anulado") {
+    throw new Error("Este movimiento está anulado — no se puede editar. Registrá un movimiento nuevo si hace falta corregir el saldo.");
+  }
 
   const nuevoComprobante = await saveUploadedFile(
     formData.get("comprobante") as File | null,
@@ -150,37 +162,64 @@ export async function editarMovimientoCuentaSocioFormAction(_prev: ActionState, 
   return conEstadoDeAccion(() => editarMovimientoCuentaSocioAction(formData));
 }
 
-const eliminarMovimientoCuentaSocioSchema = z.object({ id: zId });
+const anularMovimientoCuentaSocioSchema = z.object({ id: zId, motivo: zTextoOpcional(500) });
 
-export async function eliminarMovimientoCuentaSocioAction(formData: FormData) {
+/**
+ * Sub-fase 4.4 (Eliminación segura de movimientos financieros): mismo
+ * reemplazo de DELETE físico → baja lógica que anularMovimientoAction en
+ * finanzas.ts (ver ese comentario para el detalle completo), aplicado acá al
+ * libro de cuenta corriente por socio. Un cargo o pago anulado sigue
+ * apareciendo en el historial de la ficha del socio (marcado) pero
+ * calcularCuotasSocio (logic.ts) lo excluye del saldo — a diferencia de
+ * movimientos_financieros, acá no hay ningún otro registro que dependa de
+ * este (nada tiene una FK hacia movimientos_cuenta_socio), así que no hace
+ * falta un chequeo de dependientes.
+ */
+export async function anularMovimientoCuentaSocioAction(formData: FormData) {
   const user = await requireUser();
-  if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
-  const { id } = parseForm(eliminarMovimientoCuentaSocioSchema, formData);
+  if (user.rol !== "admin") throw new Error("Solo un administrador del sistema puede anular un movimiento de la cuenta de un socio.");
+  const { id, motivo } = parseForm(anularMovimientoCuentaSocioSchema, formData);
 
-  const movimiento = await get<{ id: number; socio_id: number }>(
-    `SELECT id, socio_id FROM movimientos_cuenta_socio WHERE id = ?`,
-    [id]
-  );
-  if (!movimiento) {
-    revalidatePath("/socios");
-    return; // ya no existe: nada que borrar
+  // Ver el comentario equivalente en anularMovimientoAction (finanzas.ts):
+  // toda esta operación depende de que `estado` exista, así que se chequea
+  // ANTES de llamar a update() en vez de confiar en su fallback silencioso.
+  let fila: { id: number; socio_id: number; estado: string } | undefined;
+  try {
+    fila = await get<{ id: number; socio_id: number; estado: string }>(
+      `SELECT id, socio_id, estado FROM movimientos_cuenta_socio WHERE id = ?`,
+      [id]
+    );
+  } catch (err) {
+    if (!esColumnaInexistente(err)) throw err;
+    throw new Error("Esta función todavía no está habilitada en este entorno: falta aplicar una actualización pendiente de la base de datos.");
   }
-  await run(`DELETE FROM movimientos_cuenta_socio WHERE id = ?`, [id]);
+  if (!fila) {
+    revalidatePath("/socios");
+    return;
+  }
+  if (fila.estado === "anulado") return; // ya está anulado, no hay nada que hacer
+
+  await update("movimientos_cuenta_socio", id, {
+    estado: "anulado",
+    anulado_en: new Date().toISOString(),
+    anulado_por_id: user.id,
+    motivo_anulacion: motivo || null,
+  });
   await audit({
     usuario_id: user.id,
-    accion: "eliminar_movimiento_cuenta_socio",
+    accion: "anular_movimiento_cuenta_socio",
     entidad: "movimientos_cuenta_socio",
     entidad_id: id,
-    valor_anterior: { socio_id: movimiento.socio_id },
+    valor_nuevo: { motivo },
   });
-  revalidatePath(`/socios/${movimiento.socio_id}`);
+  revalidatePath(`/socios/${fila.socio_id}`);
   revalidatePath("/socios");
   revalidatePath("/finanzas");
   revalidatePath("/dashboard");
 }
 
-export async function eliminarMovimientoCuentaSocioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  return conEstadoDeAccion(() => eliminarMovimientoCuentaSocioAction(formData));
+export async function anularMovimientoCuentaSocioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => anularMovimientoCuentaSocioAction(formData));
 }
 
 const generarCuotaMensualSchema = z.object({

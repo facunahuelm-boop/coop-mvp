@@ -87,8 +87,14 @@ export async function resumenFinanciero() {
 
   const [ingresosRow, egresosRow, comprometidoRow, gastosProyectadosRow, ingresosMesRow, egresosMesRow, porCategoria, porCategoriaIngreso, presupuestoVsReal, porComision] =
     await Promise.all([
-      get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso'`),
-      get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso'`),
+      // Sub-fase 4.4 (Eliminación segura de movimientos financieros): un
+      // movimiento "anulado" (ver anularMovimientoAction en actions/
+      // finanzas.ts) sigue en la tabla para trazabilidad, pero nunca más
+      // cuenta para ningún saldo/total — se excluye acá, en la ÚNICA función
+      // que calcula estos totales (resumenFinanciero), en vez de en cada
+      // pantalla que la usa.
+      get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso' AND estado != 'anulado'`),
+      get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso' AND estado != 'anulado'`),
       get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM compromisos_futuros`),
       get<{ s: number }>(
         `SELECT COALESCE(SUM(monto),0) as s FROM compromisos_futuros WHERE fecha_estimada <= ?`,
@@ -100,15 +106,15 @@ export async function resumenFinanciero() {
       // completo según cómo se cargó el movimiento), por eso se compara
       // convertida a fecha en vez de como texto crudo.
       get<{ s: number }>(
-        `SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso' AND fecha::date >= ?::date`,
+        `SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso' AND estado != 'anulado' AND fecha::date >= ?::date`,
         [inicioMes]
       ),
       get<{ s: number }>(
-        `SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso' AND fecha::date >= ?::date`,
+        `SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso' AND estado != 'anulado' AND fecha::date >= ?::date`,
         [inicioMes]
       ),
       all<{ categoria: string; total: number }>(
-        `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='egreso' GROUP BY categoria ORDER BY total DESC`
+        `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='egreso' AND estado != 'anulado' GROUP BY categoria ORDER BY total DESC`
       ),
       // Rediseño de Finanzas (18/09, pedido explícito: mismo patrón resumen
       // → click → pop-up ya usado en Compras): antes sólo existía el
@@ -116,11 +122,11 @@ export async function resumenFinanciero() {
       // totales" no tenía nada real que mostrar en su pop-up. Misma consulta,
       // sólo cambia el tipo.
       all<{ categoria: string; total: number }>(
-        `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='ingreso' GROUP BY categoria ORDER BY total DESC`
+        `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='ingreso' AND estado != 'anulado' GROUP BY categoria ORDER BY total DESC`
       ),
       all<any>(
         `SELECT p.categoria, p.monto_presupuestado,
-           COALESCE((SELECT SUM(monto) FROM movimientos_financieros m WHERE m.categoria = p.categoria AND m.tipo='egreso'), 0) as gastado
+           COALESCE((SELECT SUM(monto) FROM movimientos_financieros m WHERE m.categoria = p.categoria AND m.tipo='egreso' AND m.estado != 'anulado'), 0) as gastado
          FROM presupuesto_general p`
       ),
       // Fase 9 del sistema de gestión de Comisiones (20/09, "integración
@@ -194,7 +200,7 @@ export async function cuentasPorCobrar() {
        WHERE s.estado != 'baja'`
     ),
     all<MovimientoCuentaSocio & { socio_id: number }>(
-      `SELECT id, socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id
+      `SELECT id, socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, estado
        FROM movimientos_cuenta_socio ORDER BY socio_id, fecha ASC, id ASC`
     ),
   ]);
@@ -238,6 +244,12 @@ export type MovimientoCuentaSocio = {
   fecha_vencimiento?: string | null;
   convenio_id?: number | null;
   comprobante_url?: string | null;
+  /** Sub-fase 4.4: 'anulado' cuando alguien lo anuló (ver
+   * anularMovimientoCuentaSocioAction) — calcularCuotasSocio lo excluye del
+   * saldo. Opcional para que un `SELECT` que todavía no pide esta columna
+   * (o corre contra una base sin la migración 0038) siga funcionando: se
+   * trata como 'activo' por defecto. */
+  estado?: "activo" | "anulado" | null;
 };
 
 export type CuotaCalculada = {
@@ -254,11 +266,20 @@ export type CuotaCalculada = {
 
 export function calcularCuotasSocio(movimientos: MovimientoCuentaSocio[]): { cuotas: CuotaCalculada[]; saldo: number } {
   const hoy = hoyEnUruguay();
-  const cargos = movimientos
+  // Sub-fase 4.4: un cargo o pago anulado (ver anularMovimientoCuentaSocioAction
+  // en actions/cuentaSocios.ts) sigue en el arreglo que llega acá — así lo
+  // pueden seguir mostrando las pantallas que listan el historial completo —
+  // pero se excluye del cálculo de cuotas/saldo, que es lo único que importa
+  // para "¿cuánto debo?". Única fuente de verdad para esta exclusión: todo lo
+  // que llama a calcularCuotasSocio (ficha del socio, "Mi cuenta", cuentas
+  // por cobrar, resumen de cuotas del Dashboard/Finanzas) queda cubierto sin
+  // tener que repetir el filtro en cada `SELECT`.
+  const activos = movimientos.filter((m) => m.estado !== "anulado");
+  const cargos = activos
     .filter((m) => m.tipo === "cargo")
     .slice()
     .sort((a, b) => (a.fecha_vencimiento || a.fecha).localeCompare(b.fecha_vencimiento || b.fecha) || a.id - b.id);
-  const pagos = movimientos
+  const pagos = activos
     .filter((m) => m.tipo === "pago")
     .slice()
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
@@ -354,7 +375,7 @@ export async function datosMiCuenta(userId: number): Promise<MiCuentaData | null
   let socio: MiCuentaData["socio"] = null;
   if (socioRow) {
     const movimientos = await all<MovimientoCuentaSocio>(
-      `SELECT id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, comprobante_url
+      `SELECT id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, comprobante_url, estado
        FROM movimientos_cuenta_socio WHERE socio_id = ? ORDER BY fecha DESC, id DESC`,
       [socioRow.id]
     );
@@ -411,7 +432,7 @@ export async function resumenCuotasSocios() {
        ORDER BY s.nombre ASC`
     ),
     all<MovimientoCuentaSocio & { socio_id: number }>(
-      `SELECT id, socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id
+      `SELECT id, socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, estado
        FROM movimientos_cuenta_socio ORDER BY socio_id, fecha ASC, id ASC`
     ),
     all<{ id: number; socio_id: number; motivo: string; monto_cuota: number }>(

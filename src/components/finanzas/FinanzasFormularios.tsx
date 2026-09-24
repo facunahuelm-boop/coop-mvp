@@ -10,13 +10,12 @@ import {
   agregarCompromisoFormAction,
   registrarMovimientoFormAction,
   editarMovimientoFormAction,
-  eliminarMovimientoFormAction,
+  anularMovimientoFormAction,
 } from "@/lib/actions/finanzas";
 import { generarCuotaMensualFormAction } from "@/lib/actions/cuentaSocios";
 import { crearConvenioFormAction } from "@/lib/actions/convenios";
 import { ESTADO_INICIAL } from "@/lib/actionState";
-import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
-import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
+import { ActionForm, FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
 import { AddButton, AddButtonSummary, Button, Card, Label, inputClass } from "@/components/ui";
 
 export function AgregarCompromisoForm() {
@@ -188,16 +187,23 @@ export function EditarMovimientoForm({ movimiento: m }: { movimiento: Movimiento
   );
 }
 
-export function EliminarMovimientoBoton({ id, categoria }: { id: number; categoria: string }) {
+/**
+ * Sub-fase 4.4 (Eliminación segura de movimientos financieros): reemplaza el
+ * botón "Eliminar" (ConfirmarEliminar, borrado físico) por el mismo patrón
+ * "Anular" ya usado en /gastos (ActionForm + <details> plegado + motivo
+ * opcional) — un movimiento anulado queda visible en el historial (ver
+ * Badge en finanzas/page.tsx), no desaparece.
+ */
+export function AnularMovimientoBoton({ id, categoria }: { id: number; categoria: string }) {
   return (
-    <ConfirmarEliminar
-      action={eliminarMovimientoFormAction}
-      hiddenFields={{ id }}
-      titulo="¿Eliminar este movimiento?"
-      descripcion={`Se va a borrar el movimiento de "${categoria}". Esta acción no se puede deshacer.`}
-      textoBoton="Eliminar"
-      className="text-xs text-[var(--color-rojo)] underline underline-offset-2"
-    />
+    <details className="inline-block">
+      <summary className="cursor-pointer text-xs text-[var(--color-rojo)] underline underline-offset-2">Anular</summary>
+      <ActionForm action={anularMovimientoFormAction} className="mt-2 flex items-center gap-2">
+        <input type="hidden" name="id" value={id} />
+        <input name="motivo" placeholder={`Motivo (opcional) — se va a anular "${categoria}"`} className={inputClass + " text-xs w-64"} />
+        <button className="rounded-lg bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Confirmar anulación</button>
+      </ActionForm>
+    </details>
   );
 }
 

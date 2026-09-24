@@ -153,6 +153,21 @@ function buildInsert(table: string, data: Record<string, any>) {
 // dependa de que esa columna puntual llegue en este insert.
 const PG_COLUMNA_INEXISTENTE = "42703";
 
+/**
+ * Sub-fase 4.4 (Eliminación segura de movimientos financieros): mismo
+ * chequeo puntual que ya tenía su propia copia local en actions/
+ * recuperarPassword.ts (Sub-fase 4.3, `esColumnaInexistente`) — se centraliza
+ * acá para no sumar una tercera copia idéntica al agregarlo también en
+ * actions/finanzas.ts y actions/cuentaSocios.ts. Uso: un `SELECT` que
+ * menciona una columna nueva en su texto (a diferencia de insert/update de
+ * arriba, que ya tienen su propio reintento automático) necesita distinguir
+ * "todavía no corrió la migración" de cualquier otro error real, sin usar
+ * `any` para el catch.
+ */
+export function esColumnaInexistente(err: unknown): boolean {
+  return !!err && typeof err === "object" && (err as { code?: unknown }).code === PG_COLUMNA_INEXISTENTE;
+}
+
 function nombreColumnaFaltante(err: any): string | null {
   if (err?.code !== PG_COLUMNA_INEXISTENTE) return null;
   const m = /column "([^"]+)" of relation/.exec(String(err?.message || ""));

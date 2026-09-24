@@ -135,7 +135,11 @@ export async function generarReporteFinanzasAction(formData: FormData) {
       tipo: "tabla",
       encabezado: `Movimientos (últimos ${movimientos.length})`,
       columnas: ["Fecha", "Tipo", "Categoría", "Descripción", "Monto"],
-      filas: movimientos.slice(0, 50).map((m: any) => [dayjs(m.fecha).format("DD/MM/YYYY"), m.tipo === "ingreso" ? "Ingreso" : "Egreso", m.categoria || "—", m.descripcion || "—", money(m.monto)]),
+      // Sub-fase 4.4: un movimiento anulado (ver anularMovimientoAction) ya
+      // no cuenta en fin.ingresos/egresos/saldo de arriba, pero sigue
+      // listado acá para trazabilidad — marcado, para que el PDF no lo
+      // muestre como si fuera un movimiento real vigente.
+      filas: movimientos.slice(0, 50).map((m: any) => [dayjs(m.fecha).format("DD/MM/YYYY"), (m.tipo === "ingreso" ? "Ingreso" : "Egreso") + (m.estado === "anulado" ? " (anulado)" : ""), m.categoria || "—", m.descripcion || "—", money(m.monto)]),
     },
   ];
 
