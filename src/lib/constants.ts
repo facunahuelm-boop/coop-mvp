@@ -1,3 +1,5 @@
+import type { Module } from "@/lib/roles";
+
 export const CHECKLIST_BASE = [
   "Uso de casco en obra",
   "Vallado de zonas de riesgo (excavaciones, huecos)",
@@ -121,3 +123,36 @@ export const RELACION_INTEGRANTE_LABEL: Record<(typeof RELACION_INTEGRANTE)[numb
 };
 export const TIPO_INTEGRANTE = ["adulto", "menor"] as const;
 export const ESTADO_INTEGRANTE = ["activo", "inactivo"] as const;
+
+/**
+ * Fase 6, Sub-fase 6.2 ("Reportes", sección 31): metadata de los 6 tipos de
+ * reporte que gestiona el hub /reportes (src/app/(app)/reportes/page.tsx +
+ * src/lib/actions/reportes.ts). Vive acá y no en actions/reportes.ts porque
+ * un archivo "use server" solo puede exportar funciones async (mismo motivo
+ * que CATEGORIA_COMPRA_LABEL más arriba) — y se necesita como dato plano en
+ * 3 lugares que antes no compartían ninguna fuente de verdad: la propia
+ * página (para armar las tarjetas y para filtrar "Reportes recientes" por
+ * los módulos que la persona puede leer), la ruta de descarga
+ * /api/archivos/reporte/[id] (para decidir quién puede descargar según su
+ * permiso de MÓDULO en vez de "solo quien lo generó" — la Sub-fase 6.2
+ * cambia ese criterio a propósito, ver el comentario en esa ruta) y
+ * actions/reportes.ts. Los otros tipos que ya vivían en reportes_generados
+ * antes de esta sub-fase (informe_fiscal, libro_actas_<organo>,
+ * registro_socios) NO están acá a propósito: pertenecen a otras pantallas
+ * (Panel Fiscal, Libro de Actas) con su propia ruta de descarga y su propio
+ * criterio de acceso — no deben aparecer ni ser descargables desde este hub.
+ */
+export const REPORTES_HUB: { tipo: string; modulo: Module; nombre: string; descripcion: string; icon: string }[] = [
+  { tipo: "obra", modulo: "obra", nombre: "Reporte de Obra", descripcion: "Resumen mensual del avance de la obra, tareas completadas, problemas y cronograma", icon: "🏗️" },
+  { tipo: "finanzas", modulo: "finanzas", nombre: "Reporte Financiero", descripcion: "Estado de ingresos, egresos, presupuesto vs real y proyecciones", icon: "💰" },
+  { tipo: "trabajo", modulo: "trabajo", nombre: "Reporte de Jornadas", descripcion: "Asistencias, horas acumuladas por núcleo, distribución de tareas", icon: "🤝" },
+  { tipo: "compras", modulo: "compras", nombre: "Reporte de Compras", descripcion: "Gastos por comisión, solicitudes de compra y estado de proveedores", icon: "🛒" },
+  { tipo: "socios", modulo: "socios", nombre: "Reporte de Padrón de Socios", descripcion: "Núcleos, viviendas, estado de cada socio y lista de espera", icon: "🏘️" },
+  { tipo: "comisiones", modulo: "comisiones", nombre: "Reporte de Solicitudes y Decisiones", descripcion: "Solicitudes entre comisiones y decisiones tomadas, con su estado", icon: "📋" },
+];
+
+export type TipoReporteHub = (typeof REPORTES_HUB)[number]["tipo"];
+
+export function moduloDeReporteHub(tipo: string): Module | null {
+  return REPORTES_HUB.find((r) => r.tipo === tipo)?.modulo ?? null;
+}

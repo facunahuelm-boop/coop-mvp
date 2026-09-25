@@ -2,16 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { get } from "@/lib/db";
 import { getSignedUrl } from "@/lib/upload";
+import { canRead } from "@/lib/roles";
+import { moduloDeReporteHub } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
-// Fase 11 (Prompt Maestro), hallazgo H-SEC-2 de REQUIREMENTS.md: mismo
-// problema y misma solución que /api/archivos/documento/[id] (ver ese
-// archivo para el detalle completo), aplicado a los PDFs generados en
-// /reportes. La pantalla de Reportes ya solo lista los reportes que generó
-// el propio usuario (`WHERE creado_por_id = ?`) — acá se repite exactamente
-// esa misma regla de negocio en el backend antes de entregar el archivo, en
-// vez de confiar en que nadie arme a mano una URL de un reporte ajeno.
+// Fase 11 (Prompt Maestro), hallazgo H-SEC-2 de REQUIREMENTS.md: originalmente
+// esta ruta exigía `creado_por_id === user.id` (mismo criterio que
+// /api/archivos/documento/[id]) porque la pantalla de Reportes solo listaba
+// lo que había generado el propio usuario. Fase 6, Sub-fase 6.2 ("Reportes")
+// cambia ese criterio a propósito: un Reporte Financiero generado por
+// Tesorería debe poder descargarlo también Consejo Directivo, no solo quien
+// hizo click en "Generar PDF" — así que el gate pasa a ser "¿esta persona
+// tiene permiso de LECTURA del módulo de este tipo de reporte?" (mismo
+// canRead que ya decide qué tarjetas ve en /reportes), en vez de "¿lo generó
+// vos?". reportes_generados también guarda tipos de OTRAS pantallas
+// (informe_fiscal, libro_actas_<organo>, registro_socios, cada una con su
+// propia ruta y su propio criterio) — moduloDeReporteHub() devuelve null
+// para esos, y se deniega, para no abrir sin querer una puerta de acceso a
+// esos documentos desde acá.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
@@ -24,15 +33,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   // get() ya filtra por organization_id vía Row-Level Security — un id de
   // otra cooperativa no aparece acá.
-  const reporte = await get<{ id: number; archivo_url: string | null; creado_por_id: number | null }>(
-    `SELECT id, archivo_url, creado_por_id FROM reportes_generados WHERE id = ?`,
+  const reporte = await get<{ id: number; tipo: string; archivo_url: string | null }>(
+    `SELECT id, tipo, archivo_url FROM reportes_generados WHERE id = ?`,
     [idNum]
   );
   if (!reporte || !reporte.archivo_url) {
     return NextResponse.json({ error: "Ese reporte no existe o no tiene un archivo asociado." }, { status: 404 });
   }
-  if (reporte.creado_por_id !== user.id) {
-    return NextResponse.json({ error: "Este reporte no fue generado por vos." }, { status: 403 });
+
+  const modulo = moduloDeReporteHub(reporte.tipo);
+  if (!modulo || !canRead(user.rol, modulo)) {
+    return NextResponse.json({ error: "No tenés permiso para descargar este reporte." }, { status: 403 });
   }
 
   const signedUrl = await getSignedUrl(reporte.archivo_url, 120);
