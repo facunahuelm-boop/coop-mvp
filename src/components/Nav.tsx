@@ -49,6 +49,7 @@ import {
   UserPlus,
   Building2,
   LifeBuoy,
+  FileUp,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module; soloPlataforma?: boolean };
@@ -212,6 +213,11 @@ const GROUPS: NavGroup[] = [
       // (solo admin, más estricta que las otras dos) la hace la propia
       // página al entrar.
       { href: "/usuarios", label: "Gestión de usuarios", icon: <UserPlus size={ICON_SIZE} /> },
+      // Fase 6, Sub-fase 6.1 ("Migración de datos Excel/CSV", sección 30):
+      // mismo criterio que "Gestión de usuarios" de acá arriba — sin "mod"
+      // (visible a todos en el menú), la restricción real (solo admin) la
+      // hace la propia página al entrar.
+      { href: "/importar", label: "Importar datos", icon: <FileUp size={ICON_SIZE} /> },
       // Fase 5, Sub-fase 5.1 ("Administrador de plataforma", sección 20):
       // a diferencia de "Gestión de usuarios" de acá arriba (visible para
       // todos en el menú, la propia página redirige si no sos admin), este
