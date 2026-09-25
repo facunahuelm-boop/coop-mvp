@@ -1,8 +1,9 @@
 "use server";
 
 import { z } from "zod";
+import dayjs from "dayjs";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, run, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
+import { insert, update, get, all, run, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFecha, zFechaOpcional, zCheckbox } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
@@ -290,4 +291,64 @@ export async function eliminarNotaCalendarioAction(formData: FormData) {
 
 export async function eliminarNotaCalendarioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => eliminarNotaCalendarioAction(formData));
+}
+
+// Rediseño del Calendario, Etapa 3 (25/09, pedido explícito, punto 3:
+// "arrastrar y soltar para reprogramar"): mover una actividad arrastrándola a
+// otro día. Es una acción aparte de `editarNotaCalendarioAction` (no una
+// reutilización de ese formulario completo) porque el significado de "esta y
+// las siguientes"/"todas" es distinto acá: al EDITAR, esas dos opciones
+// dejan la fecha de cada fila intacta a propósito (dos actividades de la
+// misma serie no pueden compartir fecha sin sentido); al MOVER por
+// arrastre, la intención real de la persona es correr la serie el mismo
+// número de días que corrió la ocurrencia que soltó — mismo criterio que ya
+// usan Google Calendar/Outlook para este gesto — así que cada fila afectada
+// se corre por el mismo delta, no se pisa con la fecha nueva literal.
+const moverSchema = z.object({ id: zId, nueva_fecha: zFecha, alcance_serie: alcanceSchema });
+
+export async function moverNotaCalendarioAction(formData: FormData) {
+  const user = await requireUser();
+  const { id, nueva_fecha, alcance_serie } = parseForm(moverSchema, formData);
+  try {
+    const nota = await get<{ autor_id: number; serie_id: number | null; fecha: string }>(
+      `SELECT autor_id, serie_id, fecha FROM notas_calendario WHERE id = ?`,
+      [id]
+    );
+    if (!nota) throw new Error("Esa actividad ya no existe — puede que alguien ya la haya borrado.");
+    if (!puedeModificar(user, nota.autor_id)) throw new Error("No podés mover una actividad que no creaste vos.");
+
+    if (nota.fecha === nueva_fecha) return; // soltada en el mismo día: nada que hacer
+
+    if (!nota.serie_id || alcance_serie === ("solo" as AlcanceSerie)) {
+      await update("notas_calendario", id, { fecha: nueva_fecha });
+    } else {
+      const deltaDias = dayjs(nueva_fecha).diff(dayjs(nota.fecha), "day");
+      const filas = await all<{ id: number; fecha: string }>(
+        alcance_serie === ("siguientes" as AlcanceSerie)
+          ? `SELECT id, fecha FROM notas_calendario WHERE serie_id = ? AND fecha >= ?`
+          : `SELECT id, fecha FROM notas_calendario WHERE serie_id = ?`,
+        alcance_serie === ("siguientes" as AlcanceSerie) ? [nota.serie_id, nota.fecha] : [nota.serie_id]
+      );
+      // Sin helper de update masivo en este proyecto (mismo criterio que el
+      // insert por serie de crearNotaCalendarioAction) — acotado por el mismo
+      // tope MAX_OCURRENCIAS_SERIE aplicado al crear la serie.
+      for (const fila of filas) {
+        const fechaCorrida = dayjs(fila.fecha).add(deltaDias, "day").format("YYYY-MM-DD");
+        await update("notas_calendario", fila.id, { fecha: fechaCorrida });
+      }
+    }
+  } catch (err) {
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
+      usuario_id: user.id,
+      accion: "mover",
+      entidad: "notas_calendario",
+      entidad_id: id,
+    });
+  }
+  revalidatePath("/calendario");
+  revalidatePath("/dashboard");
+}
+
+export async function moverNotaCalendarioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => moverNotaCalendarioAction(formData));
 }

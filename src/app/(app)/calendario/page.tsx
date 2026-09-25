@@ -9,6 +9,7 @@ import {
   crearNotaCalendarioFormAction,
   editarNotaCalendarioFormAction,
   eliminarNotaCalendarioFormAction,
+  moverNotaCalendarioFormAction,
 } from "@/lib/actions/calendarioNotas";
 import dayjs from "dayjs";
 import Link from "next/link";
@@ -209,6 +210,7 @@ export default async function CalendarioPage() {
           crearNota={crearNotaCalendarioFormAction}
           editarNota={editarNotaCalendarioFormAction}
           eliminarNota={eliminarNotaCalendarioFormAction}
+          moverNota={moverNotaCalendarioFormAction}
         />
       </Card>
 

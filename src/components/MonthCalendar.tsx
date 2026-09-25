@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, type CSSProperties } from "react";
+import { useActionState, useEffect, useState, type CSSProperties, type DragEvent } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import dayjs, { Dayjs } from "dayjs";
@@ -122,13 +122,17 @@ type ItemDia = {
   nota?: NotaCalendario; // sólo actividades propias
 };
 
-/** Estado de los 3 modales posibles — mutuamente excluyentes, un solo
+/** Estado de los modales posibles — mutuamente excluyentes, un solo
  * `useState` en vez de la pareja `notaEditandoId`/`mostrarForm` que había
- * antes (ambos representaban en el fondo "qué modal está abierto"). */
+ * antes (ambos representaban en el fondo "qué modal está abierto").
+ * Rediseño del Calendario, Etapa 3 (25/09): se suma "mover", el modal chico
+ * de confirmación que aparece al soltar una actividad arrastrada a otro día
+ * (ver `ActividadMoverConfirm` más abajo). */
 type ModalEstado =
   | { tipo: "crear"; fecha: string }
   | { tipo: "editar"; nota: NotaCalendario }
   | { tipo: "resumen"; nota: NotaCalendario }
+  | { tipo: "mover"; nota: NotaCalendario; fechaDestino: string }
   | null;
 
 function fondoSuave(colorVar: string, bgVar: string): CSSProperties {
@@ -166,7 +170,7 @@ function LeyendaCategorias() {
 // compartido de ui.tsx es más grande, pensado para pantallas completas, no
 // para un modal chico). useFormStatus lee el <form> padre — por eso este
 // botón tiene que ser su propio componente, separado del formulario.
-function BotonGuardarActividad({ esEdicion }: { esEdicion: boolean }) {
+function BotonGuardarActividad({ esEdicion, label }: { esEdicion: boolean; label?: string }) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -175,7 +179,7 @@ function BotonGuardarActividad({ esEdicion }: { esEdicion: boolean }) {
       className="inline-flex items-center gap-1.5 rounded-lg border-2 border-[var(--color-verde)] text-[var(--color-verde)] bg-transparent hover:bg-[var(--color-verde-bg)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50 transition-colors"
     >
       {!pending && <Plus size={13} aria-hidden />}
-      {pending ? "Guardando…" : esEdicion ? "Guardar cambios" : "Guardar actividad"}
+      {pending ? "Guardando…" : label ?? (esEdicion ? "Guardar cambios" : "Guardar actividad")}
     </button>
   );
 }
@@ -546,6 +550,81 @@ function ActividadResumen({
   );
 }
 
+// Rediseño del Calendario, Etapa 3 (25/09, pedido explícito, punto 3):
+// modal chico de confirmación al soltar una actividad arrastrada a otro día
+// — decisión confirmada con el usuario: nunca se guarda directo al soltar
+// (evita mover algo por error), y si la actividad es parte de una serie se
+// pregunta el alcance (mismas 3 opciones que editar/eliminar), con una
+// aclaración propia porque acá "esta y las siguientes"/"todas" significa
+// correr esas fechas el mismo número de días, no pisarlas con la nueva.
+function ActividadMoverConfirm({
+  nota,
+  fechaDestino,
+  moverNota,
+  onMovido,
+  onCancelar,
+}: {
+  nota: NotaCalendario;
+  fechaDestino: string;
+  moverNota: AccionNota;
+  onMovido: () => void;
+  onCancelar: () => void;
+}) {
+  const [estado, formAction] = useActionState(moverNota, ESTADO_INICIAL);
+  const [alcance, setAlcance] = useState<AlcanceSerie>("solo");
+
+  useEffect(() => {
+    if (estado.ok) onMovido();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form action={formAction} className="space-y-3">
+      <input type="hidden" name="id" value={nota.id} />
+      <input type="hidden" name="nueva_fecha" value={fechaDestino} />
+      {nota.serieId && <input type="hidden" name="alcance_serie" value={alcance} />}
+
+      <p className="text-sm text-ink">
+        ¿Mover <span className="font-semibold">{nota.titulo}</span> del{" "}
+        {dayjs(nota.fecha).format("D [de] MMMM")} al {dayjs(fechaDestino).format("D [de] MMMM")}?
+      </p>
+
+      {nota.serieId && (
+        <div className="border-t border-border pt-2.5">
+          <Label>
+            <span className="inline-flex items-center gap-1.5">
+              <Repeat size={12} aria-hidden /> Esta actividad es parte de una serie — ¿qué se mueve?
+            </span>
+          </Label>
+          <div className="flex flex-col gap-1 mt-1">
+            {ALCANCES_SERIE.map((a) => (
+              <label key={a} className="flex items-center gap-1.5 text-xs text-ink-muted cursor-pointer">
+                <input type="radio" checked={alcance === a} onChange={() => setAlcance(a)} className="rounded-full border-ink/20" />
+                {ALCANCE_SERIE_LABEL[a]}
+              </label>
+            ))}
+          </div>
+          {alcance !== "solo" && (
+            <p className="text-[11px] text-ink-faint mt-1.5">
+              Se van a correr {alcance === "siguientes" ? "esta ocurrencia y las siguientes" : "todas las ocurrencias de la serie"} la
+              misma cantidad de días que se corrió esta — cada una mantiene su propia fecha, no pasan todas al {dayjs(fechaDestino).format("D [de] MMMM")}.
+            </p>
+          )}
+        </div>
+      )}
+
+      {!estado.ok && <FormError message={estado.error} />}
+
+      <div className="flex items-center justify-end gap-3 pt-1">
+        <button type="button" onClick={onCancelar} className="text-xs text-ink-faint underline underline-offset-2">
+          Cancelar
+        </button>
+        <BotonGuardarActividad esEdicion label="Mover" />
+      </div>
+    </form>
+  );
+}
+
 export function MonthCalendar({
   eventos,
   notas = [],
@@ -556,6 +635,7 @@ export function MonthCalendar({
   crearNota,
   editarNota,
   eliminarNota,
+  moverNota,
 }: {
   eventos: EventoCalendario[];
   notas?: NotaCalendario[];
@@ -571,12 +651,34 @@ export function MonthCalendar({
   crearNota?: AccionNota;
   editarNota?: AccionNota;
   eliminarNota?: AccionNota;
+  /** Rediseño del Calendario, Etapa 3 (25/09): arrastrar una actividad a otro
+   * día para reprogramarla — sólo disponible en la grilla de mes completa
+   * (no en la versión compacta del Dashboard ni en la vista agenda mobile,
+   * donde arrastrar con el dedo no es un gesto confiable sin una librería
+   * aparte). Si no se pasa, el calendario funciona igual que antes, sin
+   * arrastrar. */
+  moverNota?: AccionNota;
 }) {
   const hoy = dayjs();
   const [mes, setMes] = useState(() => hoy.startOf("month"));
   const [seleccionado, setSeleccionado] = useState<string | null>(() => isoDate(hoy));
   const [modal, setModal] = useState<ModalEstado>(null);
   const puedeEscribir = !!(crearNota && editarNota && eliminarNota);
+  // Arrastrar y soltar (Etapa 3): `diaResaltado` es sólo feedback visual del
+  // día debajo del cursor mientras se arrastra; el id real de la actividad
+  // arrastrada viaja en el propio evento nativo (`dataTransfer`), no hace
+  // falta guardarlo en estado de React.
+  const [diaResaltado, setDiaResaltado] = useState<string | null>(null);
+  const notasPorId = new Map(notas.map((n) => [String(n.id), n]));
+
+  function soltarEnDia(e: DragEvent, key: string) {
+    e.preventDefault();
+    setDiaResaltado(null);
+    if (!moverNota) return;
+    const nota = notasPorId.get(e.dataTransfer.getData("text/plain"));
+    if (!nota || nota.fecha === key) return; // soltada en el mismo día donde ya estaba: nada que hacer
+    setModal({ tipo: "mover", nota, fechaDestino: key });
+  }
 
   const eventosPorDia = new Map<string, EventoCalendario[]>();
   for (const e of eventos) {
@@ -762,6 +864,14 @@ export function MonthCalendar({
           />
         )}
       </Modal>
+
+      {moverNota && (
+        <Modal open={modal?.tipo === "mover"} onClose={cerrarModal} title="Mover actividad" size="md">
+          {modal && modal.tipo === "mover" && (
+            <ActividadMoverConfirm nota={modal.nota} fechaDestino={modal.fechaDestino} moverNota={moverNota} onMovido={cerrarModal} onCancelar={cerrarModal} />
+          )}
+        </Modal>
+      )}
     </>
   );
 
@@ -895,12 +1005,22 @@ export function MonthCalendar({
             const restantes = items.length - visibles.length;
             const esHoy = key === isoDate(hoy);
             const esSeleccionado = key === seleccionado;
+            const esDestinoArrastre = diaResaltado === key;
             return (
               <div
                 key={i}
                 onDoubleClick={() => dobleClickDia(key)}
+                onDragOver={(e) => {
+                  if (!moverNota) return;
+                  e.preventDefault(); // sin esto el navegador no permite soltar acá
+                }}
+                onDragEnter={() => moverNota && setDiaResaltado(key)}
+                onDragLeave={() => setDiaResaltado((actual) => (actual === key ? null : actual))}
+                onDrop={(e) => soltarEnDia(e, key)}
                 className={`rounded-lg border transition-colors min-h-[76px] p-1 flex flex-col gap-0.5 ${
-                  esSeleccionado
+                  esDestinoArrastre
+                    ? "border-[var(--color-verde)] bg-[var(--color-verde-bg)]"
+                    : esSeleccionado
                     ? "border-[var(--color-brand-800)] bg-brand-50"
                     : "border-border hover:border-ink/20 hover:bg-surface-sunken"
                 }`}
@@ -934,6 +1054,12 @@ export function MonthCalendar({
                       <button
                         key={it.key}
                         type="button"
+                        draggable={!!moverNota && it.nota!.esPropia}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", String(it.nota!.id));
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragEnd={() => setDiaResaltado(null)}
                         onClick={(e) => {
                           e.stopPropagation();
                           abrirResumen(it.nota!);
@@ -942,7 +1068,8 @@ export function MonthCalendar({
                           e.stopPropagation();
                           abrirEditar(it.nota!);
                         }}
-                        className="text-left"
+                        className={`text-left ${moverNota && it.nota!.esPropia ? "cursor-grab active:cursor-grabbing" : ""}`}
+                        title={moverNota && it.nota!.esPropia ? "Arrastrá para cambiarla de día" : undefined}
                       >
                         {contenido}
                       </button>
