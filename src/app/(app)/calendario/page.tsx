@@ -101,11 +101,13 @@ export default async function CalendarioPage() {
   // evita que la pantalla entera se rompa por eso; el resto del calendario
   // sigue andando.
   const notasRaw = await all<any>(
-    `SELECT n.*, u.nombre as autor_nombre, r.nombre as responsable_nombre, c.nombre as comision_nombre
+    `SELECT n.*, u.nombre as autor_nombre, r.nombre as responsable_nombre, c.nombre as comision_nombre,
+            s.frecuencia as serie_frecuencia, s.fecha_fin as serie_fecha_fin
      FROM notas_calendario n
      LEFT JOIN users u ON u.id = n.autor_id
      LEFT JOIN users r ON r.id = n.responsable_id
      LEFT JOIN comisiones c ON c.id = n.comision_id
+     LEFT JOIN series_calendario s ON s.id = n.serie_id
      WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
     [desde]
   ).catch(() => [] as any[]);
@@ -126,6 +128,14 @@ export default async function CalendarioPage() {
     recordatorio: n.recordatorio ?? null,
     autorNombre: n.autor_nombre || "—",
     esPropia: n.autor_id === user.id || user.rol === "admin" || user.rol === "consejo_directivo",
+    // Rediseño del Calendario, Etapa 2 (25/09): serie_id puede no existir
+    // todavía si la migración 0043 no corrió — el `.catch(() => [])` de arriba
+    // ya cubre esa columna faltando de la consulta entera (rompería el SELECT
+    // n.* con serie_id ausente sólo si se la nombrara explícita, no es el
+    // caso), así que acá alcanza con el `?? null` de siempre.
+    serieId: n.serie_id ?? null,
+    serieFrecuencia: n.serie_frecuencia ?? null,
+    serieFechaFin: n.serie_fecha_fin ?? null,
   }));
 
   const eventos: Evento[] = [

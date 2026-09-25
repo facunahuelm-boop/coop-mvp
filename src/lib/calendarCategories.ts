@@ -11,6 +11,7 @@
  * se inventó ninguno nuevo, para no romper la paleta coherente del sistema
  * ("colores suaves y elegantes, no fluorescentes" — pedido explícito).
  */
+import dayjs from "dayjs";
 
 /**
  * Rediseño del Calendario, Etapa 1 (25/09, pedido explícito): se agregan 6
@@ -301,3 +302,72 @@ export const RECORDATORIO_LABEL: Record<RecordatorioOpcion, string> = {
   "1hora": "1 hora antes",
   "1dia": "1 día antes",
 };
+
+/**
+ * Rediseño del Calendario, Etapa 2 (25/09, pedido explícito, punto 12):
+ * frecuencias de repetición — sólo presets simples (decisión confirmada con
+ * el usuario: nada de intervalos personalizados ni días de semana
+ * específicos, para que sea fácil de entender). "no_repite" es el default de
+ * cualquier actividad nueva y NO se guarda en la base — ver
+ * calendarioNotas.ts, es sólo el valor del <select> que significa "no crear
+ * ninguna serie".
+ */
+export const FRECUENCIAS_RECURRENCIA = ["diaria", "semanal", "mensual", "anual"] as const;
+export type FrecuenciaRecurrencia = (typeof FRECUENCIAS_RECURRENCIA)[number];
+export const FRECUENCIA_RECURRENCIA_LABEL: Record<FrecuenciaRecurrencia, string> = {
+  diaria: "Todos los días",
+  semanal: "Todas las semanas",
+  mensual: "Todos los meses",
+  anual: "Todos los años",
+};
+
+/** Tope de ocurrencias que se generan de una sola vez al crear una serie —
+ * protege tanto el tiempo de respuesta (cada ocurrencia es un INSERT
+ * separado, ver crearNotaCalendarioAction) como la base de no llenarse de
+ * filas por un rango absurdamente largo (ej: "todos los días" durante 10
+ * años). Alcanza sobrado para los casos reales de una cooperativa (una
+ * reunión semanal durante 4 años, un pago mensual durante más de 16 años,
+ * etc.) — si alguien realmente necesita más, puede volver a crear la serie
+ * una vez llegado el límite.
+ */
+export const MAX_OCURRENCIAS_SERIE = 200;
+
+/** Alcance elegido al editar/borrar una actividad que pertenece a una serie
+ * (punto confirmado: estilo Google Calendar, 3 opciones). "solo" es el
+ * default — la operación menos sorpresiva cuando no se elige nada. */
+export const ALCANCES_SERIE = ["solo", "siguientes", "todas"] as const;
+export type AlcanceSerie = (typeof ALCANCES_SERIE)[number];
+export const ALCANCE_SERIE_LABEL: Record<AlcanceSerie, string> = {
+  solo: "Solo esta actividad",
+  siguientes: "Esta y las siguientes",
+  todas: "Todas las actividades de la serie",
+};
+
+/** Calcula las fechas (YYYY-MM-DD) de cada ocurrencia de una serie, desde
+ * `desde` hasta `hasta` inclusive, según la frecuencia elegida. Usa dayjs
+ * (ya es dependencia del proyecto, ver page.tsx de /calendario) en vez de
+ * sumar días a mano para no reinventar el manejo de meses de distinta
+ * duración/años bisiestos. Devuelve como mínimo `[desde]` — la primera fecha
+ * siempre es una ocurrencia de la serie, incluso si `hasta` quedara antes por
+ * error de carga (la validación de que hasta >= desde se hace aparte, en la
+ * Server Action).
+ *
+ * Nota: NO aplica acá el tope de MAX_OCURRENCIAS_SERIE — eso se valida aparte
+ * en la Server Action (crearNotaCalendarioAction), donde si se supera se
+ * rechaza con un mensaje claro pidiendo una fecha "hasta" más cercana, en vez
+ * de truncar en silencio la serie que la persona pidió. El único límite acá
+ * es una cota de seguridad bien por encima de cualquier caso real, para que
+ * un error de datos (ej. `hasta` mal calculada) no cuelgue el servidor en un
+ * loop larguísimo. */
+export function fechasDeSerie(desde: string, hasta: string, frecuencia: FrecuenciaRecurrencia): string[] {
+  const COTA_DE_SEGURIDAD = 5000;
+  const unidad = frecuencia === "diaria" ? "day" : frecuencia === "semanal" ? "week" : frecuencia === "mensual" ? "month" : "year";
+  const fechas: string[] = [];
+  let actual = dayjs(desde);
+  const limite = dayjs(hasta);
+  while (!actual.isAfter(limite) && fechas.length < COTA_DE_SEGURIDAD) {
+    fechas.push(actual.format("YYYY-MM-DD"));
+    actual = actual.add(1, unidad);
+  }
+  return fechas;
+}

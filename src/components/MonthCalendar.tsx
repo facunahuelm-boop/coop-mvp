@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState, type CSSProperties } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import dayjs, { Dayjs } from "dayjs";
-import { ChevronLeft, ChevronRight, Pencil, Trash2, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Trash2, Plus, Repeat } from "lucide-react";
 import { ESTADO_INICIAL, type ActionState } from "@/lib/actionState";
 import { FieldError, FormError, useToast, Modal } from "./ui-client";
 import { AddButton, Label, inputClass } from "./ui";
@@ -19,12 +19,17 @@ import {
   CATEGORIA_EVENTO_NOMBRE,
   CATEGORIA_EVENTO_COLOR_VAR,
   CATEGORIA_EVENTO_COLOR_BG_VAR,
+  FRECUENCIAS_RECURRENCIA,
+  FRECUENCIA_RECURRENCIA_LABEL,
+  ALCANCES_SERIE,
+  ALCANCE_SERIE_LABEL,
   categoriaDeTipoEvento,
   categoriaDeNota,
   nombreCategoriaActividad,
   colorVarDeActividad,
   colorBgVarDeActividad,
   type CategoriaEvento,
+  type AlcanceSerie,
 } from "@/lib/calendarCategories";
 
 // Calendario visual, compartido entre /calendario (vista completa, con
@@ -83,6 +88,15 @@ export type NotaCalendario = {
   recordatorio: string | null;
   autorNombre: string;
   esPropia: boolean; // si la persona que mira puede editarla/borrarla
+  // Rediseño del Calendario, Etapa 2 (25/09): si esta actividad es una
+  // ocurrencia de una serie repetida, `serieId` no es null. `serieFrecuencia`/
+  // `serieFechaFin` sólo se usan para mostrarlo en el resumen ("Se repite:
+  // todas las semanas, hasta el ...") — la lógica de edición/borrado con
+  // alcance ("solo esta"/"esta y las siguientes"/"todas") sólo necesita
+  // `serieId`, se resuelve del lado del servidor (ver calendarioNotas.ts).
+  serieId: number | null;
+  serieFrecuencia: string | null;
+  serieFechaFin: string | null;
 };
 
 type Opcion = { id: number; nombre: string };
@@ -196,6 +210,17 @@ function ActividadFormulario({
   const [estado, formAction] = useActionState(notaEnEdicion ? editarNota : crearNota, ESTADO_INICIAL);
   const [categoria, setCategoria] = useState<CategoriaEvento | "">(categoriaDeNota(notaEnEdicion?.color ?? null) ?? "");
   const [todoElDia, setTodoElDia] = useState(notaEnEdicion?.todoElDia ?? false);
+  // Rediseño del Calendario, Etapa 2 (25/09): "Repetir" sólo tiene sentido al
+  // CREAR una actividad nueva (armar una serie desde cero) — editar la regla
+  // de repetición de una serie ya existente queda fuera de esta etapa (ver
+  // migrations/0043_recurrencia_calendario.sql). "no_repite" es el default:
+  // no cambia nada del comportamiento de la Etapa 1 si nadie toca el select.
+  const [frecuencia, setFrecuencia] = useState<"no_repite" | (typeof FRECUENCIAS_RECURRENCIA)[number]>("no_repite");
+  // Alcance del cambio cuando se EDITA una actividad que ya pertenece a una
+  // serie (punto confirmado: 3 opciones estilo Google Calendar). "solo" es el
+  // default — la fecha sólo se puede tocar con ese alcance (ver más abajo).
+  const [alcance, setAlcance] = useState<AlcanceSerie>("solo");
+  const esParteDeSerie = !!notaEnEdicion?.serieId;
 
   useEffect(() => {
     if (estado.ok) onGuardado();
@@ -224,7 +249,14 @@ function ActividadFormulario({
       <div className="grid grid-cols-2 gap-2.5">
         <div>
           <Label>Fecha</Label>
-          <input name="fecha" type="date" required defaultValue={notaEnEdicion?.fecha ?? fecha} className={inputClass} />
+          <input
+            name="fecha"
+            type="date"
+            required
+            disabled={esParteDeSerie && alcance !== "solo"}
+            defaultValue={notaEnEdicion?.fecha ?? fecha}
+            className={`${inputClass} ${esParteDeSerie && alcance !== "solo" ? "opacity-40" : ""}`}
+          />
           <FieldError message={estado.fieldErrors?.fecha} />
         </div>
         <div>
@@ -244,6 +276,36 @@ function ActividadFormulario({
           </select>
         </div>
       </div>
+
+      {/* "Repetir" (punto 12 del pedido, Etapa 2): sólo al crear — ver el
+          comentario del estado `frecuencia` más arriba. */}
+      {!notaEnEdicion && (
+        <div className="grid grid-cols-2 gap-2.5">
+          <div>
+            <Label>Repetir</Label>
+            <select
+              name="frecuencia"
+              value={frecuencia}
+              onChange={(e) => setFrecuencia(e.target.value as typeof frecuencia)}
+              className={inputClass}
+            >
+              <option value="no_repite">No se repite</option>
+              {FRECUENCIAS_RECURRENCIA.map((f) => (
+                <option key={f} value={f}>
+                  {FRECUENCIA_RECURRENCIA_LABEL[f]}
+                </option>
+              ))}
+            </select>
+          </div>
+          {frecuencia !== "no_repite" && (
+            <div>
+              <Label>Repetir hasta</Label>
+              <input name="fecha_fin_serie" type="date" required min={fecha} className={inputClass} />
+              <FieldError message={estado.fieldErrors?.fecha_fin_serie} />
+            </div>
+          )}
+        </div>
+      )}
 
       {categoria === "personalizada" && (
         <div>
@@ -337,6 +399,33 @@ function ActividadFormulario({
         </select>
       </div>
 
+      {/* Alcance del cambio (punto confirmado, Etapa 2): sólo aparece al
+          editar una actividad que ya es parte de una serie — una actividad
+          suelta no tiene nada que elegir acá (siempre es "solo esta"). */}
+      {esParteDeSerie && (
+        <div className="border-t border-border pt-2.5">
+          <input type="hidden" name="alcance_serie" value={alcance} />
+          <Label>
+            <span className="inline-flex items-center gap-1.5">
+              <Repeat size={12} aria-hidden /> Este cambio se aplica a
+            </span>
+          </Label>
+          <div className="flex flex-col gap-1 mt-1">
+            {ALCANCES_SERIE.map((a) => (
+              <label key={a} className="flex items-center gap-1.5 text-xs text-ink-muted cursor-pointer">
+                <input
+                  type="radio"
+                  checked={alcance === a}
+                  onChange={() => setAlcance(a)}
+                  className="rounded-full border-ink/20"
+                />
+                {ALCANCE_SERIE_LABEL[a]}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!estado.ok && <FormError message={estado.error} />}
 
       <div className="flex items-center justify-end gap-3 pt-1">
@@ -370,6 +459,10 @@ function ActividadResumen({
   const colorVar = colorVarDeActividad(categoria, nota.colorPersonalizado);
   const [estado, formAction] = useActionState(eliminarNota, ESTADO_INICIAL);
   const { show } = useToast();
+  // Rediseño del Calendario, Etapa 2 (25/09): al borrar una actividad de una
+  // serie, mismo alcance de 3 opciones que al editar — "solo" es el default
+  // (la operación menos sorpresiva si alguien aprieta Eliminar sin pensarlo).
+  const [alcance, setAlcance] = useState<AlcanceSerie>("solo");
 
   useEffect(() => {
     if (estado.ok) onCerrar();
@@ -395,23 +488,51 @@ function ActividadResumen({
         <p className="pt-2">Responsable: {nota.responsableNombre ?? "Sin asignar"}</p>
         <p className="pt-2">Comisión: {nota.comisionNombre ?? "Ninguna"}</p>
         {nota.ubicacion && <p className="col-span-2">Ubicación: {nota.ubicacion}</p>}
+        {nota.serieId && (
+          <p className="col-span-2 inline-flex items-center gap-1.5">
+            <Repeat size={11} aria-hidden />
+            Se repite {nota.serieFrecuencia ? FRECUENCIA_RECURRENCIA_LABEL[nota.serieFrecuencia as keyof typeof FRECUENCIA_RECURRENCIA_LABEL]?.toLowerCase() : ""}
+            {nota.serieFechaFin ? ` hasta el ${dayjs(nota.serieFechaFin).format("D [de] MMMM YYYY")}` : ""}
+          </p>
+        )}
       </div>
 
       {nota.esPropia && (
-        <div className="flex items-center justify-end gap-4 pt-2 border-t border-border">
-          <form action={formAction}>
-            <input type="hidden" name="id" value={nota.id} />
-            <button type="submit" className="inline-flex items-center gap-1 text-xs text-[var(--color-rojo)] hover:underline underline-offset-2">
-              <Trash2 size={12} /> Eliminar
+        <div className="pt-2 border-t border-border space-y-2">
+          {nota.serieId && (
+            <div>
+              <Label>Alcance de &quot;Eliminar&quot;</Label>
+              <div className="flex flex-col gap-1 mt-1">
+                {ALCANCES_SERIE.map((a) => (
+                  <label key={a} className="flex items-center gap-1.5 text-xs text-ink-muted cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={alcance === a}
+                      onChange={() => setAlcance(a)}
+                      className="rounded-full border-ink/20"
+                    />
+                    {ALCANCE_SERIE_LABEL[a]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-4">
+            <form action={formAction}>
+              <input type="hidden" name="id" value={nota.id} />
+              {nota.serieId && <input type="hidden" name="alcance_serie" value={alcance} />}
+              <button type="submit" className="inline-flex items-center gap-1 text-xs text-[var(--color-rojo)] hover:underline underline-offset-2">
+                <Trash2 size={12} /> Eliminar
+              </button>
+            </form>
+            <button
+              type="button"
+              onClick={onEditar}
+              className="inline-flex items-center gap-1.5 rounded-lg border-2 border-[var(--color-verde)] text-[var(--color-verde)] hover:bg-[var(--color-verde-bg)] px-3 py-1.5 text-xs font-semibold"
+            >
+              <Pencil size={12} /> Editar
             </button>
-          </form>
-          <button
-            type="button"
-            onClick={onEditar}
-            className="inline-flex items-center gap-1.5 rounded-lg border-2 border-[var(--color-verde)] text-[var(--color-verde)] hover:bg-[var(--color-verde-bg)] px-3 py-1.5 text-xs font-semibold"
-          >
-            <Pencil size={12} /> Editar
-          </button>
+          </div>
         </div>
       )}
     </div>

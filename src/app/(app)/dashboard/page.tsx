@@ -223,11 +223,13 @@ export default async function DashboardPage() {
     // el resto de la pantalla sigue andando, solo sin notas hasta que se
     // corra la migración.
     all<any>(
-      `SELECT n.*, u.nombre as autor_nombre, r.nombre as responsable_nombre, c.nombre as comision_nombre
+      `SELECT n.*, u.nombre as autor_nombre, r.nombre as responsable_nombre, c.nombre as comision_nombre,
+              s.frecuencia as serie_frecuencia, s.fecha_fin as serie_fecha_fin
        FROM notas_calendario n
        LEFT JOIN users u ON u.id = n.autor_id
        LEFT JOIN users r ON r.id = n.responsable_id
        LEFT JOIN comisiones c ON c.id = n.comision_id
+       LEFT JOIN series_calendario s ON s.id = n.serie_id
        WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
       [desdeMes]
     ).catch(() => [] as any[]),
@@ -489,6 +491,9 @@ export default async function DashboardPage() {
     recordatorio: n.recordatorio ?? null,
     autorNombre: n.autor_nombre || "—",
     esPropia: n.autor_id === user.id || user.rol === "admin" || user.rol === "consejo_directivo",
+    serieId: n.serie_id ?? null,
+    serieFrecuencia: n.serie_frecuencia ?? null,
+    serieFechaFin: n.serie_fecha_fin ?? null,
   }));
 
   // Tarjeta compacta de Calendario: cuenta + próximo evento entre lo que ya
