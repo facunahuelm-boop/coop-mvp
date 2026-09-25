@@ -70,7 +70,7 @@ export default async function CalendarioPage() {
   // grilla visual del mes actual no le falten los días que ya pasaron.
   const desde = dayjs().startOf("month").format("YYYY-MM-DD");
 
-  const [reuniones, jornadas, hitosObra, pagos, docsSeguridad] = await Promise.all([
+  const [reuniones, jornadas, hitosObra, pagos, docsSeguridad, comisionesLista, usuariosLista] = await Promise.all([
     verComisiones
       ? all<any>(`SELECT * FROM reuniones WHERE estado='planificada' AND fecha >= ? ORDER BY fecha ASC LIMIT 40`, [desde])
       : Promise.resolve([] as any[]),
@@ -86,24 +86,44 @@ export default async function CalendarioPage() {
     verSeguridad
       ? all<any>(`SELECT * FROM documentos_seguridad WHERE fecha_vencimiento IS NOT NULL AND fecha_vencimiento >= ? ORDER BY fecha_vencimiento ASC LIMIT 40`, [desde])
       : Promise.resolve([] as any[]),
+    // Rediseño del Calendario, Etapa 1 (25/09): listas para los selects de
+    // "Responsable"/"Comisión" del formulario de actividad — mismo patrón ya
+    // usado en /solicitudes, /reuniones, /comunicaciones, etc.
+    all<{ id: number; nombre: string }>(`SELECT id, nombre FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`).catch(() => []),
+    all<{ id: number; nombre: string }>(`SELECT id, nombre FROM users WHERE activo = 1 ORDER BY nombre ASC`).catch(() => []),
   ]);
 
-  // Notas de calendario personalizadas (texto libre, cualquiera puede
-  // escribir una) — se guardan aparte de los eventos de cada módulo, ver
-  // migrations/0015_notas_calendario.sql. Si esa migración todavía no se
-  // corrió, la tabla no existe todavía — el catch evita que la pantalla
-  // entera se rompa por eso; el resto del calendario sigue andando.
+  // Actividades de calendario (antes "notas de calendario", texto libre
+  // nada más — ver el comentario grande en lib/actions/calendarioNotas.ts
+  // sobre el rediseño de Etapa 1) — se guardan aparte de los eventos de cada
+  // módulo, ver migrations/0015_notas_calendario.sql + 0042 (Etapa 1). Si esa
+  // migración todavía no se corrió, la tabla no existe todavía — el catch
+  // evita que la pantalla entera se rompa por eso; el resto del calendario
+  // sigue andando.
   const notasRaw = await all<any>(
-    `SELECT n.*, u.nombre as autor_nombre FROM notas_calendario n LEFT JOIN users u ON u.id = n.autor_id WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
+    `SELECT n.*, u.nombre as autor_nombre, r.nombre as responsable_nombre, c.nombre as comision_nombre
+     FROM notas_calendario n
+     LEFT JOIN users u ON u.id = n.autor_id
+     LEFT JOIN users r ON r.id = n.responsable_id
+     LEFT JOIN comisiones c ON c.id = n.comision_id
+     WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
     [desde]
   ).catch(() => [] as any[]);
   const notas: NotaCalendario[] = notasRaw.map((n: any) => ({
     id: n.id,
     fecha: n.fecha,
     hora: n.hora,
+    todoElDia: !!n.todo_el_dia,
     titulo: n.titulo,
     color: n.color,
+    colorPersonalizado: n.color_personalizado ?? null,
     descripcion: n.descripcion ?? null,
+    responsableId: n.responsable_id ?? null,
+    responsableNombre: n.responsable_nombre ?? null,
+    comisionId: n.comision_id ?? null,
+    comisionNombre: n.comision_nombre ?? null,
+    ubicacion: n.ubicacion ?? null,
+    recordatorio: n.recordatorio ?? null,
     autorNombre: n.autor_nombre || "—",
     esPropia: n.autor_id === user.id || user.rol === "admin" || user.rol === "consejo_directivo",
   }));
@@ -174,6 +194,8 @@ export default async function CalendarioPage() {
         <MonthCalendar
           eventos={eventos}
           notas={notas}
+          comisiones={comisionesLista}
+          usuarios={usuariosLista}
           crearNota={crearNotaCalendarioFormAction}
           editarNota={editarNotaCalendarioFormAction}
           eliminarNota={eliminarNotaCalendarioFormAction}

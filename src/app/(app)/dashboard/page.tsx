@@ -141,6 +141,8 @@ export default async function DashboardPage() {
     gastosResumen,
     gastosPorComision,
     documentosCountRow,
+    comisionesListaCalendario,
+    usuariosListaCalendario,
   ] = await Promise.all([
     verObra ? tareasObraConSemaforo() : Promise.resolve([] as any[]),
     verObra
@@ -221,7 +223,12 @@ export default async function DashboardPage() {
     // el resto de la pantalla sigue andando, solo sin notas hasta que se
     // corra la migración.
     all<any>(
-      `SELECT n.*, u.nombre as autor_nombre FROM notas_calendario n LEFT JOIN users u ON u.id = n.autor_id WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
+      `SELECT n.*, u.nombre as autor_nombre, r.nombre as responsable_nombre, c.nombre as comision_nombre
+       FROM notas_calendario n
+       LEFT JOIN users u ON u.id = n.autor_id
+       LEFT JOIN users r ON r.id = n.responsable_id
+       LEFT JOIN comisiones c ON c.id = n.comision_id
+       WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
       [desdeMes]
     ).catch(() => [] as any[]),
     // Gastos por Comisión (sección 9 del pedido: tarjeta compacta en el
@@ -263,6 +270,12 @@ export default async function DashboardPage() {
           [dayjs().subtract(7, "day").format("YYYY-MM-DD")]
         ).catch(() => undefined)
       : Promise.resolve(undefined),
+    // Rediseño del Calendario, Etapa 1 (25/09): mismas listas que usa
+    // /calendario para los selects de "Responsable"/"Comisión" del
+    // formulario de actividad — el mini-calendario del Dashboard crea
+    // actividades con el mismo nivel de detalle que la pantalla completa.
+    all<{ id: number; nombre: string }>(`SELECT id, nombre FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`).catch(() => []),
+    all<{ id: number; nombre: string }>(`SELECT id, nombre FROM users WHERE activo = 1 ORDER BY nombre ASC`).catch(() => []),
   ]);
 
   const totalTareas = tareas.length;
@@ -463,9 +476,17 @@ export default async function DashboardPage() {
     id: n.id,
     fecha: n.fecha,
     hora: n.hora,
+    todoElDia: !!n.todo_el_dia,
     titulo: n.titulo,
     color: n.color,
+    colorPersonalizado: n.color_personalizado ?? null,
     descripcion: n.descripcion ?? null,
+    responsableId: n.responsable_id ?? null,
+    responsableNombre: n.responsable_nombre ?? null,
+    comisionId: n.comision_id ?? null,
+    comisionNombre: n.comision_nombre ?? null,
+    ubicacion: n.ubicacion ?? null,
+    recordatorio: n.recordatorio ?? null,
     autorNombre: n.autor_nombre || "—",
     esPropia: n.autor_id === user.id || user.rol === "admin" || user.rol === "consejo_directivo",
   }));
@@ -591,6 +612,8 @@ export default async function DashboardPage() {
             <MonthCalendar
               eventos={eventosCalendario}
               notas={notasCalendario}
+              comisiones={comisionesListaCalendario}
+              usuarios={usuariosListaCalendario}
               crearNota={crearNotaCalendarioFormAction}
               editarNota={editarNotaCalendarioFormAction}
               eliminarNota={eliminarNotaCalendarioFormAction}

@@ -62,6 +62,14 @@
   --color-amarillo-bg: #fdf1dc;
   --color-rojo: #b3261e;
   --color-rojo-bg: #fbe9e7;
+  /* Rediseño del Calendario, Etapa 1 (25/09): único color nuevo de todo este
+     rediseño — el pedido explícito lista "Naranja" como una de 7 opciones de
+     color para actividades personalizadas, distinta de "Amarillo". Los 6
+     tokens restantes del pedido ya existían (verde/azul/violeta/amarillo/
+     rojo/gris) — éste era el único hueco real de la paleta, elegido con el
+     mismo criterio "suave, no fluorescente" del resto. */
+  --color-naranja: #c2410c;
+  --color-naranja-bg: #ffedd5;
 
   /* --- Tokens semánticos: de esto dependen los componentes,
      no de hex sueltos. Cambiar la identidad visual de la app
@@ -164,6 +172,33 @@
   --color-calendar-importante-bg: var(--color-rojo-bg);
   --color-calendar-personal: var(--color-ink-muted);
   --color-calendar-personal-bg: var(--color-border);
+
+  /* Rediseño del Calendario, Etapa 1 (25/09, pedido explícito): categorías
+     nuevas para la "actividad" enriquecida (antes "nota de calendario") —
+     comision/asamblea/reunion de arriba se siguen usando tal cual, estas son
+     las que faltaban del catálogo pedido. Mismo criterio de arriba (alias de
+     tonos ya existentes, nada fluorescente):
+       pago          → naranja (nuevo, ver arriba — distinto de "reunion")
+       tarea         → violeta (mismo tono que "obra", no compiten en el
+                       mismo selector: "obra" no es elegible para actividades)
+       mantenimiento → teal
+       seguridad     → rojo (mismo tono que "importante", tampoco compiten:
+                       "importante" no es elegible para actividades)
+       evento        → gris neutro
+       general       → gris neutro (mismo que "evento" — ambas son categorías
+                       "catch-all", no hace falta distinguirlas por color) */
+  --color-calendar-pago: var(--color-naranja);
+  --color-calendar-pago-bg: var(--color-naranja-bg);
+  --color-calendar-tarea: var(--accent-violet);
+  --color-calendar-tarea-bg: var(--accent-violet-bg);
+  --color-calendar-mantenimiento: var(--accent-teal);
+  --color-calendar-mantenimiento-bg: var(--accent-teal-bg);
+  --color-calendar-seguridad: var(--color-rojo);
+  --color-calendar-seguridad-bg: var(--color-rojo-bg);
+  --color-calendar-evento: var(--color-ink-muted);
+  --color-calendar-evento-bg: var(--color-border);
+  --color-calendar-general: var(--color-ink-muted);
+  --color-calendar-general-bg: var(--color-border);
 }
 
 @theme inline {
@@ -192,6 +227,8 @@
   --color-amarillo-bg: var(--color-amarillo-bg);
   --color-rojo: var(--color-rojo);
   --color-rojo-bg: var(--color-rojo-bg);
+  --color-naranja: var(--color-naranja);
+  --color-naranja-bg: var(--color-naranja-bg);
   --color-secondary: var(--color-secondary);
   --color-secondary-bg: var(--color-secondary-bg);
   --color-info: var(--color-info);
@@ -216,6 +253,18 @@
   --color-calendar-importante-bg: var(--color-calendar-importante-bg);
   --color-calendar-personal: var(--color-calendar-personal);
   --color-calendar-personal-bg: var(--color-calendar-personal-bg);
+  --color-calendar-pago: var(--color-calendar-pago);
+  --color-calendar-pago-bg: var(--color-calendar-pago-bg);
+  --color-calendar-tarea: var(--color-calendar-tarea);
+  --color-calendar-tarea-bg: var(--color-calendar-tarea-bg);
+  --color-calendar-mantenimiento: var(--color-calendar-mantenimiento);
+  --color-calendar-mantenimiento-bg: var(--color-calendar-mantenimiento-bg);
+  --color-calendar-seguridad: var(--color-calendar-seguridad);
+  --color-calendar-seguridad-bg: var(--color-calendar-seguridad-bg);
+  --color-calendar-evento: var(--color-calendar-evento);
+  --color-calendar-evento-bg: var(--color-calendar-evento-bg);
+  --color-calendar-general: var(--color-calendar-general);
+  --color-calendar-general-bg: var(--color-calendar-general-bg);
 }
 
 html, body {
