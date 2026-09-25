@@ -253,9 +253,16 @@ function ActividadFormulario({
             name="fecha"
             type="date"
             required
-            disabled={esParteDeSerie && alcance !== "solo"}
+            // OJO: acá tiene que ser `readOnly`, nunca `disabled` — un input
+            // disabled no viaja en el FormData del submit (el navegador lo
+            // excluye), así que con `disabled` el servidor recibía "fecha"
+            // vacío y el guardado de "esta y las siguientes"/"todas" fallaba
+            // en silencio (bug real encontrado en la verificación en vivo de
+            // esta etapa). `readOnly` bloquea la edición igual mostrándose
+            // gris, pero el valor sigue viajando en el submit.
+            readOnly={esParteDeSerie && alcance !== "solo"}
             defaultValue={notaEnEdicion?.fecha ?? fecha}
-            className={`${inputClass} ${esParteDeSerie && alcance !== "solo" ? "opacity-40" : ""}`}
+            className={`${inputClass} ${esParteDeSerie && alcance !== "solo" ? "opacity-40 bg-surface-sunken" : ""}`}
           />
           <FieldError message={estado.fieldErrors?.fecha} />
         </div>
