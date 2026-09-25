@@ -427,11 +427,11 @@ export async function generarReporteComisionesAction(formData: FormData) {
     {
       tipo: "tabla",
       encabezado: "Solicitudes entre comisiones",
-      columnas: ["N°", "Título", "Origen → Destino", "Prioridad", "Estado", "Fecha límite"],
+      columnas: ["N°", "Título", "Origen -> Destino", "Prioridad", "Estado", "Fecha límite"],
       filas: solicitudes.map((s: any) => [
         s.numero || "—",
         s.titulo || "—",
-        `${s.origen_nombre} → ${s.destino_nombre}`,
+        `${s.origen_nombre} -> ${s.destino_nombre}`,
         s.prioridad,
         estadoSolicitudComisionLabel(estadoEfectivo(s.estado, s.fecha_limite)),
         s.fecha_limite ? dayjs(s.fecha_limite).format("DD/MM/YYYY") : "—",
