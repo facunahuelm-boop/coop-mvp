@@ -56,6 +56,24 @@ export const PRIORIDAD_RECLAMO_LABEL: Record<string, string> = {
 };
 
 /**
+ * Fase 5, Sub-fase 5.4 ("Soporte", sección 22, migración 0040): categoriza un
+ * ticket de soporte hacia la plataforma — no confundir con
+ * CATEGORIA_RECLAMO_LABEL, que es para problemas físicos/edilicios de la
+ * propia cooperativa (ver Reclamos y Mantenimiento).
+ */
+export const CATEGORIA_TICKET_LABEL: Record<string, string> = {
+  consulta: "Consulta",
+  error: "Reportar un error",
+  otro: "Otro",
+};
+
+export const ESTADO_TICKET_LABEL: Record<string, string> = {
+  abierto: "Abierto",
+  en_proceso: "En proceso",
+  resuelto: "Resuelto",
+};
+
+/**
  * Proveedores fijos vs. nuevos/a presupuestar (pedido explícito). Viven acá
  * (y no en actions/proveedores.ts) porque un archivo "use server" solo puede
  * exportar funciones async — un array/objeto exportado desde ahí rompe el

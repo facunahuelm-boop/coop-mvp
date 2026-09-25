@@ -48,6 +48,7 @@ import {
   Zap,
   UserPlus,
   Building2,
+  LifeBuoy,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module; soloPlataforma?: boolean };
@@ -177,6 +178,11 @@ const GROUPS: NavGroup[] = [
       { href: "/mails", label: "Mails", icon: <Mail size={ICON_SIZE} /> },
       { href: "/ia", label: "Asistente IA", icon: <Sparkles size={ICON_SIZE} /> },
       { href: "/reportes", label: "Reportes", icon: <BarChart3 size={ICON_SIZE} /> },
+      // Fase 5, Sub-fase 5.4 ("Soporte", sección 22): sin "mod" a propósito
+      // (ver lib/planes.ts) — el acceso a soporte nunca debería depender del
+      // plan de la cooperativa ni de la etapa, así que nunca puede quedar
+      // oculto por un ajuste de módulos.
+      { href: "/soporte", label: "Soporte", icon: <LifeBuoy size={ICON_SIZE} /> },
     ],
   },
   {

@@ -8,8 +8,10 @@ import {
   AplicarMigracionesBoton,
   CrearCooperativaForm,
   CambiarPlanCooperativaForm,
+  ResponderTicketPlataformaForm,
 } from "@/components/plataforma/PlataformaFormularios";
 import { PLAN_LABELS, type Plan } from "@/lib/planes";
+import { CATEGORIA_TICKET_LABEL, ESTADO_TICKET_LABEL } from "@/lib/constants";
 import dayjs from "dayjs";
 
 export const dynamic = "force-dynamic";
@@ -64,15 +66,33 @@ const ETAPA_LABEL: Record<string, string> = {
  * de cada fila (que PISA el modulos_override actual con el preset nuevo,
  * avisado en el propio control).
  *
- * A propósito NO incluye todavía: soporte (Sub-fase 5.4, última de la Fase 5).
+ * Sub-fase 5.4 (sección 22, "Soporte", última de la Fase 5) agregó la
+ * sección "Tickets de soporte" de acá abajo: cualquier usuario de cualquier
+ * cooperativa puede escribir un ticket desde /soporte (ver actions/
+ * soporte.ts) — acá se ven TODOS, de TODAS las cooperativas, se puede
+ * responder y cambiar el estado. Mismo motivo que el conteo de usuarios y
+ * las migraciones pendientes de más abajo: `tickets_soporte` tiene RLS
+ * forzada, así que verlos todos a la vez necesita la conexión elevada (ver
+ * obtenerEstadoPlataforma) — nunca el pool normal de la app.
  */
 export default async function PlataformaPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!user.es_platform_admin) redirect("/dashboard");
 
-  const { cooperativas, errorConteoUsuarios, migracionesPendientes, errorMigraciones, diagnosticoRls, errorDiagnostico } =
-    await obtenerEstadoPlataforma();
+  const {
+    cooperativas,
+    errorConteoUsuarios,
+    ticketsSoporte,
+    errorTickets,
+    migracionesPendientes,
+    errorMigraciones,
+    diagnosticoRls,
+    errorDiagnostico,
+  } = await obtenerEstadoPlataforma();
+
+  const ticketsAbiertos = ticketsSoporte.filter((t) => t.estado !== "resuelto").length;
+  const badgeColorTicket = (estado: string) => (estado === "resuelto" ? "verde" : estado === "en_proceso" ? "amarillo" : "rojo");
 
   const rlsSeguro = diagnosticoRls?.es_superusuario === false && diagnosticoRls?.puede_saltar_rls === false;
 
@@ -131,6 +151,54 @@ export default async function PlataformaPage() {
             </Card>
           );
         })}
+      </div>
+
+      <h2 className="text-sm font-semibold text-ink/70 mb-2">
+        Tickets de soporte {ticketsAbiertos > 0 && <Badge color="rojo">{ticketsAbiertos} sin resolver</Badge>}
+      </h2>
+      {errorTickets && (
+        <p className="text-xs text-[var(--color-rojo)] mb-2">No se pudo consultar los tickets de soporte: {errorTickets}</p>
+      )}
+      <div className="space-y-2 mb-6">
+        {ticketsSoporte.length === 0 && !errorTickets ? (
+          <Card>
+            <p className="text-xs text-ink/60">Todavía no hay ningún ticket de soporte.</p>
+          </Card>
+        ) : (
+          ticketsSoporte.map((t) => (
+            <Card key={t.id}>
+              <details>
+                <summary className="cursor-pointer flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-ink truncate">
+                    {t.asunto} <span className="text-ink/40 font-normal">· {t.cooperativa_nombre}</span>
+                  </span>
+                  <Badge color={badgeColorTicket(t.estado)}>{ESTADO_TICKET_LABEL[t.estado] ?? t.estado}</Badge>
+                </summary>
+                <p className="text-xs text-ink/50 mt-1">
+                  {CATEGORIA_TICKET_LABEL[t.categoria] ?? t.categoria} · {t.creador_nombre ?? "—"} ·{" "}
+                  {dayjs(t.creado_en).format("DD/MM/YYYY HH:mm")}
+                </p>
+                <div className="mt-3 space-y-2">
+                  {t.mensajes.map((m, i) => (
+                    <div
+                      key={i}
+                      className={`text-xs rounded-lg p-2 ${
+                        m.autor_es_platform_admin ? "bg-[var(--color-brand-50)] border border-[var(--color-brand-100)]" : "bg-surface-sunken"
+                      }`}
+                    >
+                      <p className="text-ink/80 whitespace-pre-wrap">{m.texto}</p>
+                      <p className="text-ink-faint mt-0.5">
+                        {m.autor_es_platform_admin ? `Vos (respuesta de soporte)` : m.autor_nombre ?? "—"} ·{" "}
+                        {dayjs(m.creado_en).format("DD/MM/YYYY HH:mm")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <ResponderTicketPlataformaForm id={t.id} estadoActual={t.estado} />
+              </details>
+            </Card>
+          ))
+        )}
       </div>
 
       <h2 className="text-sm font-semibold text-ink/70 mb-2">Migraciones de base de datos</h2>

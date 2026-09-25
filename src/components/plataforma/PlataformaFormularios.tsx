@@ -13,11 +13,13 @@ import {
   aplicarMigracionesPendientesFormAction,
   crearCooperativaFormAction,
   cambiarPlanCooperativaFormAction,
+  responderTicketPlataformaFormAction,
 } from "@/lib/actions/plataforma";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { ActionForm, FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
 import { AddButton, Label, inputClass, Badge } from "@/components/ui";
 import { PLANES, PLAN_LABELS, PLAN_DESCRIPCIONES, type Plan } from "@/lib/planes";
+import { ESTADO_TICKET_LABEL } from "@/lib/constants";
 
 export function AlternarActivoCooperativaButton({
   id,
@@ -201,6 +203,46 @@ export function CambiarPlanCooperativaForm({ id, planActual }: { id: number; pla
       <button type="submit" className="text-xs underline text-[var(--color-brand-800)] whitespace-nowrap">
         Guardar
       </button>
+    </form>
+  );
+}
+
+/**
+ * Fase 5, Sub-fase 5.4 ("Soporte"): responder un ticket desde /plataforma —
+ * a diferencia de CambiarPlanCooperativaForm (un select + un click), acá
+ * siempre hace falta escribir un mensaje (queda como respuesta visible en el
+ * hilo del lado de la cooperativa, ver actions/plataforma.ts,
+ * responderTicketPlataformaAction) — el select de estado va al lado, con el
+ * estado actual preseleccionado para que no haga falta tocarlo si solo se
+ * quiere responder sin cambiar nada.
+ */
+export function ResponderTicketPlataformaForm({ id, estadoActual }: { id: number; estadoActual: string }) {
+  const [estado, formAction] = useActionState(responderTicketPlataformaFormAction, ESTADO_INICIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) {
+      formRef.current?.reset();
+      show("Respuesta enviada.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form ref={formRef} action={formAction} className="mt-3 space-y-2">
+      <input type="hidden" name="id" value={id} />
+      <textarea name="texto" required rows={2} placeholder="Escribí una respuesta…" className={inputClass + " text-xs"} />
+      <FieldError message={estado.fieldErrors?.texto} />
+      <div className="flex items-center gap-2">
+        <select name="estado" defaultValue={estadoActual} className={inputClass + " !py-1 !text-xs !w-auto"}>
+          {Object.entries(ESTADO_TICKET_LABEL).map(([valor, label]) => (
+            <option key={valor} value={valor}>{label}</option>
+          ))}
+        </select>
+        <SubmitButton pendingLabel="Enviando…">Responder</SubmitButton>
+      </div>
+      <FormError message={estado.error} />
     </form>
   );
 }

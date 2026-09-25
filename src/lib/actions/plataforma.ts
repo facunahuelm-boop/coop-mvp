@@ -72,9 +72,33 @@ export type CooperativaResumen = {
   usuarios_activos: number;
 };
 
+export type MensajeTicketPlataforma = {
+  texto: string;
+  creado_en: string;
+  autor_es_platform_admin: boolean;
+  autor_nombre_plataforma: string | null;
+  autor_nombre: string | null;
+};
+
+export type TicketPlataforma = {
+  id: number;
+  organization_id: number;
+  cooperativa_nombre: string;
+  cooperativa_slug: string;
+  asunto: string;
+  categoria: string;
+  estado: string;
+  creado_en: string;
+  actualizado_en: string;
+  creador_nombre: string | null;
+  mensajes: MensajeTicketPlataforma[];
+};
+
 export type EstadoPlataforma = {
   cooperativas: CooperativaResumen[];
   errorConteoUsuarios: string | null;
+  ticketsSoporte: TicketPlataforma[];
+  errorTickets: string | null;
   migracionesPendientes: string[];
   errorMigraciones: string | null;
   diagnosticoRls: { rol_conectado: string; es_superusuario: boolean; puede_saltar_rls: boolean } | null;
@@ -158,6 +182,52 @@ export async function obtenerEstadoPlataforma(): Promise<EstadoPlataforma> {
     usuarios_activos: conteos.get(f.id) ?? 0,
   }));
 
+  // Fase 5, Sub-fase 5.4 ("Soporte"): mismo motivo que el conteo de usuarios
+  // de arriba — `tickets_soporte`/`ticket_soporte_mensajes` tienen RLS
+  // FORZADA (migración 0040), así que verlos de TODAS las cooperativas a la
+  // vez necesita la misma conexión elevada, nunca `rootAll`/`all` del pool
+  // normal (que solo vería, en el mejor de los casos, la cooperativa del
+  // propio admin de plataforma). Se traen los mensajes de todos los tickets
+  // en una sola consulta aparte (en vez de N+1) porque el volumen esperado
+  // es bajo — esta pantalla es para el admin de plataforma, no un listado
+  // paginado de cara a las cooperativas.
+  let ticketsSoporte: TicketPlataforma[] = [];
+  let errorTickets: string | null = null;
+  if (poolElevado) {
+    try {
+      const { rows: filasTickets } = await poolElevado.query<Omit<TicketPlataforma, "mensajes">>(
+        `SELECT t.id, t.organization_id, t.asunto, t.categoria, t.estado, t.creado_en, t.actualizado_en,
+                o.nombre AS cooperativa_nombre, o.slug AS cooperativa_slug, u.nombre AS creador_nombre
+         FROM tickets_soporte t
+         JOIN organizations o ON o.id = t.organization_id
+         LEFT JOIN users u ON u.id = t.creado_por_id
+         ORDER BY CASE t.estado WHEN 'abierto' THEN 0 WHEN 'en_proceso' THEN 1 ELSE 2 END, t.actualizado_en DESC`
+      );
+      const idsTickets = filasTickets.map((f) => f.id);
+      const mensajesPorTicket = new Map<number, MensajeTicketPlataforma[]>();
+      if (idsTickets.length > 0) {
+        const { rows: filasMensajes } = await poolElevado.query<MensajeTicketPlataforma & { ticket_id: number }>(
+          `SELECT m.ticket_id, m.texto, m.creado_en, m.autor_es_platform_admin, m.autor_nombre_plataforma, u.nombre AS autor_nombre
+           FROM ticket_soporte_mensajes m
+           LEFT JOIN users u ON u.id = m.autor_user_id
+           WHERE m.ticket_id = ANY($1::int[])
+           ORDER BY m.creado_en ASC`,
+          [idsTickets]
+        );
+        for (const m of filasMensajes) {
+          const lista = mensajesPorTicket.get(m.ticket_id) ?? [];
+          lista.push(m);
+          mensajesPorTicket.set(m.ticket_id, lista);
+        }
+      }
+      ticketsSoporte = filasTickets.map((f) => ({ ...f, mensajes: mensajesPorTicket.get(f.id) ?? [] }));
+    } catch (err) {
+      errorTickets = err instanceof Error ? err.message : String(err);
+    }
+  } else {
+    errorTickets = "Falta la variable de entorno DATABASE_URL en este entorno.";
+  }
+
   let migracionesPendientes: string[] = [];
   let errorMigraciones: string | null = null;
   try {
@@ -187,7 +257,16 @@ export async function obtenerEstadoPlataforma(): Promise<EstadoPlataforma> {
     errorDiagnostico = err instanceof Error ? err.message : String(err);
   }
 
-  return { cooperativas, errorConteoUsuarios, migracionesPendientes, errorMigraciones, diagnosticoRls, errorDiagnostico };
+  return {
+    cooperativas,
+    errorConteoUsuarios,
+    ticketsSoporte,
+    errorTickets,
+    migracionesPendientes,
+    errorMigraciones,
+    diagnosticoRls,
+    errorDiagnostico,
+  };
 }
 
 const alternarActivoCoopSchema = z.object({ id: zId, activo: zEnumSeguro(["true", "false"] as const) });
@@ -450,4 +529,101 @@ export async function cambiarPlanCooperativaAction(formData: FormData) {
 
 export async function cambiarPlanCooperativaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => cambiarPlanCooperativaAction(formData));
+}
+
+// ---------------------------------------------------------------------------
+// Sub-fase 5.4 ("Soporte", sección 22, migración 0040): responder un ticket
+// desde el lado del admin de plataforma.
+//
+// Mismo problema de fondo que el alta de cooperativa (crearCooperativaAction,
+// más arriba): `insert()`/`update()` de db.ts pasan siempre por
+// `withTenantClient`, que fija `app.current_org_id` a la cooperativa DE QUIEN
+// EJECUTA la acción (el admin de plataforma) — la RLS de `tickets_soporte`/
+// `ticket_soporte_mensajes` (FORZADA, migración 0040) rechazaría de entrada
+// cualquier INSERT/UPDATE sobre un ticket de otra cooperativa. Se abre acá
+// una única conexión/transacción del pool normal de la app y se fija
+// `app.current_org_id` a la cooperativa DEL TICKET solo en esa conexión —
+// mismo patrón exacto, ya verificado en producción por Sub-fase 5.2.
+//
+// La notificación in-app al creador del ticket se inserta con la misma
+// conexión (ya en el contexto de SU cooperativa), así que sí es visible en
+// su propia bandeja de notificaciones normal — a diferencia de la dirección
+// contraria (avisarle al admin de plataforma que hay un ticket nuevo), que
+// NO tiene una forma limpia de resolverse con la arquitectura actual (el
+// admin de plataforma es un usuario normal DE Ufama; una notificación
+// "cross-tenant" en su bandeja rompería el mismo aislamiento por RLS que el
+// resto del sistema depende). Por eso el admin de plataforma se entera de
+// tickets nuevos revisando esta pantalla, igual que ya hace con migraciones
+// pendientes — decisión deliberada, no una limitación pasada por alto.
+//
+// A propósito NO pasa por `crearNotificacion()` (notificaciones.ts): ese
+// helper llama `requireOrgContext()` (resolvería a la cooperativa del ADMIN
+// DE PLATAFORMA, no la del ticket) y dispara el motor de reglas automáticas
+// — no hay ninguna regla que tenga sentido engancharle a "ticket_respondido"
+// todavía, así que el INSERT se hace directo, igual que el resto de esta
+// acción.
+const responderTicketPlataformaSchema = z.object({
+  id: zId,
+  texto: zTexto(4000),
+  estado: zEnumSeguro(["abierto", "en_proceso", "resuelto"] as const),
+});
+
+async function obtenerTicketConOrg(id: number): Promise<{ organization_id: number; creado_por_id: number } | null> {
+  const pool = crearPoolMigraciones();
+  try {
+    const { rows } = await pool.query<{ organization_id: number; creado_por_id: number }>(
+      `SELECT organization_id, creado_por_id FROM tickets_soporte WHERE id = $1`,
+      [id]
+    );
+    return rows[0] ?? null;
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function responderTicketPlataformaAction(formData: FormData) {
+  const admin = await requirePlatformAdmin();
+  const { id, texto, estado } = parseForm(responderTicketPlataformaSchema, formData);
+
+  const ticket = await obtenerTicketConOrg(id);
+  if (!ticket) throw new Error("Ese ticket ya no existe.");
+
+  const client = await appPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.current_org_id', $1, false)", [String(ticket.organization_id)]);
+    await client.query(
+      `INSERT INTO ticket_soporte_mensajes (organization_id, ticket_id, autor_user_id, autor_es_platform_admin, autor_nombre_plataforma, texto)
+       VALUES ($1, $2, NULL, true, $3, $4)`,
+      [ticket.organization_id, id, admin.nombre, texto]
+    );
+    await client.query(`UPDATE tickets_soporte SET estado = $1, actualizado_en = NOW() WHERE id = $2`, [estado, id]);
+    await client.query(
+      `INSERT INTO notificaciones (organization_id, user_id, tipo, titulo, cuerpo, ref_tabla, ref_id, leida)
+       VALUES ($1, $2, 'ticket_respondido', $3, $4, 'tickets_soporte', $5, false)`,
+      [ticket.organization_id, ticket.creado_por_id, "Respuesta de soporte a tu ticket", texto.slice(0, 300), id]
+    );
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // Mismo criterio que aplicarMigracionesPendientesAction/crearCooperativaAction:
+  // no existe una tabla de auditoría "de plataforma" separada, así que esto
+  // queda en la auditoría de la cooperativa del propio admin de plataforma.
+  await audit({
+    usuario_id: admin.id,
+    accion: "responder_ticket_plataforma",
+    entidad: "tickets_soporte",
+    entidad_id: id,
+    valor_nuevo: { estado },
+  });
+  revalidatePath("/plataforma");
+}
+
+export async function responderTicketPlataformaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => responderTicketPlataformaAction(formData));
 }
