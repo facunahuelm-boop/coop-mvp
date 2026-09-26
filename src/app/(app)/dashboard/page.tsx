@@ -6,6 +6,7 @@ import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
 import { DashboardGrid, DashboardSection, SummaryCard, EstadoTag, DashboardCardLink, DashboardCardModal } from "@/components/DashboardCard";
+import { DashboardSummaryCard } from "@/components/DashboardSummaryCard";
 import { MonthCalendar, type EventoCalendario, type NotaCalendario } from "@/components/MonthCalendar";
 import {
   crearNotaCalendarioFormAction,
@@ -32,6 +33,7 @@ import {
   FileText,
   Megaphone,
   ListChecks,
+  AlertTriangle,
   CalendarClock,
   Receipt,
   History,
@@ -399,7 +401,16 @@ export default async function DashboardPage() {
   const mostrarMisTareas = misTareasTodas.length > 0 || user.rol !== "socio";
   // Tarjeta compacta: sólo la más urgente (la que quedó primera tras
   // ordenar por fecha) — el resto de la lista vive en el modal de detalle.
-  const tareaMasUrgente = misTareasTodas[0] ?? null;
+  // Rediseño quirúrgico de "Resumen personal" (pedido explícito del
+  // cliente): la tarjeta combinada de "Tareas" se separa en dos tarjetas
+  // reales — vencidas y pendientes — reutilizando el mismo array/orden ya
+  // calculado arriba (misTareasTodas) y el mismo criterio de estadoFecha()
+  // que ya usa el resto de la app. No es una consulta nueva: es un filtro
+  // sobre datos que ya existían.
+  const misTareasVencidas = misTareasTodas.filter((t) => estadoFecha(t.fecha).color === "rojo");
+  const misTareasPendientes = misTareasTodas.filter((t) => estadoFecha(t.fecha).color !== "rojo");
+  const tareaVencidaMasUrgente = misTareasVencidas[0] ?? null;
+  const tareaPendienteMasUrgente = misTareasPendientes[0] ?? null;
 
   // "Próximamente": lo más cercano en el tiempo entre reunión, jornada y
   // vencimiento financiero — máximo 3, ordenado por fecha.
@@ -576,55 +587,97 @@ export default async function DashboardPage() {
       <DashboardSection title="Resumen personal">
         <DashboardGrid>
           {mostrarMisTareas && (
-            <DashboardCardModal
-              title="Tus tareas"
-              trigger={
-                <SummaryCard
-                  icon={<ListChecks size={18} />}
-                  title="Tareas"
-                  accent="blue"
-                  value={misTareasTodas.length}
-                  status={
-                    tareaMasUrgente ? (
-                      <Badge color={estadoFecha(tareaMasUrgente.fecha).color}>{estadoFecha(tareaMasUrgente.fecha).texto}</Badge>
-                    ) : (
-                      <EstadoTag estado="ok" texto="Sin pendientes" />
-                    )
-                  }
-                  hint={tareaMasUrgente?.titulo}
-                />
-              }
-            >
-              {misTareasTodas.length > 0 ? (
-                <ul className="space-y-2">
-                  {misTareasTodas.map((t) => {
-                    const ef = estadoFecha(t.fecha);
-                    return (
-                      <li key={t.id}>
-                        <Link href={t.href} className="flex items-center justify-between gap-3 rounded-lg hover:bg-surface-sunken px-2 py-1.5 -mx-2">
-                          <span className="text-sm text-ink truncate">{t.titulo}</span>
-                          <Badge color={ef.color}>{ef.texto}</Badge>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="flex items-center gap-1.5 text-sm text-[var(--color-verde)]">
-                  <CheckCircle2 size={15} /> No tenés tareas pendientes.
-                </p>
-              )}
-            </DashboardCardModal>
+            <>
+              <DashboardCardModal
+                title="Tareas vencidas"
+                trigger={
+                  <DashboardSummaryCard
+                    icon={<AlertTriangle size={18} />}
+                    title="Tareas vencidas"
+                    tone="rojo"
+                    value={misTareasVencidas.length}
+                    status={
+                      tareaVencidaMasUrgente ? (
+                        <Badge color="rojo">{estadoFecha(tareaVencidaMasUrgente.fecha).texto}</Badge>
+                      ) : (
+                        <EstadoTag estado="ok" texto="Sin tareas vencidas" />
+                      )
+                    }
+                    description={tareaVencidaMasUrgente?.titulo}
+                  />
+                }
+              >
+                {misTareasVencidas.length > 0 ? (
+                  <ul className="space-y-2">
+                    {misTareasVencidas.map((t) => {
+                      const ef = estadoFecha(t.fecha);
+                      return (
+                        <li key={t.id}>
+                          <Link href={t.href} className="flex items-center justify-between gap-3 rounded-lg hover:bg-surface-sunken px-2 py-1.5 -mx-2">
+                            <span className="text-sm text-ink truncate">{t.titulo}</span>
+                            <Badge color={ef.color}>{ef.texto}</Badge>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-sm text-[var(--color-verde)]">
+                    <CheckCircle2 size={15} /> No tenés tareas vencidas.
+                  </p>
+                )}
+              </DashboardCardModal>
+
+              <DashboardCardModal
+                title="Tareas pendientes"
+                trigger={
+                  <DashboardSummaryCard
+                    icon={<ListChecks size={18} />}
+                    title="Tareas pendientes"
+                    tone="azul"
+                    value={misTareasPendientes.length}
+                    status={
+                      tareaPendienteMasUrgente ? (
+                        <Badge color={estadoFecha(tareaPendienteMasUrgente.fecha).color}>{estadoFecha(tareaPendienteMasUrgente.fecha).texto}</Badge>
+                      ) : (
+                        <EstadoTag estado="ok" texto="Sin pendientes" />
+                      )
+                    }
+                    description={tareaPendienteMasUrgente?.titulo}
+                  />
+                }
+              >
+                {misTareasPendientes.length > 0 ? (
+                  <ul className="space-y-2">
+                    {misTareasPendientes.map((t) => {
+                      const ef = estadoFecha(t.fecha);
+                      return (
+                        <li key={t.id}>
+                          <Link href={t.href} className="flex items-center justify-between gap-3 rounded-lg hover:bg-surface-sunken px-2 py-1.5 -mx-2">
+                            <span className="text-sm text-ink truncate">{t.titulo}</span>
+                            <Badge color={ef.color}>{ef.texto}</Badge>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-sm text-[var(--color-verde)]">
+                    <CheckCircle2 size={15} /> No tenés tareas pendientes.
+                  </p>
+                )}
+              </DashboardCardModal>
+            </>
           )}
 
           <DashboardCardModal
             title="Calendario"
             size="lg"
             trigger={
-              <SummaryCard
+              <DashboardSummaryCard
                 icon={<CalendarClock size={18} />}
                 title="Calendario"
-                accent="violet"
+                tone="violeta"
                 value={dayjs().format("DD/MM")}
                 status={
                   calendarioResumenTexto ? (
@@ -633,7 +686,7 @@ export default async function DashboardPage() {
                     <EstadoTag estado="ok" texto="Sin eventos próximos" />
                   )
                 }
-                hint={eventosProximos.length > 0 ? `${eventosProximos.length} evento${eventosProximos.length > 1 ? "s" : ""} próximo${eventosProximos.length > 1 ? "s" : ""}` : undefined}
+                description={eventosProximos.length > 0 ? `${eventosProximos.length} evento${eventosProximos.length > 1 ? "s" : ""} próximo${eventosProximos.length > 1 ? "s" : ""}` : undefined}
               />
             }
           >
@@ -655,10 +708,10 @@ export default async function DashboardPage() {
               title="Finanzas"
               size="lg"
               trigger={
-                <SummaryCard
+                <DashboardSummaryCard
                   icon={<Wallet size={18} />}
                   title="Finanzas"
-                  accent="teal"
+                  tone="teal"
                   value={money(fin.saldo)}
                   status={
                     <EstadoTag
