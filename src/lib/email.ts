@@ -266,6 +266,47 @@ export async function enviarEmailRecuperacion(destinatario: string, nombre: stri
   });
 }
 
+/**
+ * Rediseño del Calendario, Etapa 5 (26/09): recordatorio real de una
+ * actividad de calendario, mandado por el cron diario (ver
+ * src/app/api/cron/recordatorios/route.ts) a cada persona para la que la
+ * actividad es "suya" (autor, responsable o participante — mismo criterio
+ * `esMia` de la Etapa 4). Mismo criterio que `enviarEmailRecuperacion`: sin
+ * BCC (un único destinatario por llamada, el cron llama una vez por
+ * persona), sin atribuirlo a nadie de la cooperativa, y devuelve `ok:false`
+ * en vez de tirar una excepción si SMTP no está configurado — el cron sigue
+ * con la próxima persona/actividad aunque una cooperativa nunca haya
+ * cargado su configuración de email.
+ */
+export async function enviarEmailRecordatorioActividad(
+  destinatario: string,
+  nombre: string,
+  actividad: { titulo: string; fecha: string; hora: string | null; ubicacion: string | null }
+): Promise<ResultadoEnvio> {
+  const cfg = await getConfigEmail();
+  if (!cfg.smtp_host || !cfg.smtp_user) {
+    return { ok: false, error: "SMTP no configurado en esta cooperativa (Configuración → Configuración de Email)." };
+  }
+  const cuando = actividad.hora ? `hoy a las ${actividad.hora}` : "hoy";
+  return enviarEmailBase(cfg, {
+    to: destinatario,
+    subject: `📅 Recordatorio — ${actividad.titulo}`,
+    textoPlano:
+      `Hola ${nombre},\n\n` +
+      `Te recordamos que tenés esta actividad ${cuando}:\n\n` +
+      `${actividad.titulo}\n` +
+      (actividad.ubicacion ? `Ubicación: ${actividad.ubicacion}\n` : "") +
+      `\nVerla en el Calendario de COOVA.`,
+    tituloTarjeta: "COOVA — Recordatorio de actividad",
+    cuerpoHtml: `
+      <p style="margin:0 0 12px;font-size:13px;color:#333;line-height:1.6;">Hola ${escapeHtml(nombre)},</p>
+      <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#1f2937;">${escapeHtml(actividad.titulo)}</p>
+      <p style="margin:0 0 14px;font-size:13px;color:#555;line-height:1.5;">Tenés esta actividad ${escapeHtml(cuando)}${actividad.ubicacion ? ` — ${escapeHtml(actividad.ubicacion)}` : ""}.</p>
+    `,
+    piePagina: "Podés cambiar o quitar este recordatorio desde la actividad, en el Calendario.",
+  });
+}
+
 function escapeHtml(s: string) {
   return s
     .replace(/&/g, "&amp;")
