@@ -63,7 +63,13 @@ export async function GET(req: NextRequest) {
   }
 
   const hoy = dayjs().format("YYYY-MM-DD");
-  const resumen: { organizacion_id: number; actividades: number; emails_enviados: number; emails_fallidos: number }[] = [];
+  const resumen: {
+    organizacion_id: number;
+    actividades: number;
+    emails_enviados: number;
+    emails_fallidos: number;
+    errores?: string[];
+  }[] = [];
 
   const organizaciones = await rootAll<{ id: number }>(`SELECT id FROM organizations WHERE activo = 1`);
 
@@ -71,6 +77,7 @@ export async function GET(req: NextRequest) {
     setOrgContext(org.id);
     let emailsEnviados = 0;
     let emailsFallidos = 0;
+    const errores: string[] = [];
 
     let actividades: ActividadPendiente[] = [];
     try {
@@ -126,7 +133,10 @@ export async function GET(req: NextRequest) {
           ubicacion: actividad.ubicacion,
         });
         if (resultado.ok) emailsEnviados++;
-        else emailsFallidos++;
+        else {
+          emailsFallidos++;
+          if (resultado.error && errores.length < 5) errores.push(resultado.error);
+        }
       }
 
       // Se marca como procesada aunque no hubiera ningún destinatario con
@@ -136,7 +146,13 @@ export async function GET(req: NextRequest) {
       await update("notas_calendario", actividad.id, { recordatorio_enviado_en: new Date().toISOString() });
     }
 
-    resumen.push({ organizacion_id: org.id, actividades: actividades.length, emails_enviados: emailsEnviados, emails_fallidos: emailsFallidos });
+    resumen.push({
+      organizacion_id: org.id,
+      actividades: actividades.length,
+      emails_enviados: emailsEnviados,
+      emails_fallidos: emailsFallidos,
+      ...(errores.length > 0 ? { errores } : {}),
+    });
   }
 
   return NextResponse.json({ ok: true, fecha: hoy, organizaciones: resumen });
