@@ -28,7 +28,7 @@ export default async function RestablecerPasswordPage({
   return (
     <RestablecerPasswordForm
       nombre={organizacion?.nombre || "COOVA"}
-      colorPrimario={organizacion?.color_primario || "#16a34a"}
+      colorPrimario={organizacion?.color_primario || "#1e3a5f"}
       token={token || ""}
     />
   );

@@ -74,7 +74,7 @@ export function BrandingForm({ organizacion }: { organizacion: Organizacion | nu
         <input
           type="color"
           name="color_primario"
-          defaultValue={organizacion?.color_primario || "#16a34a"}
+          defaultValue={organizacion?.color_primario || "#1e3a5f"}
           className="h-10 w-full rounded-lg border border-ink/10 cursor-pointer"
         />
         <FieldError message={estado.fieldErrors?.color_primario} />
@@ -84,7 +84,7 @@ export function BrandingForm({ organizacion }: { organizacion: Organizacion | nu
         <input
           type="color"
           name="color_secundario"
-          defaultValue={organizacion?.color_secundario || organizacion?.color_primario || "#15803d"}
+          defaultValue={organizacion?.color_secundario || organizacion?.color_primario || "#0f766e"}
           className="h-10 w-full rounded-lg border border-ink/10 cursor-pointer"
         />
         <FieldError message={estado.fieldErrors?.color_secundario} />

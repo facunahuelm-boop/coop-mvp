@@ -83,10 +83,16 @@ export function Button({
         // ser un tono MÁS OSCURO del mismo color, no un color distinto — antes
         // usaba brand-900 (que funcionaba porque toda la escala navy era un
         // solo tono). Ahora brand-900 es el neutro de texto, así que el hover
-        // pasa a brand-700 (verde oscuro), manteniendo "hover = más oscuro".
+        // pasa a brand-700 (Navy oscuro), manteniendo "hover = más oscuro".
         "bg-brand-800 text-white hover:bg-brand-700"
       : variant === "secondary"
-      ? "bg-brand-100 text-brand-800 hover:bg-brand-100/70"
+      ? // Rediseño de identidad visual (26/09, pedido explícito): botón
+        // secundario "neutro" — fondo blanco/gris muy claro + borde + texto
+        // Navy, en vez de un relleno de color sólido. Encaja con el uso real
+        // de este variant (Editar, Rechazar, Derivar, Importar otro...): son
+        // acciones secundarias neutras, no confirmaciones positivas — y evita
+        // "convertir todos los botones en botones de colores fuertes".
+        "bg-surface text-brand-800 border border-[var(--color-border-strong)] hover:bg-surface-sunken"
       : variant === "danger"
       ? "bg-[var(--color-rojo)] text-white hover:brightness-90"
       : variant === "add"

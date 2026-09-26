@@ -75,7 +75,7 @@ function getTransporter(cfg: ConfigEmail) {
  */
 function plantillaHtml({
   tituloTarjeta,
-  colorTarjeta = "#16a34a",
+  colorTarjeta = "#1e3a5f",
   cuerpoHtml,
   piePagina,
 }: {
@@ -157,7 +157,7 @@ export async function enviarEmailAlerta(alerta: AlertaParaEmail): Promise<void> 
       textoPlano: `${alerta.titulo}\n\n${alerta.descripcion || ""}\n\nMódulo: ${alerta.origen_modulo}`,
       tituloTarjeta: "COOVA — Alerta crítica",
       cuerpoHtml: `
-        <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#1f2937;">${escapeHtml(alerta.titulo)}</p>
+        <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#1e293b;">${escapeHtml(alerta.titulo)}</p>
         ${alerta.descripcion ? `<p style="margin:0 0 14px;font-size:13px;color:#555;line-height:1.5;">${escapeHtml(alerta.descripcion)}</p>` : ""}
       `,
       piePagina: `Módulo: ${alerta.origen_modulo}`,
@@ -260,7 +260,7 @@ export async function enviarEmailRecuperacion(destinatario: string, nombre: stri
     cuerpoHtml: `
       <p style="margin:0 0 12px;font-size:13px;color:#333;line-height:1.6;">Hola ${escapeHtml(nombre)},</p>
       <p style="margin:0 0 16px;font-size:13px;color:#333;line-height:1.6;">Pediste recuperar tu contraseña. Tocá el botón para elegir una nueva — el enlace vale por 1 hora y se puede usar una sola vez.</p>
-      <p style="margin:0 0 16px;"><a href="${link}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:bold;">Elegir nueva contraseña</a></p>
+      <p style="margin:0 0 16px;"><a href="${link}" style="display:inline-block;background:#1e3a5f;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:bold;">Elegir nueva contraseña</a></p>
       <p style="margin:0;font-size:11px;color:#999;">Si vos no pediste esto, ignorá este email — tu contraseña actual sigue funcionando igual.</p>
     `,
   });
@@ -300,7 +300,7 @@ export async function enviarEmailRecordatorioActividad(
     tituloTarjeta: "COOVA — Recordatorio de actividad",
     cuerpoHtml: `
       <p style="margin:0 0 12px;font-size:13px;color:#333;line-height:1.6;">Hola ${escapeHtml(nombre)},</p>
-      <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#1f2937;">${escapeHtml(actividad.titulo)}</p>
+      <p style="margin:0 0 8px;font-size:15px;font-weight:bold;color:#1e293b;">${escapeHtml(actividad.titulo)}</p>
       <p style="margin:0 0 14px;font-size:13px;color:#555;line-height:1.5;">Tenés esta actividad ${escapeHtml(cuando)}${actividad.ubicacion ? ` — ${escapeHtml(actividad.ubicacion)}` : ""}.</p>
     `,
     piePagina: "Podés cambiar o quitar este recordatorio desde la actividad, en el Calendario.",

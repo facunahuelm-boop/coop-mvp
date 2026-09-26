@@ -19,36 +19,35 @@
 
 :root {
   /* --- Paleta de marca por defecto de COOVA ---
-     Rediseño visual global (18/09, pedido explícito: "verde moderno y
-     profesional... sensación de software empresarial premium, nada
-     exagerado"). Se remapean estos MISMOS tokens (no se crean nuevos)
-     porque ya los consume casi toda la app (ver ui.tsx/ui-client.tsx) —
-     cambiar acá alcanza para propagar el nuevo lenguaje visual sin
-     tocar 40+ archivos.
+     Rediseño de identidad visual (26/09, pedido explícito: paleta "formal,
+     elegante, profesional, moderna, seria" — Azul Navy como color principal,
+     Verde petróleo como secundario, sin saturar el sistema de color). Se
+     remapean estos MISMOS tokens (no se crean nuevos) porque ya los consume
+     casi toda la app (ver ui.tsx/ui-client.tsx) — cambiar acá alcanza para
+     propagar la nueva identidad sin tocar 40+ archivos ni la estructura/
+     lógica de ninguna pantalla.
 
      OJO con --color-brand-900: un audit de uso (grep de toda la app)
      encontró que NO se usa como color de acción/marca sino como color
-     de TEXTO/TÍTULOS (48 de 49 usos son "text-[var(--color-brand-900)]"
-     para encabezados de sección — ver reclamos/page.tsx, socios/page.tsx,
-     configuracion/page.tsx, etc.). Por eso NO se pone verde acá: pasa a
-     ser el neutro oscuro del pedido ("TEXTO PRINCIPAL #1F2937"), para no
-     terminar con todos los títulos de la app en verde (pedido explícito:
-     "nada exagerado", el verde es un acento, no el color de todo el texto).
-     El verde protagonista es --color-brand-800 (93 usos: botones
-     primarios, links, foco — el token que sí funciona como "color de
-     marca/acción" hoy).
+     de TEXTO/TÍTULOS (la inmensa mayoría de los usos son
+     "text-[var(--color-brand-900)]" para encabezados de sección — ver
+     reclamos/page.tsx, socios/page.tsx, configuracion/page.tsx, etc.).
+     Por eso sigue siendo el neutro oscuro del pedido ("TEXTO PRINCIPAL
+     #1E293B"), no el Navy de marca — el Navy protagonista es
+     --color-brand-800 (el token que funciona como "color de marca/acción"
+     hoy: botones primarios, links, foco).
 
-     La numeración 900>800>700>600 ya no implica "más oscuro" de forma
-     estricta (era una convención de la vieja paleta navy) — cada uno se
-     eligió por el rol que ya cumple en el código (800 = acción principal,
-     700 = hover/foco más oscuro, 600 = variante clara para el gráfico de
-     Finanzas), no por una escala tonal continua. */
-  --color-brand-900: #1f2937; /* neutro oscuro (texto principal/títulos) — antes navy */
-  --color-brand-800: #16a34a; /* VERDE PRINCIPAL — botones, links, acción */
-  --color-brand-700: #15803d; /* VERDE OSCURO — hover de botones, foco, acentos */
-  --color-brand-600: #22c55e; /* verde claro — variante para gráficos/detalles */
-  --color-brand-100: #dcfce7; /* VERDE CLARO — fondos de estado seleccionado/hover */
-  --color-brand-50: #f0fdf4; /* VERDE MUY CLARO — bloques "sunken" dentro de una tarjeta */
+     La numeración 900>800>700>600 no implica "más oscuro" de forma
+     estricta — cada uno se eligió por el rol que ya cumple en el código
+     (800 = acción principal/Navy, 700 = hover más oscuro, 600 = variante
+     clara para el gráfico de Finanzas, 100/50 = fondos suaves), no por una
+     escala tonal continua. */
+  --color-brand-900: #1e293b; /* neutro oscuro (texto principal/títulos — spec: TEXTO PRINCIPAL) */
+  --color-brand-800: #1e3a5f; /* AZUL NAVY — botones primarios, links, acción, marca */
+  --color-brand-700: #16304d; /* NAVY OSCURO — hover de botones, foco, acentos */
+  --color-brand-600: #3b5a7a; /* navy claro — variante para gráficos/detalles */
+  --color-brand-100: #e2e8f0; /* NAVY MUY CLARO — fondos de estado seleccionado/hover */
+  --color-brand-50: #f1f5f9; /* GRIS MUY SUAVE — bloques "sunken" dentro de una tarjeta (spec: fondo suave) */
 
   /* --- Semáforo de estado. Regla del sistema: el color nunca es la
      única señal — siempre va acompañado de texto o ícono (ver Badge
@@ -75,14 +74,14 @@
      no de hex sueltos. Cambiar la identidad visual de la app
      (o el contraste, por accesibilidad) se hace acá. --- */
   --color-ink: var(--color-brand-900);            /* texto principal / títulos */
-  --color-ink-muted: #6b7280;                     /* texto secundario (spec: TEXTO SECUNDARIO) */
-  --color-ink-faint: #9ca3af;                     /* texto terciario / ayudas */
-  --color-surface: #ffffff;                       /* tarjetas, modales, menús */
+  --color-ink-muted: #64748b;                     /* texto secundario (spec: TEXTO SECUNDARIO #64748B) */
+  --color-ink-faint: #94a3b8;                     /* texto terciario / ayudas */
+  --color-surface: #ffffff;                       /* tarjetas, modales, menús (spec: FONDO BLANCO) */
   --color-surface-sunken: var(--color-brand-50);  /* bloques dentro de una tarjeta */
-  --color-page-bg: #f8fafc;                       /* fondo de página (spec: FONDO GENERAL) */
-  --color-border: #e5e7eb;                        /* spec: BORDES */
-  --color-border-strong: #d1d5db;
-  --color-focus-ring: var(--color-brand-600);     /* spec: foco de inputs (#22C55E) */
+  --color-page-bg: #f8fafc;                       /* fondo de página (spec: FONDO GENERAL #F8FAFC) */
+  --color-border: #e2e8f0;                        /* spec: BORDES */
+  --color-border-strong: #cbd5e1;                 /* spec: borde de botón secundario neutro #CBD5E1 */
+  --color-focus-ring: var(--color-brand-800);     /* spec: foco de inputs/elementos = Navy #1E3A5F */
 
   /* --- Elevación: 3 niveles nada más, para no terminar con una
      sombra distinta por pantalla. sm = tarjetas, md = menús/popovers
@@ -117,12 +116,14 @@
 
      --color-secondary es el acento general (fuera de una tarjeta de
      módulo puntual): el color de la Top Bar para buscador/campana/
-     estados interactivos secundarios — se eligió azul, el más
-     "neutro"/profesional de los 4, para no competir con el teal
-     oscuro de --color-brand-* que ya es la identidad primaria.
+     estados interactivos secundarios. Con el rediseño de identidad
+     (26/09) pasa a ser el Verde petróleo pedido como color secundario
+     de marca (#0F766E) — antes era azul; los 4 acentos por módulo
+     (--accent-*) no cambian, siguen cumpliendo su rol informativo
+     independiente de la marca.
      ============================================================ */
-  --color-secondary: #2f5fd6;
-  --color-secondary-bg: #eaf0fd;
+  --color-secondary: #0f766e;
+  --color-secondary-bg: #e2efee;
 
   --accent-blue: #2f5fd6;
   --accent-blue-bg: #eaf0fd;
