@@ -24,7 +24,7 @@ export default async function RecuperarPasswordPage() {
   return (
     <RecuperarPasswordForm
       nombre={organizacion?.nombre || "COOVA"}
-      colorPrimario={organizacion?.color_primario || "#2563eb"}
+      colorPrimario={organizacion?.color_primario || "#3b3f8c"}
     />
   );
 }

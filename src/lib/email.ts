@@ -75,7 +75,7 @@ function getTransporter(cfg: ConfigEmail) {
  */
 function plantillaHtml({
   tituloTarjeta,
-  colorTarjeta = "#2563eb",
+  colorTarjeta = "#3b3f8c",
   cuerpoHtml,
   piePagina,
 }: {
@@ -260,7 +260,7 @@ export async function enviarEmailRecuperacion(destinatario: string, nombre: stri
     cuerpoHtml: `
       <p style="margin:0 0 12px;font-size:13px;color:#333;line-height:1.6;">Hola ${escapeHtml(nombre)},</p>
       <p style="margin:0 0 16px;font-size:13px;color:#333;line-height:1.6;">Pediste recuperar tu contraseña. Tocá el botón para elegir una nueva — el enlace vale por 1 hora y se puede usar una sola vez.</p>
-      <p style="margin:0 0 16px;"><a href="${link}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:bold;">Elegir nueva contraseña</a></p>
+      <p style="margin:0 0 16px;"><a href="${link}" style="display:inline-block;background:#3b3f8c;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:bold;">Elegir nueva contraseña</a></p>
       <p style="margin:0;font-size:11px;color:#999;">Si vos no pediste esto, ignorá este email — tu contraseña actual sigue funcionando igual.</p>
     `,
   });

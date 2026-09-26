@@ -22,13 +22,19 @@
      Rediseño de identidad visual (26/09, pedido explícito: paleta "formal,
      elegante, profesional, moderna, seria" — Azul Navy como color principal,
      Verde petróleo como secundario, sin saturar el sistema de color).
-     Corrección (26/09, mismo día): el usuario no quedó conforme con el Navy
-     y pidió reemplazar el color principal por un Royal Blue elegante,
-     "moderno, limpio y profesional" (#2563EB, Tailwind blue-600) — el Verde
-     petróleo secundario no cambia. Se remapean estos MISMOS tokens (no se
-     crean nuevos) porque ya los consume casi toda la app (ver ui.tsx/
-     ui-client.tsx) — cambiar acá alcanza para propagar la nueva identidad
-     sin tocar 40+ archivos ni la estructura/lógica de ninguna pantalla.
+     Corrección (26/09, mismo día): reemplazado por Royal Blue #2563EB.
+     Segunda corrección (26/09, mismo día): el usuario picoteó un azul índigo
+     propio en un selector de color (#3B3F8C, RGB 59/63/140) y pidió usarlo
+     como nuevo color principal, tomando como referencia visual una imagen
+     de un dashboard con tarjetas redondeadas e íconos circulares — pedido
+     explícito de que sea "sencillo" para personas de 70-80 años, así que la
+     paleta se mantiene clara/neutra (el índigo es más oscuro que el Royal
+     Blue anterior, así que el contraste con texto blanco mejora: ver
+     contraste calculado abajo). El Verde petróleo secundario no cambia. Se
+     remapean estos MISMOS tokens (no se crean nuevos) porque ya los consume
+     casi toda la app (ver ui.tsx/ui-client.tsx) — cambiar acá alcanza para
+     propagar la nueva identidad sin tocar 40+ archivos ni la estructura/
+     lógica de ninguna pantalla.
 
      OJO con --color-brand-900: un audit de uso (grep de toda la app)
      encontró que NO se usa como color de acción/marca sino como color
@@ -36,21 +42,25 @@
      "text-[var(--color-brand-900)]" para encabezados de sección — ver
      reclamos/page.tsx, socios/page.tsx, configuracion/page.tsx, etc.).
      Por eso sigue siendo el neutro oscuro del pedido ("TEXTO PRINCIPAL
-     #1E293B"), no el Royal Blue de marca — el Royal Blue protagonista es
+     #1E293B"), no el índigo de marca — el índigo protagonista es
      --color-brand-800 (el token que funciona como "color de marca/acción"
-     hoy: botones primarios, links, foco).
+     hoy: botones primarios, links, foco, sidebar).
 
      La numeración 900>800>700>600 no implica "más oscuro" de forma
      estricta — cada uno se eligió por el rol que ya cumple en el código
-     (800 = acción principal/Royal Blue, 700 = hover más oscuro, 600 =
+     (800 = acción principal/índigo, 700 = hover más oscuro, 600 =
      variante clara para el gráfico de Finanzas, 100/50 = fondos suaves), no
-     por una escala tonal continua. */
+     por una escala tonal continua. 700/600/100/50 son derivados del mismo
+     matiz (H=237°, S=41%) ajustando sólo la luminosidad, para que toda la
+     familia se sienta parte del mismo azul. Contraste texto blanco sobre
+     800: 9.2:1 (WCAG AAA); sobre 700: 12:1; sobre 600: 6.1:1 (AA) — los tres
+     de sobra para botones/sidebar legibles por adultos mayores. */
   --color-brand-900: #1e293b; /* neutro oscuro (texto principal/títulos — spec: TEXTO PRINCIPAL) */
-  --color-brand-800: #2563eb; /* ROYAL BLUE — botones primarios, links, acción, marca */
-  --color-brand-700: #1d4ed8; /* ROYAL BLUE OSCURO — hover de botones, foco, acentos */
-  --color-brand-600: #3b82f6; /* azul claro — variante para gráficos/detalles */
-  --color-brand-100: #e2e8f0; /* AZUL MUY CLARO — fondos de estado seleccionado/hover */
-  --color-brand-50: #f1f5f9; /* GRIS MUY SUAVE — bloques "sunken" dentro de una tarjeta (spec: fondo suave) */
+  --color-brand-800: #3b3f8c; /* ÍNDIGO — botones primarios, links, acción, marca, sidebar */
+  --color-brand-700: #2d306c; /* ÍNDIGO OSCURO — hover de botones, foco, acentos */
+  --color-brand-600: #5358b6; /* índigo claro — variante para gráficos/detalles */
+  --color-brand-100: #e3e4f2; /* ÍNDIGO MUY CLARO — fondos de estado seleccionado/hover */
+  --color-brand-50: #f2f2f8; /* GRIS MUY SUAVE — bloques "sunken" dentro de una tarjeta (spec: fondo suave) */
 
   /* --- Semáforo de estado. Regla del sistema: el color nunca es la
      única señal — siempre va acompañado de texto o ícono (ver Badge
@@ -84,7 +94,7 @@
   --color-page-bg: #f8fafc;                       /* fondo de página (spec: FONDO GENERAL #F8FAFC) */
   --color-border: #e2e8f0;                        /* spec: BORDES */
   --color-border-strong: #cbd5e1;                 /* spec: borde de botón secundario neutro #CBD5E1 */
-  --color-focus-ring: var(--color-brand-800);     /* spec: foco de inputs/elementos = Royal Blue #2563EB */
+  --color-focus-ring: var(--color-brand-800);     /* spec: foco de inputs/elementos = índigo #3B3F8C */
 
   /* --- Elevación: 3 niveles nada más, para no terminar con una
      sombra distinta por pantalla. sm = tarjetas, md = menús/popovers

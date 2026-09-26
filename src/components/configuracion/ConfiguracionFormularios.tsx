@@ -74,7 +74,7 @@ export function BrandingForm({ organizacion }: { organizacion: Organizacion | nu
         <input
           type="color"
           name="color_primario"
-          defaultValue={organizacion?.color_primario || "#2563eb"}
+          defaultValue={organizacion?.color_primario || "#3b3f8c"}
           className="h-10 w-full rounded-lg border border-ink/10 cursor-pointer"
         />
         <FieldError message={estado.fieldErrors?.color_primario} />

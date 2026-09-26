@@ -73,10 +73,10 @@ export function generarPdfBuffer(datos: DatosPdf): Promise<Buffer> {
       doc.on("end", () => resolve(Buffer.concat(chunks)));
       doc.on("error", reject);
 
-      // Rediseño de identidad visual (26/09): mismo Royal Blue nuevo que el
+      // Rediseño de identidad visual (26/09): mismo índigo nuevo que el
       // resto del sistema para cooperativas que todavía no personalizaron su
       // color de marca (ver migrations/0046 y Configuración → Marca).
-      const colorPrimario = datos.organizacion.color_primario || "#2563eb";
+      const colorPrimario = datos.organizacion.color_primario || "#3b3f8c";
       const altoEncabezado = 80;
 
       doc.rect(0, 0, doc.page.width, altoEncabezado).fill(colorPrimario);

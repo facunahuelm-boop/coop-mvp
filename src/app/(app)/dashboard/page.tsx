@@ -580,7 +580,7 @@ export default async function DashboardPage() {
               title="Tus tareas"
               trigger={
                 <SummaryCard
-                  icon={<ListChecks size={16} />}
+                  icon={<ListChecks size={18} />}
                   title="Tareas"
                   accent="blue"
                   value={misTareasTodas.length}
@@ -622,7 +622,7 @@ export default async function DashboardPage() {
             size="lg"
             trigger={
               <SummaryCard
-                icon={<CalendarClock size={16} />}
+                icon={<CalendarClock size={18} />}
                 title="Calendario"
                 accent="violet"
                 value={dayjs().format("DD/MM")}
@@ -656,7 +656,7 @@ export default async function DashboardPage() {
               size="lg"
               trigger={
                 <SummaryCard
-                  icon={<Wallet size={16} />}
+                  icon={<Wallet size={18} />}
                   title="Finanzas"
                   accent="teal"
                   value={money(fin.saldo)}
@@ -700,7 +700,7 @@ export default async function DashboardPage() {
               title="Tu estado de cuenta"
               trigger={
                 <SummaryCard
-                  icon={<Wallet size={16} />}
+                  icon={<Wallet size={18} />}
                   title="Mi cuenta"
                   accent="teal"
                   value={miSaldo > 0 ? money(miSaldo) : "Al día"}
@@ -749,7 +749,7 @@ export default async function DashboardPage() {
             {comisionesTrabajo.map((c) => (
               <DashboardCardLink key={c.id} href="/comisiones">
                 <SummaryCard
-                  icon={<Compass size={16} />}
+                  icon={<Compass size={18} />}
                   title={c.nombre}
                   accent="violet"
                   value={c.pendientes}
@@ -769,7 +769,7 @@ export default async function DashboardPage() {
                 title="Obra"
                 trigger={
                   <SummaryCard
-                    icon={<HardHat size={16} />}
+                    icon={<HardHat size={18} />}
                     title="Obra"
                     accent="violet"
                     value={`${pctAvance}%`}
@@ -807,7 +807,7 @@ export default async function DashboardPage() {
             {verCompras && (
               <DashboardCardLink href="/compras">
                 <SummaryCard
-                  icon={<ShoppingCart size={16} />}
+                  icon={<ShoppingCart size={18} />}
                   title="Compras"
                   accent="violet"
                   value={comprasPendientes}
@@ -827,7 +827,7 @@ export default async function DashboardPage() {
             {verSeguridad && (
               <DashboardCardLink href="/seguridad">
                 <SummaryCard
-                  icon={<ShieldCheck size={16} />}
+                  icon={<ShieldCheck size={18} />}
                   title="Seguridad"
                   accent="violet"
                   value={docsVencidos + docsPorVencer + riesgosAbiertos}
@@ -848,7 +848,7 @@ export default async function DashboardPage() {
             {verReclamos && (
               <DashboardCardLink href="/reclamos">
                 <SummaryCard
-                  icon={<Wrench size={16} />}
+                  icon={<Wrench size={18} />}
                   title="Reclamos"
                   accent="violet"
                   value={reclamosAbiertos + reclamosEnProceso}
@@ -869,7 +869,7 @@ export default async function DashboardPage() {
             {!verObra && verTrabajo && proximaJornada && (
               <DashboardCardLink href="/trabajo">
                 <SummaryCard
-                  icon={<Handshake size={16} />}
+                  icon={<Handshake size={18} />}
                   title="Trabajo"
                   accent="violet"
                   value={dayjs(proximaJornada.fecha).format("DD/MM")}
@@ -883,7 +883,7 @@ export default async function DashboardPage() {
             {verGastos && gastosResumen && (Number(gastosResumen.total_mes) > 0 || Number(gastosResumen.cantidad_pendiente) > 0) && (
               <DashboardCardLink href="/gastos">
                 <SummaryCard
-                  icon={<Receipt size={16} />}
+                  icon={<Receipt size={18} />}
                   title="Gastos por comisión"
                   accent="violet"
                   value={money(gastosResumen.total_mes)}
@@ -909,7 +909,7 @@ export default async function DashboardPage() {
             {comunicacionesItems.length > 0 && (
               <DashboardCardLink href="/documentos">
                 <SummaryCard
-                  icon={<Megaphone size={16} />}
+                  icon={<Megaphone size={18} />}
                   title="Comunicaciones"
                   accent="blue"
                   value={comunicacionesItems.length}
@@ -922,7 +922,7 @@ export default async function DashboardPage() {
             {verDocumentos && documentosTotal > 0 && (
               <DashboardCardLink href="/documentos">
                 <SummaryCard
-                  icon={<FileText size={16} />}
+                  icon={<FileText size={18} />}
                   title="Documentos"
                   accent="amber"
                   value={documentosTotal}
@@ -943,7 +943,7 @@ export default async function DashboardPage() {
                 title="Alertas"
                 trigger={
                   <SummaryCard
-                    icon={<Bell size={16} />}
+                    icon={<Bell size={18} />}
                     title="Alertas"
                     accent="amber"
                     value={alertasAbiertasCount}
@@ -970,7 +970,7 @@ export default async function DashboardPage() {
                 title="Actividad reciente"
                 trigger={
                   <SummaryCard
-                    icon={<History size={16} />}
+                    icon={<History size={18} />}
                     title="Actividad"
                     value={actividad.length}
                     hint={`Últ.: ${actividad[0].accion.replace(/_/g, " ")} (${haceTiempo(actividad[0].fecha)})`}

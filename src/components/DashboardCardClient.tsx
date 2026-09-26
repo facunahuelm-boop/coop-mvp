@@ -26,7 +26,7 @@ export function CardModalTrigger({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group block w-full h-full text-left rounded-2xl"
+        className="group block w-full h-full text-left rounded-3xl"
         aria-haspopup="dialog"
       >
         {trigger}

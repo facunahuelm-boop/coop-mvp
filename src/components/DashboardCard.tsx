@@ -22,7 +22,7 @@ import { CardModalTrigger } from "./DashboardCardClient";
 //    falta duplicar esa pantalla en un modal (ej: Documentos, Comunicaciones).
 
 export function DashboardGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">{children}</div>;
+  return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">{children}</div>;
 }
 
 // Sección con título (ej. "Comisiones") + grilla propia adentro — para no
@@ -32,8 +32,8 @@ export function DashboardGrid({ children }: { children: ReactNode }) {
 export function DashboardSection({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="mb-6">
-      <div className="flex items-center justify-between mb-2.5">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-ink-faint">{title}</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-base font-bold uppercase tracking-wide text-ink-faint">{title}</h2>
         {action}
       </div>
       {children}
@@ -56,7 +56,7 @@ const ESTADO_STYLES: Record<EstadoVisual, { texto: string; cls: string; icon: st
 export function EstadoTag({ estado, texto }: { estado: EstadoVisual; texto?: string }) {
   const e = ESTADO_STYLES[estado];
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-semibold ${e.cls}`}>
+    <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${e.cls}`}>
       <span aria-hidden>{e.icon}</span>
       {texto ?? e.texto}
     </span>
@@ -111,9 +111,16 @@ export function SummaryCard({
   error?: string;
   accent?: CardAccent;
 }) {
+  // Retoque visual (26/09, pedido explícito: "que se vea más lindo", sin
+  // tocar estructura): mismo componente, mismos datos y misma jerarquía de
+  // 4 niveles de siempre — sólo más redondeado (rounded-3xl en vez de
+  // rounded-2xl), el chip de ícono pasa de cuadrado a circular y un poco
+  // más grande, y las tipografías (etiqueta/valor/estado/acción) suben un
+  // escalón para que se lean mejor de lejos (pedido explícito: pensado para
+  // personas de 70-80 años). Nada de esto agrega ni saca información.
   if (loading) {
     return (
-      <div className="rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)] p-4 h-full flex flex-col gap-2.5 min-h-[132px]">
+      <div className="rounded-3xl border border-border bg-surface shadow-[var(--shadow-sm)] p-5 h-full flex flex-col gap-2.5 min-h-[140px]">
         <div className="h-3 w-2/3 rounded bg-ink/8 animate-pulse" />
         <div className="h-6 w-1/2 rounded bg-ink/8 animate-pulse" />
         <div className="h-3 w-1/3 rounded bg-ink/8 animate-pulse" />
@@ -121,11 +128,11 @@ export function SummaryCard({
     );
   }
   return (
-    <div className="rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)] p-4 h-full min-h-[132px] flex flex-col gap-1.5 transition-all group-hover:shadow-[var(--shadow-lg)] group-hover:border-[var(--color-brand-700)]/30 group-focus-visible:shadow-[var(--shadow-lg)]">
-      <div className="flex items-center gap-2 text-xs font-semibold text-ink-muted uppercase tracking-wide">
+    <div className="rounded-3xl border border-border bg-surface shadow-[var(--shadow-sm)] p-5 h-full min-h-[140px] flex flex-col gap-2 transition-all group-hover:shadow-[var(--shadow-lg)] group-hover:border-[var(--color-brand-700)]/30 group-focus-visible:shadow-[var(--shadow-lg)]">
+      <div className="flex items-center gap-2.5 text-sm font-semibold text-ink-muted uppercase tracking-wide">
         {accent ? (
           <span
-            className="inline-flex items-center justify-center w-7 h-7 rounded-lg shrink-0 text-sm"
+            className="inline-flex items-center justify-center w-9 h-9 rounded-full shrink-0 text-base"
             style={{ background: ACCENT_BG[accent], color: ACCENT_FG[accent] }}
             aria-hidden
           >
@@ -137,21 +144,21 @@ export function SummaryCard({
         <span className="truncate">{title}</span>
       </div>
       {error ? (
-        <p className="text-xs text-[var(--color-rojo)] mt-1">No pudimos cargar esta información.</p>
+        <p className="text-sm text-[var(--color-rojo)] mt-1">No pudimos cargar esta información.</p>
       ) : (
         <>
           <div
-            className={`text-xl sm:text-2xl font-bold leading-tight truncate ${accent ? "" : "text-ink"}`}
+            className={`text-2xl sm:text-3xl font-bold leading-tight truncate ${accent ? "" : "text-ink"}`}
             style={accent ? { color: ACCENT_FG[accent] } : undefined}
           >
             {value}
           </div>
           {status && <div>{status}</div>}
-          {hint && <p className="text-xs text-ink-faint truncate">{hint}</p>}
+          {hint && <p className="text-sm text-ink-faint truncate">{hint}</p>}
         </>
       )}
       {action && (
-        <div className="text-xs font-semibold text-[var(--color-brand-800)] mt-auto pt-1.5">{error ? "Reintentar" : action}</div>
+        <div className="text-sm font-semibold text-[var(--color-brand-800)] mt-auto pt-1.5">{error ? "Reintentar" : action}</div>
       )}
     </div>
   );
@@ -165,7 +172,7 @@ export function SummaryCard({
  */
 export function DashboardCardLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <Link href={href} className="group block h-full rounded-2xl">
+    <Link href={href} className="group block h-full rounded-3xl">
       {children}
     </Link>
   );
