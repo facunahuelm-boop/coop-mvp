@@ -9,6 +9,7 @@ import { NavGroupSection } from "./NavGroupSection";
 import { Logo3D } from "./Logo3D";
 import { Avatar } from "./EntidadLink";
 import { TopBarClient } from "./TopBarClient";
+import { HeaderQuickLinks, type QuickLinkItem } from "./HeaderQuickLinks";
 import { MiCuenta } from "./MiCuenta";
 import type { MiCuentaData } from "@/lib/logic";
 import {
@@ -50,6 +51,9 @@ import {
   Building2,
   LifeBuoy,
   FileUp,
+  BriefcaseBusiness,
+  UsersRound,
+  UserRound,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module; soloPlataforma?: boolean };
@@ -410,22 +414,47 @@ export function TopBar({ user, miCuenta }: { user: SessionUser; miCuenta: MiCuen
  * Server Action (el único tipo de función que puede cruzar ese límite, ver
  * la nota grande en DashboardCardClient.tsx).
  */
+// Mejora quirúrgica del header (26/09): íconos propios para los 3 accesos
+// rápidos de navegación, elegidos para esta franja puntual — no tienen que
+// coincidir con el ícono que ya usa cada ítem en la Sidebar (ej. Comisiones
+// usa Compass en el menú lateral; acá, UsersRound, más asociado a "grupo de
+// personas" para un acceso chico de una sola línea). El permiso (si el ítem
+// existe o no para este usuario) sigue siendo el mismo de siempre.
+const ICONO_ACCESO_RAPIDO: Record<string, ReactNode> = {
+  "/mi-trabajo": <BriefcaseBusiness size={16} />,
+  "/comisiones": <UsersRound size={16} />,
+  "/socios": <UserRound size={16} />,
+};
+const ORDEN_ACCESOS_RAPIDOS = ["/mi-trabajo", "/comisiones", "/socios"];
+
 export function TopBarDesktop({
+  user,
   alertas,
   miCuenta,
 }: {
+  user: SessionUser;
   alertas: { count: number; hayCriticas: boolean; items: { id: number; titulo: string; severidad: string; fecha: string }[] };
   miCuenta: MiCuentaData | null;
 }) {
+  // Reutiliza exactamente el mismo filtro de permisos que ya arma la
+  // Sidebar/BottomNav (moduloVisible + canRead + soloPlataforma, ver
+  // itemsFor arriba) — nunca una lista de visibilidad aparte para el header.
+  // Si un rol no ve "Comisiones" en el menú, tampoco lo ve acá.
+  const disponibles = itemsFor(user);
+  const accesosRapidos: QuickLinkItem[] = ORDEN_ACCESOS_RAPIDOS.map((href) => disponibles.find((i) => i.href === href))
+    .filter((i): i is NonNullable<typeof i> => Boolean(i))
+    .map((i) => ({ href: i.href, label: i.label, icon: ICONO_ACCESO_RAPIDO[i.href] }));
+
   return (
-    <header className="hidden md:flex items-center justify-end gap-4 px-4 sm:px-6 py-2.5 bg-surface border-b border-border">
-      {/* Rediseño "Mi cuenta" (17/09, pedido explícito): la franja de accesos
-          rápidos que vivía acá (Nueva solicitud de compra / Registrar
-          movimiento / etc.) se retira de la cabecera global — esas acciones
-          puntuales viven en su propio módulo (ej. "+ Nueva solicitud" adentro
-          de Compras), no en la navegación de toda la app. `justify-end` deja
-          el buscador/campana/"Mi cuenta" pegados a la derecha, sin nada más
-          en esta franja. */}
+    <header className="hidden md:flex items-center justify-end gap-1 sm:gap-2 px-4 sm:px-6 py-2.5 bg-surface border-b border-border">
+      {/* Rediseño "Mi cuenta" (17/09): la franja de accesos rápidos de ACCIÓN
+          que vivía acá (Nueva solicitud de compra / Registrar movimiento /
+          etc.) se había retirado de la cabecera global — esas acciones
+          puntuales viven en su propio módulo. La franja de acá abajo es
+          distinta: navegación pura (26/09, pedido explícito), no acciones.
+          `justify-end` deja todo pegado a la derecha, sin nada más en esta
+          franja (el logo/marca vive en la Sidebar, no acá). */}
+      <HeaderQuickLinks items={accesosRapidos} />
       <TopBarClient alertas={alertas} miCuenta={miCuenta && <MiCuenta data={miCuenta} />} />
     </header>
   );

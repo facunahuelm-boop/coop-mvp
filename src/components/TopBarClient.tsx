@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Search, Bell } from "lucide-react";
+import { Search, Bell, MessagesSquare, Mail, UsersRound } from "lucide-react";
 import { useCommandPalette } from "./ui-client";
 import dayjs from "dayjs";
 
@@ -30,6 +30,7 @@ export function TopBarClient({
 }) {
   const { abrir: abrirBuscador } = useCommandPalette();
   const [notifsAbiertas, setNotifsAbiertas] = useState(false);
+  const [comAbierta, setComAbierta] = useState(false);
 
   return (
     <div className="flex items-center gap-2 sm:gap-3">
@@ -111,6 +112,62 @@ export function TopBarClient({
                   className="text-xs font-semibold text-[var(--color-secondary)] hover:underline underline-offset-2"
                 >
                   Ver todas →
+                </Link>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Mejora quirúrgica del header (26/09, pedido explícito): acceso de
+          comunicación junto a Notificaciones — mismo patrón de popover chico
+          que ya usa la campana de acá arriba (nunca un modal grande). No
+          inventa un sistema de comunicación nuevo: conecta directo con los
+          dos que ya existen — /mails (enviar email a una persona, una
+          comisión o toda la cooperativa) y /comunicaciones (mensajes
+          internos + entre comisiones, con sus propios tipos ya definidos:
+          entre_comision/general/privada/administrativa/urgente). */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setComAbierta((v) => !v)}
+          aria-label="Comunicación"
+          title="Comunicación"
+          className="relative inline-flex items-center justify-center h-10 w-10 rounded-full border border-border bg-surface text-ink-muted hover:bg-[var(--color-secondary-bg)] hover:text-[var(--color-secondary)] transition-colors"
+        >
+          <MessagesSquare size={18} />
+        </button>
+
+        {comAbierta && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setComAbierta(false)} />
+            <div className="absolute right-0 mt-2 w-72 max-w-[90vw] rounded-2xl border border-border bg-surface shadow-[var(--shadow-lg)] z-40 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border">
+                <h3 className="text-sm font-bold text-ink">Comunicación</h3>
+                <p className="text-xs text-ink-faint mt-0.5">¿Con quién querés comunicarte?</p>
+              </div>
+              <div className="py-1.5">
+                <Link
+                  href="/mails"
+                  onClick={() => setComAbierta(false)}
+                  className="flex items-start gap-3 px-4 py-2.5 text-sm hover:bg-surface-sunken"
+                >
+                  <Mail size={17} className="mt-0.5 text-[var(--color-brand-800)] shrink-0" aria-hidden />
+                  <span className="min-w-0">
+                    <span className="block text-ink font-medium">Enviar email</span>
+                    <span className="block text-xs text-ink-faint">A una persona, una comisión o toda la cooperativa</span>
+                  </span>
+                </Link>
+                <Link
+                  href="/comunicaciones"
+                  onClick={() => setComAbierta(false)}
+                  className="flex items-start gap-3 px-4 py-2.5 text-sm hover:bg-surface-sunken"
+                >
+                  <UsersRound size={17} className="mt-0.5 text-[var(--color-brand-800)] shrink-0" aria-hidden />
+                  <span className="min-w-0">
+                    <span className="block text-ink font-medium">Comunicaciones</span>
+                    <span className="block text-xs text-ink-faint">Mensajes internos y con las comisiones</span>
+                  </span>
                 </Link>
               </div>
             </div>
