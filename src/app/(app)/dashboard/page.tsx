@@ -11,6 +11,8 @@ import {
   crearNotaCalendarioFormAction,
   editarNotaCalendarioFormAction,
   eliminarNotaCalendarioFormAction,
+  agregarParticipanteActividadFormAction,
+  quitarParticipanteActividadFormAction,
 } from "@/lib/actions/calendarioNotas";
 import { InstallHint } from "@/components/InstallHint";
 import { UsuarioLink } from "@/components/EntidadLink";
@@ -474,6 +476,25 @@ export default async function DashboardPage() {
     })),
   ];
 
+  // Rediseño del Calendario, Etapa 4 (26/09, punto 20): participantes de
+  // cada actividad — mismo query/mapeo que /calendario (ver ese page.tsx
+  // para el comentario grande sobre la tabla de unión y por qué no es un
+  // ARRAY).
+  const participantesCalendarioRaw = await all<{ id: number; nota_id: number; usuario_id: number; nombre: string }>(
+    `SELECT p.id, p.nota_id, p.usuario_id, u.nombre
+     FROM actividad_participantes p
+     JOIN users u ON u.id = p.usuario_id
+     JOIN notas_calendario n ON n.id = p.nota_id
+     WHERE n.fecha >= ? ORDER BY u.nombre ASC`,
+    [desdeMes]
+  ).catch(() => [] as { id: number; nota_id: number; usuario_id: number; nombre: string }[]);
+  const participantesPorNotaCalendario = new Map<number, { id: number; usuarioId: number; nombre: string }[]>();
+  for (const p of participantesCalendarioRaw) {
+    const arr = participantesPorNotaCalendario.get(p.nota_id) || [];
+    arr.push({ id: p.id, usuarioId: p.usuario_id, nombre: p.nombre });
+    participantesPorNotaCalendario.set(p.nota_id, arr);
+  }
+
   const notasCalendario: NotaCalendario[] = notasCalendarioMes.map((n: any) => ({
     id: n.id,
     fecha: n.fecha,
@@ -494,6 +515,8 @@ export default async function DashboardPage() {
     serieId: n.serie_id ?? null,
     serieFrecuencia: n.serie_frecuencia ?? null,
     serieFechaFin: n.serie_fecha_fin ?? null,
+    participantes: participantesPorNotaCalendario.get(n.id) ?? [],
+    esMia: n.autor_id === user.id || n.responsable_id === user.id || (participantesPorNotaCalendario.get(n.id) ?? []).some((p) => p.usuarioId === user.id),
   }));
 
   // Tarjeta compacta de Calendario: cuenta + próximo evento entre lo que ya
@@ -622,6 +645,8 @@ export default async function DashboardPage() {
               crearNota={crearNotaCalendarioFormAction}
               editarNota={editarNotaCalendarioFormAction}
               eliminarNota={eliminarNotaCalendarioFormAction}
+              agregarParticipante={agregarParticipanteActividadFormAction}
+              quitarParticipante={quitarParticipanteActividadFormAction}
             />
           </DashboardCardModal>
 

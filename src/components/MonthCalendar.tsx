@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useState, type CSSProperties, type DragEvent } from "react";
+import { useActionState, useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import dayjs, { Dayjs } from "dayjs";
 import { ChevronLeft, ChevronRight, Pencil, Trash2, Plus, Repeat } from "lucide-react";
 import { ESTADO_INICIAL, type ActionState } from "@/lib/actionState";
-import { FieldError, FormError, useToast, Modal } from "./ui-client";
+import { FieldError, FormError, useToast, Modal, ActionForm, SubmitButton } from "./ui-client";
 import { AddButton, Label, inputClass } from "./ui";
 import {
   CATEGORIAS_EVENTO,
@@ -97,6 +97,16 @@ export type NotaCalendario = {
   serieId: number | null;
   serieFrecuencia: string | null;
   serieFechaFin: string | null;
+  // Rediseño del Calendario, Etapa 4 (26/09): participantes además del único
+  // responsable que ya existía (ver actions/calendarioNotas.ts sobre por qué
+  // es una tabla de unión y no un array). `esMia` es distinto de `esPropia`
+  // a propósito: `esPropia` es un permiso (autor, admin o consejo pueden
+  // editar/borrar CUALQUIER actividad), mientras que `esMia` es relevancia
+  // personal para "Mi agenda"/el filtro "Sólo lo mío" (autor, responsable o
+  // participante de ESTA actividad puntual — admin/consejo no ven "todo"
+  // marcado como suyo sólo por poder editarlo).
+  participantes: { id: number; usuarioId: number; nombre: string }[];
+  esMia: boolean;
 };
 
 type Opcion = { id: number; nombre: string };
@@ -106,6 +116,14 @@ type Opcion = { id: number; nombre: string };
 // negocio (fecha inválida, sin permiso, etc.) sale como aviso, no como la
 // pantalla genérica de error de Next.js.
 type AccionNota = (prevState: ActionState, formData: FormData) => Promise<ActionState>;
+
+// Rediseño del Calendario, Etapa 4 (26/09): `agregarParticipante` es
+// opcional (mismo criterio que crearNota/editarNota/eliminarNota — sin
+// pasarlo, la actividad queda de solo lectura para participantes) pero
+// useActionState no puede llamarse condicionalmente (regla de hooks de
+// React) — este placeholder nunca se ejecuta de verdad porque el <form> que
+// lo usa sólo se renderiza cuando `agregarParticipante` sí está presente.
+const NOOP_ACCION: AccionNota = async (prev) => prev;
 
 /** Item unificado para pintar una celda/fila del calendario, ya sea que
  * venga de un evento de otro módulo (solo lectura) o de una actividad propia
@@ -457,12 +475,18 @@ function ActividadFormulario({
 // (documentado en el CHANGELOG de esta etapa).
 function ActividadResumen({
   nota,
+  usuarios,
   eliminarNota,
+  agregarParticipante,
+  quitarParticipante,
   onEditar,
   onCerrar,
 }: {
   nota: NotaCalendario;
+  usuarios: Opcion[];
   eliminarNota: AccionNota;
+  agregarParticipante?: AccionNota;
+  quitarParticipante?: AccionNota;
   onEditar: () => void;
   onCerrar: () => void;
 }) {
@@ -475,11 +499,27 @@ function ActividadResumen({
   // (la operación menos sorpresiva si alguien aprieta Eliminar sin pensarlo).
   const [alcance, setAlcance] = useState<AlcanceSerie>("solo");
 
+  // Rediseño del Calendario, Etapa 4 (26/09): agregar un participante —
+  // mismo patrón exacto que "colaboradores" en TareaDetalleModal.tsx
+  // (sección 12 del pedido de Comisiones): <select> + botón "Agregar",
+  // useActionState propio para poder resetear el <select> al agregar bien y
+  // mostrar el error como toast si falla.
+  const [estadoParticipante, agregarParticipanteAction] = useActionState(agregarParticipante ?? NOOP_ACCION, ESTADO_INICIAL);
+  const participanteFormRef = useRef<HTMLFormElement>(null);
+  const participantesDisponibles = usuarios.filter((u) => !nota.participantes.some((p) => p.usuarioId === u.id));
+
   useEffect(() => {
     if (estado.ok) onCerrar();
     if (!estado.ok && estado.error) show(estado.error, "error");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
+
+  useEffect(() => {
+    if (!agregarParticipante) return;
+    if (estadoParticipante.ok) participanteFormRef.current?.reset();
+    if (!estadoParticipante.ok && estadoParticipante.error) show(estadoParticipante.error, "error");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoParticipante]);
 
   return (
     <div className="space-y-3">
@@ -507,6 +547,45 @@ function ActividadResumen({
           </p>
         )}
       </div>
+
+      {/* Rediseño del Calendario, Etapa 4 (26/09, punto 20): participantes
+          además del único responsable — mismo patrón visual que
+          "colaboradores" en TareaDetalleModal.tsx (chips con "✕" para
+          quitar + un <select>+"Agregar" chico para sumar). Visible para
+          cualquiera que vea el resumen (informativo); administrar
+          (agregar/quitar) sólo si puede modificar la actividad y las
+          acciones fueron pasadas al componente. */}
+      {(nota.participantes.length > 0 || (nota.esPropia && agregarParticipante)) && (
+        <div className="pt-2 border-t border-border">
+          <Label>Participantes</Label>
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {nota.participantes.map((p) => (
+              <span key={p.id} className="inline-flex items-center gap-1.5 text-xs rounded-full bg-ink/5 px-2.5 py-1">
+                {p.nombre}
+                {nota.esPropia && quitarParticipante && (
+                  <ActionForm action={quitarParticipante} className="inline">
+                    <input type="hidden" name="id" value={p.id} />
+                    <button className="text-ink/40 hover:text-[var(--color-rojo)]" title="Quitar participante">✕</button>
+                  </ActionForm>
+                )}
+              </span>
+            ))}
+            {nota.participantes.length === 0 && <p className="text-xs text-ink/40 italic">Sin participantes, además del responsable.</p>}
+          </div>
+          {nota.esPropia && agregarParticipante && participantesDisponibles.length > 0 && (
+            <form ref={participanteFormRef} action={agregarParticipanteAction} className="mt-2 flex items-center gap-2">
+              <input type="hidden" name="nota_id" value={nota.id} />
+              <select name="usuario_id" className={inputClass + " text-xs !py-1.5"} defaultValue="">
+                <option value="" disabled>Agregar participante…</option>
+                {participantesDisponibles.map((u) => (
+                  <option key={u.id} value={u.id}>{u.nombre}</option>
+                ))}
+              </select>
+              <SubmitButton variant="add" className="text-xs px-2.5 py-1.5 whitespace-nowrap">Agregar</SubmitButton>
+            </form>
+          )}
+        </div>
+      )}
 
       {nota.esPropia && (
         <div className="pt-2 border-t border-border space-y-2">
@@ -636,6 +715,8 @@ export function MonthCalendar({
   editarNota,
   eliminarNota,
   moverNota,
+  agregarParticipante,
+  quitarParticipante,
 }: {
   eventos: EventoCalendario[];
   notas?: NotaCalendario[];
@@ -658,18 +739,53 @@ export function MonthCalendar({
    * aparte). Si no se pasa, el calendario funciona igual que antes, sin
    * arrastrar. */
   moverNota?: AccionNota;
+  /** Rediseño del Calendario, Etapa 4 (26/09, punto 20): agregar/quitar
+   * participantes de una actividad, desde el modal de resumen. Si no se
+   * pasan, los participantes existentes igual se muestran (informativo),
+   * pero sin forma de agregar/quitar. */
+  agregarParticipante?: AccionNota;
+  quitarParticipante?: AccionNota;
 }) {
   const hoy = dayjs();
   const [mes, setMes] = useState(() => hoy.startOf("month"));
   const [seleccionado, setSeleccionado] = useState<string | null>(() => isoDate(hoy));
   const [modal, setModal] = useState<ModalEstado>(null);
   const puedeEscribir = !!(crearNota && editarNota && eliminarNota);
+  // Rediseño del Calendario, Etapa 4 (26/09, punto: "vista Agenda propia"):
+  // selector Mes/Agenda arriba de la grilla (decisión confirmada con el
+  // usuario) — reutiliza la lista cronológica que ya existía sólo para
+  // mobile (`sm:hidden`, ver más abajo), ahora también disponible en
+  // cualquier ancho de pantalla cuando se elige "Agenda". En mobile, la
+  // lista se sigue viendo igual que antes aunque quede en "mes" (la grilla
+  // completa nunca se ve por debajo de `sm:`, sin cambios ahí).
+  const [vista, setVista] = useState<"mes" | "agenda">("mes");
   // Arrastrar y soltar (Etapa 3): `diaResaltado` es sólo feedback visual del
   // día debajo del cursor mientras se arrastra; el id real de la actividad
   // arrastrada viaja en el propio evento nativo (`dataTransfer`), no hace
   // falta guardarlo en estado de React.
   const [diaResaltado, setDiaResaltado] = useState<string | null>(null);
-  const notasPorId = new Map(notas.map((n) => [String(n.id), n]));
+
+  // Rediseño del Calendario, Etapa 4 (26/09, pedido explícito, puntos 21/27:
+  // "Mi agenda" + filtros compactos): estado de React nada más (como el
+  // resto de la interacción de este componente — navegación de mes,
+  // selección, modales), no un GET con searchParams como en Compras/Gastos —
+  // este calendario ya guarda toda su posición/selección en estado del
+  // cliente, así que filtrar al instante sin recargar la página ni perder el
+  // mes/día elegido es más consistente con esta pantalla puntual. Los
+  // filtros sólo se aplican a las actividades propias (`notas`) — los
+  // eventos de solo lectura agregados de otros módulos (`eventos`) quedan
+  // siempre visibles sin filtrar, mismo límite ya establecido en la Etapa 1
+  // ("esta ampliación toca (B), no (A)").
+  const [filtroCategoria, setFiltroCategoria] = useState("");
+  const [filtroComision, setFiltroComision] = useState("");
+  const [soloMio, setSoloMio] = useState(false);
+  const notasFiltradas = notas.filter((n) => {
+    if (filtroCategoria && categoriaDeNota(n.color) !== filtroCategoria) return false;
+    if (filtroComision && String(n.comisionId ?? "") !== filtroComision) return false;
+    if (soloMio && !n.esMia) return false;
+    return true;
+  });
+  const notasPorId = new Map(notasFiltradas.map((n) => [String(n.id), n]));
 
   function soltarEnDia(e: DragEvent, key: string) {
     e.preventDefault();
@@ -688,7 +804,7 @@ export function MonthCalendar({
     eventosPorDia.set(key, arr);
   }
   const notasPorDia = new Map<string, NotaCalendario[]>();
-  for (const n of notas) {
+  for (const n of notasFiltradas) {
     const arr = notasPorDia.get(n.fecha) || [];
     arr.push(n);
     notasPorDia.set(n.fecha, arr);
@@ -858,7 +974,10 @@ export function MonthCalendar({
         {modal && modal.tipo === "resumen" && (
           <ActividadResumen
             nota={modal.nota}
+            usuarios={usuarios}
             eliminarNota={eliminarNota!}
+            agregarParticipante={agregarParticipante}
+            quitarParticipante={quitarParticipante}
             onEditar={() => setModal({ tipo: "editar", nota: modal.nota })}
             onCerrar={cerrarModal}
           />
@@ -986,10 +1105,76 @@ export function MonthCalendar({
         </button>
       </div>
 
+      {/* Rediseño del Calendario, Etapa 4 (26/09): selector Mes/Agenda +
+          filtros compactos (Categoría/Comisión/"Sólo lo mío"), en una sola
+          fila para no ocupar espacio vertical extra — mismo criterio ya
+          usado en Compras/Gastos ("filtros compactos" del resto del
+          sistema), adaptado acá a estado de cliente en vez de un GET (ver
+          comentario grande donde se define `notasFiltradas`). */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <div className="inline-flex rounded-lg border border-border p-0.5 gap-0.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setVista("mes")}
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+              vista === "mes" ? "bg-[var(--color-brand-800)] text-white" : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            Mes
+          </button>
+          <button
+            type="button"
+            onClick={() => setVista("agenda")}
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+              vista === "agenda" ? "bg-[var(--color-brand-800)] text-white" : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            Agenda
+          </button>
+        </div>
+
+        <select
+          value={filtroCategoria}
+          onChange={(e) => setFiltroCategoria(e.target.value)}
+          aria-label="Filtrar por categoría"
+          className={inputClass + " !w-auto !py-1 text-xs"}
+        >
+          <option value="">Todas las categorías</option>
+          {CATEGORIAS_ACTIVIDAD.map((c) => (
+            <option key={c} value={c}>
+              {CATEGORIA_EVENTO_NOMBRE[c]}
+            </option>
+          ))}
+        </select>
+
+        {comisiones.length > 0 && (
+          <select
+            value={filtroComision}
+            onChange={(e) => setFiltroComision(e.target.value)}
+            aria-label="Filtrar por comisión"
+            className={inputClass + " !w-auto !py-1 text-xs"}
+          >
+            <option value="">Todas las comisiones</option>
+            {comisiones.map((c) => (
+              <option key={c.id} value={String(c.id)}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <label className="inline-flex items-center gap-1.5 text-xs text-ink-muted cursor-pointer sm:ml-auto">
+          <input type="checkbox" checked={soloMio} onChange={(e) => setSoloMio(e.target.checked)} className="rounded border-ink/20" />
+          Sólo lo mío
+        </label>
+      </div>
+
       <LeyendaCategorias />
 
-      {/* Grilla del mes — sólo desde `sm:` para arriba (ver vista agenda debajo). */}
-      <div className="hidden sm:block">
+      {/* Grilla del mes — sólo cuando la vista es "Mes", y sólo desde `sm:`
+          para arriba (ver vista agenda debajo, ahora también disponible en
+          cualquier ancho cuando `vista === "agenda"`). */}
+      <div className={vista === "mes" ? "hidden sm:block" : "hidden"}>
         <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-ink-faint uppercase mb-1">
           {DIAS.map((d, i) => (
             <div key={i}>{d}</div>
@@ -1094,8 +1279,10 @@ export function MonthCalendar({
         </div>
       </div>
 
-      {/* Vista agenda — sólo debajo de `sm:` (ver comentario grande arriba). */}
-      <div className="sm:hidden">
+      {/* Vista agenda — siempre visible cuando `vista === "agenda"` (Etapa
+          4); si no, sólo debajo de `sm:` como antes (ver comentario grande
+          arriba). */}
+      <div className={vista === "agenda" ? "block" : "sm:hidden"}>
         {diasConAlgo.length === 0 ? (
           <p className="text-sm text-ink-faint py-4 text-center">Sin nada agendado este mes.</p>
         ) : (

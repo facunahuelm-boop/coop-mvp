@@ -352,3 +352,74 @@ export async function moverNotaCalendarioAction(formData: FormData) {
 export async function moverNotaCalendarioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => moverNotaCalendarioAction(formData));
 }
+
+// Rediseño del Calendario, Etapa 4 (26/09, pedido explícito, punto 20:
+// "participantes" además del único responsable que ya existía). Se resuelve
+// con una tabla de unión nueva (actividad_participantes, migración 0044) en
+// vez de un ARRAY nativo de Postgres en notas_calendario — src/lib/db.ts hace
+// JSON.stringify de cualquier valor `object` al armar un INSERT/UPDATE
+// (pensado para columnas JSONB, no ARRAY) y esa función la comparten ~30
+// acciones más en todo el proyecto; una tabla de unión evita tocarla y sigue
+// el mismo patrón que ya usa este sistema para relaciones de "varios
+// usuarios por fila" (tarea_colaboradores, comision_miembros,
+// reunion_asistencias). Esto quedó pendiente a propósito desde la Etapa 1
+// (ver CHANGELOG) para resolverlo junto con "Mi agenda", que es donde
+// participantes realmente hace falta. Mismo criterio de permisos que el
+// resto del archivo (puedeModificar): sólo el autor, admin o consejo
+// directivo pueden agregar/quitar participantes — no cualquiera que la vea.
+const participanteSchema = z.object({ nota_id: zId, usuario_id: zId });
+
+export async function agregarParticipanteActividadAction(formData: FormData) {
+  const user = await requireUser();
+  const { nota_id, usuario_id } = parseForm(participanteSchema, formData);
+  try {
+    const nota = await get<{ autor_id: number }>(`SELECT autor_id FROM notas_calendario WHERE id = ?`, [nota_id]);
+    if (!nota) throw new Error("Esa actividad ya no existe — puede que alguien ya la haya borrado.");
+    if (!puedeModificar(user, nota.autor_id)) throw new Error("No podés agregar participantes a una actividad que no creaste vos.");
+
+    const yaExiste = await get<{ id: number }>(`SELECT id FROM actividad_participantes WHERE nota_id = ? AND usuario_id = ?`, [nota_id, usuario_id]);
+    if (yaExiste) return; // ya es participante, no hay nada más que hacer
+
+    await insert("actividad_participantes", { nota_id, usuario_id });
+  } catch (err) {
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
+      usuario_id: user.id,
+      accion: "agregar_participante",
+      entidad: "notas_calendario",
+      entidad_id: nota_id,
+    });
+  }
+  revalidatePath("/calendario");
+  revalidatePath("/dashboard");
+}
+
+export async function agregarParticipanteActividadFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarParticipanteActividadAction(formData));
+}
+
+export async function quitarParticipanteActividadAction(formData: FormData) {
+  const user = await requireUser();
+  const { id } = parseForm(z.object({ id: zId }), formData);
+  try {
+    const participante = await get<{ autor_id: number }>(
+      `SELECT n.autor_id as autor_id FROM actividad_participantes p JOIN notas_calendario n ON n.id = p.nota_id WHERE p.id = ?`,
+      [id]
+    );
+    if (!participante) return; // ya no existe
+    if (!puedeModificar(user, participante.autor_id)) throw new Error("No podés quitar un participante de una actividad que no creaste vos.");
+    await run(`DELETE FROM actividad_participantes WHERE id = ?`, [id]);
+  } catch (err) {
+    await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
+      usuario_id: user.id,
+      accion: "quitar_participante",
+      entidad: "notas_calendario",
+      entidad_id: id,
+    });
+  }
+  revalidatePath("/calendario");
+  revalidatePath("/dashboard");
+}
+
+export async function quitarParticipanteActividadFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => quitarParticipanteActividadAction(formData));
+}

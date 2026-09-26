@@ -10,6 +10,8 @@ import {
   editarNotaCalendarioFormAction,
   eliminarNotaCalendarioFormAction,
   moverNotaCalendarioFormAction,
+  agregarParticipanteActividadFormAction,
+  quitarParticipanteActividadFormAction,
 } from "@/lib/actions/calendarioNotas";
 import dayjs from "dayjs";
 import Link from "next/link";
@@ -112,6 +114,28 @@ export default async function CalendarioPage() {
      WHERE n.fecha >= ? ORDER BY n.fecha ASC LIMIT 100`,
     [desde]
   ).catch(() => [] as any[]);
+
+  // Rediseño del Calendario, Etapa 4 (26/09, punto 20): participantes de
+  // cada actividad — tabla de unión nueva (migración 0044, ver
+  // actions/calendarioNotas.ts sobre por qué no es un ARRAY). Mismo criterio
+  // que notasRaw: si la migración todavía no corrió, el `.catch` evita que
+  // se caiga toda la pantalla — el calendario sigue andando sin
+  // participantes hasta que se aplique.
+  const participantesRaw = await all<{ id: number; nota_id: number; usuario_id: number; nombre: string }>(
+    `SELECT p.id, p.nota_id, p.usuario_id, u.nombre
+     FROM actividad_participantes p
+     JOIN users u ON u.id = p.usuario_id
+     JOIN notas_calendario n ON n.id = p.nota_id
+     WHERE n.fecha >= ? ORDER BY u.nombre ASC`,
+    [desde]
+  ).catch(() => [] as { id: number; nota_id: number; usuario_id: number; nombre: string }[]);
+  const participantesPorNota = new Map<number, { id: number; usuarioId: number; nombre: string }[]>();
+  for (const p of participantesRaw) {
+    const arr = participantesPorNota.get(p.nota_id) || [];
+    arr.push({ id: p.id, usuarioId: p.usuario_id, nombre: p.nombre });
+    participantesPorNota.set(p.nota_id, arr);
+  }
+
   const notas: NotaCalendario[] = notasRaw.map((n: any) => ({
     id: n.id,
     fecha: n.fecha,
@@ -137,6 +161,13 @@ export default async function CalendarioPage() {
     serieId: n.serie_id ?? null,
     serieFrecuencia: n.serie_frecuencia ?? null,
     serieFechaFin: n.serie_fecha_fin ?? null,
+    // Rediseño del Calendario, Etapa 4 (26/09): `esMia` (relevancia personal
+    // para "Mi agenda"/filtro "Sólo lo mío") es DISTINTO de `esPropia`
+    // (permiso de editar/borrar, arriba) — admin/consejo no ven todo como
+    // "suyo" acá sólo porque puedan editarlo, ver el comentario del tipo en
+    // MonthCalendar.tsx.
+    participantes: participantesPorNota.get(n.id) ?? [],
+    esMia: n.autor_id === user.id || n.responsable_id === user.id || (participantesPorNota.get(n.id) ?? []).some((p) => p.usuarioId === user.id),
   }));
 
   const eventos: Evento[] = [
@@ -211,6 +242,8 @@ export default async function CalendarioPage() {
           editarNota={editarNotaCalendarioFormAction}
           eliminarNota={eliminarNotaCalendarioFormAction}
           moverNota={moverNotaCalendarioFormAction}
+          agregarParticipante={agregarParticipanteActividadFormAction}
+          quitarParticipante={quitarParticipanteActividadFormAction}
         />
       </Card>
 
