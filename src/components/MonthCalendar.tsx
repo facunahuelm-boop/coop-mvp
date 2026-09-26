@@ -786,6 +786,30 @@ export function MonthCalendar({
     return true;
   });
   const notasPorId = new Map(notasFiltradas.map((n) => [String(n.id), n]));
+  // Rediseño del Calendario, Etapa 4 (26/09): tabla completa SIN filtrar,
+  // sólo para refrescar un modal ya abierto (ver notaFresca más abajo) — si
+  // se usara `notasPorId` (filtrado) acá, alternar un filtro mientras hay un
+  // modal abierto podría cerrarlo de golpe por no encontrar la nota, algo
+  // que no tiene que ver con filtrar la vista.
+  const notasPorIdCompleta = new Map(notas.map((n) => [String(n.id), n]));
+  /**
+   * Bug real encontrado en la verificación en vivo de Etapa 4: agregar un
+   * participante no cerraba el modal de resumen a propósito (mismo criterio
+   * que "colaboradores" en TareaDetalleModal.tsx: se sigue agregando sin
+   * cerrar) — pero el modal guarda la actividad en `useState` en el momento
+   * en que se abrió (`setModal({ tipo: "resumen", nota })`), así que aunque
+   * `revalidatePath` trae una `notas` actualizada como prop nueva del
+   * servidor, el objeto guardado en el estado del modal sigue siendo la
+   * copia vieja — el participante se guardaba bien en la base, pero no se
+   * veía reflejado en el modal sin cerrar y volver a abrir. `notaFresca()`
+   * resuelve siempre la versión más actualizada por id antes de pasarla a
+   * los componentes de adentro del modal; si la actividad ya no existe más
+   * (por ejemplo la borró otra persona mientras el modal seguía abierto), se
+   * usa la última copia conocida en vez de romper el render.
+   */
+  function notaFresca(n: NotaCalendario): NotaCalendario {
+    return notasPorIdCompleta.get(String(n.id)) ?? n;
+  }
 
   function soltarEnDia(e: DragEvent, key: string) {
     e.preventDefault();
@@ -958,8 +982,8 @@ export function MonthCalendar({
         {modal && (modal.tipo === "crear" || modal.tipo === "editar") && (
           <ActividadFormulario
             key={modal.tipo === "editar" ? `editar-${modal.nota.id}` : `crear-${modal.fecha}`}
-            fecha={modal.tipo === "crear" ? modal.fecha : modal.nota.fecha}
-            notaEnEdicion={modal.tipo === "editar" ? modal.nota : null}
+            fecha={modal.tipo === "crear" ? modal.fecha : notaFresca(modal.nota).fecha}
+            notaEnEdicion={modal.tipo === "editar" ? notaFresca(modal.nota) : null}
             comisiones={comisiones}
             usuarios={usuarios}
             crearNota={crearNota!}
@@ -970,15 +994,15 @@ export function MonthCalendar({
         )}
       </Modal>
 
-      <Modal open={modal?.tipo === "resumen"} onClose={cerrarModal} title={modal?.tipo === "resumen" ? modal.nota.titulo : ""} size="md">
+      <Modal open={modal?.tipo === "resumen"} onClose={cerrarModal} title={modal?.tipo === "resumen" ? notaFresca(modal.nota).titulo : ""} size="md">
         {modal && modal.tipo === "resumen" && (
           <ActividadResumen
-            nota={modal.nota}
+            nota={notaFresca(modal.nota)}
             usuarios={usuarios}
             eliminarNota={eliminarNota!}
             agregarParticipante={agregarParticipante}
             quitarParticipante={quitarParticipante}
-            onEditar={() => setModal({ tipo: "editar", nota: modal.nota })}
+            onEditar={() => setModal({ tipo: "editar", nota: notaFresca(modal.nota) })}
             onCerrar={cerrarModal}
           />
         )}
@@ -987,7 +1011,7 @@ export function MonthCalendar({
       {moverNota && (
         <Modal open={modal?.tipo === "mover"} onClose={cerrarModal} title="Mover actividad" size="md">
           {modal && modal.tipo === "mover" && (
-            <ActividadMoverConfirm nota={modal.nota} fechaDestino={modal.fechaDestino} moverNota={moverNota} onMovido={cerrarModal} onCancelar={cerrarModal} />
+            <ActividadMoverConfirm nota={notaFresca(modal.nota)} fechaDestino={modal.fechaDestino} moverNota={moverNota} onMovido={cerrarModal} onCancelar={cerrarModal} />
           )}
         </Modal>
       )}
