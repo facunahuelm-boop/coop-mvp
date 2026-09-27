@@ -1,0 +1,42 @@
+-- AUDITORÍA INTEGRAL (27/09) — hallazgo H-3, corregido: edición concurrente
+-- del mismo registro por dos usuarios resultaba en "last write wins" en
+-- silencio (probado en vivo en Comisiones, Finanzas y Compras) — ninguna de
+-- las dos personas se enteraba de que su cambio, o el del otro, se había
+-- perdido, y ambas veían el mismo toast de "actualizado con éxito".
+--
+-- Alcance a propósito ACOTADO a las 3 tablas donde ya se confirmó el
+-- problema en vivo (no se toca ninguna otra tabla ni el `update()` genérico
+-- de db.ts, que sigue funcionando exactamente igual para las ~30 tablas
+-- restantes que lo usan sin control de versión — cambiar esa función
+-- compartida hubiera afectado a todo el sistema para resolver un problema
+-- verificado en sólo 3 lugares).
+--
+-- `actualizado_en` guarda cuándo fue la última modificación real de la fila
+-- (no se toca en cada UPDATE del sistema en general — sólo lo actualiza el
+-- nuevo helper `updateConBloqueoOptimista()` de db.ts, usado específicamente
+-- por editarComisionAction/editarMovimientoAction/editarSolicitudAction). El
+-- formulario de edición carga este valor como campo oculto al abrirse; si
+-- alguien más edita el registro mientras el formulario sigue abierto, el
+-- valor que se manda de vuelta ya no coincide con el de la base, y el UPDATE
+-- (que filtra por ese valor exacto) no afecta ninguna fila — la acción lo
+-- detecta y avisa en vez de pisar el cambio ajeno en silencio.
+--
+-- DEFAULT now()::text a propósito: toda fila ya existente queda con una
+-- versión inicial válida sin ningún backfill manual, y la primera edición de
+-- cualquiera de ellas después de esta migración ya queda protegida.
+--
+-- TEXT y no TIMESTAMPTZ, a propósito: el resto del sistema ya guarda sus
+-- fechas/horas así (`creado_en TEXT ... DEFAULT now()::text`, en todas las
+-- tablas desde la migración 0002 — resabio de que el código se escribió
+-- primero para SQLite). Acá importa todavía más que sea TEXT: el valor viaja
+-- desde el servidor hasta un campo oculto del formulario de edición y de
+-- vuelta sin tocarlo — si fuera TIMESTAMPTZ, node-pg lo devolvería como un
+-- `Date` de JavaScript, que sólo guarda milisegundos, mientras que
+-- `now()::text` en Postgres trae microsegundos; ese redondeo hubiera hecho
+-- que el valor de "ida" nunca coincida exactamente con el de la base, y
+-- CUALQUIER edición (aunque nadie más hubiera tocado el registro) se
+-- reportaría como un falso conflicto de concurrencia. Como texto plano, el
+-- valor va y vuelve exactamente igual, carácter por carácter.
+ALTER TABLE comisiones ADD COLUMN IF NOT EXISTS actualizado_en TEXT NOT NULL DEFAULT now()::text;
+ALTER TABLE movimientos_financieros ADD COLUMN IF NOT EXISTS actualizado_en TEXT NOT NULL DEFAULT now()::text;
+ALTER TABLE solicitudes_compra ADD COLUMN IF NOT EXISTS actualizado_en TEXT NOT NULL DEFAULT now()::text;
