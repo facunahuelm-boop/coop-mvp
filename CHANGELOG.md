@@ -2100,3 +2100,22 @@ Con esto, la **Fase 4 queda completa (4 de 4 sub-fases: 4.1, 4.2, 4.3, 4.4)**.
 **Ajuste post-verificación (mismo día):** en mobile (375px), Finanzas y Gastos combinan 2 controles en el mismo `action` (ej. "+ Agregar finanza" + "Descargar reporte PDF") y se salían del ancho de pantalla porque ni `PageHeader` ni esos contenedores tenían `flex-wrap`. Se agregó `flex-wrap` a `PageHeader` (`ui.tsx`, beneficia a todo el sistema) y a los 3 combos nuevos (Finanzas, Gastos, Proveedores) — en desktop/tablet no cambia nada (ya entraban en una fila), en mobile ahora se acomodan en una segunda línea en vez de desbordar. `tsc`/`eslint` sin cambios respecto al baseline.
 
 **Desplegado y verificado en vivo** (mobile 375px, Finanzas): "+ Agregar finanza" y "Descargar reporte PDF" ahora caben sin scroll horizontal.
+
+## Mejora integral — Fase 2: Asambleas (27/09)
+
+**Contexto:** segunda fase del pedido de 30 puntos. Spec: "listado escaneable (tabla/tarjetas compactas) + pop-up de detalle (orden del día/participación/resoluciones/documentos, sólo si el dato ya existe) + permisos por rol (socios sólo consulta, Consejo Directivo gestiona)".
+
+**Auditoría de permisos primero:** antes de tocar nada se confirmó que `canRead(rol,"comisiones")` ya es `"read"` para el rol `socio` en la matriz de `roles.ts` — un socio ya sólo podía consultar esta pantalla, nunca gestionarla. No hizo falta ningún cambio de permisos para cumplir "socios sólo consulta, Consejo Directivo gestiona": ya era así.
+
+**Qué se hizo:** el listado de tarjetas largas (con todo el texto siempre visible, separado en dos bloques "Próximas"/"Historial") pasa a `TablaFiltrable` + `FilaConDetalle` — el mismo patrón "resumen → click → pop-up" que ya usan Comunicaciones/Decisiones/Solicitudes/la pestaña de Cuotas de Finanzas, en vez de inventar un componente nuevo. Columnas: Asamblea, Tipo, Convocatoria, Fecha, Participación, Estado, con filtro por Estado y por Tipo (ordinaria/extraordinaria). El pop-up de detalle muestra, con datos que YA existían en el sistema (no se agregó ningún campo ni tabla nueva):
+- **Convocatoria**: tipo, N° de convocatoria, fecha de convocatoria + antelación, modalidad.
+- **Orden del día**: la agenda estructurada (`reunion_agenda_items`, con el resultado de cada punto) si existe, o el texto libre de "orden del día" como respaldo.
+- **Participación**: núcleos presentes/total (el mismo dato informativo de siempre) y, si la asamblea tiene invitados individuales cargados, personas confirmadas presentes/total.
+- **Resoluciones**: cantidad de decisiones registradas (con link a Decisiones) y el resumen del acta, si existe.
+- **Documentos**: el PDF del acta y cualquier otro documento vinculado a esa reunión (`documentos.reunion_id`), cada uno con su descarga.
+
+El pop-up es de sólo lectura — la gestión real (tomar asistencia, cerrar la reunión, cargar agenda/invitados) sigue siendo exclusivamente `/reuniones/[id]`, con sus propios permisos intactos; el botón "Ver reunión completa →" (footer estándar de `FilaConDetalle`) lleva ahí, nunca se duplicó ningún formulario. De paso, "+ Convocar asamblea" (antes al pie de la página) se reubicó a `PageHeader action`, arriba a la derecha — misma convención de la Fase 1.
+
+**Verificación:** `tsc --noEmit` limpio. `eslint`: 415 problemas (384 errores + 31 advertencias) — 1 menos que el baseline (416), porque el componente `Fila` que se quitó usaba `any` tres veces y el reemplazo usa `any` sólo dos; nunca aumenta, así que no hay regresión. `next build`: "Compiled successfully" + "Finished TypeScript".
+
+**Pendiente:** deploy y verificación en vivo.
