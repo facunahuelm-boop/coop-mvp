@@ -2150,4 +2150,10 @@ De paso, misma convención de Fase 1: "+ Convocar reunión" se reubicó a `PageH
 
 **Verificación:** `tsc --noEmit` limpio. `eslint`: 414 problemas — exactamente el mismo total que Fase 3, delta 0 (las 3 consultas nuevas de esta fase se tipiaron explícitamente en vez de `all<any>`, para no sumar más `any` de los que ya tenía el archivo). `next build`: "Compiled successfully" + "Finished TypeScript" (falla posterior de `DATABASE_URL` en recolección de datos, mismo problema preexistente ajeno a este cambio).
 
-**Pendiente:** deploy y verificación en vivo.
+**Desplegado** (commit `96cd42d`, "Ready in 54s", alias `coop-mvp.vercel.app` actualizado).
+
+**Bug real encontrado y corregido en la verificación en vivo:** el pop-up de detalle mostraba el rol de cada integrante pero no su nombre — el tipo `Integrante` esperaba una propiedad `nombre`, pero la consulta real de `comision_miembros` (ya existente en el archivo) la trae como `user_nombre`. Como esa consulta sigue tipada `all<any>` (pre-existente, no tocada en esta fase), TypeScript no lo marcó en tiempo de compilación — sólo apareció al abrir el pop-up con datos reales. Corregido (commit `ebe26a7`) y redesplegado ("Ready in 45s").
+
+**Verificado en vivo** (producción, cooperativa real Ufama, mobile 375-equivalente y desktop 1440px): las 4 comisiones (Obra/Seguridad/Trabajo/Tesorería) muestran "Responsable" (coordinador real o "sin asignar" cuando no hay uno, como en Tesorería) y "Próxima reunión" ("sin agendar" en las 4, ya que ninguna tiene una reunión planificada — dato real, no de ejemplo). "Ver detalle completo →" abre el pop-up con integrantes (nombre + rol, ya corregido), actividad (1 decisión real con link, historial de reuniones con estado) y documentos ("Sin documentos vinculados." cuando no hay). Toda la gestión inline (agregar/quitar integrante, cambiar rol, crear/editar tarea, checklist) se probó sin cambios — sigue funcionando exactamente igual que antes de esta fase. "+ Crear comisión" aparece arriba a la derecha en `PageHeader`. Sin overflow en ningún viewport.
+
+Con esto se completan las 4 fases de la mejora integral (Finanzas → Asambleas → Consejo Directivo → Comisiones), en el orden confirmado con el usuario al arrancar.
