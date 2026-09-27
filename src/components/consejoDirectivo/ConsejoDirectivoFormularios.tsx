@@ -11,7 +11,7 @@ import {
 import { CARGOS_CONSEJO, CARGO_LABEL } from "@/lib/consejoDirectivoCargos";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
-import { Card, Label, inputClass } from "@/components/ui";
+import { Card, Label, inputClass, AddButtonSummary } from "@/components/ui";
 
 type Integrante = { id: number; nombre: string };
 
@@ -32,7 +32,7 @@ export function AsignarCargoForm({ integrantes }: { integrantes: Integrante[] })
 
   return (
     <details ref={detailsRef}>
-      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Asignar cargo</summary>
+      <AddButtonSummary>Asignar cargo</AddButtonSummary>
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>

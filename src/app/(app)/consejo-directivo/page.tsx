@@ -8,6 +8,8 @@ import Link from "next/link";
 import { CrearReunionForm } from "@/components/reuniones/ReunionesFormularios";
 import { AsignarCargoForm, FinalizarCargoForm } from "@/components/consejoDirectivo/ConsejoDirectivoFormularios";
 import { CARGO_LABEL, type CargoConsejo } from "@/lib/consejoDirectivoCargos";
+import { TablaFiltrable, type FiltroDef } from "@/components/TablaFiltrable";
+import { FilaConDetalle } from "@/components/FilaConDetalle";
 
 // Sub-fase 1.4 ("Consejo Directivo como módulo propio", 22/09): mismo
 // criterio que Asambleas (Sub-fase 1.3) — NO se duplica nada de /reuniones,
@@ -20,6 +22,24 @@ import { CARGO_LABEL, type CargoConsejo } from "@/lib/consejoDirectivoCargos";
 // documental para actas y representación institucional. No otorga ni
 // quita ningún permiso — canRead/canEdit/canApprove siguen dependiendo
 // exclusivamente de users.rol, sin excepción.
+//
+// Mejora integral, Fase 3 (27/09, pedido explícito): "mejora visual +
+// reuniones con pop-up de detalle + edición restringida solo a Consejo
+// Directivo". La edición ya estaba restringida (puedeGestionarCargos vía
+// canApprove("comisiones"), confirmado explícitamente con el usuario que
+// NO se toca consejo_directivo_cargos en el sistema de permisos) — lo que
+// faltaba era lo visual: el listado de reuniones (antes tarjetas largas)
+// pasa a `TablaFiltrable` + `FilaConDetalle`, mismo patrón que Asambleas
+// (Fase 2) y con las mismas fuentes de datos (agenda/invitados/actas/
+// documentos por reunion_id) — sin agregar ningún campo nuevo. A diferencia
+// de Asambleas, una reunión de Consejo Directivo no tiene convocatoria
+// formal (tipo_asamblea/convocatoria/fecha_convocatoria son columnas
+// exclusivas de tipo='asamblea', migración 0032) — por eso el pop-up acá
+// no incluye esa sección. "+ Convocar reunión" se reubica a `PageHeader
+// action` (convención global de Fase 1) y "+ Asignar cargo" pasa a
+// `AddButtonSummary` (restyle, sin reubicar — es contextual a la sección
+// de Composición actual, mismo criterio que los formularios contextuales
+// de Compras/Decisiones en Fase 1).
 
 const ESTADO_COLOR: Record<string, "verde" | "amarillo" | "rojo" | "brand" | "gray"> = {
   planificada: "brand",
@@ -64,40 +84,61 @@ export default async function ConsejoDirectivoPage() {
   const totalNucleos = Number(totalNucleosRow?.total || 0);
 
   const vigentesOrdenados = [...vigentes].sort((a, b) => ORDEN_CARGO[a.cargo as CargoConsejo] - ORDEN_CARGO[b.cargo as CargoConsejo]);
-  const proximas = reuniones.filter((r) => r.estado === "planificada");
-  const pasadas = reuniones.filter((r) => r.estado !== "planificada");
 
-  const FilaReunion = ({ r }: { r: any }) => (
-    <Card>
-      <div className="flex items-center justify-between flex-wrap gap-1">
-        <p className="text-sm font-semibold text-[var(--color-brand-900)]">{r.titulo}</p>
-        <Badge color={ESTADO_COLOR[r.estado] ?? "gray"}>{r.estado}</Badge>
-      </div>
-      <p className="text-xs text-ink/50 mt-0.5">
-        {dayjs(r.fecha).format("DD/MM/YYYY HH:mm")}
-        {r.lugar ? ` · ${r.lugar}` : ""}
-      </p>
-      <p className="text-xs text-ink/60 mt-1.5">
-        Asistencia registrada: {r.presentes}/{totalNucleos} núcleos
-        {r.decisiones > 0 ? ` · ${r.decisiones} decisión(es) registrada(s)` : ""}
-        {r.acta_id ? " · acta generada" : ""}
-      </p>
-      <div className="flex gap-3 mt-2">
-        <Link href={`/reuniones/${r.id}`} className="text-xs text-[var(--color-brand-800)] underline">
-          Ver reunión completa (agenda, asistencia, acta)
-        </Link>
-        {r.decisiones > 0 && (
-          <Link href="/decisiones" className="text-xs text-[var(--color-brand-800)] underline">
-            Ver decisiones
-          </Link>
-        )}
-      </div>
-    </Card>
+  // Datos del pop-up de detalle — mismo criterio que Asambleas (Fase 2):
+  // todo ya existía en el sistema (agenda estructurada, invitados, actas,
+  // documentos vinculados), sólo no se mostraba desde acá.
+  const detalles = await Promise.all(
+    reuniones.map(async (r) => {
+      const [agendaItems, invitadosRow, acta, documentos] = await Promise.all([
+        all<{ id: number; titulo: string; resultado: string | null }>(
+          `SELECT id, titulo, resultado FROM reunion_agenda_items WHERE reunion_id = ? ORDER BY orden ASC`,
+          [r.id]
+        ).catch(() => []),
+        get<{ total: string; presentes: string }>(
+          `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE presente = 1) as presentes FROM reunion_invitados WHERE reunion_id = ?`,
+          [r.id]
+        ).catch(() => null),
+        r.acta_id
+          ? get<{ resumen: string; documento_id: number | null; archivo_url: string | null }>(
+              `SELECT ac.resumen, ac.documento_id, d.archivo_url FROM actas ac LEFT JOIN documentos d ON d.id = ac.documento_id WHERE ac.id = ?`,
+              [r.acta_id]
+            ).catch(() => null)
+          : null,
+        all<{ id: number; nombre: string; archivo_url: string | null }>(
+          `SELECT id, nombre, archivo_url FROM documentos WHERE reunion_id = ? ORDER BY fecha DESC`,
+          [r.id]
+        ).catch(() => []),
+      ]);
+      return { agendaItems, invitados: invitadosRow, acta, documentos };
+    })
   );
+
+  const filtros: FiltroDef[] = [
+    {
+      id: "estado",
+      label: "Estado",
+      opciones: [
+        { value: "planificada", label: "Planificada" },
+        { value: "realizada", label: "Realizada" },
+        { value: "cancelada", label: "Cancelada" },
+      ],
+      valores: reuniones.map((r) => r.estado),
+    },
+  ];
+  const claves = reuniones.map((r) => `${r.titulo} ${r.lugar || ""}`);
 
   return (
     <div>
-      <PageHeader title="Consejo Directivo" subtitle="Composición de cargos, reuniones y actas del Consejo Directivo" />
+      <PageHeader
+        title="Consejo Directivo"
+        subtitle="Composición de cargos, reuniones y actas del Consejo Directivo"
+        action={
+          puedeConvocar ? (
+            <CrearReunionForm comisiones={comisionesActivas} esOversightReuniones={puedeConvocar} tipoInicial="consejo_directivo" />
+          ) : undefined
+        }
+      />
 
       <Card className="mb-6 bg-[var(--color-brand-50)] border-[var(--color-brand-100)]">
         <p className="text-xs text-ink/70">
@@ -142,22 +183,95 @@ export default async function ConsejoDirectivoPage() {
         </div>
       )}
 
-      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Próximas reuniones</h3>
-      <div className="space-y-2 mb-6">
-        {proximas.map((r) => <FilaReunion key={r.id} r={r} />)}
-        {proximas.length === 0 && <EmptyState>No hay reuniones de Consejo Directivo planificadas.</EmptyState>}
-      </div>
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Reuniones</h3>
+      {reuniones.length === 0 ? (
+        <Card><EmptyState>No hay reuniones de Consejo Directivo registradas.</EmptyState></Card>
+      ) : (
+        <Card>
+          <TablaFiltrable
+            placeholder="Buscar por título o lugar…"
+            claves={claves}
+            filtros={filtros}
+            sinResultadosTexto="No se encontraron reuniones para esa búsqueda."
+            encabezado={
+              <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
+                <th className="py-2 pr-3">Reunión</th>
+                <th className="py-2 pr-3">Modalidad</th>
+                <th className="py-2 pr-3">Fecha</th>
+                <th className="py-2 pr-3">Participación</th>
+                <th className="py-2 pr-3">Estado</th>
+                <th className="py-2 pr-3"></th>
+              </tr>
+            }
+          >
+            {reuniones.map((r, i) => {
+              const d = detalles[i];
+              const totalInvitados = Number(d.invitados?.total || 0);
+              const presentesInvitados = Number(d.invitados?.presentes || 0);
+              const otrosDocumentos = d.documentos.filter((doc) => doc.id !== d.acta?.documento_id);
+              const modalidadLabel = r.modalidad === "virtual" ? "Virtual" : r.modalidad === "hibrida" ? "Híbrida" : "Presencial";
 
-      <div className="mb-6">
-        <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Historial de reuniones</h3>
-        <div className="space-y-2">
-          {pasadas.map((r) => <FilaReunion key={r.id} r={r} />)}
-          {pasadas.length === 0 && <EmptyState>Sin reuniones anteriores.</EmptyState>}
-        </div>
-      </div>
-
-      {puedeConvocar && (
-        <CrearReunionForm comisiones={comisionesActivas} esOversightReuniones={puedeConvocar} tipoInicial="consejo_directivo" />
+              return (
+                <FilaConDetalle
+                  key={r.id}
+                  titulo={r.titulo}
+                  subtitulo={`${dayjs(r.fecha).format("DD/MM/YYYY HH:mm")}${r.lugar ? ` · ${r.lugar}` : ""} · ${modalidadLabel}`}
+                  editarHref={`/reuniones/${r.id}`}
+                  secciones={[
+                    {
+                      titulo: "Orden del día",
+                      items:
+                        d.agendaItems.length > 0
+                          ? d.agendaItems.map((item) => ({
+                              label: item.titulo,
+                              valor: item.resultado || "Sin resultado registrado",
+                            }))
+                          : [{ label: "Orden del día", valor: r.orden_del_dia || "No se cargó orden del día." }],
+                    },
+                    {
+                      titulo: "Participación",
+                      items: [
+                        { label: "Núcleos presentes", valor: `${r.presentes}/${totalNucleos}` },
+                        ...(totalInvitados > 0 ? [{ label: "Personas confirmadas presentes", valor: `${presentesInvitados}/${totalInvitados}` }] : []),
+                      ],
+                    },
+                    {
+                      titulo: "Resoluciones",
+                      items: [
+                        {
+                          label: "Decisiones registradas",
+                          valor: r.decisiones > 0 ? <Link href="/decisiones" className="underline">{r.decisiones} decisión(es) →</Link> : "Ninguna",
+                        },
+                        ...(d.acta?.resumen ? [{ label: "Resumen del acta", valor: <span className="whitespace-pre-wrap text-left font-normal">{d.acta.resumen}</span> }] : []),
+                      ],
+                    },
+                    {
+                      titulo: "Documentos",
+                      items:
+                        d.acta?.archivo_url || otrosDocumentos.length > 0
+                          ? [
+                              ...(d.acta?.archivo_url ? [{ label: "Acta", valor: <a href={`/api/archivos/documento/${d.acta.documento_id}`} target="_blank" className="underline">Descargar PDF</a> }] : []),
+                              ...otrosDocumentos.map((doc) => ({
+                                label: doc.nombre,
+                                valor: doc.archivo_url ? <a href={`/api/archivos/documento/${doc.id}`} target="_blank" className="underline">Descargar</a> : "Sin archivo",
+                              })),
+                            ]
+                          : [{ label: "Documentos", valor: "Sin documentos vinculados." }],
+                    },
+                  ]}
+                >
+                  <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">{r.titulo}</td>
+                  <td className="py-2 pr-3 text-ink/60 whitespace-nowrap">{modalidadLabel}</td>
+                  <td className="py-2 pr-3 text-ink/60 whitespace-nowrap">{dayjs(r.fecha).format("DD/MM/YYYY HH:mm")}</td>
+                  <td className="py-2 pr-3 text-ink/60 whitespace-nowrap">{r.presentes}/{totalNucleos} núcleos</td>
+                  <td className="py-2 pr-3">
+                    <Badge color={ESTADO_COLOR[r.estado] ?? "gray"}>{r.estado}</Badge>
+                  </td>
+                </FilaConDetalle>
+              );
+            })}
+          </TablaFiltrable>
+        </Card>
       )}
     </div>
   );
