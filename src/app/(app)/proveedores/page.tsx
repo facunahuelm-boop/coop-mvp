@@ -76,7 +76,7 @@ export default async function ProveedoresPage() {
         title="Proveedores"
         subtitle="Contactos y a quién se le compró"
         action={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {puedeEditar && <CrearProveedorForm />}
             <Link href="/compras" className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap">
               ← Volver a Compras

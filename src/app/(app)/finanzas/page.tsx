@@ -258,7 +258,7 @@ export default async function FinanzasPage({
         subtitle="Ingresos, egresos, presupuesto y disponible"
         action={
           detalle ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {puedeEditar && <AgregarFinanzaModal />}
               <a
                 href="/api/reportes/finanzas"

@@ -27,7 +27,14 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
 
 export function PageHeader({ title, subtitle, action }: { title: ReactNode; subtitle?: string; action?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-3 mb-5">
+    // Mejora integral, Fase 1 (27/09): `flex-wrap` agregado acá — al barrer el
+    // sistema para que TODO botón de creación viva en este `action`, varias
+    // pantallas pasaron a combinar 2 controles acá (ej. "+ Agregar finanza" +
+    // "Descargar reporte PDF" en Finanzas, "+ Registrar gasto" + "Exportar
+    // CSV" en Gastos) — sin este wrap, en mobile ese combo se salía del
+    // ancho de pantalla en vez de acomodarse en una segunda línea. No cambia
+    // nada en desktop/tablet, donde ya entraba en una sola fila.
+    <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-ink">{title}</h1>
         {subtitle && <p className="text-sm text-ink-muted mt-0.5">{subtitle}</p>}

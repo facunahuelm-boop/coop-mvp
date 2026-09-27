@@ -149,7 +149,7 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
         title="Gastos de la cooperativa"
         subtitle="Cuánto gasta cada comisión, y en qué"
         action={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {puedeCargar && comisionesQuePuedeCargar.length > 0 && (
               <RegistrarGastoForm comisiones={comisionesQuePuedeCargar} proveedores={proveedores} />
             )}

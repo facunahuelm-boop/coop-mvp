@@ -2095,4 +2095,8 @@ Con esto, la **Fase 4 queda completa (4 de 4 sub-fases: 4.1, 4.2, 4.3, 4.4)**.
 
 **Verificación:** `tsc --noEmit` limpio. `eslint`: 416 problemas (385 errores + 31 advertencias), idéntico al baseline — delta 0. `next build`: "Compiled successfully" + "Finished TypeScript" (la falla posterior en la recolección de datos de página es el mismo problema preexistente y ajeno a este cambio — falta `DATABASE_URL` en este entorno, confirmado antes con `git stash`).
 
-**Pendiente:** build/deploy/verificación en vivo de esta fase.
+**Verificado en vivo** (producción, cooperativa real Ufama, desktop 1440px): "+ Agregar finanza" abre el modal correcto con los 4 campos de siempre; Reuniones/Obra/Documentos/Trabajo/Proveedores/Reclamos/Gastos muestran su botón de creación reubicado arriba a la derecha, con el estilo verde de siempre.
+
+**Ajuste post-verificación (mismo día):** en mobile (375px), Finanzas y Gastos combinan 2 controles en el mismo `action` (ej. "+ Agregar finanza" + "Descargar reporte PDF") y se salían del ancho de pantalla porque ni `PageHeader` ni esos contenedores tenían `flex-wrap`. Se agregó `flex-wrap` a `PageHeader` (`ui.tsx`, beneficia a todo el sistema) y a los 3 combos nuevos (Finanzas, Gastos, Proveedores) — en desktop/tablet no cambia nada (ya entraban en una fila), en mobile ahora se acomodan en una segunda línea en vez de desbordar. `tsc`/`eslint` sin cambios respecto al baseline.
+
+**Desplegado y verificado en vivo** (mobile 375px, Finanzas): "+ Agregar finanza" y "Descargar reporte PDF" ahora caben sin scroll horizontal.
