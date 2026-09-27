@@ -2118,4 +2118,6 @@ El pop-up es de sólo lectura — la gestión real (tomar asistencia, cerrar la 
 
 **Verificación:** `tsc --noEmit` limpio. `eslint`: 415 problemas (384 errores + 31 advertencias) — 1 menos que el baseline (416), porque el componente `Fila` que se quitó usaba `any` tres veces y el reemplazo usa `any` sólo dos; nunca aumenta, así que no hay regresión. `next build`: "Compiled successfully" + "Finished TypeScript".
 
-**Pendiente:** deploy y verificación en vivo.
+**Desplegado** (commit `184e2f1`, "Ready in 31s", alias `coop-mvp.vercel.app` actualizado).
+
+**Verificado en vivo** (producción, cooperativa real Ufama): en mobile (375px) y desktop (1440px) la tabla de Asambleas carga con datos reales (3 registros), los filtros de Estado/Tipo funcionan, y al hacer click en una fila se abre el pop-up con las 5 secciones (Convocatoria/Orden del día/Participación/Resoluciones/Documentos) correctamente pobladas con datos reales — incluida una asamblea con orden del día no cargado ("No se cargó orden del día.") y otra sin documentos vinculados ("Sin documentos vinculados."), confirmando que el pop-up no rompe cuando faltan datos opcionales. "Ver ficha completa →" navega correctamente a `/reuniones/[id]` conservando toda la gestión existente (asistencia por núcleo, cancelar reunión). "+ Convocar asamblea" aparece arriba a la derecha en `PageHeader` y sigue funcionando. Sin overflow horizontal en mobile.
