@@ -2060,3 +2060,21 @@ Con esto, la **Fase 4 queda completa (4 de 4 sub-fases: 4.1, 4.2, 4.3, 4.4)**.
 **Verificación en vivo** (producción, cooperativa real Ufama, sesión ya autenticada): mobile (375px) — 4 tarjetas en columna, "Tareas vencidas" con 1 tarea vencida real ("Pedir presupuesto a proveedor nuevo"), "Tareas pendientes" en 0 con estado "Sin pendientes", Calendario con la fecha y el vencimiento real del día, Finanzas mostrando "$273.720" en color neutro con el badge "Disponible: $-88.280" en rojo (confirma que el valor negativo no tiñe el número principal). Escritorio (1440px) — las 4 tarjetas en una sola fila, secciones de abajo (Comisiones y módulos, Información) visualmente sin cambios. Modal de "Tareas vencidas" verificado: abre correctamente al hacer click sobre la tarjeta nueva y muestra el detalle real.
 
 **Lo que no se pudo confirmar en vivo:** tablet en un ancho intermedio real (768px) muestra una sola columna en vez de 2×2 porque el sidebar expandido de la app ya consumía la mayor parte del ancho disponible antes de este cambio — comportamiento preexistente del layout general (no de esta sección), sin relación con el componente nuevo; mobile en dispositivo físico (sólo viewport emulado).
+
+## Mejora quirúrgica del header: accesos rápidos y comunicación (26/09)
+
+**Contexto:** pedido explícito y muy detallado (30 puntos), con la regla principal de no rediseñar el header ni tocar sidebar/dashboard/otras páginas/BD/permisos — sólo agregar 3 accesos rápidos de navegación (Mi trabajo, Comisiones, Socios) a la izquierda del buscador y un ícono de Comunicación junto a Notificaciones.
+
+**Qué se hizo:**
+- Componente nuevo `src/components/HeaderQuickLinks.tsx` (server-safe, sin estado): pills de ícono+texto sin fondo/borde en reposo, con fondo sutil sólo al hover (150-200ms), exactamente como pidió el spec ("no quiero tres botones grandes... no quiero tarjetas").
+- `TopBarDesktop` (`Nav.tsx`) ahora recibe `user` y arma la lista de accesos rápidos reutilizando **exactamente el mismo filtro de permisos que ya usa la Sidebar** (`itemsFor`: `moduloVisible` + `canRead` + `soloPlataforma`) — si un rol no ve "Comisiones" en el menú, tampoco la ve en el header. Íconos propios para esta franja (BriefcaseBusiness/UsersRound/UserRound), distintos de los que ya usa cada ítem en la Sidebar, por pedido explícito del usuario.
+- Ícono de "Comunicación" (`MessagesSquare`) agregado en `TopBarClient.tsx` junto a la campana de notificaciones, mismo patrón de popover chico (nunca un modal grande) que ya usaba la campana. Conecta directo con los dos sistemas de comunicación que ya existían — nunca se creó uno nuevo: "Enviar email" → `/mails`, "Comunicaciones" → `/comunicaciones` (mensajes internos + entre comisiones).
+- Responsive: en escritorio ancho (`lg+`) los accesos muestran ícono+texto; en el rango angosto de `md` (tablet, ~768px) sólo ícono con `title`/`aria-label` como tooltip/accesible; por debajo de `md` (celular) esta franja entera no se renderiza, igual que ya pasaba con el buscador — esos mismos 3 destinos ya eran alcanzables desde el menú "Más" y la barra inferior, así que no se perdió ningún acceso.
+
+**Verificación:** `tsc --noEmit` limpio. `eslint`: 416 problemas (385 errores + 31 advertencias), idéntico al baseline — delta 0.
+
+**Desplegado en un paso:** commit `bbd6c3c` → `vercel --prod --yes`, "Ready in 41s", alias `coop-mvp.vercel.app`.
+
+**Verificado en vivo** (producción, cooperativa real Ufama): desktop (1440px) — 3 accesos con ícono+texto, buscador, comunicación, notificaciones y "Mi cuenta" en su lugar, sidebar/dashboard sin cambios visibles; tablet (768px) — accesos reducidos a solo ícono, todo entra sin scroll horizontal; mobile (375px) — header móvil idéntico a antes de este cambio. Popover de Comunicación abre correctamente y ambos links navegan a `/mails` y `/comisiones`→`/comunicaciones` (comprobado con click real, no sólo lectura de código). "Mi trabajo"/"Comisiones" navegan a sus pantallas reales con datos reales.
+
+**No verificado en vivo por interrupción de turno:** re-confirmación explícita de que el popover de Notificaciones y "Mi cuenta" siguen abriendo sin regresión tras este cambio — ninguno de los dos se tocó en el código (sólo se agregó un `<div>` hermano nuevo al lado), y ambos aparecen correctamente renderizados en las capturas ya tomadas, así que el riesgo real es bajo.
