@@ -17,6 +17,7 @@ import {
 import { cambiarEstadoTareaFormAction } from "@/lib/actions/tareas";
 import { AgregarMiembroForm, CrearTareaForm, CrearComisionForm, EditarComisionForm } from "@/components/comisiones/ComisionesFormularios";
 import { TareaDetalleModal } from "@/components/comisiones/TareaDetalleModal";
+import { ComisionDetalleModal } from "@/components/comisiones/ComisionDetalleModal";
 
 const ROL_MIEMBRO_LABEL: Record<string, string> = { coordinador: "Coordinador/a", integrante: "Integrante", suplente: "Suplente" };
 
@@ -25,6 +26,13 @@ const ROL_MIEMBRO_LABEL: Record<string, string> = { coordinador: "Coordinador/a"
 const ESTADO_TAREA_LABEL: Record<string, string> = { pendiente: "Pendiente", en_curso: "En curso", completada: "Completada" };
 const ESTADO_TAREA_COLOR: Record<string, "verde" | "amarillo" | "brand"> = { pendiente: "amarillo", en_curso: "brand", completada: "verde" };
 const PRIORIDAD_LABEL: Record<string, string> = { alta: "🔴 Alta", media: "🟡 Media", baja: "⚪ Baja" };
+
+// Mejora integral, Fase 4: tipos propios para las 3 consultas nuevas de esta
+// fase (en vez de `all<any>`, que ya usa el resto de este archivo para las
+// consultas preexistentes) — evita sumar `any` nuevos al total de eslint.
+type ComisionReunionRow = { id: number; comision_id: number; titulo: string; fecha: string; estado: string };
+type ComisionDocumentoRow = { id: number; nombre: string; archivo_url: string | null; comision_id: number };
+type ComisionDecisionRow = { comision_id: number };
 
 export default async function ComisionesPage({
   searchParams,
@@ -46,7 +54,7 @@ export default async function ComisionesPage({
   // después va a rechazar por ser de otra comisión.
   const esOversightComisiones = canEdit(user.rol, "finanzas");
 
-  const [comisiones, comisionesArchivadas, miembros, usuarios, tareas, misComisiones, colaboradoresTareas] = await Promise.all([
+  const [comisiones, comisionesArchivadas, miembros, usuarios, tareas, misComisiones, colaboradoresTareas, reunionesComision, documentosComision, decisionesComision] = await Promise.all([
     all<any>(`SELECT * FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`),
     // Fase 2 (comisiones dinámicas): archivar nunca borró información, pero
     // hasta ahora no había forma de volver a verlas — memoria institucional
@@ -70,6 +78,19 @@ export default async function ComisionesPage({
     all<any>(
       `SELECT tc.*, u.nombre FROM tarea_colaboradores tc JOIN users u ON u.id = tc.user_id`
     ).catch(() => [] as any[]),
+    // Mejora integral, Fase 4 (27/09): reuniones/documentos/decisiones por
+    // comisión para el dashboard ampliado y el pop-up de detalle — mismo
+    // criterio que el resto del archivo (una consulta, filtrada con un
+    // helper en vez de N+1), y `.catch(() => [])` porque `comision_id` en
+    // reuniones/documentos y toda la tabla decisiones_comision son de la
+    // migración 0029, igual que tarea_colaboradores arriba.
+    all<ComisionReunionRow>(
+      `SELECT id, comision_id, titulo, fecha, estado FROM reuniones WHERE tipo = 'comision' ORDER BY fecha DESC`
+    ).catch(() => [] as ComisionReunionRow[]),
+    all<ComisionDocumentoRow>(
+      `SELECT id, nombre, archivo_url, comision_id FROM documentos WHERE comision_id IS NOT NULL ORDER BY fecha DESC`
+    ).catch(() => [] as ComisionDocumentoRow[]),
+    all<ComisionDecisionRow>(`SELECT comision_id FROM decisiones_comision`).catch(() => [] as ComisionDecisionRow[]),
   ]);
 
   const misComisionIds = new Set(misComisiones.map((m) => m.comision_id));
@@ -78,6 +99,22 @@ export default async function ComisionesPage({
   const miembrosPorComision = (comisionId: number) => miembros.filter((m) => m.comision_id === comisionId);
   const tareasPorComision = (comisionId: number) => tareas.filter((t) => t.comision_id === comisionId);
   const nombreComision = (id: number | null) => (id ? comisiones.find((c) => c.id === id)?.nombre : null);
+  // Mejora integral, Fase 4: mismos helpers que ya usa el archivo para
+  // miembros/tareas — filtrar un array ya cargado, en vez de una consulta
+  // por comisión (cantidad de comisiones es chica, igual criterio que el
+  // resto de este archivo).
+  const reunionesPorComision = (comisionId: number) => reunionesComision.filter((r) => r.comision_id === comisionId);
+  const proximaReunionDe = (comisionId: number) =>
+    reunionesPorComision(comisionId)
+      .filter((r) => r.estado === "planificada")
+      .sort((a, b) => dayjs(a.fecha).valueOf() - dayjs(b.fecha).valueOf())[0] ?? null;
+  const documentosPorComision = (comisionId: number) => documentosComision.filter((d) => d.comision_id === comisionId);
+  const decisionesCountDe = (comisionId: number) => decisionesComision.filter((d) => d.comision_id === comisionId).length;
+  const responsableDe = (comisionId: number) =>
+    miembrosPorComision(comisionId)
+      .filter((m) => m.rol_en_comision === "coordinador")
+      .map((m) => m.user_nombre)
+      .join(", ");
   // Fase 4: checklist llega como JSONB (array) — si la migración 0029
   // todavía no corrió, la columna no existe y `t.checklist` viene undefined;
   // se trata como checklist vacío en vez de romper el render.
@@ -91,26 +128,41 @@ export default async function ComisionesPage({
 
   return (
     <div>
-      <PageHeader title="Comisiones" subtitle="Quién integra cada comisión de la cooperativa" />
+      <PageHeader
+        title="Comisiones"
+        subtitle="Quién integra cada comisión de la cooperativa"
+        action={esOversightComisiones ? <CrearComisionForm comisiones={comisiones} /> : undefined}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {comisiones.map((c) => {
           const integrantes = miembrosPorComision(c.id);
           const puedeGestionar = puedeGestionarEstaComision(c.id);
           const padreNombre = nombreComision(c.comision_padre_id);
+          const responsable = responsableDe(c.id);
+          const proximaReunion = proximaReunionDe(c.id);
           return (
             <Card key={c.id}>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <h3 className="text-sm font-bold text-[var(--color-brand-900)] truncate">{c.nombre}</h3>
-                  {c.tipo === "temporal" && <Badge color="amarillo">Temporal</Badge>}
+                  <Badge color={c.tipo === "temporal" ? "amarillo" : "gray"}>{c.tipo === "temporal" ? "Temporal" : "Permanente"}</Badge>
                 </div>
-                {esOversightComisiones && (
-                  <ActionForm action={archivarComisionFormAction}>
-                    <input type="hidden" name="id" value={c.id} />
-                    <button className="text-xs text-ink/40 hover:text-[var(--color-rojo)] underline underline-offset-2 whitespace-nowrap">Archivar</button>
-                  </ActionForm>
-                )}
+                <div className="flex items-center gap-3 shrink-0">
+                  <ComisionDetalleModal
+                    nombre={c.nombre}
+                    integrantes={integrantes}
+                    reuniones={reunionesPorComision(c.id)}
+                    documentos={documentosPorComision(c.id)}
+                    decisionesCount={decisionesCountDe(c.id)}
+                  />
+                  {esOversightComisiones && (
+                    <ActionForm action={archivarComisionFormAction}>
+                      <input type="hidden" name="id" value={c.id} />
+                      <button className="text-xs text-ink/40 hover:text-[var(--color-rojo)] underline underline-offset-2 whitespace-nowrap">Archivar</button>
+                    </ActionForm>
+                  )}
+                </div>
               </div>
               {c.descripcion && <p className="text-xs text-ink/50 mt-0.5">{c.descripcion}</p>}
               {c.objetivo && <p className="text-xs text-ink/50 mt-0.5">🎯 {c.objetivo}</p>}
@@ -120,6 +172,17 @@ export default async function ComisionesPage({
                 </p>
               )}
               {padreNombre && <p className="text-xs text-ink/40 mt-0.5">Subcomisión de <span className="font-medium">{padreNombre}</span></p>}
+
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-2">
+                <p className="text-xs text-ink/50">Responsable: <span className="font-medium text-ink/70">{responsable || "sin asignar"}</span></p>
+                <p className="text-xs text-ink/50">
+                  Próxima reunión:{" "}
+                  <span className="font-medium text-ink/70">
+                    {proximaReunion ? dayjs(proximaReunion.fecha).format("DD/MM/YYYY HH:mm") : "sin agendar"}
+                  </span>
+                </p>
+              </div>
+
               {esOversightComisiones && <EditarComisionForm comision={c} comisiones={comisiones} />}
 
               <div className="flex flex-wrap gap-1.5 mt-3">
@@ -219,8 +282,6 @@ export default async function ComisionesPage({
         })}
         {comisiones.length === 0 && <EmptyState>Todavía no hay comisiones creadas.</EmptyState>}
       </div>
-
-      {esOversightComisiones && <CrearComisionForm comisiones={comisiones} />}
 
       {/* Archivar nunca borra información (memoria institucional, punto 32
           del pedido) — esto es lo que faltaba para poder consultarla de

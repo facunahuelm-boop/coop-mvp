@@ -206,7 +206,7 @@ export function CrearComisionForm({ comisiones }: { comisiones?: Comision[] }) {
   }, [estado]);
 
   return (
-    <details ref={detailsRef} className="mt-6">
+    <details ref={detailsRef}>
       <AddButtonSummary>Crear comisión</AddButtonSummary>
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
