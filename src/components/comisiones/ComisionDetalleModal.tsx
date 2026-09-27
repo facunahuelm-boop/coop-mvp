@@ -29,7 +29,7 @@ const ESTADO_REUNION_COLOR: Record<string, "verde" | "amarillo" | "rojo" | "bran
 const ESTADO_REUNION_LABEL: Record<string, string> = { planificada: "Planificada", realizada: "Realizada", cancelada: "Cancelada" };
 const ROL_MIEMBRO_LABEL: Record<string, string> = { coordinador: "Coordinador/a", integrante: "Integrante", suplente: "Suplente" };
 
-type Integrante = { id: number; user_id: number; nombre: string; rol_en_comision: string };
+type Integrante = { id: number; user_id: number; user_nombre: string; rol_en_comision: string };
 type ReunionResumen = { id: number; titulo: string; fecha: string; estado: string };
 type DocumentoResumen = { id: number; nombre: string; archivo_url: string | null };
 
@@ -66,7 +66,7 @@ export function ComisionDetalleModal({
               {integrantes.map((m) => (
                 <p key={m.id} className="text-sm flex items-center justify-between gap-2">
                   <Link href={`/usuarios/${m.user_id}`} className="hover:underline underline-offset-2">
-                    {m.nombre}
+                    {m.user_nombre}
                   </Link>
                   <span className="text-xs text-ink/50">{ROL_MIEMBRO_LABEL[m.rol_en_comision] ?? m.rol_en_comision}</span>
                 </p>
