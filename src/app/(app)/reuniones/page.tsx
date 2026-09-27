@@ -86,7 +86,11 @@ export default async function ReunionesPage({
 
   return (
     <div>
-      <PageHeader title="Reuniones" subtitle="Agenda, asistencia y actas de asambleas y comisiones" />
+      <PageHeader
+        title="Reuniones"
+        subtitle="Agenda, asistencia y actas de asambleas y comisiones"
+        action={puedeEditar ? <CrearReunionForm comisiones={comisiones} esOversightReuniones={esOversightReuniones} /> : undefined}
+      />
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Próximas</h3>
       <div className="space-y-2 mb-6">
@@ -102,8 +106,6 @@ export default async function ReunionesPage({
         </div>
         {pasadas.length > 0 && <Pagination page={page} totalPages={totalPages} basePath="/reuniones" searchParams={sp} />}
       </div>
-
-      {puedeEditar && <CrearReunionForm comisiones={comisiones} esOversightReuniones={esOversightReuniones} />}
     </div>
   );
 }

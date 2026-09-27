@@ -9,7 +9,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { generarInformeFiscalFormAction } from "@/lib/actions/informeFiscal";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
-import { Card, Label, inputClass } from "@/components/ui";
+import { AddButtonSummary, Card, Label, inputClass } from "@/components/ui";
 
 export function InformeFiscalForm() {
   const [estado, formAction] = useActionState(generarInformeFiscalFormAction, ESTADO_INICIAL);
@@ -28,7 +28,7 @@ export function InformeFiscalForm() {
 
   return (
     <details ref={detailsRef}>
-      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Generar informe</summary>
+      <AddButtonSummary>Generar informe</AddButtonSummary>
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="space-y-3">
           <div>

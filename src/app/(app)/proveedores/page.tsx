@@ -76,9 +76,12 @@ export default async function ProveedoresPage() {
         title="Proveedores"
         subtitle="Contactos y a quién se le compró"
         action={
-          <Link href="/compras" className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap">
-            ← Volver a Compras
-          </Link>
+          <div className="flex items-center gap-3">
+            {puedeEditar && <CrearProveedorForm />}
+            <Link href="/compras" className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap">
+              ← Volver a Compras
+            </Link>
+          </div>
         }
       />
 
@@ -162,8 +165,6 @@ export default async function ProveedoresPage() {
             ))}
           </TablaFiltrable>
         )}
-
-        {puedeEditar && <CrearProveedorForm />}
       </Card>
     </div>
   );

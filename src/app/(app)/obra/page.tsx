@@ -26,7 +26,11 @@ export default async function ObraPage() {
 
   return (
     <div>
-      <PageHeader title="Obra" subtitle="Cronograma, avances y problemas de la obra" />
+      <PageHeader
+        title="Obra"
+        subtitle="Cronograma, avances y problemas de la obra"
+        action={puedeEditar ? <CrearTareaObraForm /> : undefined}
+      />
 
       {problemasAbiertos.length > 0 && (
         <Card className="mb-5 !border-[var(--color-rojo)]/20">
@@ -66,8 +70,6 @@ export default async function ObraPage() {
         ))}
         {tareas.length === 0 && <EmptyState>Todavía no hay tareas cargadas.</EmptyState>}
       </div>
-
-      {puedeEditar && <CrearTareaObraForm />}
     </div>
   );
 }

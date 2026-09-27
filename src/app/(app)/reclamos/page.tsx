@@ -64,7 +64,11 @@ export default async function ReclamosPage({
 
   return (
     <div>
-      <PageHeader title="Reclamos y Mantenimiento" subtitle="Problemas de viviendas y espacios comunes" />
+      <PageHeader
+        title="Reclamos y Mantenimiento"
+        subtitle="Problemas de viviendas y espacios comunes"
+        action={<ReportarReclamoForm viviendas={viviendas} />}
+      />
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Reclamos abiertos</h3>
       <div className="space-y-2 mb-4">
@@ -109,8 +113,6 @@ export default async function ReclamosPage({
         ))}
         {abiertos.length === 0 && <EmptyState>No hay reclamos abiertos — todo está al día.</EmptyState>}
       </div>
-
-      <ReportarReclamoForm viviendas={viviendas} />
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Resueltos</h3>
       <div className="space-y-2">

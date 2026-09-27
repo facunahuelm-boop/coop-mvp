@@ -17,7 +17,7 @@ import {
 } from "@/lib/actions/decisiones";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
-import { AddButton, Label, inputClass } from "@/components/ui";
+import { AddButton, AddButtonSummary, Label, inputClass } from "@/components/ui";
 import { TIPO_VOTACION_LABEL } from "./DecisionStatus";
 
 type Comision = { id: number; nombre: string };
@@ -178,7 +178,7 @@ export function CrearVotacionForm({ decisionId }: { decisionId: number }) {
 
   return (
     <details>
-      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Abrir votación para esta decisión</summary>
+      <AddButtonSummary>Abrir votación para esta decisión</AddButtonSummary>
       <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
         <input type="hidden" name="decision_id" value={decisionId} />
         <div className="sm:col-span-2">

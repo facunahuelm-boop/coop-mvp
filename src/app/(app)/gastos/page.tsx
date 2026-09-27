@@ -149,12 +149,17 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
         title="Gastos de la cooperativa"
         subtitle="Cuánto gasta cada comisión, y en qué"
         action={
-          <a
-            href={`/api/gastos/export?${new URLSearchParams(f as Record<string, string>).toString()}`}
-            className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap"
-          >
-            Exportar CSV →
-          </a>
+          <div className="flex items-center gap-3">
+            {puedeCargar && comisionesQuePuedeCargar.length > 0 && (
+              <RegistrarGastoForm comisiones={comisionesQuePuedeCargar} proveedores={proveedores} />
+            )}
+            <a
+              href={`/api/gastos/export?${new URLSearchParams(f as Record<string, string>).toString()}`}
+              className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap"
+            >
+              Exportar CSV →
+            </a>
+          </div>
         }
       />
 
@@ -320,12 +325,8 @@ export default async function GastosPage({ searchParams }: { searchParams: Promi
       </div>
       {gastos.length > 0 && <Pagination page={page} totalPages={totalPages} basePath="/gastos" searchParams={f} />}
 
-      {puedeCargar && (
-        comisionesQuePuedeCargar.length > 0 ? (
-          <RegistrarGastoForm comisiones={comisionesQuePuedeCargar} proveedores={proveedores} />
-        ) : (
-          <p className="text-xs text-ink-faint mt-2">Para registrar un gasto hace falta ser integrante activo de una comisión — pedile a Administración que te agregue en Comisiones.</p>
-        )
+      {puedeCargar && comisionesQuePuedeCargar.length === 0 && (
+        <p className="text-xs text-ink-faint mt-2">Para registrar un gasto hace falta ser integrante activo de una comisión — pedile a Administración que te agregue en Comisiones.</p>
       )}
     </div>
   );

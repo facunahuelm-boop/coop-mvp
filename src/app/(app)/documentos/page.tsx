@@ -201,7 +201,27 @@ export default async function DocumentosPage({
 
   return (
     <div>
-      <PageHeader title="Documentos" subtitle="Repositorio institucional de la cooperativa" />
+      <PageHeader
+        title="Documentos"
+        subtitle="Repositorio institucional de la cooperativa"
+        action={
+          puedeEditar ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <SubirDocumentoForm
+                categorias={CATEGORIAS}
+                catLabel={CAT_LABEL}
+                comisiones={comisionesOpc.map((c) => ({ id: c.id, label: c.nombre }))}
+                solicitudes={solicitudesOpc.map((s) => ({ id: s.id, label: s.titulo }))}
+                tareas={tareasOpc.map((t) => ({ id: t.id, label: t.titulo }))}
+                reuniones={reunionesOpc.map((r) => ({ id: r.id, label: r.titulo }))}
+                decisiones={decisionesOpc.map((dd) => ({ id: dd.id, label: dd.tema }))}
+                comunicaciones={comunicacionesOpc.map((c) => ({ id: c.id, label: c.asunto }))}
+              />
+              <CrearCategoriaDocumentoForm />
+            </div>
+          ) : undefined
+        }
+      />
 
       <Card className="mb-4">
         <form className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 items-end" method="get">
@@ -379,21 +399,6 @@ export default async function DocumentosPage({
         <EmptyState>{hayFiltrosActivos ? "Ningún documento coincide con este filtro." : "No hay documentos cargados todavía."}</EmptyState>
       )}
 
-      {puedeEditar && (
-        <>
-          <SubirDocumentoForm
-            categorias={CATEGORIAS}
-            catLabel={CAT_LABEL}
-            comisiones={comisionesOpc.map((c) => ({ id: c.id, label: c.nombre }))}
-            solicitudes={solicitudesOpc.map((s) => ({ id: s.id, label: s.titulo }))}
-            tareas={tareasOpc.map((t) => ({ id: t.id, label: t.titulo }))}
-            reuniones={reunionesOpc.map((r) => ({ id: r.id, label: r.titulo }))}
-            decisiones={decisionesOpc.map((dd) => ({ id: dd.id, label: dd.tema }))}
-            comunicaciones={comunicacionesOpc.map((c) => ({ id: c.id, label: c.asunto }))}
-          />
-          <CrearCategoriaDocumentoForm />
-        </>
-      )}
     </div>
   );
 }

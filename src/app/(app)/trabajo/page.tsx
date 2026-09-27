@@ -54,7 +54,11 @@ export default async function TrabajoPage({
 
   return (
     <div>
-      <PageHeader title="Trabajo" subtitle="Jornadas de ayuda mutua, asignaciones y horas" />
+      <PageHeader
+        title="Trabajo"
+        subtitle="Jornadas de ayuda mutua, asignaciones y horas"
+        action={puedeEditar ? <PlanificarJornadaForm /> : undefined}
+      />
 
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -150,8 +154,6 @@ export default async function TrabajoPage({
           </Card>
         </div>
       </div>
-
-      {puedeEditar && <PlanificarJornadaForm />}
     </div>
   );
 }

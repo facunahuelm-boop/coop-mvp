@@ -10,7 +10,7 @@ import dayjs from "dayjs";
 import { crearGastoFormAction } from "@/lib/actions/gastos";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
-import { Card, Label, inputClass } from "@/components/ui";
+import { AddButtonSummary, Card, Label, inputClass } from "@/components/ui";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 
 type Opcion = { id: number; nombre: string };
@@ -38,7 +38,7 @@ export function RegistrarGastoForm({
 
   return (
     <details ref={detailsRef} className="mt-2">
-      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Registrar gasto</summary>
+      <AddButtonSummary>Registrar gasto</AddButtonSummary>
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3" encType="multipart/form-data">
           <div>

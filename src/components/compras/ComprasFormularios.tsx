@@ -21,7 +21,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { crearSolicitudFormAction, editarSolicitudFormAction, agregarPresupuestoFormAction, adjuntarFacturaCompraFormAction } from "@/lib/actions/compras";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
-import { AddButton, Button, Card, Label, inputClass } from "@/components/ui";
+import { AddButton, AddButtonSummary, Button, Card, Label, inputClass } from "@/components/ui";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 
 type Opcion = { id: number; nombre: string };
@@ -296,7 +296,7 @@ export function AdjuntarFacturaForm({ solicitudId }: { solicitudId: number }) {
 
   return (
     <details ref={detailsRef}>
-      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Adjuntar factura o comprobante</summary>
+      <AddButtonSummary>Adjuntar factura o comprobante</AddButtonSummary>
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input type="hidden" name="solicitud_id" value={solicitudId} />
@@ -343,7 +343,7 @@ export function CargarPresupuestoForm({ solicitudId, proveedores, abiertoPorDefe
 
   return (
     <details ref={detailsRef} open={abiertoPorDefecto}>
-      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Cargar presupuesto</summary>
+      <AddButtonSummary>Cargar presupuesto</AddButtonSummary>
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input type="hidden" name="solicitud_id" value={solicitudId} />

@@ -16,7 +16,7 @@ import {
 } from "@/lib/actions/reuniones";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
-import { Card, Label, inputClass } from "@/components/ui";
+import { AddButtonSummary, Card, Label, inputClass } from "@/components/ui";
 
 type Opcion = { id: number; nombre: string };
 
@@ -45,9 +45,9 @@ export function CrearReunionForm({ comisiones, esOversightReuniones, tipoInicial
 
   return (
     <details ref={detailsRef} open={!!tipoInicial}>
-      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">
-        {tipoInicial === "asamblea" ? "+ Convocar asamblea" : "+ Agendar reunión"}
-      </summary>
+      <AddButtonSummary>
+        {tipoInicial === "asamblea" ? "Convocar asamblea" : "Agendar reunión"}
+      </AddButtonSummary>
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>

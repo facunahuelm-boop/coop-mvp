@@ -67,7 +67,11 @@ export default async function FiscalPage() {
 
   return (
     <div>
-      <PageHeader title="Panel de Comisión Fiscal" subtitle="Control de solo lectura — resumen de lo relevante para fiscalizar, en un solo lugar" />
+      <PageHeader
+        title="Panel de Comisión Fiscal"
+        subtitle="Control de solo lectura — resumen de lo relevante para fiscalizar, en un solo lugar"
+        action={puedeGenerarInforme ? <InformeFiscalForm /> : undefined}
+      />
 
       <Card className="mb-6 bg-[var(--color-brand-50)] border-[var(--color-brand-100)]">
         <p className="text-xs text-ink/70">
@@ -181,8 +185,6 @@ export default async function FiscalPage() {
           </Card>
         ))}
       </div>
-
-      {puedeGenerarInforme && <InformeFiscalForm />}
     </div>
   );
 }

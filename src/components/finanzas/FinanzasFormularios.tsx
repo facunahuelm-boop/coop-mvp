@@ -124,6 +124,76 @@ export function RegistrarMovimientoForm() {
   );
 }
 
+/**
+ * "+ Agregar finanza" (Mejora integral, Fase 1, pedido explícito): acceso
+ * rápido en la cabecera de /finanzas, visible sin importar qué pestaña esté
+ * abierta (Resumen/Cuotas/Movimientos) — antes, para registrar un ingreso o
+ * egreso había que estar parado justo en la pestaña "Movimientos" y bajar
+ * hasta el final. Reutiliza EXACTAMENTE los mismos campos y la misma Server
+ * Action que `RegistrarMovimientoForm` (tipo/monto/categoría/descripción →
+ * registrarMovimientoFormAction): no inventa un campo ni una acción nueva,
+ * sólo agrega una segunda puerta de entrada al mismo formulario, en `Modal`
+ * (mismo componente que ya usan EditarMovimientoForm/GenerarCuotaMensualForm)
+ * en vez de `<details>`, porque acá no hay una lista debajo a la que
+ * "pegarse" — vive suelto en la cabecera. `RegistrarMovimientoForm` (más
+ * abajo) sigue existiendo tal cual, sin tocar (ADD, DON'T BREAK).
+ */
+export function AgregarFinanzaModal() {
+  const [open, setOpen] = useState(false);
+  const [estado, formAction] = useActionState(registrarMovimientoFormAction, ESTADO_INICIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) {
+      formRef.current?.reset();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false);
+      show("Movimiento registrado.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <>
+      <AddButton onClick={() => setOpen(true)}>Agregar finanza</AddButton>
+      <Modal open={open} onClose={() => setOpen(false)} title="Agregar finanza">
+        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
+          <div>
+            <Label>Tipo</Label>
+            <select name="tipo" className={inputClass} defaultValue="egreso">
+              <option value="ingreso">Ingreso</option>
+              <option value="egreso">Egreso</option>
+            </select>
+          </div>
+          <div>
+            <Label>Monto</Label>
+            <input name="monto" type="number" required className={inputClass} />
+            <FieldError message={estado.fieldErrors?.monto} />
+          </div>
+          <div>
+            <Label>Categoría</Label>
+            <input name="categoria" required className={inputClass} placeholder="Estructura, Administración…" />
+            <FieldError message={estado.fieldErrors?.categoria} />
+          </div>
+          <div>
+            <Label>Descripción</Label>
+            <input name="descripcion" className={inputClass} />
+            <FieldError message={estado.fieldErrors?.descripcion} />
+          </div>
+          <div className="sm:col-span-2">
+            <FormError message={estado.error} />
+          </div>
+          <div className="sm:col-span-2 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <SubmitButton pendingLabel="Registrando…">Registrar</SubmitButton>
+          </div>
+        </form>
+      </Modal>
+    </>
+  );
+}
+
 type Movimiento = { id: number; tipo: string; monto: number | string; categoria: string; descripcion?: string | null };
 
 /**

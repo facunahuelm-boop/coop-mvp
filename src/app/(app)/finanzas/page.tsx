@@ -13,6 +13,7 @@ import { ResumenFinanzas, type ResumenTileDef } from "@/components/finanzas/Resu
 import { TablaFiltrable, type FiltroDef } from "@/components/TablaFiltrable";
 import { FilaConDetalle } from "@/components/FilaConDetalle";
 import {
+  AgregarFinanzaModal,
   AgregarCompromisoForm,
   RegistrarMovimientoForm,
   EditarMovimientoForm,
@@ -257,12 +258,15 @@ export default async function FinanzasPage({
         subtitle="Ingresos, egresos, presupuesto y disponible"
         action={
           detalle ? (
-            <a
-              href="/api/reportes/finanzas"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-brand-800)] text-white hover:bg-[var(--color-brand-700)] px-4 py-2.5 text-sm font-semibold transition-colors whitespace-nowrap"
-            >
-              📄 Descargar reporte PDF
-            </a>
+            <div className="flex items-center gap-2">
+              {puedeEditar && <AgregarFinanzaModal />}
+              <a
+                href="/api/reportes/finanzas"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-brand-800)] text-white hover:bg-[var(--color-brand-700)] px-4 py-2.5 text-sm font-semibold transition-colors whitespace-nowrap"
+              >
+                📄 Descargar reporte PDF
+              </a>
+            </div>
           ) : undefined
         }
       />

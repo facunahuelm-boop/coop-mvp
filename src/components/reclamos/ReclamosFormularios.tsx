@@ -11,7 +11,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { crearReclamoFormAction } from "@/lib/actions/reclamos";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
-import { Card, Label, inputClass } from "@/components/ui";
+import { AddButtonSummary, Card, Label, inputClass } from "@/components/ui";
 import { CATEGORIA_RECLAMO_LABEL, PRIORIDAD_RECLAMO_LABEL } from "@/lib/constants";
 
 type Vivienda = { id: number; numero: string };
@@ -33,7 +33,7 @@ export function ReportarReclamoForm({ viviendas }: { viviendas: Vivienda[] }) {
 
   return (
     <details ref={detailsRef} className="mb-8">
-      <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">+ Reportar un problema</summary>
+      <AddButtonSummary>Reportar un problema</AddButtonSummary>
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3" encType="multipart/form-data">
           <div className="sm:col-span-2">
