@@ -23,4 +23,3 @@ ALTER TABLE tareas ADD COLUMN IF NOT EXISTS reunion_id INTEGER REFERENCES reunio
 
 CREATE INDEX IF NOT EXISTS idx_tareas_reunion ON tareas (reunion_id);
 
-INSERT INTO schema_migrations (filename) VALUES ('0009_tareas_desde_actas.sql') ON CONFLICT (filename) DO NOTHING;

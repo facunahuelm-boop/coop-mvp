@@ -24,7 +24,19 @@ export const EVENTOS_DISPONIBLES: { value: string; label: string }[] = [
   { value: "solicitud_recibida", label: "Nueva solicitud entre comisiones" },
   { value: "solicitud_cambio_estado", label: "Cambio de estado de una solicitud" },
   { value: "tarea_asignada", label: "Tarea asignada a alguien" },
-  { value: "reunion_creada", label: "Reunión creada" },
+  // H-9 (auditoría integral, 27/09, corregido): la etiqueta decía "Reunión
+  // creada", pero el `value` ("reunion_creada") en realidad sólo se dispara
+  // cuando alguien es agregado como INVITADO a una reunión (ver
+  // `agregarInvitadoAction` en actions/reuniones.ts, el único lugar que usa
+  // este string como `tipo` de notificación) — una reunión agendada sin
+  // invitar a nadie nunca dispara este evento, sin ningún aviso de que eso
+  // vaya a pasar. Se corrige sólo la ETIQUETA (lo que ve quien configura la
+  // regla) para que diga la verdad — el `value` se deja intacto a propósito:
+  // es el string que ya queda guardado en `reglas_automaticas.evento` para
+  // cualquier regla ya configurada con este evento, y es el mismo string que
+  // dispara `ejecutarReglasAutomaticas()`; cambiarlo rompería esas reglas
+  // existentes sin necesidad, para un problema que es 100% de redacción.
+  { value: "reunion_creada", label: "Invitación a una reunión" },
   { value: "votacion_abierta", label: "Votación abierta" },
   { value: "decision_publicada", label: "Decisión publicada" },
   { value: "comunicacion_nueva", label: "Nueva comunicación" },

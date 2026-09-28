@@ -87,7 +87,19 @@ export const zIdOpcional = z
 export const zTexto = (max = 300) => z.string().trim().min(1, "Es obligatorio.").max(max, `Máximo ${max} caracteres.`);
 
 /** Texto opcional: recorta espacios, techo de longitud, vacío -> null (mismo
- * criterio que ya usaba el código con `String(x || "") || null`). */
+ * criterio que ya usaba el código con `String(x || "") || null`).
+ *
+ * H-7 (auditoría integral, 27/09): además de `undefined`/`""`, acepta `null`
+ * como entrada válida (`.nullable()`) — el flujo de Importar (`/importar`)
+ * valida cada fila dos veces: primero en la vista previa, y de nuevo al
+ * confirmar, usando el MISMO esquema sobre el resultado YA transformado de
+ * la primera pasada (que ya convirtió los campos vacíos a `null`, ver el
+ * `.transform` de abajo). Sin `.nullable()` acá, ese `null` no pasaba el
+ * `safeParse` de la segunda vuelta y la fila se descartaba en silencio
+ * aunque la vista previa la hubiera marcado como válida — confirmado en
+ * vivo con Playwright en los dos importadores (socios y movimientos). No
+ * cambia ningún comportamiento para el resto del sistema: todo lo demás
+ * sigue mandando `undefined`/`""` desde un FormData real, nunca `null`. */
 export const zTextoOpcional = (max = 3000) =>
   z
     .string()
@@ -95,6 +107,7 @@ export const zTextoOpcional = (max = 3000) =>
     .max(max, `Máximo ${max} caracteres.`)
     .optional()
     .or(z.literal(""))
+    .nullable()
     .transform((v) => (v ? v : null));
 
 /** Monto de dinero: número finito y no negativo, con un techo alto pero real
@@ -151,16 +164,28 @@ export const zFecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida."
 /** Fecha y hora "YYYY-MM-DDTHH:mm" (lo que mandan los <input type="datetime-local">). */
 export const zFechaHora = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/, "Fecha y hora inválidas.");
 
-/** Fecha opcional: vacío -> null. */
+/** Fecha opcional: vacío -> null.
+ *
+ * H-7 (auditoría integral, 27/09): agregado `.nullable()` — mismo motivo que
+ * en `zTextoOpcional` de arriba (el flujo de Importar re-valida cada fila con
+ * el mismo esquema sobre datos ya transformados en la vista previa, donde los
+ * campos vacíos ya vinieron convertidos a `null`). El `.refine` ya trataba
+ * `null` como válido (`v === null || ...`), así que no hace falta tocarlo. */
 export const zFechaOpcional = z
   .string()
   .optional()
   .or(z.literal(""))
+  .nullable()
   .transform((v) => (v ? v : null))
   .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), "Fecha inválida.");
 
 /** Email opcional: formato válido o vacío -> null (documento de contacto,
- * no de login). */
+ * no de login).
+ *
+ * H-7 (auditoría integral, 27/09): agregado `.nullable()` — mismo motivo que
+ * en `zTextoOpcional`/`zFechaOpcional` de arriba. El `.refine` ya trataba
+ * valores falsy (incluido `null`) como válidos (`!v || ...`), así que no hace
+ * falta tocarlo. */
 export const zEmailOpcional = z
   .string()
   .trim()
@@ -168,6 +193,7 @@ export const zEmailOpcional = z
   .max(200)
   .optional()
   .or(z.literal(""))
+  .nullable()
   .refine((v) => !v || z.string().email().safeParse(v).success, "Email inválido.")
   .transform((v) => (v ? v : null));
 
@@ -179,12 +205,17 @@ export const zEmailOpcional = z
  * explícito en "permitir formatos razonables según configuración regional,
  * no ser demasiado rígido". Sólo rechaza lo que claramente NO es un
  * teléfono: letras, o muy pocos dígitos reales. Vacío -> null. */
+/* H-7 (auditoría integral, 27/09): agregado `.nullable()` — mismo motivo que
+ * en los validadores de arriba. Ambos `.refine` ya trataban valores falsy
+ * (incluido `null`) como válidos (`!v || ...`), así que no hace falta
+ * tocarlos. */
 export const zTelefonoOpcional = z
   .string()
   .trim()
   .max(50)
   .optional()
   .or(z.literal(""))
+  .nullable()
   .refine((v) => !v || /^[+\d][\d\s()-]{5,49}$/.test(v), "Ingresá un número de teléfono válido.")
   .refine((v) => !v || (v.match(/\d/g)?.length ?? 0) >= 6, "Ingresá un número de teléfono válido.")
   .transform((v) => (v ? v : null));

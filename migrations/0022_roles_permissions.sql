@@ -284,4 +284,3 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 GRANT SELECT, INSERT, UPDATE, DELETE ON roles, permissions, role_permissions TO app_user;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO app_user;
 
-INSERT INTO schema_migrations (filename) VALUES ('0022_roles_permissions.sql') ON CONFLICT (filename) DO NOTHING;

@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, audit, esColumnaInexistente } from "@/lib/db";
+import { insert, update, get, audit, esColumnaInexistente, updateConBloqueoOptimista } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { parseForm, zId, zTexto, zTextoOpcional, zMontoPositivo, zFecha, zEnumSeguro } from "@/lib/validation";
@@ -36,12 +36,19 @@ export async function registrarMovimientoFormAction(_prev: ActionState, formData
   return conEstadoDeAccion(() => registrarMovimientoAction(formData));
 }
 
+// H-3 (auditoría integral, 27/09, corregido): `version_esperada` es el
+// `actualizado_en` que tenía el movimiento cuando se abrió el formulario de
+// edición — lo usa updateConBloqueoOptimista() de abajo para detectar una
+// edición concurrente en vez de pisarla en silencio (confirmado en vivo:
+// antes, dos personas editando el mismo movimiento al mismo tiempo, el monto
+// de una se perdía sin aviso y ambas veían "Movimiento actualizado.").
 const editarMovimientoSchema = z.object({
   id: zId,
   tipo: zEnumSeguro(["ingreso", "egreso"], "egreso"),
   monto: zMontoPositivo(),
   categoria: zTexto(120),
   descripcion: zTextoOpcional(1000),
+  version_esperada: zTexto(100),
 });
 
 // Pedido explícito (rediseño de Finanzas, 16/09): "que todos los ingresos
@@ -51,7 +58,7 @@ const editarMovimientoSchema = z.object({
 export async function editarMovimientoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
-  const { id, tipo, monto, categoria, descripcion } = parseForm(editarMovimientoSchema, formData);
+  const { id, tipo, monto, categoria, descripcion, version_esperada } = parseForm(editarMovimientoSchema, formData);
 
   const existente = await get<{ id: number; estado?: string }>(
     `SELECT id, estado FROM movimientos_financieros WHERE id = ?`,
@@ -68,13 +75,18 @@ export async function editarMovimientoAction(formData: FormData) {
     throw new Error("Este movimiento está anulado — no se puede editar. Registrá un movimiento nuevo si hace falta corregir el saldo.");
   }
 
-  await update("movimientos_financieros", id, {
-    tipo,
-    monto,
-    categoria,
-    etapa_obra: categoria,
-    descripcion,
-  });
+  await updateConBloqueoOptimista(
+    "movimientos_financieros",
+    id,
+    {
+      tipo,
+      monto,
+      categoria,
+      etapa_obra: categoria,
+      descripcion,
+    },
+    version_esperada
+  );
   await audit({ usuario_id: user.id, accion: "editar_movimiento", entidad: "movimientos_financieros", entidad_id: id, valor_nuevo: { tipo, monto, categoria } });
   revalidatePath("/finanzas");
   revalidatePath("/dashboard");

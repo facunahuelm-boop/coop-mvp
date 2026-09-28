@@ -21,4 +21,3 @@ UPDATE organizations SET color_secundario = '#0f766e' WHERE color_secundario = '
 -- nuevo índigo en vez del verde viejo.
 ALTER TABLE organizations ALTER COLUMN color_primario SET DEFAULT '#3b3f8c';
 
-INSERT INTO schema_migrations (filename) VALUES ('0046_color_marca_default_navy.sql') ON CONFLICT (filename) DO NOTHING;

@@ -17,4 +17,3 @@
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
-INSERT INTO schema_migrations (filename) VALUES ('0023_users_avatar.sql') ON CONFLICT (filename) DO NOTHING;

@@ -46,4 +46,3 @@ END $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON mensajes_correo TO app_user;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO app_user;
 
-INSERT INTO schema_migrations (filename) VALUES ('0016_mensajes_correo_destinatarios.sql') ON CONFLICT (filename) DO NOTHING;

@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, run, audit } from "@/lib/db";
+import { insert, update, get, run, audit, withTenantTransaction, updateConBloqueoOptimista } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
@@ -129,6 +129,11 @@ export async function crearSolicitudFormAction(_prev: ActionState, formData: For
  * mal desde el principio, la corrección correcta es eliminar la solicitud
  * (si nada la usa todavía) y cargarla de nuevo.
  */
+// H-3 (auditoría integral, 27/09, corregido): `version_esperada` es el
+// `actualizado_en` que tenía la solicitud cuando se abrió el formulario de
+// edición — lo usa updateConBloqueoOptimista() de abajo para detectar una
+// edición concurrente (confirmado en vivo: tesorería y comisión de compras
+// editando la misma solicitud a la vez, sólo un valor sobrevivía sin aviso).
 const editarSolicitudSchema = z.object({
   id: zId,
   categoria: zEnumSeguro(clavesDe(CATEGORIA_COMPRA_LABEL), "obra"),
@@ -142,12 +147,13 @@ const editarSolicitudSchema = z.object({
   etapa_obra: zTextoOpcional(200),
   fecha_necesaria: zFechaOpcional,
   presupuesto_estimado: zMontoOpcional(),
+  version_esperada: zTexto(100),
 });
 
 export async function editarSolicitudAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
-  const { id, ...datos } = parseForm(editarSolicitudSchema, formData);
+  const { id, version_esperada, ...datos } = parseForm(editarSolicitudSchema, formData);
   await verificarPermisoSobreSolicitud(user, id);
 
   const anterior = await get<any>(`SELECT * FROM solicitudes_compra WHERE id = ?`, [id]);
@@ -162,7 +168,7 @@ export async function editarSolicitudAction(formData: FormData) {
     throw new Error("Esta solicitud ya está cerrada (entregada o rechazada) — no se puede editar. Si fue un error de carga, un administrador puede eliminarla desde la pestaña Información.");
   }
 
-  await update("solicitudes_compra", id, datos);
+  await updateConBloqueoOptimista("solicitudes_compra", id, datos, version_esperada);
   await audit({
     usuario_id: user.id,
     accion: "editar",
@@ -462,20 +468,37 @@ export async function eliminarSolicitudAction(formData: FormData) {
   // antes de relanzarlo — visible en /auditoria para quien tiene ese permiso
   // (admin, tesorería, consejo directivo, fiscal). No cambia el
   // comportamiento para el usuario: sigue viendo el mismo mensaje genérico.
+  //
+  // H-4 (auditoría integral, 27/09, corregido): los 4 DELETE de acá abajo
+  // ahora corren en una única transacción (`withTenantTransaction`, ver
+  // db.ts) en vez de una conexión nueva por sentencia — antes, si el proceso
+  // se caía a mitad de camino (probado en vivo con un trigger de prueba
+  // temporal), quedaban decisiones_compra/presupuestos_proveedor borrados
+  // pero solicitudes_compra intacta, un estado a medio borrar que no se
+  // podía revertir. El DELETE de gastos_comision sigue siendo tolerante a
+  // que la tabla/columna todavía no exista en esta base — pero ahora con
+  // SAVEPOINT explícito: en Postgres, un error dentro de una transacción deja
+  // el resto de la transacción "abortada" aunque el error se atrape en
+  // JavaScript, así que hace falta el SAVEPOINT/ROLLBACK TO SAVEPOINT para
+  // poder seguir borrando solicitudes_compra después.
   try {
-    await run(`DELETE FROM decisiones_compra WHERE solicitud_id = ?`, [id]);
-    await run(`DELETE FROM presupuestos_proveedor WHERE solicitud_id = ?`, [id]);
-    try {
-      await run(`DELETE FROM gastos_comision WHERE solicitud_compra_id = ?`, [id]);
-    } catch (err: any) {
-      // AUDITORÍA INTEGRAL (hallazgo, 12/09): el primer intento real reveló
-      // que en esta base gastos_comision no solo le falta una columna —
-      // la tabla entera todavía no existe (Postgres 42P01, "relation ...
-      // does not exist": la migración 0017 nunca corrió). Mismo criterio que
-      // con una columna faltante: si no existe, no hay nada que borrar ahí.
-      if (err?.code !== "42703" && err?.code !== "42P01") throw err;
-    }
-    await run(`DELETE FROM solicitudes_compra WHERE id = ?`, [id]);
+    await withTenantTransaction(async (tx) => {
+      await tx.run(`DELETE FROM decisiones_compra WHERE solicitud_id = ?`, [id]);
+      await tx.run(`DELETE FROM presupuestos_proveedor WHERE solicitud_id = ?`, [id]);
+      await tx.run(`SAVEPOINT antes_gastos_comision`);
+      try {
+        await tx.run(`DELETE FROM gastos_comision WHERE solicitud_compra_id = ?`, [id]);
+      } catch (err: any) {
+        // AUDITORÍA INTEGRAL (hallazgo, 12/09): el primer intento real reveló
+        // que en esta base gastos_comision no solo le falta una columna —
+        // la tabla entera todavía no existe (Postgres 42P01, "relation ...
+        // does not exist": la migración 0017 nunca corrió). Mismo criterio que
+        // con una columna faltante: si no existe, no hay nada que borrar ahí.
+        if (err?.code !== "42703" && err?.code !== "42P01") throw err;
+        await tx.run(`ROLLBACK TO SAVEPOINT antes_gastos_comision`);
+      }
+      await tx.run(`DELETE FROM solicitudes_compra WHERE id = ?`, [id]);
+    });
   } catch (err: any) {
     await audit({
       usuario_id: user.id,

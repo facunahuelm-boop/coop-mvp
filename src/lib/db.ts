@@ -113,6 +113,65 @@ export async function run(sql: string, params: any[] = []) {
 }
 
 /**
+ * H-4 (auditoría integral, 27/09): helper de transacción multi-sentencia
+ * para una misma cooperativa, generalizando el patrón que ya existía —
+ * probado en producción — en plataforma.ts::responderTicketPlataformaAction
+ * (client tomado directo del pool, BEGIN/COMMIT/ROLLBACK manual,
+ * `set_config('app.current_org_id', ...)` explícito). Hasta ahora, `run()` de
+ * arriba toma una conexión NUEVA (y hace commit implícito) en cada llamada —
+ * a propósito, para que la variable de sesión de RLS nunca "quede pegada" de
+ * un pedido a otro — pero eso también significa que una acción que encadena
+ * varios DELETE/UPDATE relacionados (ej: `eliminarSolicitudAction` en
+ * actions/compras.ts) no tiene ninguna garantía de "todo o nada": si el
+ * proceso se cae a mitad de camino, algunas filas quedan borradas y otras no
+ * — confirmado en vivo durante esta auditoría con un trigger de prueba.
+ *
+ * `fn` recibe `run`/`get`/`all` con la misma firma y el mismo `?` -> $1,$2,…
+ * que las funciones sueltas de arriba, para que migrar una acción existente
+ * sea un cambio mínimo. Si `fn` tira cualquier error, se hace ROLLBACK y se
+ * relanza tal cual — nada se traga en silencio. Ojo con un detalle propio de
+ * Postgres: si dentro de `fn` hace falta tolerar que una sentencia puntual
+ * falle (ej: una tabla que una migración todavía no creó) sin abortar el
+ * resto, hay que envolver esa sentencia en su propio SAVEPOINT y hacer
+ * `ROLLBACK TO SAVEPOINT` si falla — un `catch` de JavaScript solo, sin eso,
+ * no alcanza: Postgres deja la transacción entera en estado "aborted" apenas
+ * una sentencia falla, y todo lo que se ejecute después (aunque el error se
+ * haya atrapado en JS) sale rechazado con 25P02 ("current transaction is
+ * aborted"). Usa la cooperativa activa (`requireOrgContext()`) — no
+ * reemplaza a `withRootClient` para operaciones de plataforma sin
+ * cooperativa.
+ */
+export type TenantTx = {
+  run: (sql: string, params?: any[]) => Promise<void>;
+  get: <T = any>(sql: string, params?: any[]) => Promise<T | undefined>;
+  all: <T = any>(sql: string, params?: any[]) => Promise<T[]>;
+};
+
+export async function withTenantTransaction<T>(fn: (tx: TenantTx) => Promise<T>): Promise<T> {
+  const orgId = await requireOrgContext();
+  const client = await pool.connect();
+  const tx: TenantTx = {
+    run: async (sql, params = []) => {
+      await client.query(toPgSql(sql), params);
+    },
+    get: async (sql, params = []) => (await client.query(toPgSql(sql), params)).rows[0],
+    all: async (sql, params = []) => (await client.query(toPgSql(sql), params)).rows,
+  };
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.current_org_id', $1, false)", [String(orgId)]);
+    const resultado = await fn(tx);
+    await client.query("COMMIT");
+    return resultado;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Consultas de plataforma, sin cooperativa activa (ej: buscar una cooperativa
  * por su slug antes de iniciar sesión, o el alta de una cooperativa nueva).
  * Usar solo en flujos explícitamente a nivel de plataforma — nunca para leer
@@ -279,6 +338,71 @@ export async function update(table: string, id: number, data: Record<string, any
       orgId,
     ];
     await withTenantClient((client) => client.query(sql, values));
+  });
+}
+
+/**
+ * H-3 (auditoría integral, 27/09): edición concurrente del mismo registro por
+ * dos usuarios resultaba en "last write wins" en silencio — ninguno de los
+ * dos se enteraba de que su cambio (o el del otro) se había perdido, y ambos
+ * veían el mismo toast de éxito. Confirmado en vivo en Comisiones, Finanzas
+ * y Compras (ver migrations/0047_bloqueo_optimista_h3.sql, que agrega la
+ * columna `actualizado_en` sólo a esas 3 tablas).
+ *
+ * A propósito NO se cambia `update()` de arriba (usada por ~30 tablas sin
+ * ningún control de versión) — este es un helper aparte, de uso explícito,
+ * sólo para las acciones donde ya se confirmó el problema.
+ *
+ * Cómo funciona: el formulario de edición carga `actualizado_en` como campo
+ * oculto cuando se abre. Acá, el UPDATE filtra también por ese valor exacto
+ * (`AND actualizado_en = versionEsperada`) — todo en una sola sentencia, para
+ * que no quede una ventana entre "leer para comparar" y "escribir" donde
+ * alguien más pueda meterse en el medio. Si el UPDATE afecta 0 filas:
+ * - Si la fila SIGUE existiendo (para esta cooperativa), es porque alguien
+ *   más la modificó mientras el formulario estaba abierto (el `actualizado_en`
+ *   ya cambió) → se tira ConflictoConcurrenciaError, con un mensaje claro
+ *   para que la persona recargue y vea el cambio ajeno antes de reintentar.
+ * - Si la fila ya no existe (o no es de esta cooperativa), es el mismo caso
+ *   que ya manejaba `update()` — se avisa que el registro ya no existe.
+ */
+export class ConflictoConcurrenciaError extends Error {
+  constructor(mensaje = "Alguien más modificó este registro mientras lo tenías abierto. Recargá la página para ver los cambios más recientes antes de volver a guardar.") {
+    super(mensaje);
+    this.name = "ConflictoConcurrenciaError";
+  }
+}
+
+export async function updateConBloqueoOptimista(
+  table: string,
+  id: number,
+  data: Record<string, any>,
+  versionEsperada: string
+): Promise<void> {
+  await conFallbackColumnaFaltante(data, async (payload) => {
+    const keys = Object.keys(payload);
+    const sets = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
+    const orgId = await requireOrgContext();
+    const idxId = keys.length + 1;
+    const idxOrg = keys.length + 2;
+    const idxVersion = keys.length + 3;
+    const sql = `UPDATE ${table} SET ${sets}, actualizado_en = now()::text WHERE id = $${idxId} AND organization_id = $${idxOrg} AND actualizado_en = $${idxVersion}`;
+    const values = [
+      ...keys.map((k) => {
+        const v = payload[k];
+        return v !== null && typeof v === "object" ? JSON.stringify(v) : v;
+      }),
+      id,
+      orgId,
+      versionEsperada,
+    ];
+    const resultado = await withTenantClient((client) => client.query(sql, values));
+    if (resultado.rowCount === 0) {
+      const existente = await withTenantClient((client) =>
+        client.query(`SELECT 1 FROM ${table} WHERE id = $1 AND organization_id = $2`, [id, orgId])
+      );
+      if ((existente.rowCount ?? 0) > 0) throw new ConflictoConcurrenciaError();
+      throw new Error("Ese registro ya no existe.");
+    }
   });
 }
 

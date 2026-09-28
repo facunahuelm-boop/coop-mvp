@@ -57,4 +57,3 @@ ALTER TABLE notas_calendario ADD COLUMN IF NOT EXISTS color_personalizado TEXT;
 -- vía Vercel Cron queda para una etapa aparte de este mismo rediseño.
 ALTER TABLE notas_calendario ADD COLUMN IF NOT EXISTS recordatorio TEXT;
 
-INSERT INTO schema_migrations (filename) VALUES ('0042_actividades_calendario.sql') ON CONFLICT (filename) DO NOTHING;

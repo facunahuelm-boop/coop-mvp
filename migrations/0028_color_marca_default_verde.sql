@@ -19,4 +19,3 @@ UPDATE organizations SET color_primario = '#16a34a' WHERE color_primario = '#123
 -- nuevo verde en vez del navy viejo.
 ALTER TABLE organizations ALTER COLUMN color_primario SET DEFAULT '#16a34a';
 
-INSERT INTO schema_migrations (filename) VALUES ('0028_color_marca_default_verde.sql') ON CONFLICT (filename) DO NOTHING;

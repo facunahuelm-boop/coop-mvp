@@ -212,6 +212,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
                   etapa_obra: solicitud.etapa_obra ?? null,
                   fecha_necesaria: solicitud.fecha_necesaria ?? null,
                   presupuesto_estimado: solicitud.presupuesto_estimado ?? null,
+                  actualizado_en: solicitud.actualizado_en,
                 }}
               />
             )}

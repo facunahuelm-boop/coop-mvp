@@ -66,4 +66,3 @@ END $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON convenios_pago TO app_user;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO app_user;
 
-INSERT INTO schema_migrations (filename) VALUES ('0027_cuotas_convenios_socio.sql') ON CONFLICT (filename) DO NOTHING;

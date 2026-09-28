@@ -4,6 +4,18 @@
 // futuro, registrar movimiento) migrados a `useActionState` — mismo criterio
 // que los demás módulos. Ya usaban `AddButtonSummary`/`SubmitButton
 // variant="add"` desde la Fase 3; acá se suma la validación por campo.
+//
+// AUDITORÍA INTEGRAL (hallazgo funcional, 27/09, reproducido en vivo): los 3
+// campos "monto" de ALTA (compromiso futuro, RegistrarMovimientoForm y el
+// atajo AgregarFinanzaModal del header) tenían <input type="number"> SIN
+// step="0.01" — un <input type="number"> sin `step` sólo acepta enteros, así
+// que cargar un monto con centavos (ej: 1234.56) quedaba bloqueado por la
+// validación nativa del navegador (mensaje en inglés, nunca llega a
+// mostrarse ningún error de la app) sin que la Server Action ni su schema de
+// Zod (zMontoPositivo, que sí admite decimales) tuvieran nada que ver. Los 3
+// formularios de EDICIÓN (EditarMovimientoForm, GenerarCuotaMensualForm,
+// CrearConvenioForm más abajo) ya tenían step="0.01" — se iguala acá el
+// criterio de alta al de edición, sin tocar ninguna Server Action ni validación.
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import {
@@ -45,7 +57,7 @@ export function AgregarCompromisoForm() {
           </div>
           <div>
             <Label>Monto</Label>
-            <input name="monto" type="number" required className={inputClass} />
+            <input name="monto" type="number" step="0.01" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
@@ -99,7 +111,7 @@ export function RegistrarMovimientoForm() {
           </div>
           <div>
             <Label>Monto</Label>
-            <input name="monto" type="number" required className={inputClass} />
+            <input name="monto" type="number" step="0.01" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
@@ -168,7 +180,7 @@ export function AgregarFinanzaModal() {
           </div>
           <div>
             <Label>Monto</Label>
-            <input name="monto" type="number" required className={inputClass} />
+            <input name="monto" type="number" step="0.01" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
@@ -194,7 +206,7 @@ export function AgregarFinanzaModal() {
   );
 }
 
-type Movimiento = { id: number; tipo: string; monto: number | string; categoria: string; descripcion?: string | null };
+type Movimiento = { id: number; tipo: string; monto: number | string; categoria: string; descripcion?: string | null; actualizado_en: string };
 
 /**
  * Editar/eliminar un movimiento del libro general (pedido explícito: "que
@@ -222,6 +234,9 @@ export function EditarMovimientoForm({ movimiento: m }: { movimiento: Movimiento
       <Modal open={open} onClose={() => setOpen(false)} title="Editar movimiento">
         <form action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
           <input type="hidden" name="id" value={m.id} />
+          {/* H-3 (auditoría integral, 27/09): versión cargada al abrir este
+             formulario — ver updateConBloqueoOptimista() en db.ts. */}
+          <input type="hidden" name="version_esperada" value={m.actualizado_en} />
           <div>
             <Label>Tipo</Label>
             <select name="tipo" className={inputClass} defaultValue={m.tipo}>

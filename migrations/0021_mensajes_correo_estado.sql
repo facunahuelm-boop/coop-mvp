@@ -32,4 +32,3 @@ ALTER TABLE mensajes_correo ADD COLUMN IF NOT EXISTS origen TEXT NOT NULL DEFAUL
 -- escritos a mano por una persona.
 ALTER TABLE mensajes_correo ALTER COLUMN remitente_id DROP NOT NULL;
 
-INSERT INTO schema_migrations (filename) VALUES ('0021_mensajes_correo_estado.sql') ON CONFLICT (filename) DO NOTHING;

@@ -240,7 +240,7 @@ export function EditarComisionForm({
   comision: {
     id: number; nombre: string; descripcion?: string | null; tipo?: string | null;
     objetivo?: string | null; fecha_inicio?: string | null; fecha_fin?: string | null;
-    comision_padre_id?: number | null;
+    comision_padre_id?: number | null; actualizado_en: string;
   };
   comisiones: Comision[];
 }) {
@@ -262,6 +262,9 @@ export function EditarComisionForm({
       <Card className="mt-2">
         <form action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input type="hidden" name="id" value={comision.id} />
+          {/* H-3 (auditoría integral, 27/09): versión cargada al abrir este
+             formulario — ver updateConBloqueoOptimista() en db.ts. */}
+          <input type="hidden" name="version_esperada" value={comision.actualizado_en} />
           <div>
             <Label>Nombre</Label>
             <input name="nombre" required defaultValue={comision.nombre} className={inputClass} />

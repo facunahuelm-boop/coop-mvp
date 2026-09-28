@@ -55,4 +55,3 @@ GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO app_user;
 ALTER TABLE notas_calendario ADD COLUMN IF NOT EXISTS serie_id INTEGER REFERENCES series_calendario(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_notas_calendario_serie ON notas_calendario (serie_id);
 
-INSERT INTO schema_migrations (filename) VALUES ('0043_recurrencia_calendario.sql') ON CONFLICT (filename) DO NOTHING;

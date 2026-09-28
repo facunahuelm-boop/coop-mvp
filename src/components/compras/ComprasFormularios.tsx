@@ -131,7 +131,7 @@ export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
           </div>
           <div>
             <Label>Presupuesto estimado</Label>
-            <input name="presupuesto_estimado" type="number" className={inputClass} />
+            <input name="presupuesto_estimado" type="number" step="0.01" className={inputClass} />
             <FieldError message={estado.fieldErrors?.presupuesto_estimado} />
           </div>
           <div className="sm:col-span-2 flex items-center gap-2">
@@ -164,6 +164,7 @@ type SolicitudEditable = {
   etapa_obra: string | null;
   fecha_necesaria: string | null;
   presupuesto_estimado: number | null;
+  actualizado_en: string;
 };
 
 /**
@@ -199,6 +200,9 @@ export function EditarSolicitudForm({ solicitud }: { solicitud: SolicitudEditabl
       <Modal open={open} onClose={() => setOpen(false)} title="Editar solicitud de compra" size="lg">
         <form action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
           <input type="hidden" name="id" value={solicitud.id} />
+          {/* H-3 (auditoría integral, 27/09): versión cargada al abrir este
+             formulario — ver updateConBloqueoOptimista() en db.ts. */}
+          <input type="hidden" name="version_esperada" value={solicitud.actualizado_en} />
           <div>
             <Label>Categoría de la compra</Label>
             <select name="categoria" className={inputClass} defaultValue={solicitud.categoria}>
@@ -253,7 +257,7 @@ export function EditarSolicitudForm({ solicitud }: { solicitud: SolicitudEditabl
           </div>
           <div>
             <Label>Presupuesto estimado</Label>
-            <input name="presupuesto_estimado" type="number" defaultValue={solicitud.presupuesto_estimado ?? ""} className={inputClass} />
+            <input name="presupuesto_estimado" type="number" step="0.01" defaultValue={solicitud.presupuesto_estimado ?? ""} className={inputClass} />
             <FieldError message={estado.fieldErrors?.presupuesto_estimado} />
           </div>
           <div className="sm:col-span-2 flex items-center gap-2">

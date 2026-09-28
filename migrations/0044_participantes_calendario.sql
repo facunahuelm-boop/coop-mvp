@@ -45,4 +45,3 @@ GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO app_user;
 CREATE INDEX IF NOT EXISTS idx_actividad_participantes_nota ON actividad_participantes (nota_id);
 CREATE INDEX IF NOT EXISTS idx_actividad_participantes_usuario ON actividad_participantes (usuario_id);
 
-INSERT INTO schema_migrations (filename) VALUES ('0044_participantes_calendario.sql') ON CONFLICT (filename) DO NOTHING;

@@ -26,4 +26,3 @@ ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS creado_en TIMESTAMPTZ NOT NULL 
 
 CREATE INDEX IF NOT EXISTS idx_proveedores_estado ON proveedores (organization_id, estado);
 
-INSERT INTO schema_migrations (filename) VALUES ('0018_proveedores_extendido.sql') ON CONFLICT (filename) DO NOTHING;

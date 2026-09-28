@@ -172,7 +172,21 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                   📄 Descargar acta en PDF
                 </a>
               ) : (
-                <p className="text-xs text-ink/40 mt-2">Guardada en Documentos → Actas y resoluciones.</p>
+                // H-6 (auditoría integral, 27/09, corregido): antes decía
+                // "Guardada en Documentos → Actas y resoluciones" siempre que
+                // no había archivo_url — pero eso pasa exactamente cuando NO
+                // hay ningún documento ahí (ver el comentario en
+                // cerrarReunionAction, actions/reuniones.ts: si falla la
+                // generación del PDF —ej. Storage caído— el cierre de la
+                // reunión sigue igual, a propósito, para no perder el acta en
+                // texto ni bloquear el resto del cierre; sólo falta el
+                // archivo). El mensaje ahora dice la verdad, mismo criterio
+                // que ya usan reportes/page.tsx y libros-sociales/page.tsx
+                // ("No disponible") en vez de dar a entender que el archivo
+                // sí existe en algún lado.
+                <p className="text-xs text-ink/40 mt-2">
+                  No se pudo generar el archivo PDF de esta acta — el resumen en texto de arriba sí quedó guardado.
+                </p>
               )}
             </Card>
           ) : reunion.estado === "cancelada" ? (

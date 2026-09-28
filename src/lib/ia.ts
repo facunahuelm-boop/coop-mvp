@@ -2,7 +2,7 @@ import dayjs from "dayjs";
 import { all, get } from "./db";
 import { tareasObraConSemaforo, resumenFinanciero, compararPresupuestos } from "./logic";
 import type { SessionUser } from "./auth";
-import { canRead } from "./roles";
+import { canRead, type Module } from "./roles";
 import { obtenerReglasCooperativa } from "./reglas";
 
 export type IaSource = { label: string; detail: string };
@@ -252,27 +252,55 @@ async function actasYDecisiones(pregunta: string): Promise<IaAnswer | null> {
   };
 }
 
-const HANDLERS: { test: (q: string) => boolean; run: (q: string, u: SessionUser) => Promise<IaAnswer | null> }[] = [
-  { test: (q) => /c[oó]mo (viene|va|est[aá]) la (obra|construcci[oó]n)/.test(q), run: (q, u) => estadoObra(u) },
-  { test: (q) => /atrasad/.test(q) && /tarea/.test(q), run: () => tareasAtrasadas() },
-  { test: (q) => /problema/.test(q) && /abiert/.test(q), run: () => problemasAbiertos() },
-  { test: (q) => /qu[eé] deber[ií]amos controlar|controlar esta semana|hacer esta semana|qu[eé] tenemos que hacer/.test(q), run: () => queControlarEstaSemana() },
-  { test: (q) => /(compra|proveedor)/.test(q) && /pendient/.test(q), run: () => comprasPendientes() },
-  { test: (q) => /cu[aá]nto dinero|cu[aá]nto (podemos gastar|tenemos)|disponible/.test(q), run: (q, u) => dineroDisponible(u) },
-  { test: (q) => /documento.*(vencer|vencid)/.test(q), run: () => documentosPorVencer() },
-  { test: (q) => /a qui[eé]n.*compramos|proveedor/.test(q), run: (q) => quePasoConProveedor(q) },
-  { test: (q) => /proveedor/.test(q), run: () => proveedoresRegistrados() },
-  { test: (q) => /comparaci[oó]n|comparar|presupuesto/.test(q), run: (q) => comparacionCompra(q) },
-  { test: (q) => /(cu[aá]ntos?|estado).*socio|socio.*(activo|inactivo|baja)|lista de espera/.test(q), run: () => estadoSocios() },
-  { test: (q) => /comisi[oó]n/.test(q), run: (q) => comisionesYMiembros(q) },
-  { test: (q) => /reuni[oó]n|reuniones/.test(q) && !/acta/.test(q), run: () => proximasReuniones() },
-  { test: (q) => /acta|asamblea|resolv/.test(q), run: (q) => actasYDecisiones(q) },
+// H-8 (auditoría integral, 27/09): `askClaude()` (más abajo) siempre armó su
+// contexto filtrando cada fuente por `canRead()` del módulo correspondiente
+// — pero este motor local (el que realmente responde mientras no haya
+// `ANTHROPIC_API_KEY` configurada) no tenía ningún chequeo equivalente:
+// cualquier usuario autenticado podía preguntar por datos de un módulo al
+// que su rol no tiene acceso (confirmado en vivo con Compras y Finanzas) y
+// recibirlos igual. Se agrega acá el mismo criterio que ya usa `askClaude`,
+// módulo por módulo, sin tocar la lógica interna de cada handler.
+const MODULO_LABEL: Record<Module, string> = {
+  obra: "Obra",
+  trabajo: "Trabajo",
+  compras: "Compras",
+  seguridad: "Seguridad",
+  finanzas: "Finanzas",
+  documentos: "Documentos",
+  auditoria: "Auditoría",
+  comisiones: "Comisiones",
+  socios: "Socios",
+  reclamos: "Reclamos",
+};
+
+const HANDLERS: { test: (q: string) => boolean; modulo: Module | null; run: (q: string, u: SessionUser) => Promise<IaAnswer | null> }[] = [
+  { test: (q) => /c[oó]mo (viene|va|est[aá]) la (obra|construcci[oó]n)/.test(q), modulo: "obra", run: (q, u) => estadoObra(u) },
+  { test: (q) => /atrasad/.test(q) && /tarea/.test(q), modulo: "obra", run: () => tareasAtrasadas() },
+  { test: (q) => /problema/.test(q) && /abiert/.test(q), modulo: "obra", run: () => problemasAbiertos() },
+  { test: (q) => /qu[eé] deber[ií]amos controlar|controlar esta semana|hacer esta semana|qu[eé] tenemos que hacer/.test(q), modulo: "obra", run: () => queControlarEstaSemana() },
+  { test: (q) => /(compra|proveedor)/.test(q) && /pendient/.test(q), modulo: "compras", run: () => comprasPendientes() },
+  { test: (q) => /cu[aá]nto dinero|cu[aá]nto (podemos gastar|tenemos)|disponible/.test(q), modulo: "finanzas", run: (q, u) => dineroDisponible(u) },
+  { test: (q) => /documento.*(vencer|vencid)/.test(q), modulo: "seguridad", run: () => documentosPorVencer() },
+  { test: (q) => /a qui[eé]n.*compramos|proveedor/.test(q), modulo: "compras", run: (q) => quePasoConProveedor(q) },
+  { test: (q) => /proveedor/.test(q), modulo: "compras", run: () => proveedoresRegistrados() },
+  { test: (q) => /comparaci[oó]n|comparar|presupuesto/.test(q), modulo: "compras", run: (q) => comparacionCompra(q) },
+  { test: (q) => /(cu[aá]ntos?|estado).*socio|socio.*(activo|inactivo|baja)|lista de espera/.test(q), modulo: "socios", run: () => estadoSocios() },
+  { test: (q) => /comisi[oó]n/.test(q), modulo: "comisiones", run: (q) => comisionesYMiembros(q) },
+  { test: (q) => /reuni[oó]n|reuniones/.test(q) && !/acta/.test(q), modulo: "comisiones", run: () => proximasReuniones() },
+  { test: (q) => /acta|asamblea|resolv/.test(q), modulo: "comisiones", run: (q) => actasYDecisiones(q) },
 ];
 
 export async function askLocal(pregunta: string, user: SessionUser): Promise<IaAnswer> {
   const q = pregunta.toLowerCase().trim();
   for (const h of HANDLERS) {
     if (h.test(q)) {
+      if (h.modulo && !canRead(user.rol, h.modulo)) {
+        return {
+          answer: `No tenés permiso para ver información del módulo de ${MODULO_LABEL[h.modulo]}. Si creés que deberías tenerlo, consultalo con quien administra tu cooperativa.`,
+          engine: "local",
+          sources: [],
+        };
+      }
       const res = await h.run(q, user);
       if (res) return res;
     }

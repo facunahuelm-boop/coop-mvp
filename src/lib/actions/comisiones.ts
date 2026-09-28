@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, audit } from "@/lib/db";
+import { insert, update, get, audit, updateConBloqueoOptimista } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
@@ -69,6 +69,12 @@ export async function crearComisionFormAction(_prev: ActionState, formData: Form
 
 // Editar una comisión ya creada: mismo alcance de permiso que archivarla
 // (decisión estructural), no el de gestionar sus integrantes/tareas.
+//
+// H-3 (auditoría integral, 27/09, corregido): `version_esperada` es el
+// `actualizado_en` que tenía la comisión cuando se abrió este formulario
+// (ver EditarComisionForm, ComisionesFormularios.tsx) — lo usa
+// updateConBloqueoOptimista() de abajo para detectar si alguien más la
+// editó mientras tanto, en vez de pisar ese cambio en silencio.
 const editarComisionSchema = z
   .object({
     id: zId,
@@ -79,6 +85,7 @@ const editarComisionSchema = z
     fecha_inicio: zFechaOpcional,
     fecha_fin: zFechaOpcional,
     comision_padre_id: zIdOpcional,
+    version_esperada: zTexto(100),
   })
   .refine((d) => d.tipo !== "temporal" || d.fecha_fin, {
     message: "Una comisión temporal necesita fecha de finalización.",
@@ -88,9 +95,9 @@ const editarComisionSchema = z
 export async function editarComisionAction(formData: FormData) {
   const user = await requireUser();
   if (!esOversightComisiones(user.rol)) throw new Error("Editar una comisión requiere un rol de conducción (Admin, Consejo Directivo, Tesorería o Administración).");
-  const { id, ...datos } = parseForm(editarComisionSchema, formData);
+  const { id, version_esperada, ...datos } = parseForm(editarComisionSchema, formData);
   if (datos.comision_padre_id === id) throw new Error("Una comisión no puede ser subcomisión de sí misma.");
-  await update("comisiones", id, datos);
+  await updateConBloqueoOptimista("comisiones", id, datos, version_esperada);
   await audit({ usuario_id: user.id, accion: "editar", entidad: "comisiones", entidad_id: id, valor_nuevo: datos });
   revalidatePath("/comisiones");
 }

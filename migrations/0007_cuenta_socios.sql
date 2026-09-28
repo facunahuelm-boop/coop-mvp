@@ -52,4 +52,3 @@ END $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON movimientos_cuenta_socio TO app_user;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO app_user;
 
-INSERT INTO schema_migrations (filename) VALUES ('0007_cuenta_socios.sql') ON CONFLICT (filename) DO NOTHING;

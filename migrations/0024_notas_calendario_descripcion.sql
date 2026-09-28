@@ -10,4 +10,3 @@
 
 ALTER TABLE notas_calendario ADD COLUMN IF NOT EXISTS descripcion TEXT;
 
-INSERT INTO schema_migrations (filename) VALUES ('0024_notas_calendario_descripcion.sql') ON CONFLICT (filename) DO NOTHING;

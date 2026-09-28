@@ -30,4 +30,3 @@ CREATE POLICY tenant_isolation ON documento_categorias
   USING (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::int)
   WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::int);
 
-INSERT INTO schema_migrations (filename) VALUES ('0010_documentos_categorias_etiquetas.sql') ON CONFLICT (filename) DO NOTHING;

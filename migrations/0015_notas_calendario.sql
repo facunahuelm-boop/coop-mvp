@@ -36,4 +36,3 @@ END $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON notas_calendario TO app_user;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO app_user;
 
-INSERT INTO schema_migrations (filename) VALUES ('0015_notas_calendario.sql') ON CONFLICT (filename) DO NOTHING;

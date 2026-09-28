@@ -252,4 +252,3 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
 TO app_user;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO app_user;
 
-INSERT INTO schema_migrations (filename) VALUES ('0029_comisiones_sistema_gestion.sql') ON CONFLICT (filename) DO NOTHING;

@@ -21,4 +21,3 @@
 -- "ya se mandó" por fila alcanza.
 ALTER TABLE notas_calendario ADD COLUMN IF NOT EXISTS recordatorio_enviado_en TIMESTAMPTZ;
 
-INSERT INTO schema_migrations (filename) VALUES ('0045_recordatorios_calendario.sql') ON CONFLICT (filename) DO NOTHING;

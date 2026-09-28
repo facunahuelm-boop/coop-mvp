@@ -19,4 +19,3 @@
 ALTER TABLE solicitudes_compra ADD COLUMN IF NOT EXISTS subcategoria TEXT;
 ALTER TABLE solicitudes_compra ADD COLUMN IF NOT EXISTS recurrente BOOLEAN NOT NULL DEFAULT false;
 
-INSERT INTO schema_migrations (filename) VALUES ('0025_compras_subcategoria_recurrente.sql') ON CONFLICT (filename) DO NOTHING;

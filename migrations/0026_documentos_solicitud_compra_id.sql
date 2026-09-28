@@ -10,4 +10,3 @@
 -- exactamente como están hoy: documentos "sueltos" de la biblioteca general).
 ALTER TABLE documentos ADD COLUMN IF NOT EXISTS solicitud_compra_id INTEGER REFERENCES solicitudes_compra(id);
 
-INSERT INTO schema_migrations (filename) VALUES ('0026_documentos_solicitud_compra_id.sql') ON CONFLICT (filename) DO NOTHING;

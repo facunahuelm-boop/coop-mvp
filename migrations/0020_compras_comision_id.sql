@@ -23,4 +23,3 @@ CREATE INDEX IF NOT EXISTS idx_solicitudes_compra_comision ON solicitudes_compra
 
 ALTER TABLE presupuestos_proveedor ADD COLUMN IF NOT EXISTS condiciones TEXT;
 
-INSERT INTO schema_migrations (filename) VALUES ('0020_compras_comision_id.sql') ON CONFLICT (filename) DO NOTHING;
