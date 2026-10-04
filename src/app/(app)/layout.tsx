@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { alertasParaTopBar, datosMiCuenta } from "@/lib/logic";
 import { Sidebar, TopBar, TopBarDesktop, BottomNav } from "@/components/Nav";
 import { CommandPalette } from "@/components/CommandPalette";
-import { ToastProvider, CommandPaletteProvider } from "@/components/ui-client";
+import { ToastProvider, CommandPaletteProvider, PreservarDatosAnteErrores } from "@/components/ui-client";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -40,6 +40,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               no solo en /buscar. Se monta una vez acá para no repetirlo por
               página. */}
           <CommandPalette />
+          {/* Testing funcional (04/10): que un error de validación no borre lo
+              que la persona ya escribió — ver PreservarDatosAnteErrores. */}
+          <PreservarDatosAnteErrores />
         </div>
       </CommandPaletteProvider>
     </ToastProvider>

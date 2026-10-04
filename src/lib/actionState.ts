@@ -93,7 +93,15 @@ export async function conEstadoDeAccion(fn: () => Promise<void>): Promise<Action
   } catch (err) {
     if (esControlDeFlujoDeNextjs(err)) throw err;
     if (err instanceof ValidationError) {
-      return { ok: false, error: err.message, fieldErrors: { [err.field]: err.message } };
+      // Testing funcional (04/10): todos los campos con error, no sólo el
+      // primero. El mensaje general (`error`) se mantiene siempre — hay
+      // formularios (y los ActionForm de un solo paso, que lo muestran como
+      // toast) donde el campo con problema no tiene un FieldError propio, y
+      // ahí este es el único aviso que ve la persona. Con un solo campo es el
+      // mismo texto; con varios, un resumen que remite a los campos marcados.
+      const cantidad = Object.keys(err.fields).length;
+      const error = cantidad > 1 ? `Revisá los ${cantidad} datos marcados en rojo.` : err.message;
+      return { ok: false, error, fieldErrors: err.fields };
     }
     if (err instanceof Error) {
       // requireUser() (lib/auth.ts) lanza este mensaje "técnico" cuando la

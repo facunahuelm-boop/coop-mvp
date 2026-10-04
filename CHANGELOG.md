@@ -2204,3 +2204,33 @@ Spec de 41 secciones, mismo criterio de siempre ("mejorar sin romper, sin recons
 **Archivos afectados**: `src/app/(app)/configuracion/page.tsx`, `src/app/(app)/fiscal/page.tsx`, `src/app/(app)/cumplimiento/page.tsx`. Sin cambios de base de datos.
 
 **Pendiente**: que el usuario corra `npx vercel --prod --yes` para llevar ambos commits (`06f7e6d` y `68540a1`) a producción — todo lo demás (build, lint, commit, push) ya está confirmado y hecho.
+
+## Testing funcional aislado — flujos reales de alta/edición (04/10)
+
+**Entorno**: reconstruido desde cero en un sandbox aislado (nunca contra Ufama real ni contra producción): Postgres 16 local con SSL, esquema base (`src/lib/schema.postgres.sql`) + las 47 migraciones aplicadas en orden desde una base vacía (**re-confirma el fix H-2**: el rebuild desde cero funciona), rol `app_user` sin `SUPERUSER`/`BYPASSRLS` (RLS real, 65 tablas con políticas activas), y 2 cooperativas 100% ficticias — "Horizonte" (etapa obra) y "Los Olivos" (etapa pre_obra), 11 usuarios cada una (uno por rol), documentos generales y de Seguridad con vencimientos pasados/futuros. La app corrió con `next build` + `next start` (build de producción real) y se probó con Playwright en Chromium, entrando por subdominio de cada cooperativa.
+
+**Cobertura (55 verificaciones, todas en verde al final)**:
+- Validaciones por tipo de campo y asteriscos: Socios (nombre/documento/teléfono obligatorios), Proveedores (RUT opcional), Comisiones, Usuarios (nombre/email/contraseña), Configuración (nombre de cooperativa). Tanto el bloqueo del navegador (`required`) como el rechazo del servidor (enviando el formulario sin la validación del navegador).
+- Altas reales de punta a punta: socio, proveedor, comisión, usuario, movimiento de Finanzas con decimales, solicitud de Compras, gasto, reunión, asamblea, cargo del Consejo Directivo.
+- Sidebar en acordeón: grupos cerrados por defecto, auto-apertura del grupo de la ruta activa, clic y teclado (Enter), `aria-expanded`.
+- Calendario: pista "+ Agregar" invisible sin hover y visible con hover sólo en días vacíos; el doble clic sigue abriendo el alta.
+- Fix del Hallazgo 2: Panel Fiscal y Cumplimiento cuentan 3 vencidos (1 general + 2 de Seguridad).
+- Fix del Hallazgo 1: grupo Obra visible en etapa "obra", oculto en "pre_obra", y el texto de ayuda lo describe bien.
+- Aislamiento: Los Olivos no ve socios de Horizonte ni por listado ni pidiendo su id por URL (404), ni puede descargar un documento ajeno (404); Panel Fiscal de cada cooperativa cuenta sólo lo suyo.
+- Roles: un `socio` no entra a /usuarios ni /configuracion y no ve esos ítems en el menú.
+- Mobile 375px: formulario de socio sin scroll horizontal.
+
+**4 bugs reales encontrados y corregidos:**
+
+1. **Los errores de validación mostraban el nombre interno del campo** — `Dato inválido en "telefono": Ingresá un número de teléfono válido.` — justo lo que el pedido de validaciones del 28/09 pide no mostrar nunca. `parseForm()` (`src/lib/validation.ts`) ahora devuelve sólo el texto en español.
+2. **Sólo se avisaba el PRIMER campo con error**: con nombre, documento y teléfono mal, la persona veía un solo mensaje, corregía, reenviaba, y recién ahí se enteraba del siguiente. Ahora `parseForm()` junta todos (`ValidationError.fields`, opcional y retrocompatible) y `conEstadoDeAccion()` (`src/lib/actionState.ts`) los devuelve todos en `fieldErrors`; el mensaje general pasa a "Revisá los N datos marcados en rojo." cuando son varios.
+3. **Un error de validación BORRABA todo lo que la persona había escrito** (en todos los formularios del sistema, también en producción): React 19 resetea automáticamente un `<form action={...}>` al terminar la acción, salga bien o mal. Arreglo centralizado, sin tocar los ~60 formularios: `PreservarDatosAnteErrores` (`src/components/ui-client.tsx`, montado una vez en `src/app/(app)/layout.tsx`) cancela el evento nativo `reset` sólo si el formulario está mostrando un error (`role="alert"`, que en este código usan únicamente `FieldError`/`FormError`). En un envío exitoso el formulario se limpia igual que siempre. Verificado: con un error los datos quedan; al corregir sólo el campo marcado y reenviar, se guarda y se limpia.
+4. **Fechas en inglés** ("October 2026", "4 de October" en el Calendario, "Vence Monday" en Inicio): `dayjs` sólo se ponía en español dentro de 3 acciones del servidor. Ahora se fija una vez para el servidor (`src/app/layout.tsx`) y para el navegador (`src/components/ui-client.tsx`). Revisado antes: el español cambia el primer día de la semana a lunes, pero el código usa `.day()` (independiente del idioma) y nunca `startOf("week")`, así que la grilla del calendario no se corre.
+
+**Ajuste menor**: la pista "+ Agregar" del calendario pasó de 9.5px/gris muy claro a 11px/gris medio — mismo indicador sutil, pero legible para la persona usuaria típica.
+
+**Verificación**: `tsc --noEmit` sin errores; `eslint` 419 problemas antes y después (delta 0, los 6 archivos tocados sin ningún problema); `next build` completo (en el sandbox, con base disponible, pasa también la etapa de recolección de datos que en la PC falla por no tener `DATABASE_URL`).
+
+**Archivos afectados** (6): `src/lib/validation.ts`, `src/lib/actionState.ts`, `src/components/ui-client.tsx`, `src/app/(app)/layout.tsx`, `src/app/layout.tsx`, `src/components/MonthCalendar.tsx`. Sin cambios de base de datos.
+
+**Pendiente**: deploy a producción (`npx vercel --prod --yes`, lo corre el usuario). Los scripts de seed y de prueba de esta sesión quedaron fuera del repo (mismo criterio que los de la auditoría del 27/09).

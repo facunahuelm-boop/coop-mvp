@@ -37,10 +37,15 @@ function formToObject(formData: FormData): Record<string, string> {
  */
 export class ValidationError extends Error {
   field: string;
-  constructor(field: string, message: string) {
+  /** Testing funcional (04/10): TODOS los campos con error (campo -> mensaje),
+   * no sólo el primero. Opcional para no romper ningún `throw new
+   * ValidationError(campo, mensaje)` existente — sin él, vale sólo `field`. */
+  fields: Record<string, string>;
+  constructor(field: string, message: string, fields?: Record<string, string>) {
     super(message);
     this.name = "ValidationError";
     this.field = field;
+    this.fields = fields ?? { [field]: message };
   }
 }
 
@@ -53,16 +58,31 @@ export class ValidationError extends Error {
  * errores (Fase 3), pegado al campo exacto en vez de solo un cartel general.
  */
 export function parseForm<T extends z.ZodTypeAny>(schema: T, formData: FormData): z.infer<T> {
-  const result = schema.safeParse(formToObject(formData));
+  const datos = formToObject(formData);
+  const result = schema.safeParse(datos);
   if (!result.success) {
-    const primero = result.error.issues[0];
-    const campo = primero?.path?.length ? String(primero.path[primero.path.length - 1]) : "";
-    // Los errores de conversión de tipo (ej: "monto" no es un número) trae un
-    // mensaje interno en inglés — para esos casos usamos un texto genérico en
-    // español en vez del mensaje crudo de Zod.
-    const generico = primero?.code === "invalid_type" || primero?.code === "invalid_format";
-    const detalle = generico || !primero?.message ? "el valor no es válido" : primero.message;
-    if (campo) throw new ValidationError(campo, `Dato inválido en "${campo}": ${detalle}`);
+    // Testing funcional aislado (04/10) — dos problemas reales detectados
+    // probando los formularios de punta a punta:
+    //  1. Sólo se reportaba el PRIMER campo con error: con Nombre, Documento
+    //     y Teléfono mal, la persona veía un solo mensaje, corregía, volvía a
+    //     enviar y recién ahí se enteraba del siguiente. Ahora se juntan
+    //     todos (el primer mensaje de cada campo).
+    //  2. El mensaje llevaba un prefijo técnico — `Dato inválido en
+    //     "telefono": ...` — que muestra el nombre INTERNO del campo, justo lo
+    //     que el pedido de validaciones (28/09) pide no mostrar nunca. Ahora
+    //     el mensaje es sólo el texto en español, pegado al campo.
+    const porCampo: Record<string, string> = {};
+    for (const issue of result.error.issues) {
+      const campo = issue.path?.length ? String(issue.path[issue.path.length - 1]) : "";
+      if (!campo || porCampo[campo]) continue;
+      // Los errores de conversión de tipo (ej: "monto" no es un número) traen
+      // un mensaje interno en inglés — para esos usamos un texto en español.
+      const generico = issue.code === "invalid_type" || issue.code === "invalid_format" || !issue.message;
+      const vacio = datos[campo] === undefined || String(datos[campo]).trim() === "";
+      porCampo[campo] = generico ? (vacio ? "Es obligatorio." : "El valor ingresado no es válido.") : issue.message;
+    }
+    const campos = Object.keys(porCampo);
+    if (campos.length) throw new ValidationError(campos[0], porCampo[campos[0]], porCampo);
     throw new Error("Datos inválidos.");
   }
   return result.data;

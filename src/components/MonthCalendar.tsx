@@ -1249,9 +1249,12 @@ export function MonthCalendar({
                 {items.length === 0 && (
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-0 bottom-1 flex items-center justify-center gap-0.5 text-[9.5px] font-medium text-ink-faint opacity-0 transition-opacity group-hover:opacity-100"
+                    className="pointer-events-none absolute inset-x-0 bottom-1 flex items-center justify-center gap-0.5 text-[11px] font-semibold text-ink-muted opacity-0 transition-opacity group-hover:opacity-100"
                   >
-                    <Plus size={10} /> Agregar
+                    {/* Testing funcional (04/10): 9.5px/ink-faint se leía muy
+                        poco para la persona usuaria típica (~70 años) — mismo
+                        indicador, sólo más legible. */}
+                    <Plus size={12} /> Agregar
                   </span>
                 )}
                 <button

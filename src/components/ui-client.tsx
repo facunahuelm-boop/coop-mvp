@@ -13,8 +13,15 @@
 import { createContext, useActionState, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { X, Plus } from "lucide-react";
+import dayjs from "dayjs";
+import "dayjs/locale/es";
 import { Button } from "./ui";
 import { ESTADO_INICIAL, type ActionState } from "@/lib/actionState";
+
+// Testing funcional (04/10): fechas en español también en el navegador (ver
+// el comentario en src/app/layout.tsx). Este módulo se carga en toda pantalla
+// de la app (ToastProvider vive en el layout), así que alcanza con fijarlo acá.
+dayjs.locale("es");
 
 // Rediseño del Inicio (dashboard): los nuevos modales de detalle (Finanzas,
 // Tareas, Calendario, una Comisión con muchos integrantes/tareas/gastos...)
@@ -249,6 +256,39 @@ export function FormError({ message }: { message?: string | null }) {
       {message}
     </p>
   );
+}
+
+/**
+ * Testing funcional aislado (04/10) — bug real de todos los formularios:
+ * React 19 resetea automáticamente un `<form action={...}>` (llama a
+ * `form.reset()` nativo) cuando la acción termina, SALGA BIEN O MAL. Con
+ * `useActionState`, eso significaba que si el servidor rechazaba un dato
+ * (un documento mal escrito, un teléfono incompleto), el mensaje de error
+ * aparecía… y TODO lo que la persona había escrito en el formulario se
+ * borraba. Para alguien que tipea despacio, tener que cargar todo de nuevo
+ * por un solo dígito es exactamente la clase de fricción que este sistema
+ * busca evitar.
+ *
+ * Arreglo centralizado (en vez de tocar los ~60 formularios uno por uno):
+ * `form.reset()` dispara el evento nativo "reset", que es cancelable. Si en
+ * ese momento el formulario está mostrando un error (`role="alert"` — que en
+ * este código usan únicamente FieldError y FormError de acá abajo), se
+ * cancela el reseteo y los datos quedan como la persona los dejó. En un envío
+ * exitoso no hay ningún error visible, así que el formulario se limpia igual
+ * que siempre (incluidos los `formRef.current?.reset()` explícitos que muchos
+ * formularios ya hacen cuando `estado.ok`). Se monta una sola vez, en el
+ * layout de la app.
+ */
+export function PreservarDatosAnteErrores() {
+  useEffect(() => {
+    const alResetear = (e: Event) => {
+      const form = e.target;
+      if (form instanceof HTMLFormElement && form.querySelector('[role="alert"]')) e.preventDefault();
+    };
+    document.addEventListener("reset", alResetear, true);
+    return () => document.removeEventListener("reset", alResetear, true);
+  }, []);
+  return null;
 }
 
 /** Error puntual de un campo (`fieldErrors` de ActionState) — va justo debajo
