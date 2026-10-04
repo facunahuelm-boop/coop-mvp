@@ -6,7 +6,7 @@ import { insert, update, get, audit, updateConBloqueoOptimista } from "@/lib/db"
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
-import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaOpcional } from "@/lib/validation";
+import { parseForm, zId, zIdOpcional, zTexto, zNombre, zTextoOpcional, zFechaOpcional } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // Fase 2 del pedido "Comisiones como sistema de gestión" (19/09): tipo
@@ -41,7 +41,11 @@ function esOversightComisiones(rol: Parameters<typeof canEdit>[0]): boolean {
 
 const crearComisionSchema = z
   .object({
-    nombre: zTexto(200),
+    // Mejora global de validaciones (28/09, pedido explícito — sección 3,
+    // "nombre de comisión"): zNombre en vez de zTexto — rechaza un nombre
+    // 100% numérico cargado por error, mismo criterio que ya aplica a
+    // Socios/Proveedores.
+    nombre: zNombre(200),
     descripcion: zTextoOpcional(1000),
     tipo: zTipoComision,
     objetivo: zTextoOpcional(1000),
@@ -78,7 +82,11 @@ export async function crearComisionFormAction(_prev: ActionState, formData: Form
 const editarComisionSchema = z
   .object({
     id: zId,
-    nombre: zTexto(200),
+    // Mejora global de validaciones (28/09, pedido explícito — sección 3,
+    // "nombre de comisión"): zNombre en vez de zTexto — rechaza un nombre
+    // 100% numérico cargado por error, mismo criterio que ya aplica a
+    // Socios/Proveedores.
+    nombre: zNombre(200),
     descripcion: zTextoOpcional(1000),
     tipo: zTipoComision,
     objetivo: zTextoOpcional(1000),

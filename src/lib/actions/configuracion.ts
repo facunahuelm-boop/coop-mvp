@@ -7,7 +7,7 @@ import { saveUploadedFile, TIPOS_IMAGEN } from "@/lib/upload";
 import { cifrar } from "@/lib/crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { parseForm, zTexto, zTextoOpcional, zEmailOpcional } from "@/lib/validation";
+import { parseForm, zNombre, zTextoOpcional, zEmailOpcional } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // AUDITORÍA INTEGRAL (cobertura de auditoría, sección "trazabilidad"): las
@@ -129,7 +129,10 @@ export async function actualizarModulosFormAction(_prev: ActionState, formData: 
  */
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 const brandingSchema = z.object({
-  nombre: zTexto(200),
+  // Mejora global de validaciones (28/09, pedido explícito — sección 3,
+  // "nombre de empresa"): zNombre en vez de zTexto, mismo criterio que el
+  // resto de los formularios del sistema.
+  nombre: zNombre(200),
   color_primario: z.string().trim().regex(HEX_COLOR, "Tiene que ser un color válido.").default("#3b3f8c"),
   color_secundario: z
     .string()

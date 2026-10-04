@@ -40,7 +40,7 @@ export function AgregarMiembroForm({ comisionId, usuarios }: { comisionId: numbe
     <form ref={formRef} action={formAction} className="mt-3 flex flex-wrap items-end gap-2">
       <input type="hidden" name="comision_id" value={comisionId} />
       <div className="flex-1 min-w-[140px]">
-        <Label>Agregar integrante</Label>
+        <Label required>Agregar integrante</Label>
         <select name="user_id" required className={inputClass}>
           {usuarios.map((u) => (
             <option key={u.id} value={u.id}>{u.nombre}</option>
@@ -211,7 +211,7 @@ export function CrearComisionForm({ comisiones }: { comisiones?: Comision[] }) {
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <Label>Nombre</Label>
+            <Label required>Nombre</Label>
             <input name="nombre" required placeholder="Ej: Comisión de Educación" className={inputClass} />
             <FieldError message={estado.fieldErrors?.nombre} />
           </div>
@@ -266,7 +266,7 @@ export function EditarComisionForm({
              formulario — ver updateConBloqueoOptimista() en db.ts. */}
           <input type="hidden" name="version_esperada" value={comision.actualizado_en} />
           <div>
-            <Label>Nombre</Label>
+            <Label required>Nombre</Label>
             <input name="nombre" required defaultValue={comision.nombre} className={inputClass} />
             <FieldError message={estado.fieldErrors?.nombre} />
           </div>

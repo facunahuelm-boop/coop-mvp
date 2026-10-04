@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireUser, hashPassword } from "@/lib/auth";
 import { get, insert, update, audit } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { parseForm, zTexto, zId, zEnumSeguro, ValidationError } from "@/lib/validation";
+import { parseForm, zNombre, zId, zEnumSeguro, ValidationError } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { ROLES } from "@/lib/roles";
 
@@ -57,7 +57,10 @@ const passwordNueva = z
   .max(200, "Máximo 200 caracteres.");
 
 const crearUsuarioSchema = z.object({
-  nombre: zTexto(200),
+  // Mejora global de validaciones (28/09, pedido explícito — sección 3,
+  // "nombre y apellido"): zNombre en vez de zTexto, mismo criterio que
+  // Socios/Proveedores/Comisiones.
+  nombre: zNombre(200),
   email: emailUsuario,
   rol: zEnumSeguro(ROLES_VALORES),
   password: passwordNueva,

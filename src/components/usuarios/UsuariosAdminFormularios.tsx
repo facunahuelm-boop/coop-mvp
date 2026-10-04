@@ -42,19 +42,19 @@ export function CrearUsuarioForm() {
       <Modal open={open} onClose={() => setOpen(false)} title="Nuevo usuario" size="lg">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
           <div className="sm:col-span-2">
-            <Label>Nombre</Label>
+            <Label required>Nombre</Label>
             <input name="nombre" required placeholder="Nombre y apellido" className={inputClass} />
             <FieldError message={estado.fieldErrors?.nombre} />
           </div>
 
           <div>
-            <Label>Email</Label>
+            <Label required>Email</Label>
             <input name="email" type="email" required placeholder="persona@ejemplo.com" className={inputClass} />
             <FieldError message={estado.fieldErrors?.email} />
           </div>
 
           <div>
-            <Label>Rol</Label>
+            <Label required>Rol</Label>
             <select name="rol" required className={inputClass} defaultValue="">
               <option value="" disabled>Elegir…</option>
               {ROLES.map((r) => (
@@ -65,7 +65,7 @@ export function CrearUsuarioForm() {
           </div>
 
           <div className="sm:col-span-2">
-            <Label>Contraseña inicial</Label>
+            <Label required>Contraseña inicial</Label>
             <input name="password" type="text" required minLength={8} placeholder="Mínimo 8 caracteres" className={inputClass} />
             <p className="text-xs text-ink/40 mt-1">
               Compartísela por un medio seguro — la persona puede cambiarla después desde su propio perfil.
@@ -158,7 +158,7 @@ export function RestablecerPasswordForm({ id, nombre }: { id: number; nombre: st
         <form ref={formRef} action={formAction} className="space-y-3 text-ink">
           <input type="hidden" name="id" value={id} />
           <div>
-            <Label>Contraseña nueva</Label>
+            <Label required>Contraseña nueva</Label>
             <input name="password" type="text" required minLength={8} placeholder="Mínimo 8 caracteres" className={inputClass} />
             <p className="text-xs text-ink/40 mt-1">Compartísela por un medio seguro con {nombre}.</p>
             <FieldError message={estado.fieldErrors?.password} />

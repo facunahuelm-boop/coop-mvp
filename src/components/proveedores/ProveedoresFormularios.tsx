@@ -31,7 +31,7 @@ export function CrearProveedorForm() {
       <AddButtonSummary>Agregar proveedor</AddButtonSummary>
       <form ref={formRef} action={formAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <Label>Nombre / razón social</Label>
+          <Label required>Nombre / razón social</Label>
           <input name="nombre" required className={inputClass} />
           <FieldError message={estado.fieldErrors?.nombre} />
         </div>

@@ -197,6 +197,68 @@ export const zEmailOpcional = z
   .refine((v) => !v || z.string().email().safeParse(v).success, "Email inválido.")
   .transform((v) => (v ? v : null));
 
+/** Nombre de persona/empresa (mejora global de validaciones, 28/09, pedido
+ * explícito — sección 3): mismo criterio de `zTexto` (obligatorio, recorta
+ * espacios, techo de longitud) más un rechazo puntual de lo que claramente
+ * NO es un nombre: un valor compuesto 100% por dígitos (ej. "123456"
+ * cargado por error en el campo equivocado). A propósito LAXO en todo lo
+ * demás — números de casa/piso dentro de un nombre compuesto ("Juan Carlos
+ * 2do"), apóstrofes, guiones, tildes, etc. siguen aceptándose sin problema:
+ * el pedido es evitar el caso obvio, no imponer una gramática estricta de
+ * nombres propios. Se usa para Nombre/Apellido/nombre de contacto/proveedor/
+ * comisión/empresa — donde antes se usaba `zTexto` sin este chequeo extra. */
+export const zNombre = (max = 200) =>
+  z
+    .string()
+    .trim()
+    .min(1, "Ingresá un nombre válido.")
+    .max(max, `Máximo ${max} caracteres.`)
+    .refine((v) => !/^\d+$/.test(v), "Ingresá un nombre válido.");
+
+/** Documento de identidad (cédula, RUT, número de identificación) —
+ * obligatorio (mejora global de validaciones, 28/09, pedido explícito —
+ * sección 4). Sólo rechaza lo que el pedido pide rechazar explícitamente:
+ * letras. A propósito NO fuerza un largo de dígitos fijo ni un formato con
+ * puntos/guión específico — cada cooperativa/país tiene su propio formato
+ * (cédula uruguaya "1.234.567-8", RUT de empresa con más dígitos, un
+ * documento extranjero) y el pedido es explícito en "respetar el formato
+ * actual del sistema, no eliminar caracteres válidos" — mismo criterio laxo
+ * que ya usa `zTelefonoOpcional` de abajo para el mismo motivo. Acepta
+ * dígitos y los separadores que ya se usan al tipear un documento (puntos,
+ * guión, espacios). */
+export const zDocumento = (max = 50) =>
+  z
+    .string()
+    .trim()
+    .min(1, "Ingresá un número de documento válido.")
+    .max(max, `Máximo ${max} caracteres.`)
+    .refine((v) => /^[\d.\-\s]+$/.test(v), "Ingresá un número de documento válido.")
+    .refine((v) => (v.match(/\d/g)?.length ?? 0) >= 5, "Ingresá un número de documento válido.");
+
+/** Documento opcional: mismo criterio que `zDocumento`, vacío -> null. */
+export const zDocumentoOpcional = (max = 50) =>
+  z
+    .string()
+    .trim()
+    .max(max, `Máximo ${max} caracteres.`)
+    .optional()
+    .or(z.literal(""))
+    .nullable()
+    .refine((v) => !v || /^[\d.\-\s]+$/.test(v), "Ingresá un número de documento válido.")
+    .refine((v) => !v || (v.match(/\d/g)?.length ?? 0) >= 5, "Ingresá un número de documento válido.")
+    .transform((v) => (v ? v : null));
+
+/** Teléfono obligatorio: mismo formato/criterio laxo que `zTelefonoOpcional`
+ * de abajo, pero sin permitir vacío — para los formularios donde el celular
+ * pasa a ser un campo requerido (mejora global de validaciones, 28/09). */
+export const zTelefono = z
+  .string()
+  .trim()
+  .min(1, "Ingresá un número de teléfono válido.")
+  .max(50)
+  .refine((v) => /^[+\d][\d\s()-]{5,49}$/.test(v), "Ingresá un número de teléfono válido.")
+  .refine((v) => (v.match(/\d/g)?.length ?? 0) >= 6, "Ingresá un número de teléfono válido.");
+
 /** Teléfono opcional (15/09, pedido explícito — antes no existía ninguna
  * validación de formato acá, todo teléfono era `zTextoOpcional(50)`, texto
  * libre). A propósito LAXO en el formato: cada cooperativa/país escribe un

@@ -36,7 +36,7 @@ export function AsignarCargoForm({ integrantes }: { integrantes: Integrante[] })
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <Label>Persona</Label>
+            <Label required>Persona</Label>
             <select name="user_id" required className={inputClass} defaultValue="">
               <option value="" disabled>Elegir…</option>
               {integrantes.map((i) => (
@@ -54,7 +54,7 @@ export function AsignarCargoForm({ integrantes }: { integrantes: Integrante[] })
             </select>
           </div>
           <div>
-            <Label>Desde</Label>
+            <Label required>Desde</Label>
             <input type="date" name="fecha_inicio" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.fecha_inicio} />
           </div>

@@ -76,7 +76,7 @@ export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
             <FieldError message={estado.fieldErrors?.subcategoria} />
           </div>
           <div>
-            <Label>Comisión solicitante</Label>
+            <Label required>Comisión solicitante</Label>
             <input name="comision" required className={inputClass} placeholder="Comisión de Obra" />
             <FieldError message={estado.fieldErrors?.comision} />
           </div>
@@ -91,17 +91,17 @@ export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
             <p className="text-[11px] text-ink-faint mt-1">Vinculada, la compra suma al gasto de esa comisión en /gastos cuando se apruebe.</p>
           </div>
           <div>
-            <Label>Material</Label>
+            <Label required>Material</Label>
             <input name="material" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.material} />
           </div>
           <div>
-            <Label>Cantidad</Label>
+            <Label required>Cantidad</Label>
             <input name="cantidad" type="number" step="0.01" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.cantidad} />
           </div>
           <div>
-            <Label>Unidad</Label>
+            <Label required>Unidad</Label>
             <input name="unidad" required className={inputClass} placeholder="kg, unidad, m2…" />
             <FieldError message={estado.fieldErrors?.unidad} />
           </div>
@@ -217,17 +217,17 @@ export function EditarSolicitudForm({ solicitud }: { solicitud: SolicitudEditabl
             <FieldError message={estado.fieldErrors?.subcategoria} />
           </div>
           <div>
-            <Label>Material</Label>
+            <Label required>Material</Label>
             <input name="material" required defaultValue={solicitud.material} className={inputClass} />
             <FieldError message={estado.fieldErrors?.material} />
           </div>
           <div>
-            <Label>Cantidad</Label>
+            <Label required>Cantidad</Label>
             <input name="cantidad" type="number" step="0.01" required defaultValue={solicitud.cantidad} className={inputClass} />
             <FieldError message={estado.fieldErrors?.cantidad} />
           </div>
           <div>
-            <Label>Unidad</Label>
+            <Label required>Unidad</Label>
             <input name="unidad" required defaultValue={solicitud.unidad} className={inputClass} placeholder="kg, unidad, m2…" />
             <FieldError message={estado.fieldErrors?.unidad} />
           </div>
@@ -305,12 +305,12 @@ export function AdjuntarFacturaForm({ solicitudId }: { solicitudId: number }) {
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input type="hidden" name="solicitud_id" value={solicitudId} />
           <div>
-            <Label>Nombre</Label>
+            <Label required>Nombre</Label>
             <input name="nombre" required className={inputClass} placeholder="Ej: Factura A-1234" />
             <FieldError message={estado.fieldErrors?.nombre} />
           </div>
           <div>
-            <Label>Archivo</Label>
+            <Label required>Archivo</Label>
             <input type="file" name="archivo" required className="text-xs" />
           </div>
           <div className="sm:col-span-2">
@@ -366,7 +366,7 @@ export function CargarPresupuestoForm({ solicitudId, proveedores, abiertoPorDefe
             <input name="nuevo_proveedor" className={inputClass} placeholder="Nombre del proveedor" />
           </div>
           <div>
-            <Label>Precio</Label>
+            <Label required>Precio</Label>
             <input name="precio" type="number" step="0.01" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.precio} />
           </div>

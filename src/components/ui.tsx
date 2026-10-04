@@ -196,8 +196,23 @@ export function SemaforoDot({ value }: { value: "verde" | "amarillo" | "rojo" })
   return <span aria-label={value}>{map[value]}</span>;
 }
 
-export function Label({ children }: { children: ReactNode }) {
-  return <label className="block text-xs font-medium text-ink-muted mb-1">{children}</label>;
+// Mejora global de validaciones (28/09, pedido explícito — sección 10):
+// `required` es opcional y default `false` a propósito — los ~200+ usos
+// existentes de `<Label>` en todo el sistema, que hoy sólo pasan `children`,
+// siguen viéndose exactamente igual sin este prop. Sólo los formularios que
+// se van migrando al patrón de campos obligatorios (uno por uno, empezando
+// por Alta de Socio) empiezan a pasar `required`.
+export function Label({ children, required }: { children: ReactNode; required?: boolean }) {
+  return (
+    <label className="block text-xs font-medium text-ink-muted mb-1">
+      {children}
+      {required && (
+        <span className="text-[var(--color-rojo)]" aria-hidden>
+          {" "}*
+        </span>
+      )}
+    </label>
+  );
 }
 
 export const inputClass =

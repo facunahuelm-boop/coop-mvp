@@ -5,7 +5,7 @@ import { canRead, ROLE_LABELS, type Module } from "@/lib/roles";
 import { logoutAction } from "@/lib/actions/auth";
 import { Saludo } from "./Saludo";
 import { NavLink } from "./NavLink";
-import { NavGroupSection } from "./NavGroupSection";
+import { NavGroupSection, NavTopGroup } from "./NavGroupSection";
 import { Logo3D } from "./Logo3D";
 import { Avatar } from "./EntidadLink";
 import { TopBarClient } from "./TopBarClient";
@@ -246,6 +246,21 @@ const GRUPO_COLAPSABLE = {
   icon: <Compass size={ICON_SIZE} />,
 };
 
+// Mejora global del sidebar (28/09, pedido explícito — sección 34): un
+// ícono identificable por grupo principal, más chico que los de cada ítem
+// (ICON_SIZE=18) para no competir visualmente con ellos — el pedido es
+// "reducir ruido visual", no sumar otro nivel de íconos grandes. "Inicio" no
+// necesita entrada acá: nunca se pliega, sigue sin acordeón (sección 21).
+const GROUP_ICON_SIZE = 14;
+const GROUP_ICON: Record<string, ReactNode> = {
+  Gestión: <Wallet size={GROUP_ICON_SIZE} />,
+  Obra: <HardHat size={GROUP_ICON_SIZE} />,
+  Organización: <Users size={GROUP_ICON_SIZE} />,
+  Documentos: <FileText size={GROUP_ICON_SIZE} />,
+  Herramientas: <Wrench size={GROUP_ICON_SIZE} />,
+  Configuración: <Settings size={GROUP_ICON_SIZE} />,
+};
+
 const ALL_ITEMS: NavItem[] = GROUPS.flatMap((g) => g.items);
 
 /**
@@ -330,25 +345,41 @@ export function Sidebar({ user }: { user: SessionUser }) {
               ? g.items.filter((i) => GRUPO_COLAPSABLE.hrefsColapsados.includes(i.href))
               : [];
           const sueltos = g.items.filter((i) => !colapsados.includes(i));
+          const contenido = (
+            <>
+              {sueltos.map((i) => (
+                <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} />
+              ))}
+              {colapsados.length > 0 && (
+                <NavGroupSection
+                  label={GRUPO_COLAPSABLE.label}
+                  icon={GRUPO_COLAPSABLE.icon}
+                  items={colapsados}
+                  accentColor={acento}
+                />
+              )}
+            </>
+          );
+          // Mejora global del sidebar (28/09, pedido explícito — secciones
+          // 20-34): "Inicio" queda siempre desplegado, sin acordeón (sección
+          // 21, "no modificar su posición ni su funcionamiento"). El resto de
+          // los grupos ahora se pliegan/despliegan con NavTopGroup — mismo
+          // patrón de acordeón que ya usaba "Comisiones y reuniones" dentro
+          // de Organización, ahora también en el encabezado de cada grupo.
+          if (g.label === "Inicio") {
+            return (
+              <div key={g.label}>
+                <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-white/40">
+                  {g.label}
+                </div>
+                <div className="space-y-0.5">{contenido}</div>
+              </div>
+            );
+          }
           return (
-            <div key={g.label}>
-              <div className="px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-white/40">
-                {g.label}
-              </div>
-              <div className="space-y-0.5">
-                {sueltos.map((i) => (
-                  <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} />
-                ))}
-                {colapsados.length > 0 && (
-                  <NavGroupSection
-                    label={GRUPO_COLAPSABLE.label}
-                    icon={GRUPO_COLAPSABLE.icon}
-                    items={colapsados}
-                    accentColor={acento}
-                  />
-                )}
-              </div>
-            </div>
+            <NavTopGroup key={g.label} label={g.label} icon={GROUP_ICON[g.label]} allHrefs={g.items.map((i) => i.href)}>
+              {contenido}
+            </NavTopGroup>
           );
         })}
       </nav>

@@ -1226,7 +1226,8 @@ export function MonthCalendar({
                 onDragEnter={() => moverNota && setDiaResaltado(key)}
                 onDragLeave={() => setDiaResaltado((actual) => (actual === key ? null : actual))}
                 onDrop={(e) => soltarEnDia(e, key)}
-                className={`rounded-lg border transition-colors min-h-[76px] p-1 flex flex-col gap-0.5 ${
+                title={items.length === 0 ? "Doble clic para agregar una actividad" : undefined}
+                className={`group relative rounded-lg border transition-colors min-h-[76px] p-1 flex flex-col gap-0.5 ${
                   esDestinoArrastre
                     ? "border-[var(--color-verde)] bg-[var(--color-verde-bg)]"
                     : esSeleccionado
@@ -1234,6 +1235,25 @@ export function MonthCalendar({
                     : "border-border hover:border-ink/20 hover:bg-surface-sunken"
                 }`}
               >
+                {/* Discoverability del doble clic (mejora global, 28/09,
+                    pedido explícito — secciones 16-19): antes no había NINGUNA
+                    señal de que se puede hacer doble clic para agendar — el
+                    pedido es "para una persona de 70 años, sin funciones
+                    ocultas". Sólo aparece en celdas VACÍAS (sección 19: "si ya
+                    hay un evento, mantener el comportamiento actual") y sólo
+                    al pasar el mouse (`opacity-0 group-hover:opacity-100`) —
+                    `pointer-events-none` para que el doble clic/arrastre de la
+                    celda le siga llegando al `<div>` padre igual, y posición
+                    absoluta (no ocupa espacio propio) para no correr ni el
+                    número del día ni el resto de la grilla ni un pixel. */}
+                {items.length === 0 && (
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 bottom-1 flex items-center justify-center gap-0.5 text-[9.5px] font-medium text-ink-faint opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    <Plus size={10} /> Agregar
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => tocarDia(key)}

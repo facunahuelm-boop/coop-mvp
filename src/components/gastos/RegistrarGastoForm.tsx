@@ -42,7 +42,7 @@ export function RegistrarGastoForm({
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3" encType="multipart/form-data">
           <div>
-            <Label>Comisión</Label>
+            <Label required>Comisión</Label>
             <select name="comision_id" required className={inputClass} defaultValue="">
               <option value="" disabled>— elegir —</option>
               {comisiones.map((c) => (
@@ -52,7 +52,7 @@ export function RegistrarGastoForm({
             <FieldError message={estado.fieldErrors?.comision_id} />
           </div>
           <div>
-            <Label>Descripción</Label>
+            <Label required>Descripción</Label>
             <input name="descripcion" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.descripcion} />
           </div>
@@ -65,12 +65,12 @@ export function RegistrarGastoForm({
             </select>
           </div>
           <div>
-            <Label>Fecha</Label>
+            <Label required>Fecha</Label>
             <input type="date" name="fecha" required defaultValue={dayjs().format("YYYY-MM-DD")} className={inputClass} />
             <FieldError message={estado.fieldErrors?.fecha} />
           </div>
           <div>
-            <Label>Importe</Label>
+            <Label required>Importe</Label>
             <input type="number" step="0.01" name="importe" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.importe} />
           </div>

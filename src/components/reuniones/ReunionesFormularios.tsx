@@ -92,12 +92,12 @@ export function CrearReunionForm({ comisiones, esOversightReuniones, tipoInicial
             </>
           )}
           <div className="sm:col-span-2">
-            <Label>Título</Label>
+            <Label required>Título</Label>
             <input name="titulo" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.titulo} />
           </div>
           <div>
-            <Label>Fecha y hora</Label>
+            <Label required>Fecha y hora</Label>
             <input type="datetime-local" name="fecha" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.fecha} />
           </div>
@@ -145,7 +145,7 @@ export function CerrarReunionForm({ reunionId, usuarios }: { reunionId: number; 
       <form action={formAction} className="space-y-3">
         <input type="hidden" name="id" value={reunionId} />
         <div>
-          <Label>Resumen del acta</Label>
+          <Label required>Resumen del acta</Label>
           <textarea name="resumen" required className={inputClass} rows={5} placeholder="Temas tratados, resoluciones, próximos pasos…" />
           <FieldError message={estado.fieldErrors?.resumen} />
         </div>

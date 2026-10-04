@@ -65,7 +65,7 @@ export function BrandingForm({ organizacion }: { organizacion: Organizacion | nu
   return (
     <form action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div className="sm:col-span-2">
-        <Label>Nombre de la cooperativa</Label>
+        <Label required>Nombre de la cooperativa</Label>
         <input type="text" name="nombre" required defaultValue={organizacion?.nombre || ""} className={inputClass} />
         <FieldError message={estado.fieldErrors?.nombre} />
       </div>

@@ -38,13 +38,13 @@ export function CrearSocioForm({ viviendas, nucleos }: { viviendas: Opcion[]; nu
       <AddButtonSummary>Agregar socio</AddButtonSummary>
       <form ref={formRef} action={formAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <Label>Nombre</Label>
+          <Label required>Nombre</Label>
           <input name="nombre" required className={inputClass} />
           <FieldError message={estado.fieldErrors?.nombre} />
         </div>
         <div>
-          <Label>Documento</Label>
-          <input name="documento" className={inputClass} />
+          <Label required>Documento</Label>
+          <input name="documento" required inputMode="numeric" className={inputClass} />
           <FieldError message={estado.fieldErrors?.documento} />
         </div>
         <div>
@@ -53,8 +53,8 @@ export function CrearSocioForm({ viviendas, nucleos }: { viviendas: Opcion[]; nu
           <FieldError message={estado.fieldErrors?.email} />
         </div>
         <div>
-          <Label>Teléfono</Label>
-          <input name="telefono" className={inputClass} />
+          <Label required>Teléfono</Label>
+          <input name="telefono" required type="tel" className={inputClass} />
           <FieldError message={estado.fieldErrors?.telefono} />
         </div>
         <div>

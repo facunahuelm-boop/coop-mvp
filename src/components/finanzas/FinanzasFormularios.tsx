@@ -51,17 +51,17 @@ export function AgregarCompromisoForm() {
       <Card className="mt-3">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="sm:col-span-2">
-            <Label>Descripción</Label>
+            <Label required>Descripción</Label>
             <input name="descripcion" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.descripcion} />
           </div>
           <div>
-            <Label>Monto</Label>
+            <Label required>Monto</Label>
             <input name="monto" type="number" step="0.01" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
-            <Label>Fecha estimada</Label>
+            <Label required>Fecha estimada</Label>
             <input type="date" name="fecha_estimada" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.fecha_estimada} />
           </div>
@@ -110,12 +110,12 @@ export function RegistrarMovimientoForm() {
             </select>
           </div>
           <div>
-            <Label>Monto</Label>
+            <Label required>Monto</Label>
             <input name="monto" type="number" step="0.01" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
-            <Label>Categoría</Label>
+            <Label required>Categoría</Label>
             <input name="categoria" required className={inputClass} placeholder="Estructura, Administración…" />
             <FieldError message={estado.fieldErrors?.categoria} />
           </div>
@@ -179,12 +179,12 @@ export function AgregarFinanzaModal() {
             </select>
           </div>
           <div>
-            <Label>Monto</Label>
+            <Label required>Monto</Label>
             <input name="monto" type="number" step="0.01" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
-            <Label>Categoría</Label>
+            <Label required>Categoría</Label>
             <input name="categoria" required className={inputClass} placeholder="Estructura, Administración…" />
             <FieldError message={estado.fieldErrors?.categoria} />
           </div>
@@ -245,12 +245,12 @@ export function EditarMovimientoForm({ movimiento: m }: { movimiento: Movimiento
             </select>
           </div>
           <div>
-            <Label>Monto</Label>
+            <Label required>Monto</Label>
             <input name="monto" type="number" step="0.01" required defaultValue={m.monto} className={inputClass} />
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
-            <Label>Categoría</Label>
+            <Label required>Categoría</Label>
             <input name="categoria" required defaultValue={m.categoria} className={inputClass} />
             <FieldError message={estado.fieldErrors?.categoria} />
           </div>
@@ -324,22 +324,22 @@ export function GenerarCuotaMensualForm() {
             </p>
           </div>
           <div className="sm:col-span-2">
-            <Label>Concepto</Label>
+            <Label required>Concepto</Label>
             <input name="concepto" required placeholder="Cuota setiembre 2026" className={inputClass} />
             <FieldError message={estado.fieldErrors?.concepto} />
           </div>
           <div>
-            <Label>Monto por socio</Label>
+            <Label required>Monto por socio</Label>
             <input name="monto" type="number" step="0.01" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
-            <Label>Mes</Label>
+            <Label required>Mes</Label>
             <input name="mes" type="month" required defaultValue={mesActual} className={inputClass} />
             <FieldError message={estado.fieldErrors?.mes} />
           </div>
           <div>
-            <Label>Día de vencimiento (1-28)</Label>
+            <Label required>Día de vencimiento (1-28)</Label>
             <input name="dia_vencimiento" type="number" min={1} max={28} required defaultValue={10} className={inputClass} />
             <FieldError message={estado.fieldErrors?.dia_vencimiento} />
           </div>
@@ -386,7 +386,7 @@ export function NuevoConvenioFormConSelector({ socios }: { socios: SocioOpcion[]
       <Modal open={open} onClose={() => setOpen(false)} title="Nuevo convenio de pago">
         <form action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
           <div className="sm:col-span-2">
-            <Label>Socio</Label>
+            <Label required>Socio</Label>
             <select name="socio_id" required className={inputClass} defaultValue="">
               <option value="" disabled>— elegir —</option>
               {socios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
@@ -394,27 +394,27 @@ export function NuevoConvenioFormConSelector({ socios }: { socios: SocioOpcion[]
             <FieldError message={estado.fieldErrors?.socio_id} />
           </div>
           <div className="sm:col-span-2">
-            <Label>Motivo</Label>
+            <Label required>Motivo</Label>
             <input name="motivo" required placeholder="Deuda atrasada de 2025..." className={inputClass} />
             <FieldError message={estado.fieldErrors?.motivo} />
           </div>
           <div>
-            <Label>Monto de cada cuota</Label>
+            <Label required>Monto de cada cuota</Label>
             <input name="monto_cuota" type="number" step="0.01" required className={inputClass} />
             <FieldError message={estado.fieldErrors?.monto_cuota} />
           </div>
           <div>
-            <Label>Cantidad de cuotas</Label>
+            <Label required>Cantidad de cuotas</Label>
             <input name="cantidad_cuotas" type="number" min={1} max={60} required defaultValue={6} className={inputClass} />
             <FieldError message={estado.fieldErrors?.cantidad_cuotas} />
           </div>
           <div>
-            <Label>Día de vencimiento (1-28)</Label>
+            <Label required>Día de vencimiento (1-28)</Label>
             <input name="dia_vencimiento" type="number" min={1} max={28} required defaultValue={10} className={inputClass} />
             <FieldError message={estado.fieldErrors?.dia_vencimiento} />
           </div>
           <div>
-            <Label>Primera cuota (mes)</Label>
+            <Label required>Primera cuota (mes)</Label>
             <input name="fecha_inicio" type="date" required defaultValue={hoy} className={inputClass} />
             <FieldError message={estado.fieldErrors?.fecha_inicio} />
           </div>

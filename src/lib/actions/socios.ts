@@ -10,8 +10,11 @@ import {
   zId,
   zIdOpcional,
   zTexto,
+  zNombre,
+  zDocumento,
   zTextoOpcional,
   zEmailOpcional,
+  zTelefono,
   zTelefonoOpcional,
   zFechaOpcional,
   zEnumSeguro,
@@ -76,11 +79,19 @@ export async function actualizarViviendaEstadoFormAction(_prev: ActionState, for
 
 // ---------- Socios ----------
 
+// Mejora global de validaciones (28/09, pedido explícito — sección 11,
+// "Contacto nuevo": Nombre/Celular/Documento obligatorios): Contactos
+// (/contactos) es una vista de sólo lectura que agrega socios + integrantes
+// + proveedores (ver lib/contactos.ts) — no tiene alta propia. Socios es la
+// fuente más común de esa vista, así que el alta de socio pasa a exigir
+// estos 3 campos. documento/telefono dejan de ser opcionales acá; el resto
+// del formulario (email, vivienda, núcleo, fecha de ingreso, notas) sigue
+// exactamente igual que antes.
 const crearSocioSchema = z.object({
-  nombre: zTexto(200),
-  documento: zTextoOpcional(50),
+  nombre: zNombre(200),
+  documento: zDocumento(50),
   email: zEmailOpcional,
-  telefono: zTelefonoOpcional,
+  telefono: zTelefono,
   vivienda_id: zIdOpcional,
   nucleo_id: zIdOpcional,
   fecha_ingreso: zFechaOpcional,

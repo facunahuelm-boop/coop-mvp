@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { insert, update, get, run, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
-import { parseForm, zId, zTexto, zTextoOpcional, zEmailOpcional, zTelefonoOpcional, zEnumSeguro } from "@/lib/validation";
+import { parseForm, zId, zTexto, zNombre, zTextoOpcional, zDocumentoOpcional, zEmailOpcional, zTelefonoOpcional, zEnumSeguro } from "@/lib/validation";
 import { ESTADO_PROVEEDOR, TIPO_PROVEEDOR } from "@/lib/constants";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
@@ -19,7 +19,12 @@ import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 // array/objeto.
 
 const datosProveedorSchema = {
-  rut: zTextoOpcional(30),
+  // Mejora global de validaciones (28/09, pedido explícito — sección 4): el
+  // RUT es un documento de identidad, mismo criterio que `documento` en
+  // Socios — sólo rechaza letras, sin exigir un largo o formato fijo. Sigue
+  // opcional (nunca fue obligatorio dar de alta un proveedor con RUT
+  // cargado), así que no lleva asterisco.
+  rut: zDocumentoOpcional(30),
   telefono: zTelefonoOpcional,
   email: zEmailOpcional,
   direccion: zTextoOpcional(300),
@@ -41,7 +46,7 @@ const datosProveedorSchema = {
  * propia pantalla (/proveedores), sin necesidad de pasar por una solicitud
  * de compra primero.
  */
-const crearProveedorSchema = z.object({ nombre: zTexto(200), ...datosProveedorSchema });
+const crearProveedorSchema = z.object({ nombre: zNombre(200), ...datosProveedorSchema });
 
 export async function crearProveedorAction(formData: FormData) {
   const user = await requireUser();
