@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MENSAJES, esNombreValido, esDocumentoValido, esTelefonoValido } from "./mensajesValidacion";
 
 /**
  * Capa de validación en tiempo de ejecución (Zod) para todo lo que llega
@@ -77,9 +78,22 @@ export function parseForm<T extends z.ZodTypeAny>(schema: T, formData: FormData)
       if (!campo || porCampo[campo]) continue;
       // Los errores de conversión de tipo (ej: "monto" no es un número) traen
       // un mensaje interno en inglés — para esos usamos un texto en español.
-      const generico = issue.code === "invalid_type" || issue.code === "invalid_format" || !issue.message;
+      // Revisión 04/10 (secciones 7, 11 y 12 del pedido): si el campo llegó
+      // vacío, cualquier error es por faltar un dato obligatorio — un campo
+      // opcional vacío nunca falla —, así que se dice siempre lo mismo:
+      // "Este campo es obligatorio." Si vino algo que no es un número en un
+      // campo numérico (ej. "ABC" en un importe), "Ingresá un valor numérico
+      // válido.".
       const vacio = datos[campo] === undefined || String(datos[campo]).trim() === "";
-      porCampo[campo] = generico ? (vacio ? "Es obligatorio." : "El valor ingresado no es válido.") : issue.message;
+      const esperabaNumero = issue.code === "invalid_type" && (issue as { expected?: string }).expected === "number";
+      const generico = issue.code === "invalid_type" || issue.code === "invalid_format" || !issue.message;
+      porCampo[campo] = vacio
+        ? MENSAJES.obligatorio
+        : esperabaNumero
+          ? MENSAJES.numero
+          : generico
+            ? "El valor ingresado no es válido."
+            : issue.message;
     }
     const campos = Object.keys(porCampo);
     if (campos.length) throw new ValidationError(campos[0], porCampo[campos[0]], porCampo);
@@ -104,7 +118,7 @@ export const zIdOpcional = z
 /** Texto obligatorio: recorta espacios, exige contenido y pone un techo de
  * longitud razonable (evita que alguien mande un texto gigante en un campo
  * pensado para un título o un nombre corto). */
-export const zTexto = (max = 300) => z.string().trim().min(1, "Es obligatorio.").max(max, `Máximo ${max} caracteres.`);
+export const zTexto = (max = 300) => z.string().trim().min(1, MENSAJES.obligatorio).max(max, `Máximo ${max} caracteres.`);
 
 /** Texto opcional: recorta espacios, techo de longitud, vacío -> null (mismo
  * criterio que ya usaba el código con `String(x || "") || null`).
@@ -149,7 +163,7 @@ export const zMontoOpcional = (max = 1_000_000_000) =>
     .optional()
     .or(z.literal(""))
     .transform((v) => (v ? Number(v) || null : null))
-    .refine((v) => v === null || (Number.isFinite(v) && v >= 0 && v <= max), "Monto inválido.");
+    .refine((v) => v === null || (Number.isFinite(v) && v >= 0 && v <= max), MENSAJES.numero);
 
 /** Cantidad opcional numérica >= 0, default un valor fijo si no viene. */
 export const zNumeroOpcionalConDefault = (def: number, max = 1_000_000) =>
@@ -158,7 +172,7 @@ export const zNumeroOpcionalConDefault = (def: number, max = 1_000_000) =>
     .optional()
     .or(z.literal(""))
     .transform((v) => (v !== undefined && v !== "" ? Number(v) : def))
-    .refine((v) => Number.isFinite(v) && v >= 0 && v <= max, "Número inválido.");
+    .refine((v) => Number.isFinite(v) && v >= 0 && v <= max, MENSAJES.numero);
 
 /** Entero opcional (ej: días de plazo de entrega): vacío -> null. */
 export const zEnteroOpcional = (max = 100_000) =>
@@ -167,7 +181,7 @@ export const zEnteroOpcional = (max = 100_000) =>
     .optional()
     .or(z.literal(""))
     .transform((v) => (v ? Number(v) : null))
-    .refine((v) => v === null || (Number.isInteger(v) && v >= 0 && v <= max), "Número inválido.");
+    .refine((v) => v === null || (Number.isInteger(v) && v >= 0 && v <= max), MENSAJES.numero);
 
 /** Claves de un Record<string, string> como tupla no vacía — para reusar los
  * mapas de etiquetas de constants.ts (CATEGORIA_COMPRA_LABEL, etc.) como la
@@ -179,10 +193,10 @@ export function clavesDe<T extends Record<string, unknown>>(record: T): [string,
 }
 
 /** Fecha "YYYY-MM-DD" (lo que mandan los <input type="date">) obligatoria. */
-export const zFecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida.");
+export const zFecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, MENSAJES.fecha);
 
 /** Fecha y hora "YYYY-MM-DDTHH:mm" (lo que mandan los <input type="datetime-local">). */
-export const zFechaHora = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/, "Fecha y hora inválidas.");
+export const zFechaHora = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/, MENSAJES.fechaHora);
 
 /** Fecha opcional: vacío -> null.
  *
@@ -197,7 +211,7 @@ export const zFechaOpcional = z
   .or(z.literal(""))
   .nullable()
   .transform((v) => (v ? v : null))
-  .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), "Fecha inválida.");
+  .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), MENSAJES.fecha);
 
 /** Email opcional: formato válido o vacío -> null (documento de contacto,
  * no de login).
@@ -214,7 +228,7 @@ export const zEmailOpcional = z
   .optional()
   .or(z.literal(""))
   .nullable()
-  .refine((v) => !v || z.string().email().safeParse(v).success, "Email inválido.")
+  .refine((v) => !v || z.string().email().safeParse(v).success, MENSAJES.email)
   .transform((v) => (v ? v : null));
 
 /** Nombre de persona/empresa (mejora global de validaciones, 28/09, pedido
@@ -231,9 +245,9 @@ export const zNombre = (max = 200) =>
   z
     .string()
     .trim()
-    .min(1, "Ingresá un nombre válido.")
+    .min(1, MENSAJES.obligatorio)
     .max(max, `Máximo ${max} caracteres.`)
-    .refine((v) => !/^\d+$/.test(v), "Ingresá un nombre válido.");
+    .refine(esNombreValido, MENSAJES.nombre);
 
 /** Documento de identidad (cédula, RUT, número de identificación) —
  * obligatorio (mejora global de validaciones, 28/09, pedido explícito —
@@ -250,10 +264,9 @@ export const zDocumento = (max = 50) =>
   z
     .string()
     .trim()
-    .min(1, "Ingresá un número de documento válido.")
+    .min(1, MENSAJES.obligatorio)
     .max(max, `Máximo ${max} caracteres.`)
-    .refine((v) => /^[\d.\-\s]+$/.test(v), "Ingresá un número de documento válido.")
-    .refine((v) => (v.match(/\d/g)?.length ?? 0) >= 5, "Ingresá un número de documento válido.");
+    .refine(esDocumentoValido, MENSAJES.documento);
 
 /** Documento opcional: mismo criterio que `zDocumento`, vacío -> null. */
 export const zDocumentoOpcional = (max = 50) =>
@@ -264,8 +277,7 @@ export const zDocumentoOpcional = (max = 50) =>
     .optional()
     .or(z.literal(""))
     .nullable()
-    .refine((v) => !v || /^[\d.\-\s]+$/.test(v), "Ingresá un número de documento válido.")
-    .refine((v) => !v || (v.match(/\d/g)?.length ?? 0) >= 5, "Ingresá un número de documento válido.")
+    .refine((v) => !v || esDocumentoValido(v), MENSAJES.documento)
     .transform((v) => (v ? v : null));
 
 /** Teléfono obligatorio: mismo formato/criterio laxo que `zTelefonoOpcional`
@@ -274,10 +286,9 @@ export const zDocumentoOpcional = (max = 50) =>
 export const zTelefono = z
   .string()
   .trim()
-  .min(1, "Ingresá un número de teléfono válido.")
+  .min(1, MENSAJES.obligatorio)
   .max(50)
-  .refine((v) => /^[+\d][\d\s()-]{5,49}$/.test(v), "Ingresá un número de teléfono válido.")
-  .refine((v) => (v.match(/\d/g)?.length ?? 0) >= 6, "Ingresá un número de teléfono válido.");
+  .refine(esTelefonoValido, MENSAJES.telefono);
 
 /** Teléfono opcional (15/09, pedido explícito — antes no existía ninguna
  * validación de formato acá, todo teléfono era `zTextoOpcional(50)`, texto
@@ -298,8 +309,7 @@ export const zTelefonoOpcional = z
   .optional()
   .or(z.literal(""))
   .nullable()
-  .refine((v) => !v || /^[+\d][\d\s()-]{5,49}$/.test(v), "Ingresá un número de teléfono válido.")
-  .refine((v) => !v || (v.match(/\d/g)?.length ?? 0) >= 6, "Ingresá un número de teléfono válido.")
+  .refine((v) => !v || esTelefonoValido(v), MENSAJES.telefono)
   .transform((v) => (v ? v : null));
 
 /** Enum obligatorio contra una lista fija de valores permitidos — para

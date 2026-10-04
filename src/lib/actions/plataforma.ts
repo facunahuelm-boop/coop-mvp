@@ -8,6 +8,7 @@ import { Pool } from "pg";
 import { rootAll, rootGet, update, audit, pool as appPool } from "@/lib/db";
 import { requirePlatformAdmin, hashPassword } from "@/lib/auth";
 import { parseForm, zId, zTexto, zEnumSeguro, ValidationError } from "@/lib/validation";
+import { MENSAJES } from "@/lib/mensajesValidacion";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { PLANES, PLAN_PRESET_MODULOS } from "@/lib/planes";
 
@@ -402,7 +403,7 @@ const emailAdminCooperativa = z
   .trim()
   .toLowerCase()
   .max(200, "Máximo 200 caracteres.")
-  .refine((v) => z.string().email().safeParse(v).success, "Ingresá un email válido.");
+  .refine((v) => z.string().email().safeParse(v).success, MENSAJES.email);
 
 const passwordInicialCooperativa = z
   .string()

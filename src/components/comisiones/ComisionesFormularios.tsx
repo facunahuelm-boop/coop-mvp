@@ -212,7 +212,7 @@ export function CrearComisionForm({ comisiones }: { comisiones?: Comision[] }) {
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <Label required>Nombre</Label>
-            <input name="nombre" required placeholder="Ej: Comisión de Educación" className={inputClass} />
+            <input name="nombre" required data-validar="nombre" placeholder="Ej: Comisión de Educación" className={inputClass} />
             <FieldError message={estado.fieldErrors?.nombre} />
           </div>
           <div>
@@ -267,7 +267,7 @@ export function EditarComisionForm({
           <input type="hidden" name="version_esperada" value={comision.actualizado_en} />
           <div>
             <Label required>Nombre</Label>
-            <input name="nombre" required defaultValue={comision.nombre} className={inputClass} />
+            <input name="nombre" required data-validar="nombre" defaultValue={comision.nombre} className={inputClass} />
             <FieldError message={estado.fieldErrors?.nombre} />
           </div>
           <div>

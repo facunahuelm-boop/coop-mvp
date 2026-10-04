@@ -32,12 +32,12 @@ export function CrearProveedorForm() {
       <form ref={formRef} action={formAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <Label required>Nombre / razón social</Label>
-          <input name="nombre" required className={inputClass} />
+          <input name="nombre" required data-validar="nombre" className={inputClass} />
           <FieldError message={estado.fieldErrors?.nombre} />
         </div>
         <div>
           <Label>RUT</Label>
-          <input name="rut" className={inputClass} />
+          <input name="rut" inputMode="numeric" data-validar="documento" className={inputClass} />
           <FieldError message={estado.fieldErrors?.rut} />
         </div>
         <div>
@@ -55,7 +55,7 @@ export function CrearProveedorForm() {
         </div>
         <div>
           <Label>Teléfono</Label>
-          <input name="telefono" className={inputClass} />
+          <input name="telefono" type="tel" data-validar="telefono" className={inputClass} />
           <FieldError message={estado.fieldErrors?.telefono} />
         </div>
         <div>
@@ -136,7 +136,7 @@ export function ActualizarProveedorForm({ proveedor: p }: { proveedor: Proveedor
         <input type="hidden" name="id" value={p.id} />
         <div>
           <Label>RUT</Label>
-          <input name="rut" defaultValue={p.rut || ""} className={inputClass} />
+          <input name="rut" defaultValue={p.rut || ""} inputMode="numeric" data-validar="documento" className={inputClass} />
           <FieldError message={estado.fieldErrors?.rut} />
         </div>
         <div>
@@ -162,7 +162,7 @@ export function ActualizarProveedorForm({ proveedor: p }: { proveedor: Proveedor
         </div>
         <div>
           <Label>Teléfono</Label>
-          <input name="telefono" defaultValue={p.telefono || ""} className={inputClass} />
+          <input name="telefono" type="tel" defaultValue={p.telefono || ""} data-validar="telefono" className={inputClass} />
           <FieldError message={estado.fieldErrors?.telefono} />
         </div>
         <div>

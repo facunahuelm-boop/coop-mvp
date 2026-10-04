@@ -52,7 +52,7 @@ export function ActualizarSocioForm({ socio }: { socio: Socio }) {
         <input type="hidden" name="id" value={socio.id} />
         <div>
           <Label>Documento</Label>
-          <input name="documento" defaultValue={socio.documento || ""} className={inputClass} />
+          <input name="documento" defaultValue={socio.documento || ""} inputMode="numeric" data-validar="documento" className={inputClass} />
           <FieldError message={estado.fieldErrors?.documento} />
         </div>
         <div>
@@ -62,7 +62,7 @@ export function ActualizarSocioForm({ socio }: { socio: Socio }) {
         </div>
         <div>
           <Label>Teléfono</Label>
-          <input name="telefono" defaultValue={socio.telefono || ""} className={inputClass} />
+          <input name="telefono" type="tel" defaultValue={socio.telefono || ""} data-validar="telefono" className={inputClass} />
           <FieldError message={estado.fieldErrors?.telefono} />
         </div>
         <div className="sm:col-span-2">
@@ -113,7 +113,7 @@ export function AgregarIntegranteForm({ socioId }: { socioId: number }) {
         </div>
         <div>
           <Label>Documento</Label>
-          <input name="documento" className={inputClass} />
+          <input name="documento" inputMode="numeric" data-validar="documento" className={inputClass} />
           <FieldError message={estado.fieldErrors?.documento} />
         </div>
         <div>
@@ -123,7 +123,7 @@ export function AgregarIntegranteForm({ socioId }: { socioId: number }) {
         </div>
         <div>
           <Label>Teléfono</Label>
-          <input name="telefono" className={inputClass} />
+          <input name="telefono" type="tel" data-validar="telefono" className={inputClass} />
           <FieldError message={estado.fieldErrors?.telefono} />
         </div>
         <div>
@@ -206,7 +206,7 @@ export function EditarIntegranteForm({ integrante: i }: { integrante: Integrante
         </div>
         <div>
           <Label>Documento</Label>
-          <input name="documento" defaultValue={i.documento || ""} className={inputClass} />
+          <input name="documento" defaultValue={i.documento || ""} inputMode="numeric" data-validar="documento" className={inputClass} />
           <FieldError message={estado.fieldErrors?.documento} />
         </div>
         <div>
@@ -216,7 +216,7 @@ export function EditarIntegranteForm({ integrante: i }: { integrante: Integrante
         </div>
         <div>
           <Label>Teléfono</Label>
-          <input name="telefono" defaultValue={i.telefono || ""} className={inputClass} />
+          <input name="telefono" type="tel" defaultValue={i.telefono || ""} data-validar="telefono" className={inputClass} />
           <FieldError message={estado.fieldErrors?.telefono} />
         </div>
         <div>

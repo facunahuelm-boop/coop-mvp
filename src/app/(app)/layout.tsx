@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { alertasParaTopBar, datosMiCuenta } from "@/lib/logic";
 import { Sidebar, TopBar, TopBarDesktop, BottomNav } from "@/components/Nav";
 import { CommandPalette } from "@/components/CommandPalette";
-import { ToastProvider, CommandPaletteProvider, PreservarDatosAnteErrores } from "@/components/ui-client";
+import { ToastProvider, CommandPaletteProvider, PreservarDatosAnteErrores, ValidacionEnFormularios } from "@/components/ui-client";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -43,6 +43,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* Testing funcional (04/10): que un error de validación no borre lo
               que la persona ya escribió — ver PreservarDatosAnteErrores. */}
           <PreservarDatosAnteErrores />
+          {/* Revisión 04/10 del pedido de validaciones: mensajes debajo del
+              campo antes de enviar, en vez del globito del navegador. */}
+          <ValidacionEnFormularios />
         </div>
       </CommandPaletteProvider>
     </ToastProvider>

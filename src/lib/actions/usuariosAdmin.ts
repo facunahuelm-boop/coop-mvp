@@ -5,6 +5,7 @@ import { requireUser, hashPassword } from "@/lib/auth";
 import { get, insert, update, audit } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { parseForm, zNombre, zId, zEnumSeguro, ValidationError } from "@/lib/validation";
+import { MENSAJES } from "@/lib/mensajesValidacion";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { ROLES } from "@/lib/roles";
 
@@ -49,7 +50,7 @@ const emailUsuario = z
   .trim()
   .toLowerCase()
   .max(200, "Máximo 200 caracteres.")
-  .refine((v) => z.string().email().safeParse(v).success, "Ingresá un email válido.");
+  .refine((v) => z.string().email().safeParse(v).success, MENSAJES.email);
 
 const passwordNueva = z
   .string()

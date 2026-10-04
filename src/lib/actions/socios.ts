@@ -12,6 +12,7 @@ import {
   zTexto,
   zNombre,
   zDocumento,
+  zDocumentoOpcional,
   zTextoOpcional,
   zEmailOpcional,
   zTelefono,
@@ -148,7 +149,7 @@ export async function asignarViviendaSocioFormAction(_prev: ActionState, formDat
  */
 const actualizarSocioSchema = z.object({
   id: zId,
-  documento: zTextoOpcional(50),
+  documento: zDocumentoOpcional(50),
   email: zEmailOpcional,
   telefono: zTelefonoOpcional,
   notas: zTextoOpcional(1000),
@@ -172,7 +173,7 @@ export async function actualizarSocioFormAction(_prev: ActionState, formData: Fo
 
 const agregarListaEsperaSchema = z.object({
   nombre: zTexto(200),
-  documento: zTextoOpcional(50),
+  documento: zDocumentoOpcional(50),
   contacto: zTextoOpcional(200),
   notas: zTextoOpcional(1000),
 });
@@ -290,7 +291,7 @@ const agregarIntegranteSchema = z.object({
   socio_id: zId,
   nombre: zTexto(200),
   apellido: zTextoOpcional(200),
-  documento: zTextoOpcional(50),
+  documento: zDocumentoOpcional(50),
   fecha_nacimiento: zFechaOpcional,
   telefono: zTelefonoOpcional,
   email: zEmailOpcional,
@@ -327,7 +328,7 @@ const editarIntegranteSchema = z.object({
   id: zId,
   nombre: zTexto(200),
   apellido: zTextoOpcional(200),
-  documento: zTextoOpcional(50),
+  documento: zDocumentoOpcional(50),
   fecha_nacimiento: zFechaOpcional,
   telefono: zTelefonoOpcional,
   email: zEmailOpcional,

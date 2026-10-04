@@ -43,7 +43,7 @@ export function CrearUsuarioForm() {
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
           <div className="sm:col-span-2">
             <Label required>Nombre</Label>
-            <input name="nombre" required placeholder="Nombre y apellido" className={inputClass} />
+            <input name="nombre" required data-validar="nombre" placeholder="Nombre y apellido" className={inputClass} />
             <FieldError message={estado.fieldErrors?.nombre} />
           </div>
 

@@ -39,12 +39,12 @@ export function CrearSocioForm({ viviendas, nucleos }: { viviendas: Opcion[]; nu
       <form ref={formRef} action={formAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <Label required>Nombre</Label>
-          <input name="nombre" required className={inputClass} />
+          <input name="nombre" required data-validar="nombre" className={inputClass} />
           <FieldError message={estado.fieldErrors?.nombre} />
         </div>
         <div>
           <Label required>Documento</Label>
-          <input name="documento" required inputMode="numeric" className={inputClass} />
+          <input name="documento" required inputMode="numeric" data-validar="documento" className={inputClass} />
           <FieldError message={estado.fieldErrors?.documento} />
         </div>
         <div>
@@ -54,7 +54,7 @@ export function CrearSocioForm({ viviendas, nucleos }: { viviendas: Opcion[]; nu
         </div>
         <div>
           <Label required>Teléfono</Label>
-          <input name="telefono" required type="tel" className={inputClass} />
+          <input name="telefono" required type="tel" data-validar="telefono" className={inputClass} />
           <FieldError message={estado.fieldErrors?.telefono} />
         </div>
         <div>
@@ -170,7 +170,7 @@ export function AgregarListaEsperaForm() {
         </div>
         <div>
           <Label>Documento</Label>
-          <input name="documento" className={inputClass} />
+          <input name="documento" inputMode="numeric" data-validar="documento" className={inputClass} />
           <FieldError message={estado.fieldErrors?.documento} />
         </div>
         <div>

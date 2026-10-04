@@ -8,7 +8,11 @@
 
 import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+
+// Revisión del 04/10 (pedido de sidebar, sección 29): el chevron indica el
+// estado como pide el pedido — ▶ cerrado, ▼ abierto — en las dos variantes de
+// acordeón. Antes era al revés de lo esperable (▼ cerrado, ▲ abierto).
 import { NavLink } from "./NavLink";
 
 export function NavGroupSection({
@@ -46,7 +50,7 @@ export function NavGroupSection({
       >
         <span className="shrink-0">{icon}</span>
         <span className="flex-1 text-left">{label}</span>
-        <ChevronDown size={16} className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronRight size={16} aria-hidden className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
       {open && (
         <div className="pl-4 space-y-0.5 mt-0.5">
@@ -100,11 +104,16 @@ export function NavTopGroup({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="w-full flex items-center gap-1.5 px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-white/40 hover:text-white/60 transition-colors"
+        // Revisión 04/10 (sección 36, "botones claramente identificables"):
+        // el encabezado heredó el estilo del viejo rótulo estático (10.5px al
+        // 40% de opacidad) — ahora que es un botón que hay que encontrar y
+        // tocar, sube a 11px/60% (80% al pasar el mouse o abierto), con área
+        // de toque más alta. Misma tipografía, colores y mayúsculas de siempre.
+        className={`w-full flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors hover:text-white/80 hover:bg-surface/5 ${open ? "text-white/80" : "text-white/60"}`}
       >
-        <span className="shrink-0 opacity-80">{icon}</span>
+        <span className="shrink-0 opacity-90">{icon}</span>
         <span className="flex-1 text-left">{label}</span>
-        <ChevronDown size={12} className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronRight size={14} aria-hidden className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
       {open && <div className="space-y-0.5">{children}</div>}
     </div>

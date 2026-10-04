@@ -17,6 +17,7 @@ import dayjs from "dayjs";
 import "dayjs/locale/es";
 import { Button } from "./ui";
 import { ESTADO_INICIAL, type ActionState } from "@/lib/actionState";
+import { MENSAJES, esNombreValido, esDocumentoValido, esTelefonoValido } from "@/lib/mensajesValidacion";
 
 // Testing funcional (04/10): fechas en español también en el navegador (ver
 // el comentario en src/app/layout.tsx). Este módulo se carga en toda pantalla
@@ -287,6 +288,196 @@ export function PreservarDatosAnteErrores() {
     };
     document.addEventListener("reset", alResetear, true);
     return () => document.removeEventListener("reset", alResetear, true);
+  }, []);
+  return null;
+}
+
+/**
+ * Mejora global de validaciones (pedido del 28/09, secciones 12-15) —
+ * revisión del 04/10. Validación INMEDIATA en el navegador, con el mismo
+ * patrón para todos los formularios del sistema, sin tocarlos uno por uno:
+ *
+ *  - Al intentar guardar, el navegador ya bloqueaba el envío si faltaba un
+ *    campo `required` o un email estaba mal, pero lo avisaba con su propio
+ *    globito ("Completa este campo"), en otro idioma según la PC, lejos del
+ *    estilo del sistema y fácil de no ver. Ahora se cancela ese globito y el
+ *    mensaje aparece DEBAJO del campo, en rojo, con los mismos textos que usa
+ *    el servidor (src/lib/mensajesValidacion.ts), y el foco va al primer
+ *    campo con problema.
+ *  - Al SALIR de un campo con algo claramente mal escrito (un email sin @,
+ *    un documento con letras), el aviso aparece ahí mismo — pero un campo
+ *    vacío no se marca hasta intentar guardar (sección 13: no llenar el
+ *    formulario de rojo antes de que la persona lo use).
+ *  - En cuanto el dato se corrige, el aviso desaparece.
+ *
+ * Los chequeos que el navegador no sabe hacer solo (nombre que es sólo
+ * números, documento, teléfono) se activan con `data-validar="nombre" |
+ * "documento" | "telefono"` en el input — sólo en los campos donde el
+ * servidor valida exactamente lo mismo, para que el navegador nunca sea más
+ * estricto que el guardado real.
+ *
+ * El mensaje se dibuja con un atributo `data-error-cliente` en el contenedor
+ * del campo (ver globals.css) en vez de insertar nodos en el DOM que maneja
+ * React. Si el campo no tiene un contenedor propio (un input suelto dentro
+ * del <form>), se deja el comportamiento nativo del navegador.
+ */
+type Campo = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+
+function esCampoValidable(el: EventTarget | null): el is Campo {
+  return (
+    (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) &&
+    !!el.form &&
+    !el.disabled &&
+    !["hidden", "checkbox", "radio", "file", "submit", "button"].includes(el.type)
+  );
+}
+
+function errorSemantico(el: Campo): string {
+  const v = el.value;
+  if (!v.trim()) return "";
+  switch (el.dataset.validar) {
+    case "nombre":
+      return esNombreValido(v) ? "" : MENSAJES.nombre;
+    case "documento":
+      return esDocumentoValido(v) ? "" : MENSAJES.documento;
+    case "telefono":
+      return esTelefonoValido(v) ? "" : MENSAJES.telefono;
+    default:
+      return "";
+  }
+}
+
+function mensajeDelCampo(el: Campo): string | null {
+  el.setCustomValidity(errorSemantico(el));
+  const v = el.validity;
+  if (v.valid) return null;
+  if (v.customError) return el.validationMessage;
+  if (v.valueMissing) return MENSAJES.obligatorio;
+  if (v.typeMismatch) return el.type === "email" ? MENSAJES.email : "El valor ingresado no es válido.";
+  if (v.badInput || v.stepMismatch || v.rangeUnderflow || v.rangeOverflow) {
+    if (el.type === "number") return MENSAJES.numero;
+    if (el.type === "date") return MENSAJES.fecha;
+    if (el.type === "datetime-local") return MENSAJES.fechaHora;
+  }
+  if (v.tooShort && el instanceof HTMLInputElement) return `Tiene que tener al menos ${el.minLength} caracteres.`;
+  return "El valor ingresado no es válido.";
+}
+
+function contenedorDe(el: Campo): HTMLElement | null {
+  const c = el.parentElement;
+  return c && c.tagName !== "FORM" ? c : null;
+}
+
+function mostrarError(el: Campo, mensaje: string) {
+  const c = contenedorDe(el);
+  if (!c) return false;
+  c.setAttribute("data-error-cliente", mensaje);
+  el.setAttribute("aria-invalid", "true");
+  return true;
+}
+
+function limpiarError(el: Campo) {
+  contenedorDe(el)?.removeAttribute("data-error-cliente");
+  el.removeAttribute("aria-invalid");
+}
+
+export function ValidacionEnFormularios() {
+  useEffect(() => {
+    let enfocarPendiente: HTMLFormElement | null = null;
+    const enfocarPrimero = (form: HTMLFormElement) => {
+      if (enfocarPendiente) return;
+      enfocarPendiente = form;
+      setTimeout(() => {
+        const primero = form.querySelector<HTMLElement>('[aria-invalid="true"]');
+        primero?.focus();
+        primero?.scrollIntoView({ block: "center", behavior: "smooth" });
+        enfocarPendiente = null;
+      }, 0);
+    };
+
+    const alInvalidar = (e: Event) => {
+      const el = e.target;
+      if (!esCampoValidable(el)) return;
+      const mensaje = mensajeDelCampo(el);
+      if (mensaje && mostrarError(el, mensaje)) {
+        e.preventDefault(); // sin globito nativo: el aviso queda debajo del campo
+        enfocarPrimero(el.form!);
+      }
+    };
+
+    const alSalir = (e: Event) => {
+      const el = e.target;
+      if (!esCampoValidable(el)) return;
+      const mensaje = mensajeDelCampo(el);
+      const yaMarcado = el.getAttribute("aria-invalid") === "true";
+      // Vacío y nunca marcado: no se avisa todavía (recién al intentar guardar).
+      if (mensaje && (yaMarcado || el.value.trim() !== "")) mostrarError(el, mensaje);
+      else if (!mensaje) limpiarError(el);
+    };
+
+    const alEscribir = (e: Event) => {
+      const el = e.target;
+      if (!esCampoValidable(el)) return;
+      const mensaje = mensajeDelCampo(el);
+      if (el.getAttribute("aria-invalid") === "true") {
+        if (mensaje) mostrarError(el, mensaje);
+        else limpiarError(el);
+      }
+    };
+
+    // Red de seguridad: un campo con `data-validar` que la persona nunca tocó
+    // (ej. un valor precargado) no pasó por los eventos de arriba.
+    const alEnviar = (e: Event) => {
+      const form = e.target;
+      // Un <form noValidate> pidió explícitamente no validar en el navegador.
+      if (!(form instanceof HTMLFormElement) || form.noValidate) return;
+      let hayErrores = false;
+      form.querySelectorAll<Campo>("[data-validar]").forEach((el) => {
+        if (!esCampoValidable(el)) return;
+        // Sólo los chequeos propios (nombre/documento/teléfono): lo que el
+        // navegador ya valida solo (obligatorio, email) ni siquiera llega
+        // hasta acá, porque bloquea el envío antes del evento "submit".
+        const mensaje = errorSemantico(el);
+        el.setCustomValidity(mensaje);
+        if (mensaje) {
+          hayErrores = true;
+          mostrarError(el, mensaje);
+        }
+      });
+      if (hayErrores) {
+        e.preventDefault();
+        e.stopPropagation();
+        enfocarPrimero(form);
+      }
+    };
+
+    // Después de un reseteo real (envío exitoso), no dejar avisos viejos.
+    const alResetear = (e: Event) => {
+      const form = e.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      setTimeout(() => {
+        if (e.defaultPrevented) return;
+        form.querySelectorAll<Campo>("input, select, textarea").forEach((el) => {
+          el.setCustomValidity("");
+          limpiarError(el);
+        });
+      }, 0);
+    };
+
+    document.addEventListener("invalid", alInvalidar, true);
+    document.addEventListener("focusout", alSalir, true);
+    document.addEventListener("input", alEscribir, true);
+    document.addEventListener("change", alEscribir, true);
+    document.addEventListener("submit", alEnviar, true);
+    document.addEventListener("reset", alResetear, true);
+    return () => {
+      document.removeEventListener("invalid", alInvalidar, true);
+      document.removeEventListener("focusout", alSalir, true);
+      document.removeEventListener("input", alEscribir, true);
+      document.removeEventListener("change", alEscribir, true);
+      document.removeEventListener("submit", alEnviar, true);
+      document.removeEventListener("reset", alResetear, true);
+    };
   }, []);
   return null;
 }

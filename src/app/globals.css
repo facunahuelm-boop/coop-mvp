@@ -308,6 +308,36 @@ body {
   border-radius: 4px;
 }
 
+/* Mejora global de validaciones (pedido del 28/09, sección 12) — revisión
+   del 04/10: un campo con error tiene que verse distinto, no sólo tener un
+   texto rojo abajo. Dos orígenes, un mismo aspecto:
+   - error del servidor: el campo tiene un FieldError (role="alert") a
+     continuación, dentro del mismo contenedor;
+   - error detectado en el navegador antes de enviar: aria-invalid="true"
+     (ver ValidacionEnFormularios en src/components/ui-client.tsx).
+   Mismo rojo (--color-rojo) que ya usan FieldError y FormError. */
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"],
+input:has(~ [role="alert"]),
+select:has(~ [role="alert"]),
+textarea:has(~ [role="alert"]) {
+  border-color: var(--color-rojo) !important;
+  box-shadow: 0 0 0 1px var(--color-rojo);
+}
+
+/* El mensaje del navegador se dibuja debajo del campo, con el mismo estilo
+   que FieldError (mt-1 text-sm font-medium, rojo). */
+[data-error-cliente]::after {
+  content: attr(data-error-cliente);
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--color-rojo);
+}
+
 /* Quien pidió "reducir movimiento" en su sistema operativo no debería
    ver las animaciones que vayamos sumando (loaders, transiciones). */
 @media (prefers-reduced-motion: reduce) {
