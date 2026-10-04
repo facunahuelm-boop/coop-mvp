@@ -53,9 +53,20 @@ export default async function FiscalPage() {
         `SELECT organo, titulo, fecha FROM actas WHERE organo IN ('asamblea','consejo_directivo') ORDER BY fecha DESC LIMIT 5`
       ).then((filas) => filas.map((f) => ({ ...f, numero_libro: null })))
     ),
+    // Fix (04/10): la columna real de `documentos` es `nombre`, no `titulo` —
+    // la consulta anterior pedía una columna inexistente, Postgres tiraba
+    // error y el `.catch(() => [])` lo escondía silenciosamente (el panel
+    // mostraba "0 documentos vencidos" aunque hubiera). Además faltaba
+    // `documentos_seguridad` (ver lib/logic.ts → recalcularAlertas(), que sí
+    // la consulta): los vencimientos de Seguridad generaban alerta crítica
+    // pero nunca aparecían acá. Mismo criterio que las alertas: ambas tablas,
+    // unidas.
     all<{ titulo: string; fecha_vencimiento: string }>(
-      `SELECT titulo, fecha_vencimiento FROM documentos WHERE fecha_vencimiento IS NOT NULL AND estado != 'archivado' AND fecha_vencimiento < ? ORDER BY fecha_vencimiento ASC LIMIT 5`,
-      [dayjs().format("YYYY-MM-DD")]
+      `SELECT nombre AS titulo, fecha_vencimiento FROM documentos WHERE fecha_vencimiento IS NOT NULL AND estado != 'archivado' AND fecha_vencimiento < ?
+       UNION ALL
+       SELECT tipo AS titulo, fecha_vencimiento FROM documentos_seguridad WHERE fecha_vencimiento IS NOT NULL AND fecha_vencimiento < ?
+       ORDER BY fecha_vencimiento ASC LIMIT 5`,
+      [dayjs().format("YYYY-MM-DD"), dayjs().format("YYYY-MM-DD")]
     ).catch(() => []),
     all<{ fecha: string; accion: string; entidad: string; usuario_nombre: string | null }>(
       `SELECT a.fecha, a.accion, a.entidad, u.nombre as usuario_nombre FROM auditoria a LEFT JOIN users u ON u.id = a.usuario_id ORDER BY a.fecha DESC LIMIT 5`

@@ -71,11 +71,20 @@ export default async function CumplimientoPage() {
     // general (lib/logic.ts): se excluyen archivados y versiones
     // reemplazadas por otra más nueva (reemplaza_a_id), para no generar
     // ruido sobre algo que ya salió de circulación.
+    // Fix (04/10): faltaba `documentos_seguridad` acá — mismo hallazgo que en
+    // /fiscal (ver su comentario). recalcularAlertas() (lib/logic.ts) sí
+    // consulta ambas tablas, por eso las alertas de Seguridad vencida
+    // aparecían pero este contador no. Id de documentos_seguridad negativo a
+    // propósito: solo se usa como key de lista acá, nunca para link — evita
+    // colisión con los ids (positivos) de `documentos`.
     all<{ id: number; nombre: string; fecha_vencimiento: string }>(
       `SELECT d.id, d.nombre, d.fecha_vencimiento FROM documentos d
        WHERE d.fecha_vencimiento IS NOT NULL AND d.estado != 'archivado'
          AND NOT EXISTS (SELECT 1 FROM documentos d2 WHERE d2.reemplaza_a_id = d.id)
-       ORDER BY d.fecha_vencimiento ASC`
+       UNION ALL
+       SELECT -ds.id AS id, ds.tipo AS nombre, ds.fecha_vencimiento FROM documentos_seguridad ds
+       WHERE ds.fecha_vencimiento IS NOT NULL
+       ORDER BY fecha_vencimiento ASC`
     ).catch(() => [] as { id: number; nombre: string; fecha_vencimiento: string }[]),
     // Solo el HECHO de si hubo o no una Asamblea Ordinaria realizada este
     // año calendario, y cuándo — nunca un veredicto de si eso alcanza para

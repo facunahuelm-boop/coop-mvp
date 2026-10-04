@@ -53,9 +53,10 @@ export default async function ConfiguracionPage() {
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Etapa</h3>
       <Card className="mb-6">
         <p className="text-xs text-ink/60 mb-4">
-          La etapa de la cooperativa personaliza el menú: en "Habitada" se oculta automáticamente
-          el grupo Obra (Obra, Trabajo y Seguridad), porque deja de ser relevante una vez terminada
-          la construcción.
+          La etapa de la cooperativa personaliza el menú: el grupo Obra (Obra, Trabajo y Seguridad) se
+          muestra automáticamente solo durante &quot;En obra&quot; — queda oculto tanto en &quot;Pre-obra&quot; (todavía no
+          arrancó la construcción) como en &quot;Habitada&quot; (ya terminada), porque solo tiene sentido día a día
+          mientras se está construyendo. Si tu caso es distinto, podés forzarlo desde &quot;Módulos&quot; más abajo.
         </p>
         <EtapaForm etapaActual={organizacion?.etapa || "obra"} />
       </Card>
