@@ -5,7 +5,7 @@ import { canRead, ROLE_LABELS, type Module } from "@/lib/roles";
 import { logoutAction } from "@/lib/actions/auth";
 import { Saludo } from "./Saludo";
 import { NavLink } from "./NavLink";
-import { NavGroupSection, NavTopGroup } from "./NavGroupSection";
+import { NavTopGroup } from "./NavGroupSection";
 import { Logo3D } from "./Logo3D";
 import { Avatar } from "./EntidadLink";
 import { TopBarClient } from "./TopBarClient";
@@ -156,11 +156,19 @@ const GROUPS: NavGroup[] = [
       // obtenerContactos() (lib/contactos.ts), mismo criterio que "Gastos"
       // arriba. No hace falta ocultar el ítem del menú entero por rol.
       { href: "/contactos", label: "Contactos", icon: <BookUser size={ICON_SIZE} /> },
-      { href: "/comisiones", label: "Comisiones", icon: <Compass size={ICON_SIZE} />, mod: "comisiones" },
-      { href: "/solicitudes", label: "Solicitudes", icon: <Send size={ICON_SIZE} />, mod: "comisiones" },
-      { href: "/reuniones", label: "Reuniones", icon: <CalendarDays size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/asambleas", label: "Asambleas", icon: <Landmark size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/consejo-directivo", label: "Consejo Directivo", icon: <UserCog size={ICON_SIZE} />, mod: "comisiones" },
+    ],
+  },
+  // Pedido explícito (05/10): "Comisiones y reuniones" pasa a ser un grupo
+  // propio de la barra lateral, al mismo nivel que Organización, en vez de
+  // un subgrupo plegado adentro de ella. Mismos ítems, mismos permisos.
+  {
+    label: "Comisiones y reuniones",
+    items: [
+      { href: "/comisiones", label: "Comisiones", icon: <Compass size={ICON_SIZE} />, mod: "comisiones" },
+      { href: "/reuniones", label: "Reuniones", icon: <CalendarDays size={ICON_SIZE} />, mod: "comisiones" },
+      { href: "/solicitudes", label: "Solicitudes", icon: <Send size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/decisiones", label: "Decisiones", icon: <Gavel size={ICON_SIZE} />, mod: "comisiones" },
       { href: "/comunicaciones", label: "Comunicaciones", icon: <MessageSquare size={ICON_SIZE} />, mod: "comisiones" },
     ],
@@ -235,17 +243,6 @@ const GROUPS: NavGroup[] = [
   },
 ];
 
-// Dentro de "Organización", Comisiones y Reuniones se muestran plegadas por
-// defecto (se usan con mucha menos frecuencia que Socios) — ver
-// NavGroupSection. Socios queda siempre visible porque es lo que se
-// consulta día a día.
-const GRUPO_COLAPSABLE = {
-  grupo: "Organización",
-  hrefsColapsados: ["/comisiones", "/solicitudes", "/reuniones", "/decisiones", "/comunicaciones"],
-  label: "Comisiones y reuniones",
-  icon: <Compass size={ICON_SIZE} />,
-};
-
 // Mejora global del sidebar (28/09, pedido explícito — sección 34): un
 // ícono identificable por grupo principal, más chico que los de cada ítem
 // (ICON_SIZE=18) para no competir visualmente con ellos — el pedido es
@@ -256,6 +253,7 @@ const GROUP_ICON: Record<string, ReactNode> = {
   Gestión: <Wallet size={GROUP_ICON_SIZE} />,
   Obra: <HardHat size={GROUP_ICON_SIZE} />,
   Organización: <Users size={GROUP_ICON_SIZE} />,
+  "Comisiones y reuniones": <Compass size={GROUP_ICON_SIZE} />,
   Documentos: <FileText size={GROUP_ICON_SIZE} />,
   Herramientas: <Wrench size={GROUP_ICON_SIZE} />,
   Configuración: <Settings size={GROUP_ICON_SIZE} />,
@@ -340,32 +338,18 @@ export function Sidebar({ user }: { user: SessionUser }) {
       </div>
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
         {groups.map((g) => {
-          const colapsados =
-            g.label === GRUPO_COLAPSABLE.grupo
-              ? g.items.filter((i) => GRUPO_COLAPSABLE.hrefsColapsados.includes(i.href))
-              : [];
-          const sueltos = g.items.filter((i) => !colapsados.includes(i));
           const contenido = (
             <>
-              {sueltos.map((i) => (
+              {g.items.map((i) => (
                 <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} />
               ))}
-              {colapsados.length > 0 && (
-                <NavGroupSection
-                  label={GRUPO_COLAPSABLE.label}
-                  icon={GRUPO_COLAPSABLE.icon}
-                  items={colapsados}
-                  accentColor={acento}
-                />
-              )}
             </>
           );
           // Mejora global del sidebar (28/09, pedido explícito — secciones
           // 20-34): "Inicio" queda siempre desplegado, sin acordeón (sección
           // 21, "no modificar su posición ni su funcionamiento"). El resto de
-          // los grupos ahora se pliegan/despliegan con NavTopGroup — mismo
-          // patrón de acordeón que ya usaba "Comisiones y reuniones" dentro
-          // de Organización, ahora también en el encabezado de cada grupo.
+          // los grupos ahora se pliegan/despliegan con NavTopGroup (incluido
+          // "Comisiones y reuniones", grupo propio desde el 05/10).
           if (g.label === "Inicio") {
             return (
               <div key={g.label}>
