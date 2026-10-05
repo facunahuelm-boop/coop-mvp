@@ -8,6 +8,7 @@ import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { parseForm, zId, zIdOpcional, zTexto, zNombre, zTextoOpcional, zFechaOpcional } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { FUNCIONES_COMISION, ETAPAS_COOPERATIVA } from "@/lib/comisionesFunciones";
 
 // Fase 2 del pedido "Comisiones como sistema de gestión" (19/09): tipo
 // permanente/temporal + objetivo + vigencia + subcomisiones + suplentes.
@@ -15,6 +16,18 @@ import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 const ROLES_EN_COMISION = ["coordinador", "integrante", "suplente"] as const;
 const zRolEnComision = z.enum(ROLES_EN_COMISION).default("integrante");
 const zTipoComision = z.enum(["permanente", "temporal"]).default("permanente");
+// Comisiones como áreas de trabajo (05/10): función (define herramientas y
+// etapas por defecto — ver lib/comisionesFunciones.ts).
+const zFuncionComision = z.enum(FUNCIONES_COMISION).default("general");
+
+/** Etapas propias elegidas en el formulario ("Disponible en" → "Elegir
+ * etapas"), o null = usar las de la función. */
+function etapasDelFormulario(formData: FormData): string | null {
+  if (formData.get("etapas_modo") !== "propias") return null;
+  const elegidas = formData.getAll("etapas").map(String).filter((e) => (ETAPAS_COOPERATIVA as readonly string[]).includes(e));
+  if (elegidas.length === 0) throw new Error("Elegí al menos una etapa en la que esté disponible la comisión.");
+  return elegidas.join(",");
+}
 
 // AUDITORÍA INTEGRAL (hallazgo de seguridad, sección 17): estas cuatro
 // acciones solo comprobaban canEdit(rol, "comisiones") — y en la matriz de
@@ -52,6 +65,7 @@ const crearComisionSchema = z
     fecha_inicio: zFechaOpcional,
     fecha_fin: zFechaOpcional,
     comision_padre_id: zIdOpcional,
+    funcion: zFuncionComision,
   })
   .refine((d) => d.tipo !== "temporal" || d.fecha_fin, {
     message: "Una comisión temporal necesita fecha de finalización.",
@@ -62,9 +76,10 @@ export async function crearComisionAction(formData: FormData) {
   const user = await requireUser();
   if (!esOversightComisiones(user.rol)) throw new Error("Crear una comisión nueva requiere un rol de conducción (Admin, Consejo Directivo, Tesorería o Administración).");
   const datos = parseForm(crearComisionSchema, formData);
-  const id = await insert("comisiones", datos);
-  await audit({ usuario_id: user.id, accion: "crear", entidad: "comisiones", entidad_id: id, valor_nuevo: { nombre: datos.nombre, tipo: datos.tipo } });
-  revalidatePath("/comisiones");
+  const etapas = etapasDelFormulario(formData);
+  const id = await insert("comisiones", { ...datos, etapas });
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "comisiones", entidad_id: id, valor_nuevo: { nombre: datos.nombre, tipo: datos.tipo, funcion: datos.funcion, etapas } });
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function crearComisionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -93,6 +108,7 @@ const editarComisionSchema = z
     fecha_inicio: zFechaOpcional,
     fecha_fin: zFechaOpcional,
     comision_padre_id: zIdOpcional,
+    funcion: zFuncionComision,
     version_esperada: zTexto(100),
   })
   .refine((d) => d.tipo !== "temporal" || d.fecha_fin, {
@@ -105,9 +121,15 @@ export async function editarComisionAction(formData: FormData) {
   if (!esOversightComisiones(user.rol)) throw new Error("Editar una comisión requiere un rol de conducción (Admin, Consejo Directivo, Tesorería o Administración).");
   const { id, version_esperada, ...datos } = parseForm(editarComisionSchema, formData);
   if (datos.comision_padre_id === id) throw new Error("Una comisión no puede ser subcomisión de sí misma.");
-  await updateConBloqueoOptimista("comisiones", id, datos, version_esperada);
-  await audit({ usuario_id: user.id, accion: "editar", entidad: "comisiones", entidad_id: id, valor_nuevo: datos });
-  revalidatePath("/comisiones");
+  const etapas = etapasDelFormulario(formData);
+  const anterior = await get<Record<string, unknown>>(
+    `SELECT nombre, descripcion, tipo, objetivo, fecha_inicio, fecha_fin, comision_padre_id, funcion, etapas FROM comisiones WHERE id = ?`,
+    [id]
+  ).catch(() => undefined);
+  await updateConBloqueoOptimista("comisiones", id, { ...datos, etapas }, version_esperada);
+  await audit({ usuario_id: user.id, accion: "editar", entidad: "comisiones", entidad_id: id, valor_anterior: anterior, valor_nuevo: { ...datos, etapas } });
+  revalidatePath("/comisiones", "layout");
+  revalidatePath(`/comisiones/${id}`);
 }
 
 export async function editarComisionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -120,7 +142,7 @@ export async function archivarComisionAction(formData: FormData) {
   const { id } = parseForm(z.object({ id: zId }), formData);
   await update("comisiones", id, { activa: 0 });
   await audit({ usuario_id: user.id, accion: "archivar", entidad: "comisiones", entidad_id: id });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function archivarComisionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -136,7 +158,7 @@ export async function reactivarComisionAction(formData: FormData) {
   const { id } = parseForm(z.object({ id: zId }), formData);
   await update("comisiones", id, { activa: 1 });
   await audit({ usuario_id: user.id, accion: "reactivar", entidad: "comisiones", entidad_id: id });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function reactivarComisionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -163,7 +185,7 @@ export async function agregarMiembroAction(formData: FormData) {
 
   const id = await insert("comision_miembros", { comision_id, user_id, rol_en_comision });
   await audit({ usuario_id: user.id, accion: "agregar_miembro", entidad: "comision_miembros", entidad_id: id, valor_nuevo: { comision_id, user_id, rol_en_comision } });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function agregarMiembroFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -179,7 +201,7 @@ export async function quitarMiembroAction(formData: FormData) {
   if (!(await puedeGestionarComision(user, miembro.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
   await update("comision_miembros", id, { activo: 0, hasta: new Date().toISOString() });
   await audit({ usuario_id: user.id, accion: "quitar_miembro", entidad: "comision_miembros", entidad_id: id });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function quitarMiembroFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -197,7 +219,7 @@ export async function cambiarRolMiembroAction(formData: FormData) {
   if (!(await puedeGestionarComision(user, miembro.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
   await update("comision_miembros", id, { rol_en_comision });
   await audit({ usuario_id: user.id, accion: "cambiar_rol_miembro", entidad: "comision_miembros", entidad_id: id, valor_nuevo: { rol_en_comision } });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function cambiarRolMiembroFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

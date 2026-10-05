@@ -9,6 +9,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { parseForm, zNombre, zTextoOpcional, zEmailOpcional } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { CLAVES_HORARIO_OBRA } from "@/lib/horasTrabajo";
+import { aMinutos } from "@/lib/horasObra";
 
 // AUDITORÍA INTEGRAL (cobertura de auditoría, sección "trazabilidad"): las
 // cinco acciones de este archivo cambian configuración sensible de toda la
@@ -348,4 +350,47 @@ export async function guardarReglasCooperativaAction(formData: FormData) {
 
 export async function guardarReglasCooperativaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => guardarReglasCooperativaAction(formData));
+}
+
+// Comisión de Trabajo (05/10): horario de obra de la cooperativa (por
+// defecto 07:00 a 17:00 con descanso 12:00 a 13:00). Lo usa el calendario
+// de horas para calcular y validar cada asignación. Mismo guard y misma
+// tabla (configuracion_reglas) que el resto de las reglas.
+const zHoraObra = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Elegí una hora válida.");
+const horarioObraSchema = z.object({
+  obra_hora_inicio: zHoraObra,
+  obra_hora_fin: zHoraObra,
+  obra_descanso_inicio: zHoraObra,
+  obra_descanso_fin: zHoraObra,
+});
+
+export async function guardarHorarioObraAction(formData: FormData) {
+  const user = await requireAdminOConsejo();
+  const d = parseForm(horarioObraSchema, formData);
+  const [ini, fin, dIni, dFin] = [d.obra_hora_inicio, d.obra_hora_fin, d.obra_descanso_inicio, d.obra_descanso_fin].map(aMinutos);
+  if (fin <= ini) throw new Error("El fin de la jornada tiene que ser posterior al inicio.");
+  if (dFin < dIni) throw new Error("El fin del descanso tiene que ser posterior a su inicio.");
+  if (dFin > dIni && (dIni <= ini || dFin >= fin)) throw new Error("El descanso tiene que quedar dentro de la jornada de obra.");
+
+  const valores: Record<string, string> = {
+    [CLAVES_HORARIO_OBRA.inicio]: d.obra_hora_inicio,
+    [CLAVES_HORARIO_OBRA.fin]: d.obra_hora_fin,
+    [CLAVES_HORARIO_OBRA.descansoInicio]: d.obra_descanso_inicio,
+    [CLAVES_HORARIO_OBRA.descansoFin]: d.obra_descanso_fin,
+  };
+  for (const [clave, valor] of Object.entries(valores)) {
+    const existe = (await all<{ id: number }>(`SELECT id FROM configuracion_reglas WHERE clave = ?`, [clave]))[0];
+    if (existe) {
+      await update("configuracion_reglas", existe.id, { valor, actualizado_por_id: user.id, actualizado_en: new Date().toISOString() });
+    } else {
+      await insert("configuracion_reglas", { organization_id: user.organization_id, clave, valor, actualizado_por_id: user.id });
+    }
+  }
+  await audit({ usuario_id: user.id, accion: "guardar_reglas_cooperativa", entidad: "configuracion_reglas", entidad_id: user.organization_id, valor_nuevo: valores });
+  revalidatePath("/configuracion");
+  revalidatePath("/comisiones", "layout");
+}
+
+export async function guardarHorarioObraFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => guardarHorarioObraAction(formData));
 }

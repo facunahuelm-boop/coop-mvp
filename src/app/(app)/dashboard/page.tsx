@@ -798,7 +798,7 @@ export default async function DashboardPage() {
         <DashboardSection title="Comisiones y módulos">
           <DashboardGrid>
             {comisionesTrabajo.map((c) => (
-              <DashboardCardLink key={c.id} href="/comisiones">
+              <DashboardCardLink key={c.id} href={`/comisiones/${c.id}`}>
                 <SummaryCard
                   icon={<Compass size={18} />}
                   title={c.nombre}

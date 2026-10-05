@@ -5,36 +5,24 @@ import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
 import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
 import { ActionForm } from "@/components/ui-client";
-import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
-import { UsuarioLink } from "@/components/EntidadLink";
-import dayjs from "dayjs";
-import {
-  archivarComisionFormAction,
-  reactivarComisionFormAction,
-  quitarMiembroFormAction,
-  cambiarRolMiembroFormAction,
-} from "@/lib/actions/comisiones";
-import { cambiarEstadoTareaFormAction } from "@/lib/actions/tareas";
-import { AgregarMiembroForm, CrearTareaForm, CrearComisionForm, EditarComisionForm } from "@/components/comisiones/ComisionesFormularios";
-import { TareaDetalleModal } from "@/components/comisiones/TareaDetalleModal";
-import { ComisionDetalleModal } from "@/components/comisiones/ComisionDetalleModal";
-import { puntosDeAgenda, TIPO_REUNION_LABEL } from "@/lib/trazabilidad";
+import { reactivarComisionFormAction } from "@/lib/actions/comisiones";
+import { CrearComisionForm } from "@/components/comisiones/ComisionesFormularios";
+import { ComisionResumenCard } from "@/components/comisiones/ComisionResumenCard";
+import { cargarResumenComisiones, type ComisionRow } from "@/lib/comisionesResumen";
+import { ETAPA_LABEL, textoEtapas, type EtapaCooperativa } from "@/lib/comisionesFunciones";
 
-const ROL_MIEMBRO_LABEL: Record<string, string> = { coordinador: "Coordinador/a", integrante: "Integrante", suplente: "Suplente" };
-
-// Fase 06 del Plan Maestro — cualquier comisión puede llevar sus propias
-// tareas ahora, no solo Obra (tareas_obra) o Trabajo (tareas_jornada).
-const ESTADO_TAREA_LABEL: Record<string, string> = { pendiente: "Pendiente", en_curso: "En curso", completada: "Completada" };
-const ESTADO_TAREA_COLOR: Record<string, "verde" | "amarillo" | "brand"> = { pendiente: "amarillo", en_curso: "brand", completada: "verde" };
-const PRIORIDAD_LABEL: Record<string, string> = { alta: "🔴 Alta", media: "🟡 Media", baja: "⚪ Baja" };
-
-// Mejora integral, Fase 4: tipos propios para las 3 consultas nuevas de esta
-// fase (en vez de `all<any>`, que ya usa el resto de este archivo para las
-// consultas preexistentes) — evita sumar `any` nuevos al total de eslint.
-type ComisionReunionRow = { id: number; comision_id: number; titulo: string; fecha: string; estado: string };
-type ComisionDocumentoRow = { id: number; nombre: string; archivo_url: string | null; comision_id: number };
-type ComisionDecisionRow = { id: number; tema: string; resultado: string; comision_id: number; agenda_item_id?: number | null };
-
+/**
+ * Comisiones — tablero resumen (05/10, pedido explícito: "el dashboard
+ * principal debe ser un mini resumen"). Cada comisión es una tarjeta chica;
+ * al tocarla se abre un pop-up con su resumen y "Ver comisión completa"
+ * lleva a /comisiones/[id], donde vive todo lo que antes se gestionaba acá
+ * mismo (integrantes, tareas, edición) — no se perdió ninguna función, sólo
+ * cambió de lugar.
+ *
+ * Las comisiones cuya función no corresponde a la etapa de la cooperativa
+ * (ej. Trabajo antes de la obra) no aparecen como activas. Conducción las ve
+ * aparte, plegadas, para poder revisarlas o cambiar sus etapas.
+ */
 export default async function ComisionesPage({
   searchParams,
 }: {
@@ -45,288 +33,66 @@ export default async function ComisionesPage({
   if (!canRead(user.rol, "comisiones")) redirect("/dashboard");
 
   const { archivadas: verArchivadas } = await searchParams;
-  const puedeEditar = canEdit(user.rol, "comisiones");
-  // Crear/archivar una comisión es una decisión estructural (agrega o quita
-  // un órgano entero) — se reserva a roles de conducción/finanzas, igual que
-  // ya exige el backend (ver actions/comisiones.ts). Gestionar los
-  // integrantes o tareas de una comisión puntual, en cambio, se ofrece según
-  // CUÁL comisión: cualquiera de conducción, o quien ya integra esa comisión
-  // específica — así el botón no aparece prometiendo algo que el servidor
-  // después va a rechazar por ser de otra comisión.
+  // Crear/archivar una comisión es una decisión estructural: conducción
+  // (mismo criterio que el backend, ver actions/comisiones.ts).
   const esOversightComisiones = canEdit(user.rol, "finanzas");
 
-  const [comisiones, comisionesArchivadas, miembros, usuarios, tareas, misComisiones, colaboradoresTareas, reunionesComision, documentosComision, decisionesComision] = await Promise.all([
-    all<any>(`SELECT * FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`),
-    // Fase 2 (comisiones dinámicas): archivar nunca borró información, pero
-    // hasta ahora no había forma de volver a verlas — memoria institucional
-    // real significa poder consultarlas, no solo no borrarlas.
+  const [comisiones, comisionesArchivadas] = await Promise.all([
+    all<ComisionRow>(`SELECT * FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`),
     verArchivadas === "1"
-      ? all<any>(`SELECT * FROM comisiones WHERE activa = 0 ORDER BY nombre ASC`)
-      : Promise.resolve([]),
-    all<any>(
-      `SELECT m.*, u.nombre as user_nombre FROM comision_miembros m JOIN users u ON u.id = m.user_id WHERE m.activo = 1 ORDER BY m.rol_en_comision DESC, u.nombre ASC`
-    ),
-    all<any>(`SELECT id, nombre, rol FROM users WHERE activo = 1 ORDER BY nombre ASC`),
-    all<any>(
-      `SELECT t.*, u.nombre as responsable_nombre FROM tareas t LEFT JOIN users u ON u.id = t.responsable_id
-       ORDER BY (t.estado = 'completada'), CASE t.prioridad WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END, t.creado_en DESC`
-    ),
-    all<{ comision_id: number }>(`SELECT comision_id FROM comision_miembros WHERE user_id = ? AND activo = 1`, [user.id]),
-    // Comisiones como sistema de gestión, Fase 4: colaboradores por tarea
-    // (tabla nueva de la migración 0029) — `.catch(() => [])` porque esta
-    // fase se documenta y despliega antes de que el usuario corra esa
-    // migración en producción, mismo criterio que el resto del proyecto.
-    all<any>(
-      `SELECT tc.*, u.nombre FROM tarea_colaboradores tc JOIN users u ON u.id = tc.user_id`
-    ).catch(() => [] as any[]),
-    // Mejora integral, Fase 4 (27/09): reuniones/documentos/decisiones por
-    // comisión para el dashboard ampliado y el pop-up de detalle — mismo
-    // criterio que el resto del archivo (una consulta, filtrada con un
-    // helper en vez de N+1), y `.catch(() => [])` porque `comision_id` en
-    // reuniones/documentos y toda la tabla decisiones_comision son de la
-    // migración 0029, igual que tarea_colaboradores arriba.
-    all<ComisionReunionRow>(
-      `SELECT id, comision_id, titulo, fecha, estado FROM reuniones WHERE tipo = 'comision' ORDER BY fecha DESC`
-    ).catch(() => [] as ComisionReunionRow[]),
-    all<ComisionDocumentoRow>(
-      `SELECT id, nombre, archivo_url, comision_id FROM documentos WHERE comision_id IS NOT NULL ORDER BY fecha DESC`
-    ).catch(() => [] as ComisionDocumentoRow[]),
-    all<ComisionDecisionRow>(`SELECT id, tema, resultado, comision_id, agenda_item_id FROM decisiones_comision ORDER BY creado_en DESC`).catch(() =>
-      all<ComisionDecisionRow>(`SELECT id, tema, resultado, comision_id FROM decisiones_comision ORDER BY creado_en DESC`).catch(() => [] as ComisionDecisionRow[])
-    ),
+      ? all<ComisionRow>(`SELECT * FROM comisiones WHERE activa = 0 ORDER BY nombre ASC`)
+      : Promise.resolve([] as ComisionRow[]),
   ]);
-
-  // Recorrido de decisiones (04/10): de qué resolución (asamblea / consejo /
-  // comisión) salió cada tarea o decisión, y qué asambleas/consejos se
-  // relacionan con cada comisión (por sus tareas, decisiones o puntos que
-  // el Consejo / la Asamblea le pasaron).
-  const llevadosAComision = await all<{ origen_item_id: number; comision_id: number }>(
-    `SELECT ai.origen_item_id, r.comision_id FROM reunion_agenda_items ai JOIN reuniones r ON r.id = ai.reunion_id
-      WHERE r.tipo = 'comision' AND r.comision_id IS NOT NULL AND ai.origen_item_id IS NOT NULL`
-  ).catch(() => [] as { origen_item_id: number; comision_id: number }[]);
-  const puntosOrigen = await puntosDeAgenda([
-    ...tareas.map((t) => Number(t.agenda_item_id) || 0),
-    ...decisionesComision.map((d) => Number(d.agenda_item_id) || 0),
-    ...llevadosAComision.map((l) => l.origen_item_id),
-  ]);
-  const origenDeTarea = (t: (typeof tareas)[number]) => {
-    const o = t.agenda_item_id ? puntosOrigen.get(t.agenda_item_id) : undefined;
-    return o ? { texto: `${TIPO_REUNION_LABEL[o.reunion_tipo] ?? o.reunion_tipo} «${o.reunion_titulo}» — ${o.titulo}`, href: `/reuniones/${o.reunion_id}` } : null;
-  };
-  const reunionesRelacionadasDe = (comisionId: number) => {
-    const ids = [
-      ...tareas.filter((t) => t.comision_id === comisionId).map((t) => Number(t.agenda_item_id) || 0),
-      ...decisionesComision.filter((d) => d.comision_id === comisionId).map((d) => Number(d.agenda_item_id) || 0),
-      ...llevadosAComision.filter((l) => l.comision_id === comisionId).map((l) => l.origen_item_id),
-    ];
-    const vistas = new Map<number, { id: number; titulo: string; tipo: string; fecha: string; punto: string }>();
-    for (const id of ids) {
-      const p = puntosOrigen.get(id);
-      if (p && p.reunion_tipo !== "comision" && !vistas.has(p.reunion_id)) {
-        vistas.set(p.reunion_id, { id: p.reunion_id, titulo: p.reunion_titulo, tipo: p.reunion_tipo, fecha: p.reunion_fecha, punto: p.titulo });
-      }
-    }
-    return [...vistas.values()].sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
-  };
-
-  const misComisionIds = new Set(misComisiones.map((m) => m.comision_id));
-  const puedeGestionarEstaComision = (comisionId: number) => puedeEditar && (esOversightComisiones || misComisionIds.has(comisionId));
-
-  const miembrosPorComision = (comisionId: number) => miembros.filter((m) => m.comision_id === comisionId);
-  const tareasPorComision = (comisionId: number) => tareas.filter((t) => t.comision_id === comisionId);
-  const nombreComision = (id: number | null) => (id ? comisiones.find((c) => c.id === id)?.nombre : null);
-  // Mejora integral, Fase 4: mismos helpers que ya usa el archivo para
-  // miembros/tareas — filtrar un array ya cargado, en vez de una consulta
-  // por comisión (cantidad de comisiones es chica, igual criterio que el
-  // resto de este archivo).
-  const reunionesPorComision = (comisionId: number) => reunionesComision.filter((r) => r.comision_id === comisionId);
-  const proximaReunionDe = (comisionId: number) =>
-    reunionesPorComision(comisionId)
-      .filter((r) => r.estado === "planificada")
-      .sort((a, b) => dayjs(a.fecha).valueOf() - dayjs(b.fecha).valueOf())[0] ?? null;
-  const documentosPorComision = (comisionId: number) => documentosComision.filter((d) => d.comision_id === comisionId);
-  const decisionesCountDe = (comisionId: number) => decisionesComision.filter((d) => d.comision_id === comisionId).length;
-  const responsableDe = (comisionId: number) =>
-    miembrosPorComision(comisionId)
-      .filter((m) => m.rol_en_comision === "coordinador")
-      .map((m) => m.user_nombre)
-      .join(", ");
-  // Fase 4: checklist llega como JSONB (array) — si la migración 0029
-  // todavía no corrió, la columna no existe y `t.checklist` viene undefined;
-  // se trata como checklist vacío en vez de romper el render.
-  const checklistDeTarea = (t: (typeof tareas)[number]): { texto: string; hecho: boolean }[] => (Array.isArray(t.checklist) ? t.checklist : []);
-  const colaboradoresDeTarea = (tareaId: number) => colaboradoresTareas.filter((c) => c.tarea_id === tareaId);
-  const dependenciaDeTarea = (t: (typeof tareas)[number]): { titulo: string; estado: string } | null => {
-    if (!t.depende_de_id) return null;
-    const dep = tareas.find((x) => x.id === t.depende_de_id);
-    return dep ? { titulo: dep.titulo, estado: dep.estado } : null;
-  };
+  const { tarjetas, fueraDeEtapa } = await cargarResumenComisiones(comisiones, user.etapa);
+  const etapaLabel = ETAPA_LABEL[user.etapa as EtapaCooperativa] ?? user.etapa;
 
   return (
     <div>
       <PageHeader
         title="Comisiones"
-        subtitle="Quién integra cada comisión de la cooperativa"
+        subtitle="Las áreas de trabajo de la cooperativa — tocá una para ver su resumen"
         action={esOversightComisiones ? <CrearComisionForm comisiones={comisiones} /> : undefined}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {comisiones.map((c) => {
-          const integrantes = miembrosPorComision(c.id);
-          const puedeGestionar = puedeGestionarEstaComision(c.id);
-          const padreNombre = nombreComision(c.comision_padre_id);
-          const responsable = responsableDe(c.id);
-          const proximaReunion = proximaReunionDe(c.id);
-          return (
-            <Card key={c.id}>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <h3 className="text-sm font-bold text-[var(--color-brand-900)] truncate">{c.nombre}</h3>
-                  <Badge color={c.tipo === "temporal" ? "amarillo" : "gray"}>{c.tipo === "temporal" ? "Temporal" : "Permanente"}</Badge>
+      {tarjetas.length ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {tarjetas.map((c) => (
+            <ComisionResumenCard key={c.id} c={c} />
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <EmptyState>
+            {comisiones.length ? `No hay comisiones activas para la etapa actual (${etapaLabel}).` : "Todavía no hay comisiones creadas."}
+          </EmptyState>
+        </Card>
+      )}
+
+      {esOversightComisiones && fueraDeEtapa.length > 0 && (
+        <details className="mt-6">
+          <summary className="cursor-pointer select-none text-xs text-ink/50 hover:text-[var(--color-brand-800)] underline underline-offset-2">
+            Comisiones que no corresponden a la etapa actual ({etapaLabel}) — {fueraDeEtapa.length}
+          </summary>
+          <p className="text-xs text-ink-faint mt-2 mb-2">
+            No se muestran como activas para la cooperativa. Aparecen solas cuando la cooperativa pasa a la etapa que les corresponde; las etapas se cambian desde la comisión.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {fueraDeEtapa.map((c) => (
+              <Card key={c.id} className="opacity-80">
+                <div className="flex items-center justify-between gap-2">
+                  <Link href={`/comisiones/${c.id}`} className="text-sm font-semibold text-ink/70 hover:underline underline-offset-2 truncate">
+                    {c.nombre}
+                  </Link>
+                  <Badge color="gray">Disponible en: {textoEtapas(c)}</Badge>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <ComisionDetalleModal
-                    nombre={c.nombre}
-                    integrantes={integrantes}
-                    reuniones={reunionesPorComision(c.id)}
-                    documentos={documentosPorComision(c.id)}
-                    decisionesCount={decisionesCountDe(c.id)}
-                    tareas={tareasPorComision(c.id).map((t) => ({ id: t.id, titulo: t.titulo, estado: t.estado, resultado: t.resultado ?? null, origen: origenDeTarea(t)?.texto ?? null }))}
-                    decisiones={decisionesComision.filter((d) => d.comision_id === c.id).map((d) => ({ id: d.id, tema: d.tema, resultado: d.resultado }))}
-                    reunionesRelacionadas={reunionesRelacionadasDe(c.id)}
-                  />
-                  {esOversightComisiones && (
-                    <ActionForm action={archivarComisionFormAction}>
-                      <input type="hidden" name="id" value={c.id} />
-                      <button className="text-xs text-ink/40 hover:text-[var(--color-rojo)] underline underline-offset-2 whitespace-nowrap">Archivar</button>
-                    </ActionForm>
-                  )}
-                </div>
-              </div>
-              {c.descripcion && <p className="text-xs text-ink/50 mt-0.5">{c.descripcion}</p>}
-              {c.objetivo && <p className="text-xs text-ink/50 mt-0.5">🎯 {c.objetivo}</p>}
-              {(c.fecha_inicio || c.fecha_fin) && (
-                <p className="text-xs text-ink/40 mt-0.5">
-                  {c.fecha_inicio ? dayjs(c.fecha_inicio).format("DD/MM/YYYY") : "—"} → {c.fecha_fin ? dayjs(c.fecha_fin).format("DD/MM/YYYY") : "sin fecha de fin"}
-                </p>
-              )}
-              {padreNombre && <p className="text-xs text-ink/40 mt-0.5">Subcomisión de <span className="font-medium">{padreNombre}</span></p>}
+              </Card>
+            ))}
+          </div>
+        </details>
+      )}
 
-              <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-2">
-                <p className="text-xs text-ink/50">Responsable: <span className="font-medium text-ink/70">{responsable || "sin asignar"}</span></p>
-                <p className="text-xs text-ink/50">
-                  Próxima reunión:{" "}
-                  <span className="font-medium text-ink/70">
-                    {proximaReunion ? dayjs(proximaReunion.fecha).format("DD/MM/YYYY HH:mm") : "sin agendar"}
-                  </span>
-                </p>
-              </div>
-
-              {esOversightComisiones && <EditarComisionForm comision={c} comisiones={comisiones} />}
-
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {integrantes.map((m) => (
-                  <span key={m.id} className="inline-flex items-center gap-1.5 text-xs rounded-full bg-ink/5 px-2.5 py-1">
-                    {m.rol_en_comision === "coordinador" ? "⭐ " : ""}
-                    {/* Fase 6 (perfil individual de usuario): el nombre ya se
-                        mostraba acá sin ningún link — ahora lleva a su ficha. */}
-                    <Link href={`/usuarios/${m.user_id}`} className="hover:underline underline-offset-2">
-                      {m.user_nombre}
-                    </Link>
-                    {puedeGestionar ? (
-                      <AutoSubmitSelect
-                        action={cambiarRolMiembroFormAction}
-                        hiddenFields={{ id: m.id }}
-                        name="rol_en_comision"
-                        defaultValue={m.rol_en_comision}
-                        options={Object.entries(ROL_MIEMBRO_LABEL).map(([value, label]) => ({ value, label }))}
-                        className="rounded-full border-none bg-transparent text-xs text-ink/50 py-0 pl-0 pr-4"
-                      />
-                    ) : (
-                      m.rol_en_comision === "suplente" && <span className="text-ink/40">(suplente)</span>
-                    )}
-                    {puedeGestionar && (
-                      <ActionForm action={quitarMiembroFormAction} className="inline">
-                        <input type="hidden" name="id" value={m.id} />
-                        <button className="text-ink/40 hover:text-[var(--color-rojo)]" title="Quitar de la comisión">✕</button>
-                      </ActionForm>
-                    )}
-                  </span>
-                ))}
-                {integrantes.length === 0 && <p className="text-xs text-ink/40 italic">Sin integrantes todavía.</p>}
-              </div>
-
-              {puedeGestionar && <AgregarMiembroForm comisionId={c.id} usuarios={usuarios} />}
-
-              <div className="mt-4 pt-4 border-t border-ink/5">
-                <p className="text-xs font-semibold text-ink/60 mb-2">Tareas</p>
-                <div className="space-y-1.5">
-                  {tareasPorComision(c.id).map((t) => {
-                    const checklist = checklistDeTarea(t);
-                    const hechos = checklist.filter((it) => it.hecho).length;
-                    return (
-                    <div key={t.id} className="flex items-center justify-between gap-2 text-xs">
-                      <div className="min-w-0">
-                        <TareaDetalleModal
-                          tarea={{
-                            id: t.id,
-                            comision_id: t.comision_id,
-                            titulo: t.titulo,
-                            descripcion: t.descripcion ?? null,
-                            prioridad: t.prioridad,
-                            estado: t.estado,
-                            fecha_vencimiento: t.fecha_vencimiento ?? null,
-                            etiquetas: t.etiquetas ?? null,
-                            responsable_id: t.responsable_id ?? null,
-                            depende_de_id: t.depende_de_id ?? null,
-                            checklist,
-                            resultado: t.resultado ?? null,
-                          }}
-                          origen={origenDeTarea(t)}
-                          usuarios={usuarios}
-                          otrasTareas={tareasPorComision(c.id).filter((x) => x.id !== t.id).map((x) => ({ id: x.id, titulo: x.titulo, estado: x.estado }))}
-                          colaboradores={colaboradoresDeTarea(t.id).map((cl) => ({ id: cl.id, user_id: cl.user_id, nombre: cl.nombre }))}
-                          dependencia={dependenciaDeTarea(t)}
-                          puedeGestionar={puedeGestionar}
-                        />
-                        <p className="text-ink/40">
-                          {PRIORIDAD_LABEL[t.prioridad] ?? t.prioridad} ·{" "}
-                          <UsuarioLink id={t.responsable_id} nombre={t.responsable_nombre} fallback="sin asignar" />
-                          {t.fecha_vencimiento ? ` · vence ${dayjs(t.fecha_vencimiento).format("DD/MM")}` : ""}
-                          {checklist.length > 0 ? ` · ☑ ${hechos}/${checklist.length}` : ""}
-                        </p>
-                      </div>
-                      {puedeGestionar ? (
-                        <AutoSubmitSelect
-                          action={cambiarEstadoTareaFormAction}
-                          hiddenFields={{ id: t.id }}
-                          name="estado"
-                          defaultValue={t.estado}
-                          options={Object.entries(ESTADO_TAREA_LABEL).map(([value, label]) => ({ value, label }))}
-                          className="rounded-md border border-ink/10 bg-surface px-1.5 py-1 text-xs whitespace-nowrap"
-                        />
-                      ) : (
-                        <Badge color={ESTADO_TAREA_COLOR[t.estado] ?? "gray"}>{ESTADO_TAREA_LABEL[t.estado] ?? t.estado}</Badge>
-                      )}
-                    </div>
-                    );
-                  })}
-                  {tareasPorComision(c.id).length === 0 && (
-                    <p className="text-xs text-ink/40 italic">Sin tareas cargadas.</p>
-                  )}
-                </div>
-
-                {puedeGestionar && <CrearTareaForm comisionId={c.id} usuarios={usuarios} />}
-              </div>
-            </Card>
-          );
-        })}
-        {comisiones.length === 0 && <EmptyState>Todavía no hay comisiones creadas.</EmptyState>}
-      </div>
-
-      {/* Archivar nunca borra información (memoria institucional, punto 32
-          del pedido) — esto es lo que faltaba para poder consultarla de
-          nuevo en vez de que quede invisible para siempre. */}
+      {/* Archivar nunca borra información (memoria institucional) — acá se
+          pueden volver a consultar y reactivar. */}
       <div className="mt-6">
         <Link
           href={verArchivadas === "1" ? "/comisiones" : "/comisiones?archivadas=1"}

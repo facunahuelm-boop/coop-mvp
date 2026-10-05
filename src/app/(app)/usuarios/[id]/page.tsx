@@ -95,7 +95,7 @@ export default async function UsuarioDetallePage({ params }: { params: Promise<{
         ) : (
           <div className="flex flex-wrap gap-2">
             {comisiones.map((c) => (
-              <Link key={c.comision_id} href="/comisiones">
+              <Link key={c.comision_id} href={`/comisiones/${c.comision_id}`}>
                 <Badge color={c.rol_en_comision === "coordinador" ? "brand" : "gray"}>
                   {c.comision_nombre}
                   {c.rol_en_comision === "coordinador" ? " · Coordinador/a" : ""}

@@ -9,7 +9,16 @@
 // integrantes), así que ese formulario solo se resetea al guardar con éxito,
 // sin colapsar nada.
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  FUNCIONES_COMISION,
+  FUNCION_COMISION,
+  ETAPAS_COOPERATIVA,
+  ETAPA_LABEL,
+  etapasPropias,
+  funcionDe,
+  type FuncionComision,
+} from "@/lib/comisionesFunciones";
 import {
   agregarMiembroFormAction,
   crearComisionFormAction,
@@ -139,6 +148,8 @@ function CamposComision({
   fechaInicioInicial,
   fechaFinInicial,
   padreInicial,
+  funcionInicial,
+  etapasInicial,
 }: {
   estado: { fieldErrors?: Record<string, string> };
   comisiones?: Comision[];
@@ -148,9 +159,50 @@ function CamposComision({
   fechaInicioInicial?: string;
   fechaFinInicial?: string;
   padreInicial?: number | null;
+  funcionInicial?: string | null;
+  etapasInicial?: string | null;
 }) {
+  const [funcion, setFuncion] = useState<FuncionComision>(funcionDe(funcionInicial));
+  const propiasIniciales = etapasPropias(etapasInicial);
+  const [modoEtapas, setModoEtapas] = useState<"funcion" | "propias">(propiasIniciales ? "propias" : "funcion");
+  const etapasFuncion = FUNCION_COMISION[funcion].etapasDefault;
   return (
     <>
+      {/* Comisiones como áreas de trabajo (05/10): la función define las
+          herramientas propias de la comisión y en qué etapas aparece. */}
+      <div>
+        <Label>Función</Label>
+        <select name="funcion" className={inputClass} value={funcion} onChange={(e) => setFuncion(e.target.value as FuncionComision)}>
+          {FUNCIONES_COMISION.map((f) => (
+            <option key={f} value={f}>{FUNCION_COMISION[f].label}</option>
+          ))}
+        </select>
+        <p className="text-[11px] text-ink-faint mt-1">
+          {FUNCION_COMISION[funcion].herramientas.length
+            ? `Suma: ${FUNCION_COMISION[funcion].herramientas.map((h) => h.label).join(", ")}.`
+            : "Comisión de uso general (integrantes, tareas, reuniones y documentos)."}
+        </p>
+      </div>
+      <div>
+        <Label>Disponible en</Label>
+        <select name="etapas_modo" className={inputClass} value={modoEtapas} onChange={(e) => setModoEtapas(e.target.value as "funcion" | "propias")}>
+          <option value="funcion">
+            Según la función ({etapasFuncion ? etapasFuncion.map((e) => ETAPA_LABEL[e]).join(", ") : "todas las etapas"})
+          </option>
+          <option value="propias">Elegir etapas…</option>
+        </select>
+        {modoEtapas === "propias" && (
+          <div className="flex flex-wrap gap-3 mt-2">
+            {ETAPAS_COOPERATIVA.map((e) => (
+              <label key={e} className="inline-flex items-center gap-1.5 text-sm text-ink-muted">
+                <input type="checkbox" name="etapas" value={e} defaultChecked={(propiasIniciales ?? etapasFuncion ?? []).includes(e)} className="h-4 w-4" />
+                {ETAPA_LABEL[e]}
+              </label>
+            ))}
+          </div>
+        )}
+        <p className="text-[11px] text-ink-faint mt-1">Fuera de esas etapas la comisión no se muestra como activa (no se borra nada).</p>
+      </div>
       <div>
         <Label>Tipo</Label>
         <select name="tipo" className={inputClass} defaultValue={tipoInicial ?? "permanente"}>
@@ -241,6 +293,7 @@ export function EditarComisionForm({
     id: number; nombre: string; descripcion?: string | null; tipo?: string | null;
     objetivo?: string | null; fecha_inicio?: string | null; fecha_fin?: string | null;
     comision_padre_id?: number | null; actualizado_en: string;
+    funcion?: string | null; etapas?: string | null;
   };
   comisiones: Comision[];
 }) {
@@ -284,6 +337,8 @@ export function EditarComisionForm({
             fechaInicioInicial={comision.fecha_inicio ?? ""}
             fechaFinInicial={comision.fecha_fin ?? ""}
             padreInicial={comision.comision_padre_id ?? null}
+            funcionInicial={comision.funcion ?? null}
+            etapasInicial={comision.etapas ?? null}
           />
           <div className="sm:col-span-2">
             <FormError message={estado.error} />

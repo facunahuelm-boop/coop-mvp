@@ -141,7 +141,7 @@ export async function crearTareaAction(formData: FormData) {
     });
   }
 
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
   if (reunionDeOrigen) revalidatePath(`/reuniones/${reunionDeOrigen}`);
 }
 
@@ -195,7 +195,7 @@ export async function editarTareaAction(formData: FormData) {
     });
   }
 
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function editarTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -234,7 +234,7 @@ export async function cambiarEstadoTareaAction(formData: FormData) {
   const estadoAnterior = await get<{ estado: string }>(`SELECT estado FROM tareas WHERE id = ?`, [id]);
   await update("tareas", id, { estado });
   await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "tareas", entidad_id: id, valor_anterior: estadoAnterior ? { estado: estadoAnterior.estado } : undefined, valor_nuevo: { estado } });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function cambiarEstadoTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -268,7 +268,7 @@ export async function registrarResultadoTareaAction(formData: FormData) {
     valor_anterior: tarea.resultado ? { resultado: tarea.resultado } : undefined,
     valor_nuevo: { resultado },
   });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
   if (tarea.reunion_id) revalidatePath(`/reuniones/${tarea.reunion_id}`);
 }
 
@@ -297,7 +297,7 @@ export async function agregarItemChecklistAction(formData: FormData) {
   checklist.push({ texto, hecho: false });
   await update("tareas", tarea_id, { checklist });
   await audit({ usuario_id: user.id, accion: "agregar_item_checklist", entidad: "tareas", entidad_id: tarea_id, valor_nuevo: { item: texto } });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function agregarItemChecklistFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -323,7 +323,7 @@ export async function alternarItemChecklistAction(formData: FormData) {
     entidad_id: tarea_id,
     valor_nuevo: { item: checklist[indice].texto, hecho: checklist[indice].hecho },
   });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function alternarItemChecklistFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -341,7 +341,7 @@ export async function eliminarItemChecklistAction(formData: FormData) {
   const [quitado] = checklist.splice(indice, 1);
   await update("tareas", tarea_id, { checklist });
   await audit({ usuario_id: user.id, accion: "quitar_item_checklist", entidad: "tareas", entidad_id: tarea_id, valor_anterior: { item: quitado?.texto } });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function eliminarItemChecklistFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -366,7 +366,7 @@ export async function agregarColaboradorTareaAction(formData: FormData) {
 
   await insert("tarea_colaboradores", { tarea_id, user_id });
   await audit({ usuario_id: user.id, accion: "agregar_colaborador", entidad: "tareas", entidad_id: tarea_id, valor_nuevo: { colaborador_id: user_id } });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function agregarColaboradorTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -386,7 +386,7 @@ export async function quitarColaboradorTareaAction(formData: FormData) {
 
   await run(`DELETE FROM tarea_colaboradores WHERE id = ?`, [id]);
   await audit({ usuario_id: user.id, accion: "quitar_colaborador", entidad: "tareas", entidad_id: colaborador.tarea_id, valor_anterior: { colaborador_id: colaborador.user_id } });
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function quitarColaboradorTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

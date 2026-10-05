@@ -23,6 +23,8 @@ export type ActionState = {
   ok: boolean;
   error?: string;
   fieldErrors?: Record<string, string>;
+  /** Guardado OK pero con una advertencia para mostrar (ej. exceso de horas). */
+  aviso?: string;
 };
 
 export const ESTADO_INICIAL: ActionState = { ok: false };

@@ -46,3 +46,33 @@ export const ERROR_SIN_PERMISO_COMISION =
 export function puedeUsarGastos(rol: Parameters<typeof canEdit>[0]): boolean {
   return canEdit(rol, "compras") || canEdit(rol, "finanzas");
 }
+
+/** Rol de la persona dentro de una comisión puntual (coordinador |
+ * integrante | suplente), o null si no la integra. */
+export async function rolEnComision(user: SessionUser, comisionId: number): Promise<string | null> {
+  const fila = await get<{ rol_en_comision: string }>(
+    `SELECT rol_en_comision FROM comision_miembros WHERE comision_id = ? AND user_id = ? AND activo = 1`,
+    [comisionId, user.id]
+  ).catch(() => undefined);
+  return fila?.rol_en_comision ?? null;
+}
+
+/**
+ * Comisiones como áreas de trabajo (05/10) — quién ORGANIZA las horas de
+ * trabajo (crear, editar, reprogramar, cancelar asignaciones). Decisión del
+ * usuario: el coordinador/a de esa comisión, el rol "Comisión de Trabajo" y
+ * conducción (mismos roles que ya gestionan todas las comisiones). Un
+ * integrante común, y el resto de la cooperativa, sólo consulta.
+ *
+ * Mismo esquema de dos capas que puedeGestionarComision (rol + comisión
+ * puntual), así cada comisión futura puede tener su propia regla de este
+ * tipo sin inventar un sistema de permisos paralelo.
+ */
+export async function puedePlanificarHorasTrabajo(user: SessionUser, comisionId: number): Promise<boolean> {
+  if (canEdit(user.rol, "finanzas")) return true; // conducción
+  if (user.rol === "comision_trabajo") return true;
+  return (await rolEnComision(user, comisionId)) === "coordinador";
+}
+
+export const ERROR_SIN_PERMISO_HORAS =
+  "No tenés permiso para organizar las horas de trabajo — lo hacen el coordinador/a de la Comisión de Trabajo, el rol Comisión de Trabajo y la conducción de la cooperativa.";

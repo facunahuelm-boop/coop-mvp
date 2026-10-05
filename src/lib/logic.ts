@@ -1264,6 +1264,28 @@ export async function historialDecision(decisionId: number) {
   ).catch(() => [] as RegistroAuditoriaJoin[]);
 }
 
+// Comisiones como áreas de trabajo (05/10): todo lo que se le hizo a una
+// comisión — sus datos, integrantes, tareas, decisiones y (Trabajo) las
+// asignaciones de horas.
+export async function historialComision(comisionId: number) {
+  const base = `SELECT a.*, u.nombre as usuario_nombre
+     FROM auditoria a
+     LEFT JOIN users u ON u.id = a.usuario_id
+     WHERE (a.entidad = 'comisiones' AND a.entidad_id = ?)
+        OR (a.entidad = 'comision_miembros' AND a.entidad_id IN (SELECT id FROM comision_miembros WHERE comision_id = ?))
+        OR (a.entidad = 'tareas' AND a.entidad_id IN (SELECT id FROM tareas WHERE comision_id = ?))
+        OR (a.entidad = 'decisiones_comision' AND a.entidad_id IN (SELECT id FROM decisiones_comision WHERE comision_id = ?))`;
+  const orden = ` ORDER BY a.fecha DESC, a.id DESC LIMIT 300`;
+  try {
+    return await all<RegistroAuditoriaJoin>(
+      `${base} OR (a.entidad = 'asignaciones_horas' AND a.entidad_id IN (SELECT id FROM asignaciones_horas WHERE comision_id = ?))${orden}`,
+      [comisionId, comisionId, comisionId, comisionId, comisionId]
+    );
+  } catch {
+    return all<RegistroAuditoriaJoin>(`${base}${orden}`, [comisionId, comisionId, comisionId, comisionId]).catch(() => [] as RegistroAuditoriaJoin[]);
+  }
+}
+
 export async function historialReunion(reunionId: number) {
   return all<RegistroAuditoriaJoin>(
     `SELECT a.*, u.nombre as usuario_nombre

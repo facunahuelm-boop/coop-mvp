@@ -9,8 +9,10 @@ import {
   ConfigEmailForm,
   AlertasEmailForm,
   ReglasCooperativaForm,
+  HorarioObraForm,
 } from "@/components/configuracion/ConfiguracionFormularios";
 import { obtenerReglasCooperativa } from "@/lib/reglas";
+import { obtenerHorarioObra } from "@/lib/horasTrabajo";
 
 export default async function ConfiguracionPage() {
   const user = await getCurrentUser();
@@ -34,6 +36,7 @@ export default async function ConfiguracionPage() {
     // y src/lib/reglas.ts.
     obtenerReglasCooperativa(),
   ]);
+  const horarioObra = await obtenerHorarioObra();
   const configObj = Object.fromEntries(config.map((c: any) => [c.clave, c.valor]));
   const usuariosActivos = usuariosActivosRow[0]?.c ?? 0;
 
@@ -97,6 +100,15 @@ export default async function ConfiguracionPage() {
           diasAlertaVencimiento={reglas.diasAlertaVencimiento}
           porcentajeDesvioPresupuesto={Math.round(reglas.porcentajeDesvioPresupuesto * 100)}
         />
+      </Card>
+
+      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Horario de obra</h3>
+      <Card className="mb-6">
+        <p className="text-xs text-ink/60 mb-4">
+          Lo usa la Comisión de Trabajo para organizar las horas semanales de cada núcleo. El descanso no se cuenta como
+          hora trabajada.
+        </p>
+        <HorarioObraForm horario={horarioObra} />
       </Card>
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Info del sistema</h3>

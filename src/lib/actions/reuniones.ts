@@ -644,7 +644,7 @@ export async function cerrarReunionAction(formData: FormData) {
   revalidatePath("/reuniones");
   revalidatePath(`/reuniones/${reunion_id}`);
   revalidatePath("/documentos");
-  revalidatePath("/comisiones");
+  revalidatePath("/comisiones", "layout");
 }
 
 export async function cerrarReunionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

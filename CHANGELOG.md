@@ -2329,3 +2329,62 @@ El código funciona igual mientras no se apliquen. Se probó con una copia de la
 1. Aplicar las migraciones 0048 y 0049 desde `/plataforma`.
 2. Publicar con `npx vercel --prod --yes`.
 3. Desde ese momento, dejar de cargar a mano en Finanzas los pagos de cuotas.
+
+## Comisiones como áreas de trabajo + Comisión de Trabajo: horas semanales por núcleo (05/10)
+
+**Estructura general de comisiones (reutilizable).**
+- **Función de cada comisión.** Campo nuevo `comisiones.funcion`: Trabajo, Compras, Seguridad, Administrativa o General.
+  - El catálogo está en `src/lib/comisionesFunciones.ts` y es igual para todas las cooperativas.
+  - Define en qué etapas aparece cada comisión y qué herramientas propias suma.
+- **Disponibilidad por etapa.**
+  - Por defecto, Trabajo, Compras y Seguridad solo están disponibles en etapa Obra. Administrativa y General, en todas.
+  - Cada comisión puede elegir sus propias etapas (`comisiones.etapas`), desde "Editar" en su página.
+  - Fuera de su etapa no se muestra como activa y no se borra nada. Aparece sola cuando la cooperativa pasa a la etapa que le corresponde.
+  - Conducción las ve aparte, plegadas, para revisarlas.
+- **Tablero de Comisiones como resumen.**
+  - Cada comisión es una tarjeta: nombre, cantidad de integrantes, una métrica (Trabajo: horas de la semana; el resto: tareas pendientes), próxima actividad y estado.
+  - Al tocar una tarjeta se abre un pop-up con responsable, integrantes con su rol, actividad, la semana y "Ver comisión completa".
+- **Página propia de cada comisión** (`/comisiones/[id]`, no está en el menú lateral).
+  - Pestañas: Resumen · herramientas de su función · Integrantes · Tareas · Actividades · Reuniones · Documentos · Historial.
+  - Integrantes, tareas, edición y archivado se mudaron acá desde el tablero, con los mismos formularios y permisos de siempre.
+  - Las Asambleas y Consejos relacionados también están acá.
+- **Historial:** lo ven quienes ya leen Auditoría y el coordinador/a de esa comisión. Un integrante común no.
+
+**Comisión de Trabajo: calendario de horas.**
+- **Datos:**
+  - Tabla nueva `asignaciones_horas`: núcleo, semana (lunes), fecha, inicio, fin, minutos efectivos, observaciones y estado.
+  - Cancelar una asignación es una baja lógica.
+  - El objetivo semanal de cada núcleo ya existía: `nucleos_familiares.horas_semanales_objetivo`, 21 por defecto.
+- **Horario de obra configurable** en Configuración → Horario de obra. Por defecto es de 07:00 a 17:00 con descanso de 12:00 a 13:00.
+- **Cálculo de horas** (`src/lib/horasObra.ts`, el mismo en el navegador y en el servidor):
+  - El descanso nunca cuenta. Por ejemplo, de 07:00 a 14:00 son 6 h.
+  - No se puede empezar ni terminar dentro del descanso, ni salir del horario de obra.
+  - Se rechazan los horarios superpuestos o duplicados del mismo núcleo.
+  - Pasarse de las 21 h se permite, pero se avisa ("exceso de 3 h").
+- **Vista semanal (lunes a domingo)** con navegación de semanas. Cada asignación queda en su semana; no se mezclan.
+  - Resumen de la semana: núcleos, horas programadas / objetivo, completos, pendientes y con exceso.
+  - Filtros por núcleo, día y estado de horas.
+  - Grilla Mañana / Descanso / Tarde, con el descanso marcado como una banda continua.
+  - Vista "Por núcleo", con el total X / 21 h y el estado de cada núcleo ("Faltan 5 h", "Semana completa", "Exceso de 3 h", "Sin horas asignadas").
+- **Permisos** (decisión del usuario):
+  - Organizan las horas (asignar, editar, reprogramar y cancelar): el coordinador/a de la comisión, el rol Comisión de Trabajo y conducción.
+  - El resto de la cooperativa solo consulta.
+  - Se valida también en el servidor (`puedePlanificarHorasTrabajo`, en `comisionAuth.ts`).
+- **Auditoría legible**, por ejemplo "…reprogramó la jornada del núcleo «Núcleo 8»", con el antes y el después: "Lunes 05/10 07:00–12:00" → "Martes 06/10 07:00–12:00".
+
+**Base de datos:** migración `0050_comisiones_funcion_horas_trabajo.sql`, 100% aditiva.
+- Agrega las columnas `funcion` y `etapas` y la tabla `asignaciones_horas`, con RLS.
+- La app no tiene permiso de borrar en esa tabla.
+- Las comisiones que ya existen se marcan por su nombre (Trabajo, Compras, Seguridad, Administra…); las demás quedan General.
+
+**Verificación (entorno aislado, datos ficticios):**
+- tsc y build limpios. eslint 417 → 408.
+- Pruebas nuevas de comisiones y horas: 43 de 43. Cubren tablero, pop-up, página, etapa pre-obra/obra, etapas configurables, cálculo de horas, descanso, 21 h, exceso, superposición, duplicado, reprogramar, cancelar, semanas, filtros, permisos de 5 roles, historial, responsive y que nada quede fijo en el menú.
+- Regresión de las suites anteriores, todas bien:
+  - Recorrido de decisiones: 39 de 39.
+  - Cuotas y Finanzas: 43 de 43.
+  - Validaciones: 17 de 17.
+  - Flujos: 8 de 8.
+  - Interfaz: 25 de 25.
+  - Cliente: 24 de 24.
+  - Rutas: 165 de 165.

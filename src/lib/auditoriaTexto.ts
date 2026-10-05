@@ -51,6 +51,7 @@ const ENTIDADES: Record<string, DefEntidad> = {
   votaciones: { nombre: "votación", femenino: true, modulo: "Comisiones y tareas" },
   solicitudes_comision: { nombre: "solicitud entre comisiones", femenino: true, modulo: "Comisiones y tareas", href: (id) => `/solicitudes/${id}` },
   comunicaciones: { nombre: "comunicación", femenino: true, modulo: "Comisiones y tareas" },
+  asignaciones_horas: { nombre: "jornada de trabajo", femenino: true, modulo: "Comisiones y tareas" },
   documentos: { nombre: "documento", modulo: "Documentos" },
   documento_categorias: { nombre: "categoría de documentos", femenino: true, modulo: "Documentos" },
   documentos_seguridad: { nombre: "documento de seguridad", modulo: "Obra y trabajo" },
@@ -201,6 +202,10 @@ const ACCIONES: Record<string, string> = {
   desactivar_regla_automatica: "desactivó {obj}",
   error_crear: "tuvo un error al crear {obj}",
   error_eliminar: "tuvo un error al eliminar {obj}",
+  asignar_horas: "asignó horas de trabajo a {obj}",
+  editar_asignacion_horas: "modificó la jornada de {obj}",
+  reprogramar_asignacion_horas: "reprogramó la jornada de {obj}",
+  cancelar_asignacion_horas: "canceló una jornada de {obj}",
   enviar: "envió {obj}",
   enviar_fallido: "intentó enviar {obj} (falló)",
 };
@@ -247,6 +252,13 @@ export function objetoDelRegistro(r: RegistroAuditoriaCrudo): string {
   // Cuenta del núcleo: el registro relevante para leer es el NÚCLEO, no el
   // número interno del movimiento ("…registró un pago de cuota en la cuenta
   // del núcleo «Pérez»").
+  // Horas de trabajo: "…modificó la jornada del núcleo «Núcleo 8»".
+  if (entidad === "asignaciones_horas") {
+    const a = parsearValor(r.valor_anterior);
+    const n = parsearValor(r.valor_nuevo);
+    const nucleo = [n, a].map((v) => (v && typeof v === "object" ? v.nucleo : null)).find((v) => typeof v === "string" && v);
+    if (nucleo) return `el núcleo «${nucleo}»`;
+  }
   if (entidad === "movimientos_cuenta_socio" || entidad === "convenios_pago") {
     const a = parsearValor(r.valor_anterior);
     const n = parsearValor(r.valor_nuevo);

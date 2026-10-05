@@ -14,6 +14,7 @@ import {
   guardarConfigEmailFormAction,
   actualizarAlertasEmailFormAction,
   guardarReglasCooperativaFormAction,
+  guardarHorarioObraFormAction,
 } from "@/lib/actions/configuracion";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
@@ -326,6 +327,37 @@ export function ReglasCooperativaForm({
       </div>
       <FormError message={estado.error} />
       <SubmitButton pendingLabel="Guardando…">Guardar reglas</SubmitButton>
+    </form>
+  );
+}
+
+// Comisión de Trabajo (05/10): horario de obra — ver guardarHorarioObraAction.
+export function HorarioObraForm({ horario }: { horario: { inicio: string; fin: string; descansoInicio: string; descansoFin: string } }) {
+  const [estado, formAction] = useActionState(guardarHorarioObraFormAction, ESTADO_INICIAL);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) show("Horario de obra actualizado.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  const campo = (name: string, label: string, valor: string) => (
+    <div>
+      <Label>{label}</Label>
+      <input name={name} type="time" step={1800} required defaultValue={valor} className={inputClass} />
+      <FieldError message={estado.fieldErrors?.[name]} />
+    </div>
+  );
+  return (
+    <form action={formAction} className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {campo("obra_hora_inicio", "Inicio de la jornada", horario.inicio)}
+        {campo("obra_hora_fin", "Fin de la jornada", horario.fin)}
+        {campo("obra_descanso_inicio", "Inicio del descanso", horario.descansoInicio)}
+        {campo("obra_descanso_fin", "Fin del descanso", horario.descansoFin)}
+      </div>
+      <FormError message={estado.error} />
+      <SubmitButton pendingLabel="Guardando…">Guardar horario</SubmitButton>
     </form>
   );
 }

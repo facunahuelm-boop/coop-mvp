@@ -73,7 +73,7 @@ type DocumentoRow = {
  * todavía (mismo criterio ya usado en notificaciones/page.tsx: llevan a la
  * lista general, no a un ancla puntual). */
 function contextoDe(d: DocumentoRow): { texto: string; href: string } | null {
-  if (d.comision_id) return { texto: `Comisión: ${d.comision_nombre || "—"}`, href: "/comisiones" };
+  if (d.comision_id) return { texto: `Comisión: ${d.comision_nombre || "—"}`, href: `/comisiones/${d.comision_id}` };
   if (d.solicitud_comision_id) return { texto: `Solicitud: ${d.solicitud_titulo || "—"}`, href: `/solicitudes/${d.solicitud_comision_id}` };
   if (d.tarea_id) return { texto: `Tarea: ${d.tarea_titulo || "—"}`, href: `/trabajo/${d.tarea_id}` };
   if (d.reunion_id) return { texto: `Reunión: ${d.reunion_titulo || "—"}`, href: `/reuniones/${d.reunion_id}` };
