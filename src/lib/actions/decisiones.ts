@@ -6,7 +6,7 @@ import { insert, update, get, all, run, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
-import { parseForm, zId, zTexto, zTextoOpcional, zFecha, zEnumSeguro } from "@/lib/validation";
+import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFecha, zEnumSeguro } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { crearNotificacionesParaUsuarios } from "@/lib/notificaciones";
 
@@ -87,13 +87,63 @@ export async function editarDecisionAction(formData: FormData) {
   if (decision.resultado !== "pendiente") throw new Error("Esta decisión ya fue resuelta — no admite más cambios (podés reabrirla si hace falta corregirla).");
   if (!(await puedeGestionarComision(user, decision.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
 
+  const anterior = await get<{ tema: string; propuesta: string | null; fecha: string }>(
+    `SELECT tema, propuesta, fecha FROM decisiones_comision WHERE id = ?`,
+    [datos.id]
+  );
   await update("decisiones_comision", datos.id, { tema: datos.tema, propuesta: datos.propuesta, fecha: datos.fecha });
+  await audit({
+    usuario_id: user.id,
+    accion: "editar",
+    entidad: "decisiones_comision",
+    entidad_id: datos.id,
+    valor_anterior: anterior,
+    valor_nuevo: { tema: datos.tema, propuesta: datos.propuesta, fecha: datos.fecha },
+  });
   revalidatePath("/decisiones");
   revalidatePath(`/decisiones/${datos.id}`);
 }
 
 export async function editarDecisionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => editarDecisionAction(formData));
+}
+
+// Recorrido de decisiones (04/10): vincular una decisión de comisión con la
+// resolución (punto de asamblea / consejo / comisión) de la que sale. No se
+// copia nada: la decisión sólo guarda `agenda_item_id`. Vacío = desvincular.
+const vincularDecisionSchema = z.object({ decision_id: zId, agenda_item_id: zIdOpcional });
+
+export async function vincularDecisionAResolucionAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const { decision_id, agenda_item_id } = parseForm(vincularDecisionSchema, formData);
+  const decision = await decisionParaPermiso(decision_id);
+  if (!(await puedeGestionarComision(user, decision.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
+  const actual = await get<{ agenda_item_id: number | null }>(`SELECT agenda_item_id FROM decisiones_comision WHERE id = ?`, [decision_id]).catch(() => {
+    throw new Error("Falta aplicar la actualización de la base (migración 0049) para usar esta función.");
+  });
+  let reunionId: number | null = null;
+  if (agenda_item_id) {
+    const item = await get<{ reunion_id: number }>(`SELECT reunion_id FROM reunion_agenda_items WHERE id = ?`, [agenda_item_id]);
+    if (!item) throw new Error("Esa resolución ya no existe.");
+    reunionId = item.reunion_id;
+  }
+  await update("decisiones_comision", decision_id, { agenda_item_id });
+  await audit({
+    usuario_id: user.id,
+    accion: agenda_item_id ? "vincular_resolucion" : "desvincular_resolucion",
+    entidad: "decisiones_comision",
+    entidad_id: decision_id,
+    valor_anterior: actual?.agenda_item_id ? { resolucion_id: actual.agenda_item_id } : undefined,
+    valor_nuevo: agenda_item_id ? { resolucion_id: agenda_item_id, reunion_id: reunionId } : undefined,
+  });
+  revalidatePath("/decisiones");
+  revalidatePath(`/decisiones/${decision_id}`);
+  if (reunionId) revalidatePath(`/reuniones/${reunionId}`);
+}
+
+export async function vincularDecisionAResolucionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => vincularDecisionAResolucionAction(formData));
 }
 
 const decidirDecisionSchema = z.object({ id: zId, resultado: zEnumSeguro(["aprobada", "rechazada"] as const, "aprobada") });
@@ -248,6 +298,10 @@ export async function votarAction(formData: FormData) {
   } else {
     await insert("voto_respuestas", { votacion_id, user_id: user.id, opcion });
   }
+  // Auditoría (04/10): queda registrado QUE la persona votó (o cambió su
+  // voto), nunca QUÉ votó — el historial lo ven roles que no deberían
+  // conocer votos individuales.
+  await audit({ usuario_id: user.id, accion: existente ? "cambiar_voto" : "votar", entidad: "votaciones", entidad_id: votacion_id });
   if (votacion.decision_id) revalidatePath(`/decisiones/${votacion.decision_id}`);
 }
 

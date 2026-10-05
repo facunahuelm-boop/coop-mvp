@@ -55,10 +55,32 @@ const editarMovimientoSchema = z.object({
 // tengan pop-ups, que se puedan editar y eliminar". registrarMovimientoAction
 // (arriba) sólo daba de alta — no había forma de corregir un monto o una
 // categoría mal tipeados sin anular y volver a cargar todo de nuevo.
+/** Gestión cooperativa integrada (04/10): un ingreso que se generó solo a
+ * partir de un pago de cuota (migración 0048) se corrige o anula desde la
+ * cuenta del socio — es el mismo dato, y si se tocara desde acá quedarían
+ * dos versiones distintas del mismo pago. Mismo criterio que ya usan los
+ * egresos generados por un gasto de comisión. */
+async function verificarNoEsPagoDeCuota(id: number) {
+  const fila = await get<{ movimiento_cuenta_socio_id: number | null; socio_id: number | null; socio_nombre: string | null }>(
+    `SELECT mf.movimiento_cuenta_socio_id, m.socio_id, s.nombre AS socio_nombre
+     FROM movimientos_financieros mf
+     LEFT JOIN movimientos_cuenta_socio m ON m.id = mf.movimiento_cuenta_socio_id
+     LEFT JOIN socios s ON s.id = m.socio_id
+     WHERE mf.id = ?`,
+    [id]
+  ).catch(() => null);
+  if (fila?.movimiento_cuenta_socio_id) {
+    throw new Error(
+      `Este ingreso se generó solo, a partir de un pago de cuota${fila.socio_nombre ? ` de ${fila.socio_nombre}` : ""}. Corregilo o anulalo desde la cuenta de ese socio (Socios → su ficha → Finanzas) para que no queden dos versiones del mismo pago.`
+    );
+  }
+}
+
 export async function editarMovimientoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
   const { id, tipo, monto, categoria, descripcion, version_esperada } = parseForm(editarMovimientoSchema, formData);
+  await verificarNoEsPagoDeCuota(id);
 
   const existente = await get<{ id: number; estado?: string }>(
     `SELECT id, estado FROM movimientos_financieros WHERE id = ?`,
@@ -121,6 +143,7 @@ export async function anularMovimientoAction(formData: FormData) {
   const user = await requireUser();
   if (user.rol !== "admin") throw new Error("Solo un administrador del sistema puede anular un movimiento financiero.");
   const { id, motivo } = parseForm(anularMovimientoSchema, formData);
+  await verificarNoEsPagoDeCuota(id);
 
   // A diferencia de editarMovimientoAction (donde `estado` es un chequeo
   // extra sobre una operación que igual tiene sentido sin él), acá TODA la
@@ -183,7 +206,8 @@ export async function agregarCompromisoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
   const datos = parseForm(agregarCompromisoSchema, formData);
-  await insert("compromisos_futuros", datos);
+  const id = await insert("compromisos_futuros", datos);
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "compromisos_futuros", entidad_id: id, valor_nuevo: datos });
   revalidatePath("/finanzas");
   revalidatePath("/dashboard");
 }

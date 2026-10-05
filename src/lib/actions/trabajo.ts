@@ -34,6 +34,7 @@ export async function crearJornadaAction(formData: FormData) {
   await Promise.all(
     nombres.map((nombre) => insert("tareas_jornada", { jornada_id: id, nombre, prioridad: "media", personas_necesarias: 3 }))
   );
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "jornadas_trabajo", entidad_id: id, valor_nuevo: { fecha: datos.fecha, descripcion: datos.descripcion, tareas: nombres.length } });
   revalidatePath("/trabajo");
 }
 
@@ -58,6 +59,8 @@ export async function confirmarAsignacionAction(formData: FormData) {
   if (!canEdit(user.rol, "trabajo")) throw new Error("No autorizado");
   const { id } = parseForm(z.object({ id: zId }), formData);
   await update("asignaciones_jornada", id, { confirmado: 1 });
+  const asignacion = await get<{ jornada_id: number; nucleo_id: number }>(`SELECT jornada_id, nucleo_id FROM asignaciones_jornada WHERE id = ?`, [id]);
+  await audit({ usuario_id: user.id, accion: "confirmar_asignacion", entidad: "jornadas_trabajo", entidad_id: asignacion?.jornada_id ?? null, valor_nuevo: { asignacion_id: id, nucleo_id: asignacion?.nucleo_id } });
   revalidatePath("/trabajo");
 }
 
@@ -73,6 +76,7 @@ export async function anotarmeAction(formData: FormData) {
     formData
   );
   await insert("asignaciones_jornada", { jornada_id: jornadaId, tarea_jornada_id: tareaJornadaId, nucleo_id: user.nucleo_id, propuesta_por_ia: 0, confirmado: 1 });
+  await audit({ usuario_id: user.id, accion: "anotarse", entidad: "jornadas_trabajo", entidad_id: jornadaId, valor_nuevo: { tarea_jornada_id: tareaJornadaId, nucleo_id: user.nucleo_id } });
   revalidatePath("/trabajo");
 }
 
@@ -120,6 +124,7 @@ export async function marcarJornadaRealizadaAction(formData: FormData) {
   if (!canEdit(user.rol, "trabajo")) throw new Error("No autorizado");
   const { id } = parseForm(z.object({ id: zId }), formData);
   await update("jornadas_trabajo", id, { estado: "realizada" });
+  await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "jornadas_trabajo", entidad_id: id, valor_anterior: { estado: "planificada" }, valor_nuevo: { estado: "realizada" } });
   revalidatePath("/trabajo");
   revalidatePath(`/trabajo/${id}`);
 }

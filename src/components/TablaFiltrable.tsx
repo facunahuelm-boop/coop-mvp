@@ -26,8 +26,11 @@ export type FiltroDef = {
   id: string;
   label: string;
   opciones: { value: string; label: string }[];
-  /** Valor de este filtro para cada fila, mismo orden/largo que `children`. */
-  valores: (string | null | undefined)[];
+  /** Valor de este filtro para cada fila, mismo orden/largo que `children`.
+   * Una fila puede tener VARIOS valores (array): coincide si alguno es el
+   * elegido — ej. los períodos con deuda de un socio en el panel de
+   * morosidad (04/10). */
+  valores: (string | string[] | null | undefined)[];
   /** true = va plegado dentro de "Más filtros" en vez de la barra principal. */
   secundario?: boolean;
 };
@@ -81,7 +84,9 @@ export function TablaFiltrable({
       let coincide = true;
       for (const f of filtros) {
         const v = valoresFiltro[f.id];
-        if (v && (f.valores[i] || "") !== v) {
+        const valorFila = f.valores[i];
+        const coincideFiltro = Array.isArray(valorFila) ? valorFila.includes(v) : (valorFila || "") === v;
+        if (v && !coincideFiltro) {
           coincide = false;
           break;
         }

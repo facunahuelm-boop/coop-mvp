@@ -26,7 +26,7 @@ import { ESTADO_INICIAL } from "@/lib/actionState";
 import { ActionForm, FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { AddButton, AddButtonSummary, Button, Label, inputClass } from "@/components/ui";
-import { RELACION_INTEGRANTE, RELACION_INTEGRANTE_LABEL, TIPO_INTEGRANTE } from "@/lib/constants";
+import { RELACION_INTEGRANTE, RELACION_INTEGRANTE_LABEL, TIPO_INTEGRANTE, METODOS_PAGO, METODO_PAGO_LABEL } from "@/lib/constants";
 
 const TIPO_INTEGRANTE_LABEL: Record<(typeof TIPO_INTEGRANTE)[number], string> = { adulto: "Adulto", menor: "Menor de edad" };
 
@@ -256,20 +256,40 @@ export function EditarIntegranteForm({ integrante: i }: { integrante: Integrante
   );
 }
 
-export function RegistrarMovimientoCuentaForm({ socioId }: { socioId: number }) {
+/** Cuota con saldo que se puede elegir al registrar un pago. */
+export type CuotaAbierta = { id: number; label: string; pendiente: number };
+
+/**
+ * Gestión cooperativa integrada (04/10): registrar un PAGO o un CARGO en la
+ * cuenta del socio. Antes era un único desplegable al pie de la tabla con un
+ * selector de tipo; ahora son dos botones arriba a la derecha de la sección
+ * (criterio del sistema: el botón de crear, arriba a la derecha) que abren
+ * una ventana. El pago pide el medio de pago y, opcionalmente, a qué cuota
+ * va — al elegirla se precarga lo que esa cuota debe. Al guardarlo, el
+ * ingreso aparece solo en Finanzas (ver registrarMovimientoCuentaSocioAction).
+ */
+export function RegistrarMovimientoCuentaForm({
+  socioId,
+  tipo,
+  cuotasAbiertas = [],
+}: {
+  socioId: number;
+  tipo: "cargo" | "pago";
+  cuotasAbiertas?: CuotaAbierta[];
+}) {
+  const [open, setOpen] = useState(false);
   const [estado, formAction] = useActionState(registrarMovimientoCuentaSocioFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  const [tipo, setTipo] = useState<"cargo" | "pago">("cargo");
+  const montoRef = useRef<HTMLInputElement>(null);
   const { show } = useToast();
+  const esPago = tipo === "pago";
 
   useEffect(() => {
     if (estado.ok) {
       formRef.current?.reset();
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTipo("cargo");
-      if (detailsRef.current) detailsRef.current.open = false;
-      show("Movimiento registrado.");
+      setOpen(false);
+      show(esPago ? "Pago registrado. Ya figura como ingreso en Finanzas." : "Cargo registrado.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
@@ -277,56 +297,92 @@ export function RegistrarMovimientoCuentaForm({ socioId }: { socioId: number }) 
   const hoy = new Date().toISOString().slice(0, 10);
 
   return (
-    <details ref={detailsRef} className="mt-4">
-      <AddButtonSummary>Registrar cargo o pago</AddButtonSummary>
-      <form ref={formRef} action={formAction} className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3" encType="multipart/form-data">
-        <input type="hidden" name="socio_id" value={socioId} />
-        <div>
-          <Label>Tipo</Label>
-          <select name="tipo" className={inputClass} value={tipo} onChange={(e) => setTipo(e.target.value as "cargo" | "pago")}>
-            <option value="cargo">Cargo (aumenta la deuda, ej: cuota)</option>
-            <option value="pago">Pago (la reduce)</option>
-          </select>
-        </div>
-        <div>
-          <Label>Monto</Label>
-          <input name="monto" type="number" step="0.01" required className={inputClass} />
-          <FieldError message={estado.fieldErrors?.monto} />
-        </div>
-        <div>
-          <Label>Concepto</Label>
-          <input name="concepto" required placeholder="Cuota setiembre, pago parcial…" className={inputClass} />
-          <FieldError message={estado.fieldErrors?.concepto} />
-        </div>
-        <div>
-          <Label>Fecha</Label>
-          <input name="fecha" type="date" required className={inputClass} defaultValue={hoy} />
-          <FieldError message={estado.fieldErrors?.fecha} />
-        </div>
-        {tipo === "cargo" && (
+    <>
+      <AddButton onClick={() => setOpen(true)}>{esPago ? "Registrar pago" : "Registrar cargo"}</AddButton>
+      <Modal open={open} onClose={() => setOpen(false)} title={esPago ? "Registrar pago" : "Registrar cargo (cuota u otro)"} size="lg">
+        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink" encType="multipart/form-data">
+          <input type="hidden" name="socio_id" value={socioId} />
+          <input type="hidden" name="tipo" value={tipo} />
+          {esPago && (
+            <div className="sm:col-span-2">
+              <Label>¿Qué cuota paga?</Label>
+              <select
+                name="cuota_id"
+                className={inputClass}
+                defaultValue=""
+                onChange={(e) => {
+                  const c = cuotasAbiertas.find((x) => String(x.id) === e.target.value);
+                  if (c && montoRef.current) montoRef.current.value = String(c.pendiente);
+                }}
+              >
+                <option value="">La más antigua primero (automático)</option>
+                {cuotasAbiertas.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-ink-faint mt-1">
+                Si no elegís una, el pago cubre las cuotas más antiguas primero, como siempre.
+              </p>
+              <FieldError message={estado.fieldErrors?.cuota_id} />
+            </div>
+          )}
           <div>
-            <Label>Vencimiento (opcional)</Label>
-            <input name="fecha_vencimiento" type="date" className={inputClass} />
-            <FieldError message={estado.fieldErrors?.fecha_vencimiento} />
+            <Label required>Monto</Label>
+            <input ref={montoRef} name="monto" type="number" step="0.01" min="0.01" required className={inputClass} />
+            <FieldError message={estado.fieldErrors?.monto} />
           </div>
-        )}
-        <div>
-          <Label>Comprobante (opcional)</Label>
-          <input type="file" name="comprobante" className="text-xs" />
-        </div>
-        <div className="sm:col-span-2">
-          <Label>Notas</Label>
-          <input name="notas" className={inputClass} />
-          <FieldError message={estado.fieldErrors?.notas} />
-        </div>
-        <div className="sm:col-span-2">
-          <FormError message={estado.error} />
-        </div>
-        <div className="sm:col-span-2">
-          <SubmitButton variant="add" pendingLabel="Registrando…">Registrar</SubmitButton>
-        </div>
-      </form>
-    </details>
+          <div>
+            <Label required>{esPago ? "Fecha de pago" : "Fecha de emisión"}</Label>
+            <input name="fecha" type="date" required className={inputClass} defaultValue={hoy} />
+            <FieldError message={estado.fieldErrors?.fecha} />
+          </div>
+          {esPago ? (
+            <div>
+              <Label required>Medio de pago</Label>
+              <select name="metodo_pago" required className={inputClass} defaultValue="efectivo">
+                {METODOS_PAGO.map((m) => (
+                  <option key={m} value={m}>{METODO_PAGO_LABEL[m]}</option>
+                ))}
+              </select>
+              <FieldError message={estado.fieldErrors?.metodo_pago} />
+            </div>
+          ) : (
+            <div>
+              <Label>Vencimiento</Label>
+              <input name="fecha_vencimiento" type="date" className={inputClass} />
+              <FieldError message={estado.fieldErrors?.fecha_vencimiento} />
+            </div>
+          )}
+          <div>
+            <Label required>Concepto</Label>
+            <input
+              name="concepto"
+              required
+              defaultValue={esPago ? "Pago de cuota" : ""}
+              placeholder={esPago ? "Pago de cuota" : "Cuota octubre, aporte extraordinario…"}
+              className={inputClass}
+            />
+            <FieldError message={estado.fieldErrors?.concepto} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Comprobante</Label>
+            <input type="file" name="comprobante" className="text-xs" />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Observaciones</Label>
+            <input name="notas" className={inputClass} />
+            <FieldError message={estado.fieldErrors?.notas} />
+          </div>
+          <div className="sm:col-span-2">
+            <FormError message={estado.error} />
+          </div>
+          <div className="sm:col-span-2 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <SubmitButton variant="add" pendingLabel="Registrando…">{esPago ? "Registrar pago" : "Registrar cargo"}</SubmitButton>
+          </div>
+        </form>
+      </Modal>
+    </>
   );
 }
 
@@ -338,6 +394,7 @@ type MovimientoCuenta = {
   fecha: string;
   fecha_vencimiento?: string | null;
   notas?: string | null;
+  metodo_pago?: string | null;
 };
 
 /**
@@ -397,6 +454,16 @@ export function EditarMovimientoCuentaForm({ movimiento: m }: { movimiento: Movi
               <FieldError message={estado.fieldErrors?.fecha_vencimiento} />
             </div>
           )}
+          {tipo === "pago" && (
+            <div>
+              <Label>Medio de pago</Label>
+              <select name="metodo_pago" className={inputClass} defaultValue={m.metodo_pago || "efectivo"}>
+                {METODOS_PAGO.map((x) => (
+                  <option key={x} value={x}>{METODO_PAGO_LABEL[x]}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <Label>Reemplazar comprobante (opcional)</Label>
             <input type="file" name="comprobante" className="text-xs" />
@@ -444,7 +511,7 @@ export function AnularMovimientoCuentaBoton({ id, concepto }: { id: number; conc
  * cuota"). Al crearlo se generan automáticamente todas sus cuotas — ver
  * crearConvenioAction en lib/actions/convenios.ts.
  */
-export function NuevoConvenioForm({ socioId }: { socioId: number }) {
+export function NuevoConvenioForm({ socioId, deudaVencida }: { socioId: number; deudaVencida?: { monto: number; cuotas: number } }) {
   const [open, setOpen] = useState(false);
   const [estado, formAction] = useActionState(crearConvenioFormAction, ESTADO_INICIAL);
   const { show } = useToast();
@@ -496,6 +563,7 @@ export function NuevoConvenioForm({ socioId }: { socioId: number }) {
             <input name="notas" className={inputClass} />
             <FieldError message={estado.fieldErrors?.notas} />
           </div>
+          <RefinanciaCheckbox deudaVencida={deudaVencida} />
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
           </div>
@@ -509,7 +577,28 @@ export function NuevoConvenioForm({ socioId }: { socioId: number }) {
   );
 }
 
-export function GestionConvenioAcciones({ convenioId }: { convenioId: number }) {
+/** Gestión cooperativa integrada (04/10): el convenio refinancia la deuda
+ * vencida actual. Sin tildar, el convenio se comporta como siempre (una
+ * deuda nueva aparte). Tildado, las cuotas vencidas pasan a "En convenio" y
+ * dejan de sumarse a la deuda (ya están representadas por el convenio). */
+export function RefinanciaCheckbox({ deudaVencida }: { deudaVencida?: { monto: number; cuotas: number } }) {
+  return (
+    <label className="sm:col-span-2 flex items-start gap-2 rounded-lg bg-surface-sunken px-3 py-2 text-sm text-ink cursor-pointer">
+      <input type="checkbox" name="refinancia" defaultChecked={!!deudaVencida && deudaVencida.cuotas > 0} className="mt-1 h-4 w-4" />
+      <span>
+        <span className="font-medium">Refinancia la deuda vencida actual</span>
+        <span className="block text-xs text-ink-muted">
+          {deudaVencida && deudaVencida.cuotas > 0
+            ? `Hoy debe $${Math.round(deudaVencida.monto).toLocaleString("es-UY")} en ${deudaVencida.cuotas} cuota(s) vencida(s). `
+            : ""}
+          Esas cuotas pasan a &quot;En convenio&quot; y dejan de sumarse a la deuda: la deuda pasa a ser la del convenio. Si el convenio se cancela, vuelven a contar.
+        </span>
+      </span>
+    </label>
+  );
+}
+
+export function GestionConvenioAcciones({ convenioId, refinancia = false }: { convenioId: number; refinancia?: boolean }) {
   const [estadoAccion, formAction] = useActionState(cambiarEstadoConvenioFormAction, ESTADO_INICIAL);
   const { show } = useToast();
 
@@ -535,7 +624,11 @@ export function GestionConvenioAcciones({ convenioId }: { convenioId: number }) 
         action={cambiarEstadoConvenioFormAction}
         hiddenFields={{ id: convenioId, estado: "cancelado" }}
         titulo="¿Cancelar este convenio?"
-        descripcion="Las cuotas del convenio que todavía no vencieron se van a borrar. Las que ya vencieron quedan como están."
+        descripcion={
+          refinancia
+            ? "Las cuotas originales que este convenio refinanciaba vuelven a contar como deuda, y las cuotas del convenio quedan anuladas (los pagos hechos se mantienen y cubren esa deuda)."
+            : "Las cuotas del convenio que todavía no vencieron se van a borrar. Las que ya vencieron quedan como están."
+        }
         textoBoton="Cancelar convenio"
         confirmarLabel="Sí, cancelar convenio"
         className="text-xs text-ink-faint underline underline-offset-2"

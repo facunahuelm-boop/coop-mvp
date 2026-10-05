@@ -85,6 +85,10 @@ const subirDocumentoSchema = z.object({
   fecha_vencimiento: zFechaOpcional,
   contexto_tipo: zEnumSeguro(CONTEXTO_DOCUMENTO_TIPOS, "ninguno"),
   contexto_id: zIdOpcional,
+  // Ficha 360° del núcleo (04/10): núcleo relacionado (opcional), aparte del
+  // vínculo con Comisiones — un comprobante puede ser de un núcleo Y de una
+  // comisión a la vez.
+  socio_id: zIdOpcional,
 });
 
 export async function subirDocumentoAction(formData: FormData) {
@@ -108,9 +112,17 @@ export async function subirDocumentoAction(formData: FormData) {
     archivo_url: archivoUrl,
     subido_por_id: user.id,
     ...columnasDeContexto(datos.contexto_tipo, datos.contexto_id),
+    socio_id: datos.socio_id,
   });
-  await audit({ usuario_id: user.id, accion: "subir", entidad: "documentos", entidad_id: id });
+  await audit({
+    usuario_id: user.id,
+    accion: "subir",
+    entidad: "documentos",
+    entidad_id: id,
+    valor_nuevo: { nombre: datos.nombre, categoria: datos.categoria, socio_id: datos.socio_id ?? undefined },
+  });
   revalidatePath("/documentos");
+  if (datos.socio_id) revalidatePath(`/socios/${datos.socio_id}`);
 }
 
 export async function subirDocumentoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

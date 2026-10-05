@@ -3,9 +3,10 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead } from "@/lib/roles";
 import { all, get } from "@/lib/db";
-import { Card, PageHeader, EmptyState, Label, inputClass } from "@/components/ui";
+import { Card, PageHeader, Label, inputClass } from "@/components/ui";
 import { Pagination, paginaDe } from "@/components/Pagination";
-import dayjs from "dayjs";
+import { AuditoriaLista } from "@/components/AuditoriaLista";
+import { MODULOS_AUDITORIA, entidadesDeModulo, etiquetaDeAccion, nombreDeEntidad, moduloDeEntidad, registroLegible } from "@/lib/auditoriaTexto";
 
 const POR_PAGINA = 30;
 
@@ -14,7 +15,7 @@ export default async function AuditoriaPage({
 }: {
   // Next.js 16: searchParams llega como Promise — ver la nota en
   // documentos/page.tsx sobre el bug que esto causa si no se hace await.
-  searchParams: Promise<{ page?: string; usuario_id?: string; entidad?: string; accion?: string; desde?: string; hasta?: string }>;
+  searchParams: Promise<{ page?: string; usuario_id?: string; entidad?: string; accion?: string; desde?: string; hasta?: string; modulo?: string; q?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -32,7 +33,11 @@ export default async function AuditoriaPage({
   const accionFiltro = sp.accion?.trim() || "";
   const desdeFiltro = sp.desde?.trim() || "";
   const hastaFiltro = sp.hasta?.trim() || "";
-  const hayFiltros = !!(usuarioIdFiltro || entidadFiltro || accionFiltro || desdeFiltro || hastaFiltro);
+  // Auditoría legible (04/10): filtro por MÓDULO (grupo de tablas, ej.
+  // "Cuotas y pagos") y búsqueda libre por nombre de usuario o contenido.
+  const moduloFiltro = sp.modulo?.trim() || "";
+  const qFiltro = sp.q?.trim() || "";
+  const hayFiltros = !!(usuarioIdFiltro || entidadFiltro || accionFiltro || desdeFiltro || hastaFiltro || moduloFiltro || qFiltro);
 
   // Fase 8 del Prompt Maestro ("paginación/búsqueda/filtros"), hallazgo H-10:
   // esta pantalla tenía un LIMIT 200 fijo — con más de 200 movimientos en el
@@ -50,6 +55,23 @@ export default async function AuditoriaPage({
     condiciones.push("a.entidad = ?");
     valores.push(entidadFiltro);
   }
+  if (moduloFiltro) {
+    const entidades = entidadesDeModulo(moduloFiltro);
+    if (moduloFiltro === "Otros") {
+      // "Otros" = todo lo que no pertenece a ningún módulo conocido.
+      const conocidas = MODULOS_AUDITORIA.filter((m) => m !== "Otros").flatMap((m) => entidadesDeModulo(m));
+      condiciones.push(`a.entidad NOT IN (${conocidas.map(() => "?").join(",")})`);
+      valores.push(...conocidas);
+    } else if (entidades.length) {
+      condiciones.push(`a.entidad IN (${entidades.map(() => "?").join(",")})`);
+      valores.push(...entidades);
+    }
+  }
+  if (qFiltro) {
+    condiciones.push("(u.nombre ILIKE ? OR a.valor_nuevo ILIKE ? OR a.valor_anterior ILIKE ?)");
+    const patron = `%${qFiltro.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+    valores.push(patron, patron, patron);
+  }
   if (accionFiltro) {
     condiciones.push("a.accion = ?");
     valores.push(accionFiltro);
@@ -65,9 +87,9 @@ export default async function AuditoriaPage({
   const whereSql = condiciones.length > 0 ? `WHERE ${condiciones.join(" AND ")}` : "";
 
   const [totalRow, registros, usuarios, entidades, acciones] = await Promise.all([
-    get<{ total: string }>(`SELECT COUNT(*) as total FROM auditoria a ${whereSql}`, valores),
+    get<{ total: string }>(`SELECT COUNT(*) as total FROM auditoria a LEFT JOIN users u ON u.id = a.usuario_id ${whereSql}`, valores),
     all<any>(
-      `SELECT a.*, u.nombre as usuario_nombre FROM auditoria a LEFT JOIN users u ON u.id = a.usuario_id ${whereSql} ORDER BY a.fecha DESC LIMIT ? OFFSET ?`,
+      `SELECT a.*, u.nombre as usuario_nombre FROM auditoria a LEFT JOIN users u ON u.id = a.usuario_id ${whereSql} ORDER BY a.fecha DESC, a.id DESC LIMIT ? OFFSET ?`,
       [...valores, POR_PAGINA, (page - 1) * POR_PAGINA]
     ),
     all<{ id: number; nombre: string }>(`SELECT id, nombre FROM users ORDER BY nombre ASC`),
@@ -82,7 +104,11 @@ export default async function AuditoriaPage({
       <PageHeader title="Auditoría" subtitle="Registro de solo lectura: quién hizo qué, cuándo y qué cambió. No se puede editar ni borrar." />
 
       <Card className="mb-4">
-        <form className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end" method="get">
+        <form className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 items-end" method="get">
+          <div className="col-span-2">
+            <Label>Buscar</Label>
+            <input name="q" defaultValue={qFiltro} placeholder="Nombre de usuario, núcleo, monto, texto…" className={inputClass} />
+          </div>
           <div>
             <Label>Usuario</Label>
             <select name="usuario_id" defaultValue={usuarioIdFiltro} className={inputClass}>
@@ -94,20 +120,35 @@ export default async function AuditoriaPage({
           </div>
           <div>
             <Label>Módulo</Label>
+            <select name="modulo" defaultValue={moduloFiltro} className={inputClass}>
+              <option value="">Todos</option>
+              {MODULOS_AUDITORIA.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Tipo de registro</Label>
             <select name="entidad" defaultValue={entidadFiltro} className={inputClass}>
               <option value="">Todos</option>
-              {entidades.map((e) => (
-                <option key={e.entidad} value={e.entidad}>{e.entidad}</option>
-              ))}
+              {entidades
+                .map((e) => ({ valor: e.entidad, label: nombreDeEntidad(e.entidad), modulo: moduloDeEntidad(e.entidad) }))
+                .sort((a, b) => a.label.localeCompare(b.label, "es"))
+                .map((e) => (
+                  <option key={e.valor} value={e.valor}>{e.label.charAt(0).toUpperCase() + e.label.slice(1)} ({e.modulo})</option>
+                ))}
             </select>
           </div>
           <div>
             <Label>Acción</Label>
             <select name="accion" defaultValue={accionFiltro} className={inputClass}>
               <option value="">Todas</option>
-              {acciones.map((a) => (
-                <option key={a.accion} value={a.accion}>{a.accion.replace(/_/g, " ")}</option>
-              ))}
+              {acciones
+                .map((a) => ({ valor: a.accion, label: etiquetaDeAccion(a.accion) }))
+                .sort((a, b) => a.label.localeCompare(b.label, "es"))
+                .map((a) => (
+                  <option key={a.valor} value={a.valor}>{a.label}</option>
+                ))}
             </select>
           </div>
           <div>
@@ -118,7 +159,7 @@ export default async function AuditoriaPage({
             <Label>Hasta</Label>
             <input type="date" name="hasta" defaultValue={hastaFiltro} className={inputClass} />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 col-span-2 sm:col-span-1">
             <button className="rounded-xl bg-[var(--color-brand-800)] text-white px-4 py-2.5 text-sm font-semibold">Filtrar</button>
             {hayFiltros && (
               <Link href="/auditoria" className="rounded-xl bg-ink/5 text-ink-muted px-4 py-2.5 text-sm font-semibold">Limpiar</Link>
@@ -128,35 +169,12 @@ export default async function AuditoriaPage({
       </Card>
 
       <Card>
-        <div className="divide-y divide-ink/5">
-          {registros.map((r) => (
-            <div key={r.id} className="py-2.5 text-sm">
-              <p>
-                <strong>
-                  {/* Fase 6 (perfil individual de usuario): antes era texto
-                      suelto, sin forma de ver quién es esa persona. */}
-                  {r.usuario_id ? (
-                    <Link href={`/usuarios/${r.usuario_id}`} className="hover:underline underline-offset-2">
-                      {r.usuario_nombre || "usuario eliminado"}
-                    </Link>
-                  ) : (
-                    r.usuario_nombre || "sistema"
-                  )}
-                </strong>{" "}
-                — {r.accion.replace(/_/g, " ")} en <span className="font-mono text-xs bg-ink/5 rounded px-1">{r.entidad}</span>{r.entidad_id ? ` #${r.entidad_id}` : ""}
-              </p>
-              <p className="text-xs text-ink/40">{dayjs(r.fecha).format("DD/MM/YYYY HH:mm")}</p>
-              {r.valor_anterior && r.valor_nuevo ? (
-                <p className="text-xs text-ink/50 mt-0.5 font-mono truncate">
-                  {r.valor_anterior} → {r.valor_nuevo}
-                </p>
-              ) : (
-                r.valor_nuevo && <p className="text-xs text-ink/50 mt-0.5 font-mono truncate">{r.valor_nuevo}</p>
-              )}
-            </div>
-          ))}
-          {registros.length === 0 && <EmptyState>Sin registros de auditoría {hayFiltros ? "con este filtro." : "todavía."}</EmptyState>}
-        </div>
+        <p className="text-xs text-ink-faint mb-2">{total} evento(s){hayFiltros ? " con estos filtros" : ""}. Tocá uno para ver el detalle.</p>
+        <AuditoriaLista
+          registros={registros.map(registroLegible)}
+          mostrarModulo
+          vacioTexto={`Sin registros de auditoría ${hayFiltros ? "con este filtro." : "todavía."}`}
+        />
       </Card>
 
       <Pagination page={page} totalPages={totalPages} basePath="/auditoria" searchParams={sp} />

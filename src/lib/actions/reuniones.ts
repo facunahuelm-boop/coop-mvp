@@ -12,6 +12,7 @@ import dayjs from "dayjs";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaHora, zFechaOpcional, zEnumSeguro, zCheckbox } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { crearNotificacion } from "@/lib/notificaciones";
+import { vinculosDeAgendaItem } from "@/lib/trazabilidad";
 
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",
@@ -141,11 +142,22 @@ export async function registrarAsistenciaAction(formData: FormData) {
     `SELECT id FROM reunion_asistencias WHERE reunion_id = ? AND nucleo_id = ?`,
     [reunion_id, nucleo_id]
   );
+  const anterior = existente
+    ? await get<{ presente: number; justificacion: string | null }>(`SELECT presente, justificacion FROM reunion_asistencias WHERE id = ?`, [existente.id])
+    : null;
   if (existente) {
     await update("reunion_asistencias", existente.id, { presente, justificacion });
   } else {
     await insert("reunion_asistencias", { reunion_id, nucleo_id, presente, justificacion });
   }
+  await audit({
+    usuario_id: user.id,
+    accion: "registrar_asistencia",
+    entidad: "reuniones",
+    entidad_id: reunion_id,
+    valor_anterior: anterior ? { nucleo_id, presente: !!anterior.presente, justificacion: anterior.justificacion } : undefined,
+    valor_nuevo: { nucleo_id, presente: !!presente, justificacion },
+  });
   revalidatePath(`/reuniones/${reunion_id}`);
 }
 
@@ -190,7 +202,8 @@ export async function agregarAgendaItemAction(formData: FormData) {
   await verificarPermisoReunion(user, reunion.tipo, reunion.comision_id);
 
   const { total } = (await get<{ total: string }>(`SELECT COUNT(*) as total FROM reunion_agenda_items WHERE reunion_id = ?`, [datos.reunion_id])) ?? { total: "0" };
-  await insert("reunion_agenda_items", { ...datos, orden: Number(total) });
+  const itemId = await insert("reunion_agenda_items", { ...datos, orden: Number(total) });
+  await audit({ usuario_id: user.id, accion: "agregar_punto_agenda", entidad: "reuniones", entidad_id: datos.reunion_id, valor_nuevo: { punto_id: itemId, titulo: datos.titulo } });
   revalidatePath(`/reuniones/${datos.reunion_id}`);
 }
 
@@ -204,12 +217,23 @@ export async function editarResultadoAgendaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
   const { id, resultado } = parseForm(editarResultadoAgendaSchema, formData);
-  const item = await get<{ reunion_id: number }>(`SELECT reunion_id FROM reunion_agenda_items WHERE id = ?`, [id]);
+  const item = await get<{ reunion_id: number; titulo: string; resultado: string | null }>(
+    `SELECT reunion_id, titulo, resultado FROM reunion_agenda_items WHERE id = ?`,
+    [id]
+  );
   if (!item) throw new Error("Ese punto de agenda ya no existe.");
   const reunion = await reunionParaAgenda(item.reunion_id);
   await verificarPermisoReunion(user, reunion.tipo, reunion.comision_id);
 
   await update("reunion_agenda_items", id, { resultado });
+  await audit({
+    usuario_id: user.id,
+    accion: "registrar_resolucion",
+    entidad: "reuniones",
+    entidad_id: item.reunion_id,
+    valor_anterior: item.resultado ? { punto: item.titulo, resultado: item.resultado } : undefined,
+    valor_nuevo: { punto_id: id, punto: item.titulo, resultado },
+  });
   revalidatePath(`/reuniones/${item.reunion_id}`);
 }
 
@@ -221,18 +245,85 @@ export async function eliminarAgendaItemAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
   const { id } = parseForm(z.object({ id: zId }), formData);
-  const item = await get<{ reunion_id: number }>(`SELECT reunion_id FROM reunion_agenda_items WHERE id = ?`, [id]);
+  const item = await get<{ reunion_id: number; titulo: string; resultado: string | null }>(
+    `SELECT reunion_id, titulo, resultado FROM reunion_agenda_items WHERE id = ?`,
+    [id]
+  );
   if (!item) return; // ya no existe
   const reunion = await reunionParaAgenda(item.reunion_id);
   if (reunion.estado !== "planificada") throw new Error("Esta reunión ya está cerrada o cancelada — no se puede modificar su agenda.");
   await verificarPermisoReunion(user, reunion.tipo, reunion.comision_id);
+  // Recorrido de decisiones (04/10): un punto del que ya salió algo (una
+  // tarea, una compra, otro punto en otra reunión, una decisión) no se puede
+  // borrar — se perdería de dónde vino eso.
+  const vinculos = await vinculosDeAgendaItem([id]);
+  if (vinculos.get(id)?.total) {
+    throw new Error("Este punto ya tiene seguimiento (tareas, compras u otras reuniones que salieron de él) — no se puede quitar de la agenda.");
+  }
 
   await run(`DELETE FROM reunion_agenda_items WHERE id = ?`, [id]);
+  await audit({ usuario_id: user.id, accion: "quitar_punto_agenda", entidad: "reuniones", entidad_id: item.reunion_id, valor_anterior: { punto_id: id, titulo: item.titulo, resultado: item.resultado } });
   revalidatePath(`/reuniones/${item.reunion_id}`);
 }
 
 export async function eliminarAgendaItemFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => eliminarAgendaItemAction(formData));
+}
+
+// ---------- Recorrido de decisiones (04/10) ----------
+// "Llevar al Consejo / a otra reunión": la resolución de una reunión pasa a
+// ser un punto del orden del día de otra (ej. la Asamblea resuelve, el
+// Consejo lo toma y lo baja a una comisión). No se copia la resolución: el
+// punto nuevo sólo guarda de dónde viene (`origen_item_id`).
+const llevarResolucionSchema = z.object({
+  agenda_item_id: zId,
+  reunion_destino_id: zId,
+  titulo: zTextoOpcional(200),
+});
+
+export async function llevarResolucionAReunionAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const datos = parseForm(llevarResolucionSchema, formData);
+  const origen = await get<{ id: number; titulo: string; reunion_id: number }>(
+    `SELECT id, titulo, reunion_id FROM reunion_agenda_items WHERE id = ?`,
+    [datos.agenda_item_id]
+  );
+  if (!origen) throw new Error("Esa resolución ya no existe.");
+  if (origen.reunion_id === datos.reunion_destino_id) throw new Error("Elegí una reunión distinta de esta.");
+  const destino = await reunionParaAgenda(datos.reunion_destino_id);
+  if (destino.estado !== "planificada") throw new Error("Sólo se puede llevar a una reunión que todavía no se hizo (planificada).");
+  await verificarPermisoReunion(user, destino.tipo, destino.comision_id);
+  const yaLlevada = await get<{ id: number }>(
+    `SELECT id FROM reunion_agenda_items WHERE reunion_id = ? AND origen_item_id = ?`,
+    [datos.reunion_destino_id, datos.agenda_item_id]
+  ).catch(() => {
+    throw new Error("Falta aplicar la actualización de la base (migración 0049) para usar esta función.");
+  });
+  if (yaLlevada) throw new Error(`Esta resolución ya está en el orden del día de "${destino.titulo}".`);
+
+  const { total } = (await get<{ total: string }>(`SELECT COUNT(*) as total FROM reunion_agenda_items WHERE reunion_id = ?`, [datos.reunion_destino_id])) ?? { total: "0" };
+  const nuevoId = await insert("reunion_agenda_items", {
+    reunion_id: datos.reunion_destino_id,
+    titulo: datos.titulo || origen.titulo,
+    orden: Number(total),
+    origen_item_id: datos.agenda_item_id,
+  });
+  await audit({
+    usuario_id: user.id,
+    accion: "llevar_resolucion",
+    entidad: "reuniones",
+    entidad_id: datos.reunion_destino_id,
+    valor_nuevo: { punto_id: nuevoId, titulo: datos.titulo || origen.titulo, viene_de_reunion_id: origen.reunion_id, viene_de_punto_id: origen.id },
+  });
+  revalidatePath(`/reuniones/${origen.reunion_id}`);
+  revalidatePath(`/reuniones/${datos.reunion_destino_id}`);
+  revalidatePath("/asambleas");
+  revalidatePath("/consejo-directivo");
+}
+
+export async function llevarResolucionAReunionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => llevarResolucionAReunionAction(formData));
 }
 
 // ---------- Asistencia por persona (sección 15-16: tabla reunion_invitados
@@ -266,6 +357,7 @@ export async function agregarInvitadoAction(formData: FormData) {
   const yaExiste = await get<{ id: number }>(`SELECT id FROM reunion_invitados WHERE reunion_id = ? AND user_id = ?`, [reunion_id, user_id]);
   if (yaExiste) return;
   await insert("reunion_invitados", { reunion_id, user_id });
+  await audit({ usuario_id: user.id, accion: "agregar_invitado", entidad: "reuniones", entidad_id: reunion_id, valor_nuevo: { invitado_user_id: user_id } });
 
   // Fase 7 (notificaciones): avisa a la persona invitada.
   if (user_id !== user.id) {
@@ -293,6 +385,14 @@ export async function alternarConfirmadoInvitadoAction(formData: FormData) {
   if (!invitado) throw new Error("Ese invitado ya no existe.");
   await verificarPermisoReunion(user, invitado.reunion.tipo, invitado.reunion.comision_id);
   await update("reunion_invitados", id, { confirmado: !invitado.confirmado });
+  await audit({
+    usuario_id: user.id,
+    accion: "cambiar_confirmacion_invitado",
+    entidad: "reuniones",
+    entidad_id: invitado.reunion_id,
+    valor_anterior: { invitado_id: id, confirmado: !!invitado.confirmado },
+    valor_nuevo: { invitado_id: id, confirmado: !invitado.confirmado },
+  });
   revalidatePath(`/reuniones/${invitado.reunion_id}`);
 }
 
@@ -308,6 +408,14 @@ export async function alternarPresenteInvitadoAction(formData: FormData) {
   if (!invitado) throw new Error("Ese invitado ya no existe.");
   await verificarPermisoReunion(user, invitado.reunion.tipo, invitado.reunion.comision_id);
   await update("reunion_invitados", id, { presente: !invitado.presente });
+  await audit({
+    usuario_id: user.id,
+    accion: "registrar_asistencia_invitado",
+    entidad: "reuniones",
+    entidad_id: invitado.reunion_id,
+    valor_anterior: { invitado_id: id, presente: !!invitado.presente },
+    valor_nuevo: { invitado_id: id, presente: !invitado.presente },
+  });
   revalidatePath(`/reuniones/${invitado.reunion_id}`);
 }
 
@@ -323,6 +431,7 @@ export async function quitarInvitadoAction(formData: FormData) {
   if (!invitado) return;
   await verificarPermisoReunion(user, invitado.reunion.tipo, invitado.reunion.comision_id);
   await run(`DELETE FROM reunion_invitados WHERE id = ?`, [id]);
+  await audit({ usuario_id: user.id, accion: "quitar_invitado", entidad: "reuniones", entidad_id: invitado.reunion_id, valor_anterior: { invitado_id: id } });
   revalidatePath(`/reuniones/${invitado.reunion_id}`);
 }
 

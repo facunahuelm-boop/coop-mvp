@@ -21,7 +21,9 @@ import {
   eliminarItemChecklistFormAction,
   agregarColaboradorTareaFormAction,
   quitarColaboradorTareaFormAction,
+  registrarResultadoTareaFormAction,
 } from "@/lib/actions/tareas";
+import Link from "next/link";
 import { cambiarEstadoTareaFormAction } from "@/lib/actions/tareas";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast, Modal, ActionForm } from "@/components/ui-client";
@@ -55,6 +57,8 @@ export type TareaDetalle = {
   responsable_id: number | null;
   depende_de_id: number | null;
   checklist: { texto: string; hecho: boolean }[];
+  /** Recorrido de decisiones (04/10): qué resultado tuvo la tarea. */
+  resultado?: string | null;
 };
 
 function etiquetasDe(raw: string | null): string[] {
@@ -69,6 +73,7 @@ export function TareaDetalleModal({
   dependencia,
   puedeGestionar,
   triggerClassName,
+  origen,
 }: {
   tarea: TareaDetalle;
   usuarios: Usuario[];
@@ -77,6 +82,8 @@ export function TareaDetalleModal({
   dependencia: { titulo: string; estado: string } | null;
   puedeGestionar: boolean;
   triggerClassName?: string;
+  /** De qué resolución (asamblea / consejo / comisión) salió la tarea. */
+  origen?: { texto: string; href: string } | null;
 }) {
   const [open, setOpen] = useState(false);
   const checklist = tarea.checklist ?? [];
@@ -85,6 +92,7 @@ export function TareaDetalleModal({
   const [estadoEditar, editarAction] = useActionState(editarTareaFormAction, ESTADO_INICIAL);
   const [estadoChecklist, agregarItemAction] = useActionState(agregarItemChecklistFormAction, ESTADO_INICIAL);
   const [estadoColaborador, agregarColabAction] = useActionState(agregarColaboradorTareaFormAction, ESTADO_INICIAL);
+  const [estadoResultado, resultadoAction] = useActionState(registrarResultadoTareaFormAction, ESTADO_INICIAL);
   const itemFormRef = useRef<HTMLFormElement>(null);
   const colabFormRef = useRef<HTMLFormElement>(null);
   const { show } = useToast();
@@ -100,6 +108,12 @@ export function TareaDetalleModal({
     if (estadoColaborador.error) show(estadoColaborador.error, "error");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estadoColaborador]);
+
+  useEffect(() => {
+    if (estadoResultado.ok) show("Resultado guardado.");
+    if (estadoResultado.error) show(estadoResultado.error, "error");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoResultado]);
 
   useEffect(() => {
     if (estadoEditar.ok) show("Tarea actualizada.");
@@ -160,6 +174,31 @@ export function TareaDetalleModal({
               {dependencia.estado !== "completada" && " (no se puede marcar completada hasta que esa tarea también lo esté)"}
             </p>
           )}
+
+          {origen && (
+            <p className="text-xs rounded-lg px-2.5 py-1.5 bg-[var(--accent-blue-bg)] text-[var(--accent-blue)]">
+              Sale de: <Link href={origen.href} className="underline underline-offset-2">{origen.texto}</Link>
+            </p>
+          )}
+
+          <div className="pt-3 border-t border-ink/10">
+            <p className="text-xs font-semibold text-ink/60 mb-1">Resultado</p>
+            {puedeGestionar ? (
+              <form action={resultadoAction} className="flex flex-col sm:flex-row sm:items-start gap-2">
+                <input type="hidden" name="id" value={tarea.id} />
+                <textarea
+                  name="resultado"
+                  rows={2}
+                  defaultValue={tarea.resultado ?? ""}
+                  placeholder="Qué se hizo y cómo terminó (cierra el recorrido de la decisión)…"
+                  className={inputClass + " text-sm"}
+                />
+                <SubmitButton variant="ghost" className="text-xs px-2.5 py-1.5 whitespace-nowrap">Guardar</SubmitButton>
+              </form>
+            ) : (
+              <p className="text-sm text-ink/70 whitespace-pre-wrap">{tarea.resultado || "Sin resultado registrado todavía."}</p>
+            )}
+          </div>
 
           <div className="pt-3 border-t border-ink/10">
             <p className="text-xs font-semibold text-ink/60 mb-2">Checklist {checklist.length > 0 && `(${hechos}/${checklist.length})`}</p>

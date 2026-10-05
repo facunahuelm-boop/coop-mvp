@@ -58,12 +58,13 @@ export async function agregarAvanceAction(formData: FormData) {
     tiposPermitidos: TIPOS_IMAGEN,
     maxBytes: 8 * 1024 * 1024,
   });
-  await insert("avances_obra", {
+  const avanceId = await insert("avances_obra", {
     tarea_id: tareaId,
     autor_id: user.id,
     descripcion,
     foto_url: fotoUrl,
   });
+  await audit({ usuario_id: user.id, accion: "registrar_avance", entidad: "tareas_obra", entidad_id: tareaId, valor_nuevo: { avance_id: avanceId, descripcion, con_foto: Boolean(fotoUrl) } });
   revalidatePath(`/obra/${tareaId}`);
 }
 

@@ -12,6 +12,7 @@ import { Pagination, paginaDe } from "@/components/Pagination";
 import { ResumenFinanzas, type ResumenTileDef } from "@/components/finanzas/ResumenFinanzas";
 import { TablaFiltrable, type FiltroDef } from "@/components/TablaFiltrable";
 import { FilaConDetalle } from "@/components/FilaConDetalle";
+import { EstadoCuotaBadge } from "@/components/cuotas/EstadoCuota";
 import {
   AgregarFinanzaModal,
   AgregarCompromisoForm,
@@ -87,6 +88,39 @@ function situacionDeCuota(f: { cuotasVencidas: number; cuotasPendientes: number;
   if (f.cuotasPendientes > 0) return "pendiente";
   return "al_dia";
 }
+// Panel de morosidad (04/10): mismos colores que el estado de cada cuota —
+// rojo vencida, azul en convenio, amarillo pendiente, verde al día.
+const SITUACION_COLOR: Record<SituacionCuota, "rojo" | "azul" | "amarillo" | "verde"> = {
+  vencida: "rojo",
+  convenio: "azul",
+  pendiente: "amarillo",
+  al_dia: "verde",
+};
+type TramoAtraso = "1-30" | "31-60" | "61-90" | "90+";
+const TRAMO_LABEL: Record<TramoAtraso, string> = {
+  "1-30": "Hasta 30 días",
+  "31-60": "31 a 60 días",
+  "61-90": "61 a 90 días",
+  "90+": "Más de 90 días",
+};
+function tramoDeAtraso(dias: number): TramoAtraso | null {
+  if (dias <= 0) return null;
+  if (dias <= 30) return "1-30";
+  if (dias <= 60) return "31-60";
+  if (dias <= 90) return "61-90";
+  return "90+";
+}
+const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+function etiquetaPeriodo(p: string): string {
+  const [a, m] = p.split("-");
+  return MESES[Number(m) - 1] ? `${MESES[Number(m) - 1]} ${a}` : p;
+}
+function antiguedadTexto(dias: number): string {
+  if (dias <= 0) return "—";
+  if (dias < 30) return `${dias} día${dias === 1 ? "" : "s"}`;
+  const meses = Math.floor(dias / 30);
+  return `${dias} días (${meses} mes${meses === 1 ? "" : "es"})`;
+}
 
 type Filtros = { page?: string; tipo?: string; categoria?: string; desde?: string; hasta?: string };
 
@@ -145,6 +179,19 @@ export default async function FinanzasPage({
     // en 0.15 acá también, solo para el color de esta celda.
     obtenerReglasCooperativa(),
   ]);
+  // Ingresos generados por un pago de cuota (04/10): a qué socio pertenecen,
+  // para mostrarlo y llevar a su ficha (ahí se corrigen, no acá). Tolerante a
+  // que la migración 0048 todavía no esté aplicada.
+  const idsPagoCuota = movimientos.map((m) => m.movimiento_cuenta_socio_id).filter(Boolean) as number[];
+  const socioDePago = new Map<number, { socio_id: number; nombre: string }>();
+  if (idsPagoCuota.length) {
+    const filasPago = await all<{ id: number; socio_id: number; nombre: string }>(
+      `SELECT mcs.id, mcs.socio_id, s.nombre FROM movimientos_cuenta_socio mcs JOIN socios s ON s.id = mcs.socio_id
+       WHERE mcs.id IN (${idsPagoCuota.map(() => "?").join(",")})`,
+      idsPagoCuota
+    ).catch(() => []);
+    for (const r of filasPago) socioDePago.set(r.id, r);
+  }
   const totalMovimientos = Number(totalMovimientosRow?.total || 0);
   const totalPages = Math.max(1, Math.ceil(totalMovimientos / POR_PAGINA));
   const maxCategoria = Math.max(1, ...fin.porCategoria.map((c: any) => c.total));
@@ -231,6 +278,18 @@ export default async function FinanzasPage({
       vacioTexto: "No hay cuotas vencidas.",
     },
     {
+      id: "monto-vencido",
+      label: "Monto vencido",
+      value: money(cuotas.filas.reduce((a, f) => a + f.montoVencido, 0)),
+      color: cuotas.filas.some((f) => f.montoVencido > 0) ? "rojo" : "verde",
+      intro: "Deuda ya vencida e impaga (sin contar lo que todavía no venció). Ordenado por antigüedad.",
+      items: cuotas.filas
+        .filter((f) => f.montoVencido > 0)
+        .sort((a, b) => b.diasDeAtraso - a.diasDeAtraso)
+        .map((f) => ({ label: f.nombre, sublabel: `${money(f.montoVencido)} · ${f.diasDeAtraso} días de atraso`, href: `/socios/${f.socioId}` })),
+      vacioTexto: "No hay deuda vencida.",
+    },
+    {
       id: "convenios",
       label: "Convenios activos",
       value: String(cuotas.convenioActivos),
@@ -241,12 +300,36 @@ export default async function FinanzasPage({
     },
   ];
 
+  const periodosConDeuda = [...new Set(cuotas.filas.flatMap((f) => f.periodosConDeuda))].sort().reverse();
   const filtrosCuotas: FiltroDef[] = [
     {
       id: "situacion",
-      label: "Situación",
+      label: "Estado",
       opciones: (Object.keys(SITUACION_LABEL) as SituacionCuota[]).map((v) => ({ value: v, label: SITUACION_LABEL[v] })),
       valores: cuotas.filas.map(situacionDeCuota),
+    },
+    {
+      id: "atraso",
+      label: "Antigüedad de la deuda",
+      opciones: (Object.keys(TRAMO_LABEL) as TramoAtraso[]).map((v) => ({ value: v, label: TRAMO_LABEL[v] })),
+      valores: cuotas.filas.map((f) => tramoDeAtraso(f.diasDeAtraso)),
+    },
+    {
+      id: "periodo",
+      label: "Período adeudado",
+      secundario: true,
+      opciones: periodosConDeuda.map((p) => ({ value: p, label: etiquetaPeriodo(p) })),
+      valores: cuotas.filas.map((f) => f.periodosConDeuda),
+    },
+    {
+      id: "convenio",
+      label: "Convenio",
+      secundario: true,
+      opciones: [
+        { value: "con", label: "Con convenio activo" },
+        { value: "sin", label: "Sin convenio" },
+      ],
+      valores: cuotas.filas.map((f) => (f.convenio ? "con" : "sin")),
     },
   ];
   const clavesCuotas = cuotas.filas.map((f) => [f.nombre, f.viviendaNumero, f.nucleoNombre].filter(Boolean).join(" "));
@@ -365,7 +448,7 @@ export default async function FinanzasPage({
                       sigue llevando a la ficha del socio (mismo lugar de
                       siempre) para editar/eliminar un movimiento puntual o
                       gestionar su convenio, en vez de duplicar esa lógica acá. */}
-                  <ResumenFinanzas tiles={tilesCuotas} columnas={3} />
+                  <ResumenFinanzas tiles={tilesCuotas} columnas={4} />
 
                   {puedeEditar && (
                     <div className="flex flex-wrap gap-3 mb-5">
@@ -378,24 +461,26 @@ export default async function FinanzasPage({
                     <Card><EmptyState>No hay socios activos con cuentas registradas.</EmptyState></Card>
                   ) : (
                     <TablaFiltrable
-                      placeholder="Buscar socio, vivienda o núcleo…"
+                      placeholder="Buscar núcleo, socio o vivienda…"
                       claves={clavesCuotas}
                       filtros={filtrosCuotas}
-                      sinResultadosTexto="No se encontraron socios para esa búsqueda."
+                      sinResultadosTexto="No se encontraron núcleos para esa búsqueda."
                       encabezado={
                         <tr className="text-left text-xs text-ink/50 border-b border-ink/5">
-                          <th className="py-2 pr-3">Socio</th>
-                          <th className="py-2 pr-3">Vivienda / Núcleo</th>
-                          <th className="py-2 pr-3 text-right">Pendientes</th>
-                          <th className="py-2 pr-3 text-right">Vencidas</th>
-                          <th className="py-2 pr-3 text-right">Adeudado</th>
-                          <th className="py-2 pr-3">Próx. vencimiento</th>
+                          <th className="py-2 pr-3">Núcleo / socio</th>
+                          <th className="py-2 pr-3 text-right">Total adeudado</th>
+                          <th className="py-2 pr-3 text-right">Vencido</th>
+                          <th className="py-2 pr-3 text-right">Cuotas vencidas</th>
+                          <th className="py-2 pr-3">Antigüedad</th>
                           <th className="py-2 pr-3">Convenio</th>
+                          <th className="py-2 pr-3">Estado</th>
                           <th className="py-2 pr-3"></th>
                         </tr>
                       }
                     >
-                      {cuotas.filas.map((f) => (
+                      {cuotas.filas.map((f) => {
+                        const situacion = situacionDeCuota(f);
+                        return (
                         <FilaConDetalle
                           key={f.socioId}
                           titulo={f.nombre}
@@ -403,13 +488,32 @@ export default async function FinanzasPage({
                           editarHref={`/socios/${f.socioId}`}
                           secciones={[
                             {
-                              titulo: "Cuotas",
+                              titulo: "Situación",
                               items: [
-                                { label: "Pendientes", valor: f.cuotasPendientes || "—" },
-                                { label: "Vencidas", valor: f.cuotasVencidas > 0 ? <span className="text-[var(--color-rojo)] font-semibold">{f.cuotasVencidas}</span> : "—" },
+                                { label: "Estado", valor: <Badge color={SITUACION_COLOR[situacion]}>{SITUACION_LABEL[situacion]}</Badge> },
                                 { label: "Total adeudado", valor: f.totalAdeudado > 0 ? money(f.totalAdeudado) : "—" },
+                                { label: "Monto vencido", valor: f.montoVencido > 0 ? <span className="text-[var(--color-rojo)] font-semibold">{money(f.montoVencido)}</span> : "—" },
+                                { label: "Cuotas vencidas", valor: f.cuotasVencidas || "—" },
+                                { label: "Cuotas pendientes (sin vencer)", valor: f.cuotasPendientes || "—" },
+                                { label: "Vencida más antigua", valor: f.vencidaMasAntigua ? dayjs(f.vencidaMasAntigua).format("DD/MM/YYYY") : "—" },
+                                { label: "Antigüedad", valor: antiguedadTexto(f.diasDeAtraso) },
                                 { label: "Próximo vencimiento", valor: f.proximoVencimiento ? dayjs(f.proximoVencimiento).format("DD/MM/YYYY") : "—" },
                               ],
+                            },
+                            {
+                              titulo: "Detalle de la deuda",
+                              items: f.detalleDeuda.length
+                                ? f.detalleDeuda.map((c) => ({
+                                    label: `${c.concepto} · ${etiquetaPeriodo(c.periodo)}`,
+                                    valor: (
+                                      <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                                        <span>{money(c.montoPendiente)}{c.montoPendiente < c.monto ? ` de ${money(c.monto)}` : ""}</span>
+                                        <EstadoCuotaBadge estado={c.estado} conPagoParcial={c.montoPendiente < c.monto} />
+                                        {c.fechaVencimiento && <span className="text-ink/50">vence {dayjs(c.fechaVencimiento).format("DD/MM/YYYY")}</span>}
+                                      </span>
+                                    ),
+                                  }))
+                                : [{ label: "Cuotas", valor: "Sin deuda" }],
                             },
                             {
                               titulo: "Convenio de pago",
@@ -422,17 +526,21 @@ export default async function FinanzasPage({
                             },
                           ]}
                         >
-                          <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
-                            <Link href={`/socios/${f.socioId}`} className="hover:underline underline-offset-2">{f.nombre}</Link>
+                          <td className="py-2 pr-3">
+                            <Link href={`/socios/${f.socioId}`} className="font-medium text-[var(--color-brand-900)] hover:underline underline-offset-2">{f.nombre}</Link>
+                            {(f.viviendaNumero || f.nucleoNombre) && (
+                              <div className="text-xs text-ink/50">{[f.viviendaNumero ? `Viv. ${f.viviendaNumero}` : null, f.nucleoNombre].filter(Boolean).join(" · ")}</div>
+                            )}
                           </td>
-                          <td className="py-2 pr-3 text-ink/60">{[f.viviendaNumero, f.nucleoNombre].filter(Boolean).join(" · ") || "—"}</td>
-                          <td className="py-2 pr-3 text-right">{f.cuotasPendientes || "—"}</td>
-                          <td className={`py-2 pr-3 text-right ${f.cuotasVencidas > 0 ? "text-[var(--color-rojo)] font-semibold" : ""}`}>{f.cuotasVencidas || "—"}</td>
                           <td className="py-2 pr-3 text-right font-medium">{f.totalAdeudado > 0 ? money(f.totalAdeudado) : "—"}</td>
-                          <td className="py-2 pr-3 text-ink/60">{f.proximoVencimiento ? dayjs(f.proximoVencimiento).format("DD/MM/YYYY") : "—"}</td>
-                          <td className="py-2 pr-3">{f.convenio ? <Badge color="brand">{f.convenio.motivo}</Badge> : "—"}</td>
+                          <td className={`py-2 pr-3 text-right ${f.montoVencido > 0 ? "text-[var(--color-rojo)] font-semibold" : ""}`}>{f.montoVencido > 0 ? money(f.montoVencido) : "—"}</td>
+                          <td className={`py-2 pr-3 text-right ${f.cuotasVencidas > 0 ? "text-[var(--color-rojo)] font-semibold" : ""}`}>{f.cuotasVencidas || "—"}</td>
+                          <td className="py-2 pr-3 text-ink/60 whitespace-nowrap">{f.diasDeAtraso > 0 ? `${f.diasDeAtraso} días` : "—"}</td>
+                          <td className="py-2 pr-3">{f.convenio ? <Badge color="azul">{f.convenio.motivo}</Badge> : "—"}</td>
+                          <td className="py-2 pr-3"><Badge color={SITUACION_COLOR[situacion]}>{SITUACION_LABEL[situacion]}</Badge></td>
                         </FilaConDetalle>
-                      ))}
+                        );
+                      })}
                     </TablaFiltrable>
                   )}
                 </>
@@ -503,6 +611,7 @@ export default async function FinanzasPage({
                       <tbody>
                         {movimientos.map((m) => {
                           const anulado = m.estado === "anulado";
+                          const pagoCuota = m.movimiento_cuenta_socio_id ? socioDePago.get(m.movimiento_cuenta_socio_id) : undefined;
                           return (
                           <tr key={m.id} className={`border-b border-ink/5 last:border-0${anulado ? " opacity-50" : ""}`}>
                             <td className="py-2">{dayjs(m.fecha).format("DD/MM")}</td>
@@ -511,11 +620,26 @@ export default async function FinanzasPage({
                               {anulado && <Badge color="gray">Anulado</Badge>}
                             </td>
                             <td>{m.categoria}</td>
-                            <td className="text-ink/60">{m.descripcion}</td>
+                            <td className="text-ink/60">
+                              {m.descripcion}
+                              {m.movimiento_cuenta_socio_id && (
+                                <div className="mt-0.5">
+                                  {pagoCuota ? (
+                                    <Link href={`/socios/${pagoCuota.socio_id}`} title="Se corrige o anula desde la cuenta del socio">
+                                      <Badge color="azul">Pago de cuota — {pagoCuota.nombre}</Badge>
+                                    </Link>
+                                  ) : (
+                                    <Badge color="azul">Pago de cuota</Badge>
+                                  )}
+                                </div>
+                              )}
+                            </td>
                             <td className="text-right font-medium">{money(m.monto)}</td>
                             {(puedeEditar || puedeAnular) && (
                               <td className="text-right">
-                                {!anulado && (
+                                {!anulado && m.movimiento_cuenta_socio_id ? (
+                                  <span className="text-xs text-ink/40">Desde la ficha del socio</span>
+                                ) : !anulado && (
                                   <div className="flex items-center justify-end gap-3">
                                     {puedeEditar && <EditarMovimientoForm movimiento={m} />}
                                     {puedeAnular && <AnularMovimientoBoton id={m.id} categoria={m.categoria} />}

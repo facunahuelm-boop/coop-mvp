@@ -156,3 +156,29 @@ export type TipoReporteHub = (typeof REPORTES_HUB)[number]["tipo"];
 export function moduloDeReporteHub(tipo: string): Module | null {
   return REPORTES_HUB.find((r) => r.tipo === tipo)?.modulo ?? null;
 }
+
+/**
+ * Gestión cooperativa integrada (04/10) — medio de pago de una cuota (columna
+ * `metodo_pago` de movimientos_cuenta_socio, migración 0048). Lista corta y
+ * cerrada a propósito: lo que se ve en el día a día de una cooperativa.
+ */
+export const METODOS_PAGO = ["efectivo", "transferencia", "deposito", "debito", "otro"] as const;
+export const METODO_PAGO_LABEL: Record<(typeof METODOS_PAGO)[number], string> = {
+  efectivo: "Efectivo",
+  transferencia: "Transferencia bancaria",
+  deposito: "Depósito",
+  debito: "Débito automático",
+  otro: "Otro",
+};
+
+/** Categoría con la que un pago de cuota aparece como ingreso en Finanzas. */
+export const CATEGORIA_INGRESO_CUOTAS = "Cuotas sociales";
+
+// Categorías fijas de Documentos (antes sólo en documentos/page.tsx) — se
+// comparten con la ficha del núcleo, que también permite subir documentos.
+export const CATEGORIAS_DOCUMENTO_BASE = ["actas", "asambleas", "presupuestos", "facturas", "contratos", "tecnicos", "obra", "socios", "seguridad", "compras", "reglamentos", "informes", "comunicaciones"];
+export const CATEGORIA_DOCUMENTO_LABEL: Record<string, string> = {
+  actas: "Actas", asambleas: "Asambleas", presupuestos: "Presupuestos", facturas: "Facturas", contratos: "Contratos",
+  tecnicos: "Documentos técnicos", obra: "Documentación de obra", socios: "Documentación de socios", seguridad: "Seguridad",
+  compras: "Compras", reglamentos: "Reglamentos", informes: "Informes", comunicaciones: "Comunicaciones",
+};

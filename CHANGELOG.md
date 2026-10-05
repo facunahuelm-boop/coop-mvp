@@ -2248,3 +2248,84 @@ El usuario volvió a enviar el pedido completo de 41 secciones ("Mejora global d
 **Verificación** (entorno aislado, mismas 2 cooperativas ficticias, build de producción): 24 pruebas nuevas — formulario sin errores al abrirse; guardar vacío marca sólo los 3 obligatorios con borde rojo y "Este campo es obligatorio.", no manda nada al servidor y lleva el foco al primero; al salir de un campo avisa nombre numérico, email "usuario"/"usuario@" y teléfono con letras; acepta "+598 99 123 456" y "4.321.987-6"; el aviso desaparece al corregir; documento con letras bloquea el envío; con todo bien se guarda; el servidor responde con los mismos textos (incluido "ABC" en un importe) y también pinta el borde; editar socio no marca datos válidos existentes y sí un documento con letras; chevrons ▶/▼. Más las 50+ pruebas anteriores re-corridas en verde (validaciones de servidor, altas en todos los módulos, sidebar/calendario/contadores/aislamiento/roles/mobile, conservación de datos ante error, fechas en español). `tsc --noEmit` limpio; eslint 419 → 419.
 
 **Archivos afectados**: `src/lib/mensajesValidacion.ts` (nuevo), `src/lib/validation.ts`, `src/lib/actions/socios.ts`, `src/lib/actions/usuariosAdmin.ts`, `src/lib/actions/plataforma.ts`, `src/components/ui-client.tsx`, `src/app/(app)/layout.tsx`, `src/app/globals.css`, `src/components/NavGroupSection.tsx`, y los formularios con `data-validar`: `socios/SociosFormularios.tsx`, `socios/SocioDetalleFormularios.tsx`, `proveedores/ProveedoresFormularios.tsx`, `comisiones/ComisionesFormularios.tsx`, `usuarios/UsuariosAdminFormularios.tsx`, `configuracion/ConfiguracionFormularios.tsx`. Sin cambios de base de datos.
+
+## Gestión cooperativa integrada — ficha 360°, cuotas y morosidad, auditoría, recorrido de decisiones (04/10)
+
+Pedido "ACTUALIZACIÓN DE COOVA — GESTIÓN COOPERATIVA INTEGRADA", las 4 partes seguidas (decisión del usuario). Sin rediseño: se reusan Tabs, Modal, FilaConDetalle, TablaFiltrable, Badge y StatTile. Ningún módulo duplicado.
+
+**1. Cuotas, pagos y morosidad (Finanzas con una sola fuente).** Antes la tesorería cargaba cada pago dos veces: en la cuenta del socio y a mano como ingreso en Finanzas (confirmado por el usuario). Ahora:
+- **Un pago se registra una sola vez**, desde la ficha del núcleo. Genera solo su ingreso en Finanzas (categoría "Cuotas sociales") en la misma transacción.
+- **Nunca puede haber dos ingresos para un mismo pago.** Lo garantiza un índice único en la base. Además, Finanzas no deja editar ni anular ese ingreso: se corrige desde la cuenta, y editar o anular el pago actualiza o anula el ingreso.
+- **Los pagos viejos no se pasan a Finanzas a propósito.** Ya están cargados a mano allí; pasarlos los contaría dos veces.
+- **Cada pago guarda su medio de pago** y, si se elige, la cuota puntual a la que va. Sin cuota elegida, cubre lo más antiguo primero, como siempre.
+- **Validaciones nuevas al registrar un pago:**
+  - No se puede pagar de más una cuota.
+  - Se frena un pago repetido (mismo monto y fecha en menos de 2 minutos).
+- **Estados con color:** pagada (verde), pendiente (amarillo), vencida (rojo), en convenio (azul), pago parcial (naranja).
+- **Bugs de cálculo corregidos:**
+  - Una vencida con un pago parcial ahora cuenta como vencida.
+  - Un convenio que refinancia la deuda (opción nueva "refinancia") ya no la cuenta dos veces: las cuotas originales pasan a "En convenio".
+  - "Generar cuota mensual" fallaba siempre (`to_char` sobre una columna de texto).
+- **Morosidad (Finanzas → Cuotas y convenios):**
+  - Columnas: núcleo, total adeudado, vencido, cuotas vencidas, antigüedad (días), convenio y estado.
+  - Filtros: estado, tramo de antigüedad, período adeudado y convenio.
+  - Pop-up con el detalle de la deuda, cuota por cuota.
+- **Ayudas en Finanzas:**
+  - Un aviso en "Agregar finanza" dice que los pagos de cuotas no se cargan ahí.
+  - Los ingresos generados llevan la etiqueta "Pago de cuota — núcleo", con link a la ficha.
+
+**2. Ficha 360° del núcleo** (`/socios/[id]`), con pestañas:
+- **General.**
+- **Finanzas:** "Registrar pago" y "Registrar cargo" arriba a la derecha, cuotas con detalle en un pop-up, pagos y su ingreso en Finanzas, convenios y el historial completo.
+- **Participación:** comisiones, cargos en el Consejo y asambleas con asistencia.
+- **Documentos:** del núcleo, con subida directa. Es la misma acción de Documentos, ahora con "Núcleo relacionado".
+- **Comunicaciones.**
+- **Tareas.**
+- **Historial:** ahora incluye cuenta, convenios y documentos del núcleo.
+
+Cada pestaña respeta los permisos de siempre. La cuenta la ven solo los roles de finanzas o el propio socio, y Documentos y Tareas siguen el permiso de su módulo.
+
+**3. Auditoría legible e inmodificable.**
+- **Mensajes en lenguaje llano** (`lib/auditoriaTexto.ts`), por ejemplo "tesorería registró un pago de cuota en la cuenta del núcleo «Pérez»". Tocar un evento abre el detalle: quién, qué, cuándo, módulo, registro y la tabla antes → después.
+- **Filtros nuevos en `/auditoria`:** módulo (grupos como "Cuotas y pagos" o "Asambleas y reuniones") y búsqueda por usuario o contenido. Siguen los filtros de siempre.
+- **La base ya no deja modificar la auditoría:** se le quitó a `app_user` el permiso de UPDATE, DELETE y TRUNCATE sobre `auditoria`.
+- **Nunca se guardan secretos:** `audit()` reemplaza por "[oculto]" cualquier contraseña, hash, token o secreto, a cualquier profundidad.
+- **Se agregó auditoría donde faltaba:**
+  - Reuniones: asistencia, agenda, resoluciones e invitados.
+  - Tareas: checklist, colaboradores y resultado.
+  - Calendario, jornadas de trabajo, avances de obra, seguridad y compromisos.
+  - Decisiones: edición. Del voto se registra solo que la persona votó, nunca qué votó.
+- **Las ediciones guardan también el "antes":** socios, integrantes, tareas, pagos, convenios y decisiones.
+
+**4. Recorrido de una decisión: Asamblea → Consejo → Comisión → Tarea → Resultado.** Es flexible y no copia nada: cada cosa vive en su módulo y solo guarda de qué resolución salió.
+- **Acciones sobre una resolución** (un punto del orden del día con resultado), cada una según los permisos de siempre:
+  - "+ Tarea", en la comisión elegida.
+  - "+ Solicitud de compra", con el circuito normal de Compras.
+  - "Llevar a otra reunión", por ejemplo al Consejo. El punto nuevo muestra "Viene de…".
+  - "Vincular decisión" de comisión.
+- **"Ver recorrido"** muestra el árbol completo.
+- **Resultado de la tarea:** campo nuevo, que cierra el recorrido.
+- **Dónde se ve el origen y el seguimiento:**
+  - El origen, en la tarea, la compra y la decisión.
+  - El seguimiento, en los pop-ups de Asambleas y Consejo Directivo.
+  - En la vista de la comisión: tareas, decisiones y Asambleas o Consejos relacionados.
+- **Protección:** un punto que ya tiene seguimiento no se puede quitar de la agenda.
+
+**Base de datos (2 migraciones nuevas, 100% aditivas, todavía no aplicadas en producción):**
+- `0048_cuotas_pagos_finanzas.sql`: `metodo_pago`, `cuota_id`, `en_convenio_id` y `monto_refinanciado` en `movimientos_cuenta_socio`; `refinancia` en `convenios_pago`; `movimiento_cuenta_socio_id` en `movimientos_financieros`, con índice único.
+- `0049_ficha_trazabilidad_auditoria.sql`: `documentos.socio_id`; `origen_item_id` en `reunion_agenda_items`; `agenda_item_id`, `decision_id` y `resultado` en `tareas`; `agenda_item_id` en `solicitudes_compra` y `decisiones_comision`; el REVOKE sobre `auditoria`.
+
+El código funciona igual mientras no se apliquen. Se probó con una copia de la base sin esas columnas: 165 de 165 pantallas cargan y un pago se registra igual, solo sin su ingreso automático.
+
+**Verificación (entorno aislado, datos ficticios):**
+- `tsc --noEmit` limpio, `next build` limpio, eslint 417 → 415.
+- Pruebas nuevas:
+  - Cuotas, pagos, Finanzas, morosidad, ficha, auditoría y permisos: 43 de 43.
+  - Recorrido, permisos y responsive en mobile 390, tablet 820 y desktop 1440, sin scroll horizontal: 38 de 38.
+  - Rutas: 33 rutas × 5 roles sin errores, 165 de 165.
+- Regresión de las suites anteriores: validaciones 17 de 17, flujos 8 de 8, UI 25 de 25, cliente 24 de 24, idioma OK.
+
+**Pendiente (usuario):**
+1. Aplicar las migraciones 0048 y 0049 desde `/plataforma`.
+2. Publicar con `npx vercel --prod --yes`.
+3. Desde ese momento, dejar de cargar a mano en Finanzas los pagos de cuotas.

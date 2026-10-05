@@ -1,5 +1,7 @@
 "use client";
 
+import { RefinanciaCheckbox } from "@/components/socios/SocioDetalleFormularios";
+
 // Fase 4 del rediseño: los 2 formularios de /finanzas (agregar compromiso
 // futuro, registrar movimiento) migrados a `useActionState` — mismo criterio
 // que los demás módulos. Ya usaban `AddButtonSummary`/`SubmitButton
@@ -82,6 +84,18 @@ export function AgregarCompromisoForm() {
   );
 }
 
+/** Gestión cooperativa integrada (04/10): los pagos de cuotas se registran
+ * UNA sola vez, desde la ficha del núcleo, y generan su ingreso acá solos.
+ * Cargarlos también a mano los contaría dos veces. */
+function AvisoPagosDeCuotas() {
+  return (
+    <p className="sm:col-span-2 rounded-lg bg-[var(--accent-blue-bg)] px-3 py-2 text-xs text-[var(--accent-blue)]">
+      Los pagos de cuotas sociales no se cargan acá: se registran desde la ficha del núcleo
+      (Socios → el núcleo → pestaña Finanzas → Registrar pago) y aparecen en Finanzas solos, sin duplicarse.
+    </p>
+  );
+}
+
 export function RegistrarMovimientoForm() {
   const [estado, formAction] = useActionState(registrarMovimientoFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
@@ -124,6 +138,7 @@ export function RegistrarMovimientoForm() {
             <input name="descripcion" className={inputClass} />
             <FieldError message={estado.fieldErrors?.descripcion} />
           </div>
+          <AvisoPagosDeCuotas />
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
           </div>
@@ -193,6 +208,7 @@ export function AgregarFinanzaModal() {
             <input name="descripcion" className={inputClass} />
             <FieldError message={estado.fieldErrors?.descripcion} />
           </div>
+          <AvisoPagosDeCuotas />
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
           </div>
@@ -423,6 +439,7 @@ export function NuevoConvenioFormConSelector({ socios }: { socios: SocioOpcion[]
             <input name="notas" className={inputClass} />
             <FieldError message={estado.fieldErrors?.notas} />
           </div>
+          <RefinanciaCheckbox />
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
           </div>

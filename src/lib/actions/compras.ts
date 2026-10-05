@@ -88,6 +88,9 @@ const crearSolicitudSchema = z.object({
   etapa_obra: zTextoOpcional(200),
   fecha_necesaria: zFechaOpcional,
   presupuesto_estimado: zMontoOpcional(),
+  // Recorrido de decisiones (04/10): resolución (asamblea/consejo/comisión)
+  // de la que sale esta compra, si sale de una.
+  agenda_item_id: zIdOpcional,
 });
 
 export async function crearSolicitudAction(formData: FormData) {
@@ -102,13 +105,32 @@ export async function crearSolicitudAction(formData: FormData) {
   // toda la pantalla con un error 500 — ver el criterio centralizado en
   // db.ts (hallazgo de testing E2E real: se rompía probando el flujo real
   // de Diana, Comisión de Compras, con y sin vincular una comisión).
+  let reunionDeOrigen: number | null = null;
+  if (datos.agenda_item_id) {
+    const item = await get<{ reunion_id: number }>(`SELECT reunion_id FROM reunion_agenda_items WHERE id = ?`, [datos.agenda_item_id]);
+    if (!item) throw new Error("Esa resolución ya no existe.");
+    reunionDeOrigen = item.reunion_id;
+  }
   const id = await insert("solicitudes_compra", {
     solicitante_id: user.id,
     ...datos,
     estado: "pendiente_cotizacion",
   });
-  await audit({ usuario_id: user.id, accion: "crear", entidad: "solicitudes_compra", entidad_id: id });
+  await audit({
+    usuario_id: user.id,
+    accion: "crear",
+    entidad: "solicitudes_compra",
+    entidad_id: id,
+    valor_nuevo: {
+      material: datos.material,
+      cantidad: datos.cantidad,
+      unidad: datos.unidad,
+      comision: datos.comision,
+      ...(datos.agenda_item_id ? { resolucion_id: datos.agenda_item_id, reunion_id: reunionDeOrigen } : {}),
+    },
+  });
   revalidatePath("/compras");
+  if (reunionDeOrigen) revalidatePath(`/reuniones/${reunionDeOrigen}`);
 }
 
 export async function crearSolicitudFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

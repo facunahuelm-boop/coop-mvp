@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { all, get } from "@/lib/db";
-import { tareasObraConSemaforo, resumenFinanciero, cuentasPorCobrar, recalcularAlertas, calcularCuotasSocio, type MovimientoCuentaSocio } from "@/lib/logic";
+import { tareasObraConSemaforo, resumenFinanciero, cuentasPorCobrar, recalcularAlertas, calcularCuotasSocio, cargarMovimientosCuenta, resumenDeCuotas } from "@/lib/logic";
 import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
@@ -340,18 +340,16 @@ export default async function DashboardPage() {
     const misocio = await get<{ id: number }>(`SELECT id FROM socios WHERE user_id = ?`, [user.id]);
     if (misocio) {
       miSocioId = misocio.id;
-      const movimientos = await all<MovimientoCuentaSocio>(
-        `SELECT id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, estado FROM movimientos_cuenta_socio WHERE socio_id = ?`,
-        [misocio.id]
-      );
+      // 04/10: mismo cargador y mismo resumen que la ficha y el panel de
+      // morosidad (pagos dirigidos, cuotas en convenio, vencidas con pago
+      // parcial) — antes este bloque repetía la consulta y el conteo a mano.
+      const movimientos = await cargarMovimientosCuenta(misocio.id);
       const { cuotas, saldo } = calcularCuotasSocio(movimientos);
+      const conteo = resumenDeCuotas(cuotas);
       miSaldo = saldo;
-      misCuotasPendientes = cuotas.filter((c) => c.estado === "pendiente" || c.estado === "parcial").length;
-      misCuotasVencidas = cuotas.filter((c) => c.estado === "vencida").length;
-      miProximoVencimiento = cuotas
-        .filter((c) => (c.estado === "pendiente" || c.estado === "parcial") && c.fechaVencimiento)
-        .map((c) => c.fechaVencimiento as string)
-        .sort()[0] || null;
+      misCuotasPendientes = conteo.cuotasPendientes;
+      misCuotasVencidas = conteo.cuotasVencidas;
+      miProximoVencimiento = conteo.proximoVencimiento;
       miConvenio = (await get<{ id: number; motivo: string; monto_cuota: number }>(
         `SELECT id, motivo, monto_cuota FROM convenios_pago WHERE socio_id = ? AND estado = 'activo' ORDER BY creado_en DESC LIMIT 1`,
         [misocio.id]

@@ -2,7 +2,9 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, all, get, audit, esColumnaInexistente } from "@/lib/db";
+import { insert, update, all, get, audit, esColumnaInexistente, withTenantTransaction } from "@/lib/db";
+import { calcularCuotasSocio, cargarMovimientosCuenta } from "@/lib/logic";
+import { METODOS_PAGO, CATEGORIA_INGRESO_CUOTAS } from "@/lib/constants";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import {
@@ -14,6 +16,8 @@ import {
   zFecha,
   zFechaOpcional,
   zEnumSeguro,
+  zIdOpcional,
+  ValidationError,
 } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
@@ -32,24 +36,76 @@ const registrarMovimientoCuentaSocioSchema = z.object({
   fecha: zFecha,
   fecha_vencimiento: zFechaOpcional,
   notas: zTextoOpcional(1000),
+  // Gestión cooperativa integrada (04/10): sólo para pagos.
+  metodo_pago: zEnumSeguro(METODOS_PAGO, "efectivo").optional(),
+  cuota_id: zIdOpcional,
 });
 
+/** Saldo pendiente de una cuota puntual de un socio, con el mismo cálculo que
+ * usa toda la app. `excluirPagoId`: al editar un pago, se calcula como si ese
+ * pago no existiera (para validar su monto nuevo). */
+async function pendienteDeCuota(socioId: number, cuotaId: number, excluirPagoId?: number) {
+  const movimientos = (await cargarMovimientosCuenta(socioId)).filter((m) => m.id !== excluirPagoId);
+  const { cuotas } = calcularCuotasSocio(movimientos);
+  return cuotas.find((c) => c.id === cuotaId) || null;
+}
+
+const money = (n: number) => `$${n.toLocaleString("es-UY", { maximumFractionDigits: 2 })}`;
+
+/**
+ * Registra un cargo (cuota) o un pago en la cuenta corriente de un socio.
+ *
+ * Gestión cooperativa integrada (04/10) — para los PAGOS:
+ *  - se puede indicar a qué cuota puntual va (si no, cubre lo más antiguo
+ *    primero, como siempre) y con qué medio se pagó;
+ *  - un pago dirigido a una cuota no puede superar lo que esa cuota debe (no
+ *    quedan saldos inconsistentes ni cuotas "pagadas de más");
+ *  - si se aprieta "Registrar" dos veces seguidas, el segundo envío idéntico
+ *    se rechaza (no quedan pagos duplicados);
+ *  - el pago genera, EN LA MISMA OPERACIÓN, su ingreso en Finanzas (categoría
+ *    "Cuotas sociales"), vinculado al pago: una sola carga, un solo registro
+ *    contable, y la base garantiza que un pago nunca aparezca dos veces como
+ *    ingreso (índice único de la migración 0048). Si la migración todavía no
+ *    se aplicó, el pago se registra igual que antes, sin el ingreso.
+ */
 export async function registrarMovimientoCuentaSocioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
 
-  const { socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, notas } = parseForm(
+  const { socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, notas, metodo_pago, cuota_id } = parseForm(
     registrarMovimientoCuentaSocioSchema,
     formData
   );
 
-  const socio = await get<{ id: number }>(`SELECT id FROM socios WHERE id = ?`, [socio_id]);
+  const socio = await get<{ id: number; nombre: string }>(`SELECT id, nombre FROM socios WHERE id = ?`, [socio_id]);
   if (!socio) throw new Error("Socio no encontrado");
 
-  // Comprobante opcional (mismo patrón que gastos_comision.comprobante_url,
-  // vía Supabase Storage — ver src/lib/upload.ts) — típicamente se adjunta
-  // en un "pago", pero no hay ninguna razón técnica para prohibirlo en un
-  // cargo (ej. una nota de débito recibida de un tercero).
+  if (tipo === "pago" && cuota_id) {
+    const cuota = await pendienteDeCuota(socio_id, cuota_id);
+    if (!cuota) throw new ValidationError("cuota_id", "Esa cuota no pertenece a este socio o ya no existe.");
+    if (cuota.estado === "convenio" && cuota.refinanciadaPorConvenioId) {
+      throw new ValidationError("cuota_id", "Esa cuota está incluida en un convenio: registrá el pago contra las cuotas del convenio.");
+    }
+    if (cuota.montoPendiente <= 0) throw new ValidationError("cuota_id", "Esa cuota ya está paga.");
+    if (monto > cuota.montoPendiente + 0.004) {
+      throw new ValidationError("monto", `Esa cuota debe ${money(cuota.montoPendiente)} — el pago no puede ser mayor.`);
+    }
+  }
+
+  // Doble envío: mismo pago (socio, monto, fecha, cuota) cargado hace menos de 2 minutos.
+  if (tipo === "pago") {
+    const reciente = await get<{ id: number }>(
+      `SELECT id FROM movimientos_cuenta_socio
+       WHERE socio_id = ? AND tipo = 'pago' AND monto = ? AND fecha = ? AND COALESCE(estado, 'activo') != 'anulado'
+         AND creado_en::timestamptz > now() - interval '2 minutes'
+       ORDER BY id DESC LIMIT 1`,
+      [socio_id, Math.abs(monto), fecha]
+    ).catch(() => null);
+    if (reciente) {
+      throw new Error("Este mismo pago ya se registró hace un momento — revisá el estado de cuenta antes de volver a cargarlo.");
+    }
+  }
+
   const comprobanteUrl = await saveUploadedFile(
     formData.get("comprobante") as File | null,
     user.organization_id,
@@ -57,7 +113,7 @@ export async function registrarMovimientoCuentaSocioAction(formData: FormData) {
     { tiposPermitidos: TIPOS_DOCUMENTO }
   );
 
-  const id = await insert("movimientos_cuenta_socio", {
+  const datos = {
     socio_id,
     tipo,
     concepto,
@@ -67,13 +123,53 @@ export async function registrarMovimientoCuentaSocioAction(formData: FormData) {
     comprobante_url: comprobanteUrl,
     notas,
     registrado_por_id: user.id,
-  });
+    ...(tipo === "pago" ? { metodo_pago: metodo_pago || "efectivo", cuota_id: cuota_id || null } : {}),
+  };
+
+  let id: number;
+  let ingresoId: number | null = null;
+  if (tipo === "pago") {
+    try {
+      ({ id, ingresoId } = await withTenantTransaction(async (tx) => {
+        const fila = await tx.get(
+          `INSERT INTO movimientos_cuenta_socio
+             (organization_id, socio_id, tipo, concepto, monto, fecha, comprobante_url, notas, registrado_por_id, metodo_pago, cuota_id)
+           VALUES (NULLIF(current_setting('app.current_org_id', true), '')::int, ?, 'pago', ?, ?, ?, ?, ?, ?, ?, ?)
+           RETURNING id`,
+          [socio_id, concepto, Math.abs(monto), fecha, comprobanteUrl, notas, user.id, datos.metodo_pago, datos.cuota_id]
+        );
+        const ingreso = await tx.get(
+          `INSERT INTO movimientos_financieros
+             (organization_id, tipo, monto, categoria, etapa_obra, fecha, descripcion, comprobante_url, registrado_por_id, movimiento_cuenta_socio_id)
+           VALUES (NULLIF(current_setting('app.current_org_id', true), '')::int, 'ingreso', ?, ?, ?, ?, ?, ?, ?, ?)
+           RETURNING id`,
+          [Math.abs(monto), CATEGORIA_INGRESO_CUOTAS, CATEGORIA_INGRESO_CUOTAS, fecha, `Pago de cuota — ${socio.nombre}: ${concepto}`, comprobanteUrl, user.id, fila.id]
+        );
+        return { id: fila.id as number, ingresoId: ingreso.id as number };
+      }));
+    } catch (err) {
+      // Base sin la migración 0048: se registra el pago como siempre.
+      if (!esColumnaInexistente(err)) throw err;
+      id = await insert("movimientos_cuenta_socio", datos);
+    }
+  } else {
+    id = await insert("movimientos_cuenta_socio", datos);
+  }
+
   await audit({
     usuario_id: user.id,
-    accion: "registrar_movimiento_cuenta_socio",
+    accion: tipo === "pago" ? "registrar_pago_cuota" : "registrar_cargo_cuota",
     entidad: "movimientos_cuenta_socio",
     entidad_id: id,
-    valor_nuevo: { socio_id, tipo, concepto, monto },
+    valor_nuevo: {
+      socio: socio.nombre,
+      socio_id,
+      tipo,
+      concepto,
+      monto,
+      fecha,
+      ...(tipo === "pago" ? { metodo_pago: datos.metodo_pago, cuota_id: cuota_id || null, ingreso_finanzas_id: ingresoId } : { fecha_vencimiento }),
+    },
   });
   revalidatePath(`/socios/${socio_id}`);
   revalidatePath("/socios");
@@ -93,6 +189,7 @@ const editarMovimientoCuentaSocioSchema = z.object({
   fecha: zFecha,
   fecha_vencimiento: zFechaOpcional,
   notas: zTextoOpcional(1000),
+  metodo_pago: zEnumSeguro(METODOS_PAGO, "efectivo").optional(),
 });
 
 /**
@@ -106,27 +203,30 @@ export async function editarMovimientoCuentaSocioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
 
-  const { id, tipo, concepto, monto, fecha, fecha_vencimiento, notas } = parseForm(
+  const { id, tipo, concepto, monto, fecha, fecha_vencimiento, notas, metodo_pago } = parseForm(
     editarMovimientoCuentaSocioSchema,
     formData
   );
 
-  const movimiento = await get<{ id: number; socio_id: number; comprobante_url: string | null; estado?: string }>(
-    `SELECT id, socio_id, comprobante_url, estado FROM movimientos_cuenta_socio WHERE id = ?`,
+  type Fila = { id: number; socio_id: number; tipo: string; concepto: string; monto: number; fecha: string; comprobante_url: string | null; estado?: string; cuota_id?: number | null; metodo_pago?: string | null };
+  const movimiento = await get<Fila>(
+    `SELECT id, socio_id, tipo, concepto, monto, fecha, comprobante_url, estado, cuota_id, metodo_pago FROM movimientos_cuenta_socio WHERE id = ?`,
     [id]
   ).catch(async (err) => {
-    // Sub-fase 4.4 todavía no migrada en este entorno (columna `estado`
-    // inexistente, 42703) — sin esa columna un movimiento nunca puede estar
-    // anulado, así que se sigue exactamente igual que antes de esta sub-fase.
     if (!esColumnaInexistente(err)) throw err;
-    return get<{ id: number; socio_id: number; comprobante_url: string | null; estado?: string }>(
-      `SELECT id, socio_id, comprobante_url FROM movimientos_cuenta_socio WHERE id = ?`,
-      [id]
-    );
+    return get<Fila>(`SELECT id, socio_id, tipo, concepto, monto, fecha, comprobante_url FROM movimientos_cuenta_socio WHERE id = ?`, [id]);
   });
   if (!movimiento) throw new Error("Ese movimiento ya no existe.");
   if (movimiento.estado === "anulado") {
     throw new Error("Este movimiento está anulado — no se puede editar. Registrá un movimiento nuevo si hace falta corregir el saldo.");
+  }
+  // Un pago dirigido a una cuota no puede pasar a valer más de lo que esa
+  // cuota debe (calculado como si este pago no existiera).
+  if (tipo === "pago" && movimiento.cuota_id) {
+    const cuota = await pendienteDeCuota(movimiento.socio_id, movimiento.cuota_id, id);
+    if (cuota && monto > cuota.montoPendiente + 0.004) {
+      throw new ValidationError("monto", `La cuota de este pago debe ${money(cuota.montoPendiente)} — el pago no puede ser mayor.`);
+    }
   }
 
   const nuevoComprobante = await saveUploadedFile(
@@ -144,13 +244,41 @@ export async function editarMovimientoCuentaSocioAction(formData: FormData) {
     fecha_vencimiento: tipo === "cargo" ? fecha_vencimiento || null : null,
     comprobante_url: nuevoComprobante || movimiento.comprobante_url,
     notas,
+    ...(tipo === "pago" && metodo_pago ? { metodo_pago } : {}),
   });
+
+  // Gestión cooperativa integrada (04/10): el ingreso de Finanzas generado
+  // por este pago se corrige junto con él (es el mismo dato, una sola
+  // fuente). Si el movimiento deja de ser un pago, su ingreso se anula.
+  const ingreso = await get<{ id: number; estado: string }>(
+    `SELECT id, estado FROM movimientos_financieros WHERE movimiento_cuenta_socio_id = ?`,
+    [id]
+  ).catch(() => null);
+  if (ingreso && ingreso.estado !== "anulado") {
+    if (tipo === "pago") {
+      await update("movimientos_financieros", ingreso.id, {
+        monto: Math.abs(monto),
+        fecha,
+        comprobante_url: nuevoComprobante || movimiento.comprobante_url,
+      });
+    } else {
+      await update("movimientos_financieros", ingreso.id, {
+        estado: "anulado",
+        anulado_en: new Date().toISOString(),
+        anulado_por_id: user.id,
+        motivo_anulacion: "El pago de cuota que lo generó se cambió a cargo.",
+      });
+    }
+  }
+
+  const nombreSocio = (await get<{ nombre: string }>(`SELECT nombre FROM socios WHERE id = ?`, [movimiento.socio_id]))?.nombre ?? null;
   await audit({
     usuario_id: user.id,
-    accion: "editar_movimiento_cuenta_socio",
+    accion: movimiento.tipo === "pago" ? "editar_pago_cuota" : "editar_cargo_cuota",
     entidad: "movimientos_cuenta_socio",
     entidad_id: id,
-    valor_nuevo: { tipo, concepto, monto },
+    valor_anterior: { socio: nombreSocio, tipo: movimiento.tipo, concepto: movimiento.concepto, monto: Number(movimiento.monto), fecha: movimiento.fecha, metodo_pago: movimiento.metodo_pago ?? null },
+    valor_nuevo: { socio: nombreSocio, tipo, concepto, monto, fecha, ...(tipo === "pago" ? { metodo_pago: metodo_pago ?? movimiento.metodo_pago ?? null } : {}) },
   });
   revalidatePath(`/socios/${movimiento.socio_id}`);
   revalidatePath("/socios");
@@ -205,12 +333,31 @@ export async function anularMovimientoCuentaSocioAction(formData: FormData) {
     anulado_por_id: user.id,
     motivo_anulacion: motivo || null,
   });
+  // Gestión cooperativa integrada (04/10): si era un pago con su ingreso en
+  // Finanzas, ese ingreso se anula también — si no, Finanzas seguiría
+  // contando plata que ya no entró.
+  const ingreso = await get<{ id: number; estado: string }>(
+    `SELECT id, estado FROM movimientos_financieros WHERE movimiento_cuenta_socio_id = ?`,
+    [id]
+  ).catch(() => null);
+  if (ingreso && ingreso.estado !== "anulado") {
+    await update("movimientos_financieros", ingreso.id, {
+      estado: "anulado",
+      anulado_en: new Date().toISOString(),
+      anulado_por_id: user.id,
+      motivo_anulacion: `Se anuló el pago de cuota que lo generó${motivo ? `: ${motivo}` : ""}.`,
+    });
+  }
   await audit({
     usuario_id: user.id,
     accion: "anular_movimiento_cuenta_socio",
     entidad: "movimientos_cuenta_socio",
     entidad_id: id,
-    valor_nuevo: { motivo },
+    valor_anterior: {
+      socio: (await get<{ nombre: string }>(`SELECT nombre FROM socios WHERE id = ?`, [fila.socio_id]))?.nombre ?? null,
+      estado: "activo",
+    },
+    valor_nuevo: { estado: "anulado", motivo },
   });
   revalidatePath(`/socios/${fila.socio_id}`);
   revalidatePath("/socios");
@@ -262,7 +409,11 @@ export async function generarCuotaMensualAction(formData: FormData) {
     const yaExiste = await get<{ id: number }>(
       `SELECT id FROM movimientos_cuenta_socio
        WHERE socio_id = ? AND tipo = 'cargo' AND convenio_id IS NULL
-         AND to_char(fecha_vencimiento, 'YYYY-MM') = ?`,
+         AND substr(fecha_vencimiento, 1, 7) = ?`,
+      // Testing 04/10: antes era to_char(fecha_vencimiento, 'YYYY-MM'), pero
+      // fecha_vencimiento es TEXT (migración 0027) y Postgres no tiene
+      // to_char(text) — la consulta fallaba SIEMPRE y "Generar cuota mensual"
+      // nunca llegaba a generar nada (la persona veía un error genérico).
       [s.id, mes]
     );
     if (yaExiste) continue;

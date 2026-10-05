@@ -6,6 +6,8 @@ import { get, all } from "@/lib/db";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
 import { historialDecision } from "@/lib/logic";
 import { Card, PageHeader, Label, EmptyState, Badge } from "@/components/ui";
+import { OrigenResolucion } from "@/components/reuniones/ResumenSeguimiento";
+import { puntosDeAgenda } from "@/lib/trazabilidad";
 import { HistorialAuditoria } from "@/components/HistorialAuditoria";
 import { UsuarioLink } from "@/components/EntidadLink";
 import dayjs from "dayjs";
@@ -41,6 +43,7 @@ export default async function DecisionDetallePage({ params }: { params: Promise<
     resultado: string;
     fecha: string;
     decidido_por_nombre: string | null;
+    agenda_item_id?: number | null;
   };
 
   const decision = await get<DecisionRow>(
@@ -89,6 +92,11 @@ export default async function DecisionDetallePage({ params }: { params: Promise<
   const historial = await historialDecision(Number(id));
 
   const hayVotacionAbierta = votacionesConRespuestas.some((v) => v.estado === "abierta");
+  // Recorrido de decisiones (04/10): resolución de la que salió y tareas
+  // que se crearon a partir de esa resolución.
+  const origenResolucion = decision.agenda_item_id
+    ? (await puntosDeAgenda([decision.agenda_item_id])).get(decision.agenda_item_id)
+    : undefined;
 
   return (
     <div>
@@ -97,6 +105,7 @@ export default async function DecisionDetallePage({ params }: { params: Promise<
         subtitle={`${decision.comision_nombre} · ${dayjs(decision.fecha).format("DD/MM/YYYY")}`}
         action={<ResultadoDecisionBadge resultado={decision.resultado} />}
       />
+      <OrigenResolucion punto={origenResolucion} />
 
       <Card className="mb-5 text-sm">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

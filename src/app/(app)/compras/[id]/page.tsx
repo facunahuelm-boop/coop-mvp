@@ -5,6 +5,8 @@ import { canRead, canEdit, canApprove } from "@/lib/roles";
 import { get, all } from "@/lib/db";
 import { compararPresupuestos, historialSolicitud } from "@/lib/logic";
 import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
+import { OrigenResolucion } from "@/components/reuniones/ResumenSeguimiento";
+import { puntosDeAgenda } from "@/lib/trazabilidad";
 import { ActionForm, Tabs } from "@/components/ui-client";
 import dayjs from "dayjs";
 import { marcarPedidaFormAction, marcarEntregadaFormAction, rechazarSolicitudFormAction, eliminarSolicitudFormAction } from "@/lib/actions/compras";
@@ -192,6 +194,11 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
     </>
   );
 
+  // Recorrido de decisiones (04/10): resolución de la que salió la compra.
+  const origenResolucion = solicitud.agenda_item_id
+    ? (await puntosDeAgenda([solicitud.agenda_item_id])).get(solicitud.agenda_item_id)
+    : undefined;
+
   return (
     <div>
       <PageHeader title={solicitud.material} subtitle={`${solicitud.cantidad} ${solicitud.unidad} · ${solicitud.comision}`}
@@ -219,6 +226,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
             <Badge color={solicitud.prioridad === "critica" ? "rojo" : "brand"}>{solicitud.prioridad}</Badge>
           </div>
         } />
+      <OrigenResolucion punto={origenResolucion} />
 
       <Tabs
         tabs={[

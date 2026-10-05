@@ -6,7 +6,7 @@ import { insert, update, get, run, audit } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
-import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaOpcional, zEnumSeguro } from "@/lib/validation";
+import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaOpcional, zEnumSeguro, ValidationError } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { crearNotificacion } from "@/lib/notificaciones";
 
@@ -84,6 +84,10 @@ const crearTareaSchema = z.object({
   prioridad: zEnumSeguro(["alta", "media", "baja"], "media"),
   fecha_vencimiento: zFechaOpcional,
   depende_de_id: zIdOpcional,
+  // Recorrido de decisiones (04/10): resolución de la que sale la tarea
+  // (punto de una asamblea/consejo/comisión) y/o decisión de comisión.
+  agenda_item_id: zIdOpcional,
+  decision_id: zIdOpcional,
 });
 
 export async function crearTareaAction(formData: FormData) {
@@ -92,9 +96,22 @@ export async function crearTareaAction(formData: FormData) {
   const datos = parseForm(crearTareaSchema, formData);
   if (!(await puedeGestionarComision(user, datos.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
   await validarDependencia(datos.comision_id, datos.depende_de_id, null);
+  let reunionDeOrigen: number | null = null;
+  if (datos.agenda_item_id) {
+    const item = await get<{ reunion_id: number }>(`SELECT reunion_id FROM reunion_agenda_items WHERE id = ?`, [datos.agenda_item_id]);
+    if (!item) throw new ValidationError("agenda_item_id", "Esa resolución ya no existe.");
+    reunionDeOrigen = item.reunion_id;
+  }
+  if (datos.decision_id) {
+    const decision = await get<{ id: number }>(`SELECT id FROM decisiones_comision WHERE id = ?`, [datos.decision_id]);
+    if (!decision) throw new ValidationError("decision_id", "Esa decisión ya no existe.");
+  }
 
   const id = await insert("tareas", {
     ...datos,
+    // La tarea queda también en "Tareas de esta reunión" de la reunión de
+    // origen (mismo campo que ya usan las tareas que salen del acta).
+    ...(reunionDeOrigen ? { reunion_id: reunionDeOrigen } : {}),
     etiquetas: normalizarEtiquetas(formData.get("etiquetas")),
     creado_por_id: user.id,
   });
@@ -103,7 +120,13 @@ export async function crearTareaAction(formData: FormData) {
     accion: "crear",
     entidad: "tareas",
     entidad_id: id,
-    valor_nuevo: { comision_id: datos.comision_id, titulo: datos.titulo, prioridad: datos.prioridad },
+    valor_nuevo: {
+      comision_id: datos.comision_id,
+      titulo: datos.titulo,
+      prioridad: datos.prioridad,
+      ...(datos.agenda_item_id ? { resolucion_id: datos.agenda_item_id, reunion_id: reunionDeOrigen } : {}),
+      ...(datos.decision_id ? { decision_id: datos.decision_id } : {}),
+    },
   });
 
   // Fase 7 (notificaciones): "me asignaron una tarea" es el otro ejemplo
@@ -119,6 +142,7 @@ export async function crearTareaAction(formData: FormData) {
   }
 
   revalidatePath("/comisiones");
+  if (reunionDeOrigen) revalidatePath(`/reuniones/${reunionDeOrigen}`);
 }
 
 export async function crearTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -139,14 +163,24 @@ export async function editarTareaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
   const datos = parseForm(editarTareaSchema, formData);
-  const tarea = await get<{ comision_id: number; responsable_id: number | null }>(`SELECT comision_id, responsable_id FROM tareas WHERE id = ?`, [datos.id]);
+  const tarea = await get<{ comision_id: number; responsable_id: number | null; titulo: string; descripcion: string | null; prioridad: string; fecha_vencimiento: string | null }>(
+    `SELECT comision_id, responsable_id, titulo, descripcion, prioridad, fecha_vencimiento FROM tareas WHERE id = ?`,
+    [datos.id]
+  );
   if (!tarea) throw new Error("Esa tarea ya no existe.");
   if (!(await puedeGestionarComision(user, tarea.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
   await validarDependencia(tarea.comision_id, datos.depende_de_id, datos.id);
 
   const { id, ...cambios } = datos;
   await update("tareas", id, { ...cambios, etiquetas: normalizarEtiquetas(formData.get("etiquetas")) });
-  await audit({ usuario_id: user.id, accion: "editar", entidad: "tareas", entidad_id: id, valor_nuevo: { titulo: datos.titulo } });
+  await audit({
+    usuario_id: user.id,
+    accion: "editar",
+    entidad: "tareas",
+    entidad_id: id,
+    valor_anterior: { titulo: tarea.titulo, descripcion: tarea.descripcion, responsable_id: tarea.responsable_id, prioridad: tarea.prioridad, fecha_vencimiento: tarea.fecha_vencimiento },
+    valor_nuevo: { titulo: datos.titulo, descripcion: datos.descripcion, responsable_id: datos.responsable_id, prioridad: datos.prioridad, fecha_vencimiento: datos.fecha_vencimiento },
+  });
 
   // Fase 7 (notificaciones): sólo avisa cuando el responsable CAMBIA a
   // alguien nuevo — evita re-notificar en cada edición si sigue siendo la
@@ -197,13 +231,49 @@ export async function cambiarEstadoTareaAction(formData: FormData) {
     }
   }
 
+  const estadoAnterior = await get<{ estado: string }>(`SELECT estado FROM tareas WHERE id = ?`, [id]);
   await update("tareas", id, { estado });
-  await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "tareas", entidad_id: id, valor_nuevo: { estado } });
+  await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "tareas", entidad_id: id, valor_anterior: estadoAnterior ? { estado: estadoAnterior.estado } : undefined, valor_nuevo: { estado } });
   revalidatePath("/comisiones");
 }
 
 export async function cambiarEstadoTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => cambiarEstadoTareaAction(formData));
+}
+
+// Recorrido de decisiones (04/10): el "resultado" de una tarea — qué se
+// hizo / cómo terminó — cierra el recorrido Asamblea → … → Tarea →
+// Resultado. Acción aparte de "Editar tarea" a propósito: así editar el
+// resto de la tarea nunca pisa el resultado ya registrado.
+const resultadoTareaSchema = z.object({ id: zId, resultado: zTextoOpcional(2000) });
+
+export async function registrarResultadoTareaAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
+  const { id, resultado } = parseForm(resultadoTareaSchema, formData);
+  const tarea = await get<{ comision_id: number; reunion_id: number | null; resultado: string | null }>(
+    `SELECT comision_id, reunion_id, resultado FROM tareas WHERE id = ?`,
+    [id]
+  ).catch(() => {
+    throw new Error("Falta aplicar la actualización de la base (migración 0049) para registrar resultados.");
+  });
+  if (!tarea) throw new Error("Esa tarea ya no existe.");
+  if (!(await puedeGestionarComision(user, tarea.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
+  await update("tareas", id, { resultado });
+  await audit({
+    usuario_id: user.id,
+    accion: "registrar_resultado",
+    entidad: "tareas",
+    entidad_id: id,
+    valor_anterior: tarea.resultado ? { resultado: tarea.resultado } : undefined,
+    valor_nuevo: { resultado },
+  });
+  revalidatePath("/comisiones");
+  if (tarea.reunion_id) revalidatePath(`/reuniones/${tarea.reunion_id}`);
+}
+
+export async function registrarResultadoTareaFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => registrarResultadoTareaAction(formData));
 }
 
 // ---------- Checklist / subtareas (sección 12: "checklist o subtareas") ----------
@@ -226,6 +296,7 @@ export async function agregarItemChecklistAction(formData: FormData) {
 
   checklist.push({ texto, hecho: false });
   await update("tareas", tarea_id, { checklist });
+  await audit({ usuario_id: user.id, accion: "agregar_item_checklist", entidad: "tareas", entidad_id: tarea_id, valor_nuevo: { item: texto } });
   revalidatePath("/comisiones");
 }
 
@@ -245,6 +316,13 @@ export async function alternarItemChecklistAction(formData: FormData) {
 
   checklist[indice].hecho = !checklist[indice].hecho;
   await update("tareas", tarea_id, { checklist });
+  await audit({
+    usuario_id: user.id,
+    accion: checklist[indice].hecho ? "completar_item_checklist" : "reabrir_item_checklist",
+    entidad: "tareas",
+    entidad_id: tarea_id,
+    valor_nuevo: { item: checklist[indice].texto, hecho: checklist[indice].hecho },
+  });
   revalidatePath("/comisiones");
 }
 
@@ -260,8 +338,9 @@ export async function eliminarItemChecklistAction(formData: FormData) {
   if (!(await puedeGestionarComision(user, comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
   if (!checklist[indice]) return; // ya no existe, nada que borrar
 
-  checklist.splice(indice, 1);
+  const [quitado] = checklist.splice(indice, 1);
   await update("tareas", tarea_id, { checklist });
+  await audit({ usuario_id: user.id, accion: "quitar_item_checklist", entidad: "tareas", entidad_id: tarea_id, valor_anterior: { item: quitado?.texto } });
   revalidatePath("/comisiones");
 }
 
@@ -286,6 +365,7 @@ export async function agregarColaboradorTareaAction(formData: FormData) {
   if (yaExiste) return; // ya es colaborador, no hay nada más que hacer
 
   await insert("tarea_colaboradores", { tarea_id, user_id });
+  await audit({ usuario_id: user.id, accion: "agregar_colaborador", entidad: "tareas", entidad_id: tarea_id, valor_nuevo: { colaborador_id: user_id } });
   revalidatePath("/comisiones");
 }
 
@@ -297,14 +377,15 @@ export async function quitarColaboradorTareaAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
   const { id } = parseForm(z.object({ id: zId }), formData);
-  const colaborador = await get<{ comision_id: number }>(
-    `SELECT t.comision_id as comision_id FROM tarea_colaboradores tc JOIN tareas t ON t.id = tc.tarea_id WHERE tc.id = ?`,
+  const colaborador = await get<{ comision_id: number; tarea_id: number; user_id: number }>(
+    `SELECT t.comision_id as comision_id, tc.tarea_id, tc.user_id FROM tarea_colaboradores tc JOIN tareas t ON t.id = tc.tarea_id WHERE tc.id = ?`,
     [id]
   );
   if (!colaborador) return; // ya no existe
   if (!(await puedeGestionarComision(user, colaborador.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
 
   await run(`DELETE FROM tarea_colaboradores WHERE id = ?`, [id]);
+  await audit({ usuario_id: user.id, accion: "quitar_colaborador", entidad: "tareas", entidad_id: colaborador.tarea_id, valor_anterior: { colaborador_id: colaborador.user_id } });
   revalidatePath("/comisiones");
 }
 

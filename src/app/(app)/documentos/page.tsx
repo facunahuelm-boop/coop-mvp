@@ -16,12 +16,7 @@ import {
 } from "@/components/documentos/DocumentosFormularios";
 import { DocumentoStatusBadge, estadoEfectivoDocumento, type EstadoDocumentoGuardado } from "@/components/documentos/DocumentoStatus";
 
-const CATEGORIAS_BASE = ["actas", "asambleas", "presupuestos", "facturas", "contratos", "tecnicos", "obra", "socios", "seguridad", "compras", "reglamentos", "informes", "comunicaciones"];
-const CAT_LABEL_BASE: Record<string, string> = {
-  actas: "Actas", asambleas: "Asambleas", presupuestos: "Presupuestos", facturas: "Facturas", contratos: "Contratos",
-  tecnicos: "Documentos técnicos", obra: "Documentación de obra", socios: "Documentación de socios", seguridad: "Seguridad",
-  compras: "Compras", reglamentos: "Reglamentos", informes: "Informes", comunicaciones: "Comunicaciones",
-};
+import { CATEGORIAS_DOCUMENTO_BASE as CATEGORIAS_BASE, CATEGORIA_DOCUMENTO_LABEL as CAT_LABEL_BASE } from "@/lib/constants";
 
 // Fase 07 del Plan Maestro ("carpetas/etiquetas"): a la lista fija de
 // categorías de arriba se le suman las que cada cooperativa haya creado por
@@ -69,6 +64,8 @@ type DocumentoRow = {
   reunion_titulo?: string | null;
   decision_tema?: string | null;
   comunicacion_asunto?: string | null;
+  socio_id?: number | null;
+  socio_nombre?: string | null;
 };
 
 /** Dónde está enlazado un documento (si lo está) y a dónde llevarlo si se
@@ -82,6 +79,7 @@ function contextoDe(d: DocumentoRow): { texto: string; href: string } | null {
   if (d.reunion_id) return { texto: `Reunión: ${d.reunion_titulo || "—"}`, href: `/reuniones/${d.reunion_id}` };
   if (d.decision_id) return { texto: `Decisión: ${d.decision_tema || "—"}`, href: `/decisiones/${d.decision_id}` };
   if (d.comunicacion_id) return { texto: `Comunicación: ${d.comunicacion_asunto || "—"}`, href: "/comunicaciones" };
+  if (d.socio_id) return { texto: `Núcleo: ${d.socio_nombre || "—"}`, href: `/socios/${d.socio_id}` };
   return null;
 }
 
@@ -138,6 +136,12 @@ export default async function DocumentosPage({
     all<DocumentoRow>(`SELECT d.*, u.nombre as subido_por FROM documentos d LEFT JOIN users u ON u.id = d.subido_por_id ORDER BY fecha DESC`)
   );
 
+  // Ficha 360° del núcleo (04/10): núcleo relacionado de cada documento.
+  const sociosOpc = await all<{ id: number; nombre: string }>(
+    `SELECT id, nombre FROM socios WHERE estado != 'baja' ORDER BY nombre ASC`
+  ).catch(() => []);
+  const nombreSocio = new Map(sociosOpc.map((x) => [x.id, x.nombre]));
+
   const [actas, categoriasPropias, comisionesOpc, solicitudesOpc, tareasOpc, reunionesOpc, decisionesOpc, comunicacionesOpc] = await Promise.all([
     all<any>(`SELECT * FROM actas ORDER BY fecha DESC`),
     all<any>(`SELECT * FROM documento_categorias ORDER BY nombre ASC`),
@@ -158,6 +162,7 @@ export default async function DocumentosPage({
   // que reemplaza — así que esa versión anterior queda "superada" y no debe
   // aparecer suelta en el listado por categoría (aparece colgada de la
   // versión vigente, ver historialDe más abajo).
+  for (const d of docsSinFiltrar) if (d.socio_id) d.socio_nombre = nombreSocio.get(d.socio_id) ?? null;
   const porId = new Map(docsSinFiltrar.map((d) => [d.id, d]));
   const idsSuperados = new Set(docsSinFiltrar.map((d) => d.reemplaza_a_id).filter((id): id is number => Boolean(id)));
   function historialDe(d: DocumentoRow): DocumentoRow[] {
@@ -216,6 +221,7 @@ export default async function DocumentosPage({
                 reuniones={reunionesOpc.map((r) => ({ id: r.id, label: r.titulo }))}
                 decisiones={decisionesOpc.map((dd) => ({ id: dd.id, label: dd.tema }))}
                 comunicaciones={comunicacionesOpc.map((c) => ({ id: c.id, label: c.asunto }))}
+                socios={sociosOpc.map((x) => ({ id: x.id, label: x.nombre }))}
               />
               <CrearCategoriaDocumentoForm />
             </div>

@@ -32,6 +32,13 @@ const ROL_MIEMBRO_LABEL: Record<string, string> = { coordinador: "Coordinador/a"
 type Integrante = { id: number; user_id: number; user_nombre: string; rol_en_comision: string };
 type ReunionResumen = { id: number; titulo: string; fecha: string; estado: string };
 type DocumentoResumen = { id: number; nombre: string; archivo_url: string | null };
+type TareaResumen = { id: number; titulo: string; estado: string; resultado: string | null; origen: string | null };
+type DecisionResumen = { id: number; tema: string; resultado: string };
+type ReunionRelacionada = { id: number; titulo: string; tipo: string; fecha: string; punto: string };
+const TIPO_REUNION_LABEL: Record<string, string> = { asamblea: "Asamblea", consejo_directivo: "Consejo Directivo", comision: "Comisión" };
+const ESTADO_TAREA_LABEL: Record<string, string> = { pendiente: "Pendiente", en_curso: "En curso", completada: "Completada" };
+const ESTADO_TAREA_COLOR: Record<string, "amarillo" | "azul" | "verde"> = { pendiente: "amarillo", en_curso: "azul", completada: "verde" };
+const DECISION_COLOR: Record<string, "amarillo" | "verde" | "rojo"> = { pendiente: "amarillo", aprobada: "verde", rechazada: "rojo" };
 
 export function ComisionDetalleModal({
   nombre,
@@ -39,12 +46,19 @@ export function ComisionDetalleModal({
   reuniones,
   documentos,
   decisionesCount,
+  tareas = [],
+  decisiones = [],
+  reunionesRelacionadas = [],
 }: {
   nombre: string;
   integrantes: Integrante[];
   reuniones: ReunionResumen[];
   documentos: DocumentoResumen[];
   decisionesCount: number;
+  /** Gestión cooperativa integrada (04/10): vista completa de la comisión. */
+  tareas?: TareaResumen[];
+  decisiones?: DecisionResumen[];
+  reunionesRelacionadas?: ReunionRelacionada[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -101,6 +115,51 @@ export function ComisionDetalleModal({
                 </div>
               ))}
               {reuniones.length === 0 && <p className="text-xs text-ink/40 italic">Sin reuniones registradas.</p>}
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-ink/10">
+            <p className="text-xs font-semibold text-ink/60 mb-2">Tareas</p>
+            <div className="space-y-1.5">
+              {tareas.map((t) => (
+                <div key={t.id} className="text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`truncate ${t.estado === "completada" ? "text-ink/50" : ""}`}>{t.titulo}</span>
+                    <Badge color={ESTADO_TAREA_COLOR[t.estado] ?? "gray"}>{ESTADO_TAREA_LABEL[t.estado] ?? t.estado}</Badge>
+                  </div>
+                  {t.origen && <p className="text-xs text-[var(--accent-blue)]">Sale de: {t.origen}</p>}
+                  {t.resultado && <p className="text-xs text-ink/60">Resultado: {t.resultado}</p>}
+                </div>
+              ))}
+              {tareas.length === 0 && <p className="text-xs text-ink/40 italic">Sin tareas.</p>}
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-ink/10">
+            <p className="text-xs font-semibold text-ink/60 mb-2">Decisiones</p>
+            <div className="space-y-1">
+              {decisiones.map((d) => (
+                <p key={d.id} className="text-sm flex items-center justify-between gap-2">
+                  <Link href={`/decisiones/${d.id}`} className="truncate hover:underline underline-offset-2">{d.tema}</Link>
+                  <Badge color={DECISION_COLOR[d.resultado] ?? "gray"}>{d.resultado}</Badge>
+                </p>
+              ))}
+              {decisiones.length === 0 && <p className="text-xs text-ink/40 italic">Sin decisiones registradas.</p>}
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-ink/10">
+            <p className="text-xs font-semibold text-ink/60 mb-2">Asambleas y Consejo relacionados</p>
+            <div className="space-y-1">
+              {reunionesRelacionadas.map((r) => (
+                <div key={r.id} className="text-sm">
+                  <Link href={`/reuniones/${r.id}`} className="hover:underline underline-offset-2">
+                    {TIPO_REUNION_LABEL[r.tipo] ?? r.tipo}: {r.titulo}
+                  </Link>{" "}
+                  <span className="text-xs text-ink/50">{dayjs(r.fecha).format("DD/MM/YYYY")} · «{r.punto}»</span>
+                </div>
+              ))}
+              {reunionesRelacionadas.length === 0 && <p className="text-xs text-ink/40 italic">Ninguna resolución de Asamblea o Consejo derivada a esta comisión todavía.</p>}
             </div>
           </div>
 

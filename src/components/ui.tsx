@@ -50,6 +50,12 @@ const badgeColors: Record<string, string> = {
   verde: "bg-[var(--color-verde-bg)] text-[var(--color-verde)]",
   amarillo: "bg-[var(--color-amarillo-bg)] text-[var(--color-amarillo)]",
   rojo: "bg-[var(--color-rojo-bg)] text-[var(--color-rojo)]",
+  // Gestión cooperativa integrada (04/10): "Pago parcial" de una cuota —
+  // mismo naranja que ya existía como token en globals.css.
+  naranja: "bg-[var(--color-naranja-bg)] text-[var(--color-naranja)]",
+  // Cuota "En convenio" (pedido: azul) — el acento azul del sistema; brand
+  // es índigo y se confunde con los botones.
+  azul: "bg-[var(--accent-blue-bg)] text-[var(--accent-blue)]",
 };
 
 export function Badge({ children, color = "gray" }: { children: ReactNode; color?: keyof typeof badgeColors }) {

@@ -38,7 +38,16 @@ const PROVEEDOR_ESTADO_EMOJI: Record<string, string> = {
   inactivo: "⚪",
 };
 
-export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
+export function CrearSolicitudForm({
+  comisiones,
+  desdeResolucion,
+}: {
+  comisiones: Opcion[];
+  /** Recorrido de decisiones (04/10): la solicitud sale de una resolución
+   * (punto de asamblea/consejo/comisión) — misma acción y mismos campos que
+   * "Nueva solicitud" de Compras; sólo guarda de qué resolución salió. */
+  desdeResolucion?: { agendaItemId: number; titulo: string; resultado: string | null };
+}) {
   const [open, setOpen] = useState(false);
   const [estado, formAction] = useActionState(crearSolicitudFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
@@ -59,9 +68,23 @@ export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
 
   return (
     <>
-      <AddButton onClick={() => setOpen(true)}>Nueva solicitud</AddButton>
-      <Modal open={open} onClose={() => setOpen(false)} title="Nueva solicitud de compra" size="lg">
+      {desdeResolucion ? (
+        <button type="button" onClick={() => setOpen(true)} className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap">
+          + Solicitud de compra
+        </button>
+      ) : (
+        <AddButton onClick={() => setOpen(true)}>Nueva solicitud</AddButton>
+      )}
+      <Modal open={open} onClose={() => setOpen(false)} title={desdeResolucion ? "Solicitud de compra desde una resolución" : "Nueva solicitud de compra"} size="lg">
         <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
+          {desdeResolucion && (
+            <>
+              <input type="hidden" name="agenda_item_id" value={desdeResolucion.agendaItemId} />
+              <p className="sm:col-span-2 rounded-lg bg-[var(--accent-blue-bg)] px-3 py-2 text-xs text-[var(--accent-blue)]">
+                Sale de la resolución «{desdeResolucion.titulo}»{desdeResolucion.resultado ? `: ${desdeResolucion.resultado}` : ""}. La solicitud sigue el circuito normal de Compras.
+              </p>
+            </>
+          )}
           <div>
             <Label>Categoría de la compra</Label>
             <select name="categoria" className={inputClass} defaultValue="obra">
@@ -107,7 +130,7 @@ export function CrearSolicitudForm({ comisiones }: { comisiones: Opcion[] }) {
           </div>
           <div className="sm:col-span-2">
             <Label>Especificación</Label>
-            <input name="especificacion" className={inputClass} />
+            <input name="especificacion" className={inputClass} defaultValue={desdeResolucion?.resultado ?? undefined} />
             <FieldError message={estado.fieldErrors?.especificacion} />
           </div>
           <div>

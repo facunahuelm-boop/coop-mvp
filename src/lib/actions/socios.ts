@@ -117,8 +117,16 @@ export async function actualizarSocioEstadoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
   const { id, estado } = parseForm(z.object({ id: zId, estado: zEnumSeguro(ESTADOS_SOCIO) }), formData);
+  const anterior = await get<{ estado: string; nombre: string }>(`SELECT estado, nombre FROM socios WHERE id = ?`, [id]);
   await update("socios", id, { estado });
-  await audit({ usuario_id: user.id, accion: "actualizar_estado", entidad: "socios", entidad_id: id, valor_nuevo: { estado } });
+  await audit({
+    usuario_id: user.id,
+    accion: "actualizar_estado",
+    entidad: "socios",
+    entidad_id: id,
+    valor_anterior: anterior ? { nombre: anterior.nombre, estado: anterior.estado } : undefined,
+    valor_nuevo: { nombre: anterior?.nombre, estado },
+  });
   revalidatePath("/socios");
 }
 
@@ -130,8 +138,16 @@ export async function asignarViviendaSocioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
   const { id, vivienda_id } = parseForm(z.object({ id: zId, vivienda_id: zIdOpcional }), formData);
+  const anteriorVivienda = await get<{ vivienda_id: number | null; nombre: string }>(`SELECT vivienda_id, nombre FROM socios WHERE id = ?`, [id]);
   await update("socios", id, { vivienda_id });
-  await audit({ usuario_id: user.id, accion: "asignar_vivienda", entidad: "socios", entidad_id: id, valor_nuevo: { vivienda_id } });
+  await audit({
+    usuario_id: user.id,
+    accion: "asignar_vivienda",
+    entidad: "socios",
+    entidad_id: id,
+    valor_anterior: anteriorVivienda ? { nombre: anteriorVivienda.nombre, vivienda_id: anteriorVivienda.vivienda_id } : undefined,
+    valor_nuevo: { nombre: anteriorVivienda?.nombre, vivienda_id },
+  });
   revalidatePath("/socios");
 }
 
@@ -159,8 +175,19 @@ export async function actualizarSocioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
   const { id, ...datos } = parseForm(actualizarSocioSchema, formData);
+  const anterior = await get<{ nombre: string; documento: string | null; email: string | null; telefono: string | null; notas: string | null }>(
+    `SELECT nombre, documento, email, telefono, notas FROM socios WHERE id = ?`,
+    [id]
+  );
   await update("socios", id, datos);
-  await audit({ usuario_id: user.id, accion: "editar", entidad: "socios", entidad_id: id, valor_nuevo: datos });
+  await audit({
+    usuario_id: user.id,
+    accion: "editar",
+    entidad: "socios",
+    entidad_id: id,
+    valor_anterior: anterior ?? undefined,
+    valor_nuevo: { nombre: anterior?.nombre, ...datos },
+  });
   revalidatePath(`/socios/${id}`);
   revalidatePath("/socios");
 }
@@ -342,11 +369,22 @@ export async function editarIntegranteAction(formData: FormData) {
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
   const { id, ...datos } = parseForm(editarIntegranteSchema, formData);
 
-  const integrante = await get<{ socio_id: number }>(`SELECT socio_id FROM socio_integrantes WHERE id = ?`, [id]);
+  const integrante = await get<Record<string, unknown> & { socio_id: number }>(
+    `SELECT socio_id, nombre, apellido, documento, fecha_nacimiento, telefono, email, relacion, tipo_integrante, observaciones FROM socio_integrantes WHERE id = ?`,
+    [id]
+  ).catch(() => get<{ socio_id: number }>(`SELECT socio_id FROM socio_integrantes WHERE id = ?`, [id]));
   if (!integrante) throw new Error("Ese integrante ya no existe.");
 
   await update("socio_integrantes", id, datos);
-  await audit({ usuario_id: user.id, accion: "editar", entidad: "socio_integrantes", entidad_id: id, valor_nuevo: datos });
+  const anteriorIntegrante = Object.fromEntries(Object.entries(integrante).filter(([k]) => k !== "socio_id"));
+  await audit({
+    usuario_id: user.id,
+    accion: "editar",
+    entidad: "socio_integrantes",
+    entidad_id: id,
+    valor_anterior: Object.keys(anteriorIntegrante).length ? anteriorIntegrante : undefined,
+    valor_nuevo: datos,
+  });
   revalidatePath(`/socios/${integrante.socio_id}`);
 }
 
@@ -367,11 +405,18 @@ export async function cambiarEstadoIntegranteAction(formData: FormData) {
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
   const { id, estado } = parseForm(cambiarEstadoIntegranteSchema, formData);
 
-  const integrante = await get<{ socio_id: number }>(`SELECT socio_id FROM socio_integrantes WHERE id = ?`, [id]);
+  const integrante = await get<{ socio_id: number; nombre: string; estado: string }>(`SELECT socio_id, nombre, estado FROM socio_integrantes WHERE id = ?`, [id]);
   if (!integrante) throw new Error("Ese integrante ya no existe.");
 
   await update("socio_integrantes", id, { estado });
-  await audit({ usuario_id: user.id, accion: "cambiar_estado", entidad: "socio_integrantes", entidad_id: id, valor_nuevo: { estado } });
+  await audit({
+    usuario_id: user.id,
+    accion: "cambiar_estado",
+    entidad: "socio_integrantes",
+    entidad_id: id,
+    valor_anterior: { nombre: integrante.nombre, estado: integrante.estado },
+    valor_nuevo: { nombre: integrante.nombre, estado },
+  });
   revalidatePath(`/socios/${integrante.socio_id}`);
 }
 

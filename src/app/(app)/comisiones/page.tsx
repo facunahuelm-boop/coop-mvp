@@ -18,6 +18,7 @@ import { cambiarEstadoTareaFormAction } from "@/lib/actions/tareas";
 import { AgregarMiembroForm, CrearTareaForm, CrearComisionForm, EditarComisionForm } from "@/components/comisiones/ComisionesFormularios";
 import { TareaDetalleModal } from "@/components/comisiones/TareaDetalleModal";
 import { ComisionDetalleModal } from "@/components/comisiones/ComisionDetalleModal";
+import { puntosDeAgenda, TIPO_REUNION_LABEL } from "@/lib/trazabilidad";
 
 const ROL_MIEMBRO_LABEL: Record<string, string> = { coordinador: "Coordinador/a", integrante: "Integrante", suplente: "Suplente" };
 
@@ -32,7 +33,7 @@ const PRIORIDAD_LABEL: Record<string, string> = { alta: "🔴 Alta", media: "�
 // consultas preexistentes) — evita sumar `any` nuevos al total de eslint.
 type ComisionReunionRow = { id: number; comision_id: number; titulo: string; fecha: string; estado: string };
 type ComisionDocumentoRow = { id: number; nombre: string; archivo_url: string | null; comision_id: number };
-type ComisionDecisionRow = { comision_id: number };
+type ComisionDecisionRow = { id: number; tema: string; resultado: string; comision_id: number; agenda_item_id?: number | null };
 
 export default async function ComisionesPage({
   searchParams,
@@ -90,8 +91,43 @@ export default async function ComisionesPage({
     all<ComisionDocumentoRow>(
       `SELECT id, nombre, archivo_url, comision_id FROM documentos WHERE comision_id IS NOT NULL ORDER BY fecha DESC`
     ).catch(() => [] as ComisionDocumentoRow[]),
-    all<ComisionDecisionRow>(`SELECT comision_id FROM decisiones_comision`).catch(() => [] as ComisionDecisionRow[]),
+    all<ComisionDecisionRow>(`SELECT id, tema, resultado, comision_id, agenda_item_id FROM decisiones_comision ORDER BY creado_en DESC`).catch(() =>
+      all<ComisionDecisionRow>(`SELECT id, tema, resultado, comision_id FROM decisiones_comision ORDER BY creado_en DESC`).catch(() => [] as ComisionDecisionRow[])
+    ),
   ]);
+
+  // Recorrido de decisiones (04/10): de qué resolución (asamblea / consejo /
+  // comisión) salió cada tarea o decisión, y qué asambleas/consejos se
+  // relacionan con cada comisión (por sus tareas, decisiones o puntos que
+  // el Consejo / la Asamblea le pasaron).
+  const llevadosAComision = await all<{ origen_item_id: number; comision_id: number }>(
+    `SELECT ai.origen_item_id, r.comision_id FROM reunion_agenda_items ai JOIN reuniones r ON r.id = ai.reunion_id
+      WHERE r.tipo = 'comision' AND r.comision_id IS NOT NULL AND ai.origen_item_id IS NOT NULL`
+  ).catch(() => [] as { origen_item_id: number; comision_id: number }[]);
+  const puntosOrigen = await puntosDeAgenda([
+    ...tareas.map((t) => Number(t.agenda_item_id) || 0),
+    ...decisionesComision.map((d) => Number(d.agenda_item_id) || 0),
+    ...llevadosAComision.map((l) => l.origen_item_id),
+  ]);
+  const origenDeTarea = (t: (typeof tareas)[number]) => {
+    const o = t.agenda_item_id ? puntosOrigen.get(t.agenda_item_id) : undefined;
+    return o ? { texto: `${TIPO_REUNION_LABEL[o.reunion_tipo] ?? o.reunion_tipo} «${o.reunion_titulo}» — ${o.titulo}`, href: `/reuniones/${o.reunion_id}` } : null;
+  };
+  const reunionesRelacionadasDe = (comisionId: number) => {
+    const ids = [
+      ...tareas.filter((t) => t.comision_id === comisionId).map((t) => Number(t.agenda_item_id) || 0),
+      ...decisionesComision.filter((d) => d.comision_id === comisionId).map((d) => Number(d.agenda_item_id) || 0),
+      ...llevadosAComision.filter((l) => l.comision_id === comisionId).map((l) => l.origen_item_id),
+    ];
+    const vistas = new Map<number, { id: number; titulo: string; tipo: string; fecha: string; punto: string }>();
+    for (const id of ids) {
+      const p = puntosOrigen.get(id);
+      if (p && p.reunion_tipo !== "comision" && !vistas.has(p.reunion_id)) {
+        vistas.set(p.reunion_id, { id: p.reunion_id, titulo: p.reunion_titulo, tipo: p.reunion_tipo, fecha: p.reunion_fecha, punto: p.titulo });
+      }
+    }
+    return [...vistas.values()].sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
+  };
 
   const misComisionIds = new Set(misComisiones.map((m) => m.comision_id));
   const puedeGestionarEstaComision = (comisionId: number) => puedeEditar && (esOversightComisiones || misComisionIds.has(comisionId));
@@ -155,6 +191,9 @@ export default async function ComisionesPage({
                     reuniones={reunionesPorComision(c.id)}
                     documentos={documentosPorComision(c.id)}
                     decisionesCount={decisionesCountDe(c.id)}
+                    tareas={tareasPorComision(c.id).map((t) => ({ id: t.id, titulo: t.titulo, estado: t.estado, resultado: t.resultado ?? null, origen: origenDeTarea(t)?.texto ?? null }))}
+                    decisiones={decisionesComision.filter((d) => d.comision_id === c.id).map((d) => ({ id: d.id, tema: d.tema, resultado: d.resultado }))}
+                    reunionesRelacionadas={reunionesRelacionadasDe(c.id)}
                   />
                   {esOversightComisiones && (
                     <ActionForm action={archivarComisionFormAction}>
@@ -241,7 +280,9 @@ export default async function ComisionesPage({
                             responsable_id: t.responsable_id ?? null,
                             depende_de_id: t.depende_de_id ?? null,
                             checklist,
+                            resultado: t.resultado ?? null,
                           }}
+                          origen={origenDeTarea(t)}
                           usuarios={usuarios}
                           otrasTareas={tareasPorComision(c.id).filter((x) => x.id !== t.id).map((x) => ({ id: x.id, titulo: x.titulo, estado: x.estado }))}
                           colaboradores={colaboradoresDeTarea(t.id).map((cl) => ({ id: cl.id, user_id: cl.user_id, nombre: cl.nombre }))}

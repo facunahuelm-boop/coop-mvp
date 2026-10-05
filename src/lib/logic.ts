@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { all, get, upsertAlerta, insert } from "./db";
+import { all, get, upsertAlerta, insert, esColumnaInexistente } from "./db";
 import { enviarEmailAlerta } from "./email";
 import { canRead, type Role } from "./roles";
 import { obtenerReglasCooperativa } from "./reglas";
@@ -199,10 +199,7 @@ export async function cuentasPorCobrar() {
        LEFT JOIN viviendas v ON v.id = s.vivienda_id
        WHERE s.estado != 'baja'`
     ),
-    all<MovimientoCuentaSocio & { socio_id: number }>(
-      `SELECT id, socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, estado
-       FROM movimientos_cuenta_socio ORDER BY socio_id, fecha ASC, id ASC`
-    ),
+    cargarMovimientosCuenta(),
   ]);
 
   const movimientosPorSocio = new Map<number, (MovimientoCuentaSocio & { socio_id: number })[]>();
@@ -233,10 +230,11 @@ export async function cuentasPorCobrar() {
  * exactamente como cualquier cuenta corriente real: un pago no dice "esto es
  * para la cuota de julio", simplemente entra y cubre lo más atrasado.
  */
-export type EstadoCuota = "pendiente" | "vencida" | "pagada" | "parcial";
+export type EstadoCuota = "pendiente" | "vencida" | "pagada" | "parcial" | "convenio";
 
 export type MovimientoCuentaSocio = {
   id: number;
+  socio_id?: number;
   tipo: "cargo" | "pago";
   concepto: string;
   monto: number | string;
@@ -244,13 +242,27 @@ export type MovimientoCuentaSocio = {
   fecha_vencimiento?: string | null;
   convenio_id?: number | null;
   comprobante_url?: string | null;
+  notas?: string | null;
   /** Sub-fase 4.4: 'anulado' cuando alguien lo anuló (ver
    * anularMovimientoCuentaSocioAction) — calcularCuotasSocio lo excluye del
    * saldo. Opcional para que un `SELECT` que todavía no pide esta columna
    * (o corre contra una base sin la migración 0038) siga funcionando: se
    * trata como 'activo' por defecto. */
   estado?: "activo" | "anulado" | null;
+  /** Gestión cooperativa integrada (04/10, migración 0048) — opcionales: una
+   * base sin la migración simplemente no los trae y todo se comporta como
+   * antes (pagos repartidos contra lo más viejo primero). */
+  metodo_pago?: string | null;
+  /** Pago dirigido a una cuota puntual. */
+  cuota_id?: number | null;
+  /** Cuota original refinanciada por un convenio, y el estado de ese convenio. */
+  en_convenio_id?: number | null;
+  en_convenio_estado?: string | null;
+  /** Parte de la cuota que pasó al convenio al refinanciarse. */
+  monto_refinanciado?: number | string | null;
 };
+
+export type PagoAplicado = { pagoId: number; fecha: string; monto: number; metodo: string | null };
 
 export type CuotaCalculada = {
   id: number;
@@ -258,59 +270,191 @@ export type CuotaCalculada = {
   monto: number;
   fecha: string;
   fechaVencimiento: string | null;
+  /** "YYYY-MM" del período (mes de vencimiento, o de emisión si no tiene). */
+  periodo: string;
   convenioId: number | null;
+  /** Si la cuota está refinanciada por un convenio vigente: su id. */
+  refinanciadaPorConvenioId: number | null;
   comprobanteUrl: string | null;
+  notas: string | null;
   estado: EstadoCuota;
+  montoPagado: number;
   montoPendiente: number;
+  /** Pagos que cubrieron (total o parcialmente) esta cuota, en orden. */
+  pagos: PagoAplicado[];
+  /** Fecha del pago que terminó de saldarla (sólo si está pagada). */
+  fechaPago: string | null;
+  /** Días que lleva vencida sin saldarse (0 si no está vencida). */
+  diasVencida: number;
 };
 
+const redondear = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Reparte los pagos contra las cuotas y calcula el estado de cada una.
+ *
+ * Gestión cooperativa integrada (04/10) — se mantiene el criterio de siempre
+ * (un pago que no dice a qué cuota va cubre la más antigua primero, como
+ * cualquier cuenta corriente) y se agrega:
+ *  - pago DIRIGIDO a una cuota puntual (`cuota_id`): se aplica primero a esa
+ *    cuota, y si sobra algo, el resto sigue la regla general;
+ *  - cuota "En convenio": una cuota original refinanciada por un convenio
+ *    vigente no suma deuda — esa deuda ya la representan las cuotas del
+ *    convenio (antes se contaba dos veces);
+ *  - una cuota vencida con un pago parcial cuenta como VENCIDA (antes
+ *    quedaba como "pago parcial" y no aparecía en la morosidad);
+ *  - por cada cuota: cuánto se pagó, con qué pagos, en qué fecha se saldó y
+ *    hace cuántos días está vencida.
+ */
 export function calcularCuotasSocio(movimientos: MovimientoCuentaSocio[]): { cuotas: CuotaCalculada[]; saldo: number } {
   const hoy = hoyEnUruguay();
   // Sub-fase 4.4: un cargo o pago anulado (ver anularMovimientoCuentaSocioAction
   // en actions/cuentaSocios.ts) sigue en el arreglo que llega acá — así lo
   // pueden seguir mostrando las pantallas que listan el historial completo —
   // pero se excluye del cálculo de cuotas/saldo, que es lo único que importa
-  // para "¿cuánto debo?". Única fuente de verdad para esta exclusión: todo lo
-  // que llama a calcularCuotasSocio (ficha del socio, "Mi cuenta", cuentas
-  // por cobrar, resumen de cuotas del Dashboard/Finanzas) queda cubierto sin
-  // tener que repetir el filtro en cada `SELECT`.
+  // para "¿cuánto debo?".
   const activos = movimientos.filter((m) => m.estado !== "anulado");
-  const cargos = activos
+  const refinanciada = (m: MovimientoCuentaSocio) =>
+    !!m.en_convenio_id && (m.en_convenio_estado === "activo" || m.en_convenio_estado === "cumplido");
+
+  const todosLosCargos = activos
     .filter((m) => m.tipo === "cargo")
     .slice()
     .sort((a, b) => (a.fecha_vencimiento || a.fecha).localeCompare(b.fecha_vencimiento || b.fecha) || a.id - b.id);
+  // Monto que sigue contando como deuda propia de cada cuota: completo,
+  // salvo en una cuota refinanciada, donde sólo queda la parte que ya se
+  // había pagado antes del convenio (el resto lo representan las cuotas del
+  // convenio — así no se cuenta dos veces ni se descuenta dos veces un pago
+  // parcial previo).
+  const montoPropio = (c: MovimientoCuentaSocio) =>
+    refinanciada(c) ? Math.max(0, redondear(Number(c.monto) - Number(c.monto_refinanciado ?? c.monto))) : Number(c.monto);
+  const cargosConDeuda = todosLosCargos.filter((c) => montoPropio(c) > 0);
   const pagos = activos
     .filter((m) => m.tipo === "pago")
     .slice()
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
 
-  let disponible = pagos.reduce((acc, p) => acc + Number(p.monto), 0);
-  const cuotas: CuotaCalculada[] = cargos.map((c) => {
+  const aplicado = new Map<number, PagoAplicado[]>();
+  const pendienteDe = new Map<number, number>(cargosConDeuda.map((c) => [c.id, montoPropio(c)]));
+  const aplicar = (cargoId: number, p: MovimientoCuentaSocio, monto: number) => {
+    if (monto <= 0) return;
+    pendienteDe.set(cargoId, redondear((pendienteDe.get(cargoId) || 0) - monto));
+    if (!aplicado.has(cargoId)) aplicado.set(cargoId, []);
+    aplicado.get(cargoId)!.push({ pagoId: p.id, fecha: p.fecha, monto: redondear(monto), metodo: p.metodo_pago ?? null });
+  };
+
+  // 1) Pagos dirigidos a una cuota puntual.
+  const sobrante = new Map<number, number>(pagos.map((p) => [p.id, Number(p.monto)]));
+  for (const p of pagos) {
+    if (!p.cuota_id || !pendienteDe.has(p.cuota_id)) continue;
+    const monto = Math.min(sobrante.get(p.id) || 0, Math.max(0, pendienteDe.get(p.cuota_id) || 0));
+    aplicar(p.cuota_id, p, monto);
+    sobrante.set(p.id, redondear((sobrante.get(p.id) || 0) - monto));
+  }
+  // 2) El resto, contra lo más antiguo primero (criterio de siempre).
+  const cola = pagos.filter((p) => (sobrante.get(p.id) || 0) > 0);
+  let i = 0;
+  for (const c of cargosConDeuda) {
+    while ((pendienteDe.get(c.id) || 0) > 0.004 && i < cola.length) {
+      const p = cola[i];
+      const monto = Math.min(sobrante.get(p.id) || 0, pendienteDe.get(c.id) || 0);
+      aplicar(c.id, p, monto);
+      sobrante.set(p.id, redondear((sobrante.get(p.id) || 0) - monto));
+      if ((sobrante.get(p.id) || 0) <= 0.004) i++;
+    }
+  }
+
+  const cuotas: CuotaCalculada[] = todosLosCargos.map((c) => {
     const monto = Number(c.monto);
-    const aplicado = Math.min(disponible, monto);
-    disponible -= aplicado;
-    const montoPendiente = Math.round((monto - aplicado) * 100) / 100;
-    let estado: EstadoCuota;
-    if (montoPendiente <= 0) estado = "pagada";
-    else if (aplicado > 0) estado = "parcial";
-    else if (c.fecha_vencimiento && c.fecha_vencimiento < hoy) estado = "vencida";
-    else estado = "pendiente";
-    return {
+    const periodo = (c.fecha_vencimiento || c.fecha || "").slice(0, 7);
+    const base = {
       id: c.id,
       concepto: c.concepto,
       monto,
       fecha: c.fecha,
       fechaVencimiento: c.fecha_vencimiento || null,
+      periodo,
       convenioId: c.convenio_id ?? null,
-      comprobanteUrl: null, // los comprobantes van sobre el PAGO, no el cargo — ver movimientos originales para eso
+      comprobanteUrl: null, // los comprobantes van sobre el PAGO, no el cargo
+      notas: c.notas ?? null,
+    };
+    const pagosCuota = aplicado.get(c.id) || [];
+    if (refinanciada(c)) {
+      const pagado = redondear(pagosCuota.reduce((a, p) => a + p.monto, 0));
+      return { ...base, refinanciadaPorConvenioId: c.en_convenio_id ?? null, estado: "convenio" as EstadoCuota, montoPagado: pagado, montoPendiente: 0, pagos: pagosCuota, fechaPago: null, diasVencida: 0 };
+    }
+    const montoPagado = redondear(pagosCuota.reduce((a, p) => a + p.monto, 0));
+    const montoPendiente = Math.max(0, redondear(monto - montoPagado));
+    const vencida = !!c.fecha_vencimiento && c.fecha_vencimiento < hoy;
+    let estado: EstadoCuota;
+    if (montoPendiente <= 0) estado = "pagada";
+    else if (vencida) estado = "vencida";
+    else if (montoPagado > 0) estado = "parcial";
+    else if (c.convenio_id) estado = "convenio";
+    else estado = "pendiente";
+    return {
+      ...base,
+      refinanciadaPorConvenioId: null,
       estado,
+      montoPagado,
       montoPendiente,
+      pagos: pagosCuota,
+      fechaPago: estado === "pagada" && pagosCuota.length ? pagosCuota[pagosCuota.length - 1].fecha : null,
+      diasVencida: estado === "vencida" ? Math.max(0, dayjs(hoy).diff(dayjs(c.fecha_vencimiento as string), "day")) : 0,
     };
   });
 
-  const saldo =
-    cargos.reduce((a, c) => a + Number(c.monto), 0) - pagos.reduce((a, p) => a + Number(p.monto), 0);
-  return { cuotas, saldo: Math.round(saldo * 100) / 100 };
+  const saldo = cargosConDeuda.reduce((a, c) => a + montoPropio(c), 0) - pagos.reduce((a, p) => a + Number(p.monto), 0);
+  return { cuotas, saldo: redondear(saldo) };
+}
+
+/** Conteos que muestran la ficha, el Inicio, "Mi cuenta" y Finanzas — un
+ * solo lugar para que todas las pantallas cuenten igual. "Pendiente" = con
+ * saldo y todavía no vencida (incluye pago parcial y cuotas de convenio por
+ * vencer); "vencida" = con saldo y fecha de vencimiento pasada. */
+export function resumenDeCuotas(cuotas: CuotaCalculada[]) {
+  const pendientes = cuotas.filter((c) => c.montoPendiente > 0 && c.estado !== "vencida");
+  const vencidas = cuotas.filter((c) => c.estado === "vencida");
+  const proximoVencimiento = pendientes.map((c) => c.fechaVencimiento).filter((f): f is string => !!f).sort()[0] || null;
+  const vencidaMasAntigua = vencidas.map((c) => c.fechaVencimiento).filter((f): f is string => !!f).sort()[0] || null;
+  return {
+    cuotasPendientes: pendientes.length,
+    cuotasVencidas: vencidas.length,
+    montoVencido: redondear(vencidas.reduce((a, c) => a + c.montoPendiente, 0)),
+    proximoVencimiento,
+    vencidaMasAntigua,
+    diasDeAtraso: vencidas.reduce((max, c) => Math.max(max, c.diasVencida), 0),
+  };
+}
+
+/**
+ * Carga los movimientos de cuenta (de un socio o de todos) con las columnas
+ * nuevas de la migración 0048. Si esa migración todavía no se aplicó en esta
+ * base, cae a la consulta de siempre — así el sistema sigue funcionando
+ * igual en el rato entre publicar el código y aplicar la migración.
+ */
+export async function cargarMovimientosCuenta(socioId?: number): Promise<(MovimientoCuentaSocio & { socio_id: number })[]> {
+  const params = socioId ? [socioId] : [];
+  try {
+    return await all<MovimientoCuentaSocio & { socio_id: number }>(
+      `SELECT m.id, m.socio_id, m.tipo, m.concepto, m.monto, m.fecha, m.fecha_vencimiento, m.convenio_id,
+              m.comprobante_url, m.notas, m.estado, m.metodo_pago, m.cuota_id, m.en_convenio_id,
+              m.monto_refinanciado, cv.estado AS en_convenio_estado
+       FROM movimientos_cuenta_socio m
+       LEFT JOIN convenios_pago cv ON cv.id = m.en_convenio_id
+       ${socioId ? "WHERE m.socio_id = ?" : ""}
+       ORDER BY m.socio_id, m.fecha ASC, m.id ASC`,
+      params
+    );
+  } catch (err) {
+    if (!esColumnaInexistente(err)) throw err;
+    return all<MovimientoCuentaSocio & { socio_id: number }>(
+      `SELECT id, socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, comprobante_url, notas, estado
+       FROM movimientos_cuenta_socio ${socioId ? "WHERE socio_id = ?" : ""}
+       ORDER BY socio_id, fecha ASC, id ASC`,
+      params
+    );
+  }
 }
 
 export type MiCuentaData = {
@@ -374,12 +518,9 @@ export async function datosMiCuenta(userId: number): Promise<MiCuentaData | null
 
   let socio: MiCuentaData["socio"] = null;
   if (socioRow) {
-    const movimientos = await all<MovimientoCuentaSocio>(
-      `SELECT id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, comprobante_url, estado
-       FROM movimientos_cuenta_socio WHERE socio_id = ? ORDER BY fecha DESC, id DESC`,
-      [socioRow.id]
-    );
+    const movimientos = (await cargarMovimientosCuenta(socioRow.id)).reverse(); // más reciente primero
     const { cuotas, saldo } = calcularCuotasSocio(movimientos);
+    const conteo = resumenDeCuotas(cuotas);
     const convenio = (await get<{ id: number; motivo: string; monto_cuota: number }>(
       `SELECT id, motivo, monto_cuota FROM convenios_pago WHERE socio_id = ? AND estado = 'activo' ORDER BY creado_en DESC LIMIT 1`,
       [socioRow.id]
@@ -390,13 +531,9 @@ export async function datosMiCuenta(userId: number): Promise<MiCuentaData | null
       telefono: socioRow.telefono,
       emailContacto: socioRow.email,
       saldo,
-      cuotasPendientes: cuotas.filter((c) => c.estado === "pendiente" || c.estado === "parcial").length,
-      cuotasVencidas: cuotas.filter((c) => c.estado === "vencida").length,
-      proximoVencimiento:
-        cuotas
-          .filter((c) => (c.estado === "pendiente" || c.estado === "parcial") && c.fechaVencimiento)
-          .map((c) => c.fechaVencimiento as string)
-          .sort()[0] || null,
+      cuotasPendientes: conteo.cuotasPendientes,
+      cuotasVencidas: conteo.cuotasVencidas,
+      proximoVencimiento: conteo.proximoVencimiento,
       convenio: convenio ? { id: convenio.id, motivo: convenio.motivo, montoCuota: Number(convenio.monto_cuota) } : null,
       movimientosRecientes: movimientos.slice(0, 8),
     };
@@ -431,10 +568,7 @@ export async function resumenCuotasSocios() {
        WHERE s.estado != 'baja'
        ORDER BY s.nombre ASC`
     ),
-    all<MovimientoCuentaSocio & { socio_id: number }>(
-      `SELECT id, socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, convenio_id, estado
-       FROM movimientos_cuenta_socio ORDER BY socio_id, fecha ASC, id ASC`
-    ),
+    cargarMovimientosCuenta(),
     all<{ id: number; socio_id: number; motivo: string; monto_cuota: number }>(
       `SELECT id, socio_id, motivo, monto_cuota FROM convenios_pago WHERE estado = 'activo'`
     ),
@@ -450,21 +584,36 @@ export async function resumenCuotasSocios() {
 
   const filas = socios.map((s) => {
     const { cuotas, saldo } = calcularCuotasSocio(movimientosPorSocio.get(s.id) || []);
-    const pendientes = cuotas.filter((c) => c.estado === "pendiente" || c.estado === "parcial");
-    const vencidas = cuotas.filter((c) => c.estado === "vencida");
-    const proximoVencimiento = pendientes
-      .filter((c) => c.fechaVencimiento)
-      .map((c) => c.fechaVencimiento as string)
-      .sort()[0] || null;
+    const conteo = resumenDeCuotas(cuotas);
     return {
       socioId: s.id,
       nombre: s.nombre,
       viviendaNumero: s.vivienda_numero,
       nucleoNombre: s.nucleo_nombre,
       totalAdeudado: Math.max(0, Math.round(saldo * 100) / 100),
-      cuotasPendientes: pendientes.length,
-      cuotasVencidas: vencidas.length,
-      proximoVencimiento,
+      cuotasPendientes: conteo.cuotasPendientes,
+      cuotasVencidas: conteo.cuotasVencidas,
+      proximoVencimiento: conteo.proximoVencimiento,
+      // Panel de morosidad (04/10): monto ya vencido, desde cuándo y cuántos
+      // días de atraso lleva la cuota impaga más vieja.
+      montoVencido: conteo.montoVencido,
+      vencidaMasAntigua: conteo.vencidaMasAntigua,
+      diasDeAtraso: conteo.diasDeAtraso,
+      // Períodos (YYYY-MM) con deuda — para filtrar el panel por período.
+      periodosConDeuda: [...new Set(cuotas.filter((c) => c.montoPendiente > 0).map((c) => c.periodo))].sort(),
+      // Detalle de la deuda (pop-up de la fila): cada cuota con saldo.
+      detalleDeuda: cuotas
+        .filter((c) => c.montoPendiente > 0)
+        .map((c) => ({
+          id: c.id,
+          concepto: c.concepto,
+          periodo: c.periodo,
+          fechaVencimiento: c.fechaVencimiento,
+          monto: c.monto,
+          montoPendiente: c.montoPendiente,
+          estado: c.estado,
+          diasVencida: c.diasVencida,
+        })),
       convenio: convenioPorSocio.get(s.id) || null,
     };
   });
@@ -1043,23 +1192,45 @@ type RegistroAuditoriaJoin = {
   entidad: string;
   entidad_id: number;
   fecha: string;
+  usuario_id?: number | null;
   usuario_nombre: string | null;
   valor_anterior: string | null;
   valor_nuevo: string | null;
 };
 
 export async function historialSocio(socioId: number) {
-  return all<RegistroAuditoriaJoin>(
-    `SELECT a.*, u.nombre as usuario_nombre
+  // Ficha 360° del núcleo (04/10): además de sus datos e integrantes, el
+  // historial del núcleo incluye su cuenta (cargos, pagos, anulaciones), sus
+  // convenios y los documentos relacionados — todo lo que se le hizo a ESE
+  // núcleo, en un solo lugar.
+  const base = `SELECT a.*, u.nombre as usuario_nombre
      FROM auditoria a
      LEFT JOIN users u ON u.id = a.usuario_id
      WHERE (a.entidad = 'socios' AND a.entidad_id = ?)
         OR (a.entidad = 'socio_integrantes' AND a.entidad_id IN (
               SELECT id FROM socio_integrantes WHERE socio_id = ?
             ))
-     ORDER BY a.fecha DESC`,
-    [socioId, socioId]
-  ).catch(() => [] as RegistroAuditoriaJoin[]);
+        OR (a.entidad = 'movimientos_cuenta_socio' AND a.entidad_id IN (
+              SELECT id FROM movimientos_cuenta_socio WHERE socio_id = ?
+            ))
+        OR (a.entidad = 'convenios_pago' AND a.entidad_id IN (
+              SELECT id FROM convenios_pago WHERE socio_id = ?
+            ))`;
+  const orden = ` ORDER BY a.fecha DESC, a.id DESC`;
+  try {
+    return await all<RegistroAuditoriaJoin>(
+      `${base}
+        OR (a.entidad = 'documentos' AND a.entidad_id IN (
+              SELECT id FROM documentos WHERE socio_id = ?
+            ))${orden}`,
+      [socioId, socioId, socioId, socioId, socioId]
+    );
+  } catch {
+    // Sin la migración 0049 (documentos.socio_id) — todo lo demás igual.
+    return all<RegistroAuditoriaJoin>(`${base}${orden}`, [socioId, socioId, socioId, socioId]).catch(
+      () => [] as RegistroAuditoriaJoin[]
+    );
+  }
 }
 
 // Distinto de "Actividad reciente" (ya existente en usuarios/[id]/page.tsx,

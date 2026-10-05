@@ -20,7 +20,7 @@ import {
 } from "@/lib/actions/documentos";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
-import { AddButtonSummary, Card, Label, inputClass } from "@/components/ui";
+import { AddButton, AddButtonSummary, Button, Card, Label, inputClass } from "@/components/ui";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import { ESTADO_DOCUMENTO, ESTADO_DOCUMENTO_LABEL, type EstadoDocumentoGuardado } from "@/components/documentos/DocumentoStatus";
 
@@ -46,6 +46,7 @@ export function SubirDocumentoForm({
   reuniones,
   decisiones,
   comunicaciones,
+  socios = [],
 }: {
   categorias: string[];
   catLabel: Record<string, string>;
@@ -55,6 +56,8 @@ export function SubirDocumentoForm({
   reuniones: Opcion[];
   decisiones: Opcion[];
   comunicaciones: Opcion[];
+  /** Núcleos para "Núcleo relacionado" (04/10). */
+  socios?: Opcion[];
 }) {
   const [estado, formAction] = useActionState(subirDocumentoFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
@@ -140,6 +143,18 @@ export function SubirDocumentoForm({
               <FieldError message={estado.fieldErrors?.contexto_id} />
             </div>
           )}
+          {socios.length > 0 && (
+            <div>
+              <Label>Núcleo relacionado (opcional)</Label>
+              <select name="socio_id" className={inputClass} defaultValue="">
+                <option value="">Ninguno</option>
+                {socios.map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+              <FieldError message={estado.fieldErrors?.socio_id} />
+            </div>
+          )}
           <div className="sm:col-span-2">
             <Label>Archivo</Label>
             <input type="file" name="archivo" className="text-xs" />
@@ -153,6 +168,82 @@ export function SubirDocumentoForm({
         </form>
       </Card>
     </details>
+  );
+}
+
+/**
+ * Ficha 360° del núcleo (04/10): subir un documento YA relacionado con ese
+ * núcleo, sin salir de la ficha. Misma acción que "Subir documento" de
+ * /documentos (el documento queda en el repositorio general, no en otro
+ * lado) — sólo fija el núcleo.
+ */
+export function SubirDocumentoNucleoForm({
+  socioId,
+  categorias,
+  catLabel,
+}: {
+  socioId: number;
+  categorias: string[];
+  catLabel: Record<string, string>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [estado, formAction] = useActionState(subirDocumentoFormAction, ESTADO_INICIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const { show } = useToast();
+
+  useEffect(() => {
+    if (estado.ok) {
+      formRef.current?.reset();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false);
+      show("Documento subido.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <>
+      <AddButton onClick={() => setOpen(true)}>Subir documento</AddButton>
+      <Modal open={open} onClose={() => setOpen(false)} title="Subir documento del núcleo">
+        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
+          <input type="hidden" name="socio_id" value={socioId} />
+          <div>
+            <Label required>Nombre</Label>
+            <input name="nombre" required className={inputClass} />
+            <FieldError message={estado.fieldErrors?.nombre} />
+          </div>
+          <div>
+            <Label>Categoría</Label>
+            <select name="categoria" className={inputClass} defaultValue={categorias.includes("socios") ? "socios" : categorias[0]}>
+              {categorias.map((c) => (
+                <option key={c} value={c}>{catLabel[c] || c}</option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Descripción</Label>
+            <input name="descripcion" className={inputClass} />
+            <FieldError message={estado.fieldErrors?.descripcion} />
+          </div>
+          <div>
+            <Label>Vence el (opcional)</Label>
+            <input type="date" name="fecha_vencimiento" className={inputClass} />
+            <FieldError message={estado.fieldErrors?.fecha_vencimiento} />
+          </div>
+          <div>
+            <Label>Archivo</Label>
+            <input type="file" name="archivo" className="text-xs" />
+          </div>
+          <div className="sm:col-span-2">
+            <FormError message={estado.error} />
+          </div>
+          <div className="sm:col-span-2 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <SubmitButton pendingLabel="Subiendo…">Subir</SubmitButton>
+          </div>
+        </form>
+      </Modal>
+    </>
   );
 }
 

@@ -10,6 +10,8 @@ import { AsignarCargoForm, FinalizarCargoForm } from "@/components/consejoDirect
 import { CARGO_LABEL, type CargoConsejo } from "@/lib/consejoDirectivoCargos";
 import { TablaFiltrable, type FiltroDef } from "@/components/TablaFiltrable";
 import { FilaConDetalle } from "@/components/FilaConDetalle";
+import { ResumenSeguimiento } from "@/components/reuniones/ResumenSeguimiento";
+import { vinculosDeAgendaItem, puntosDeAgenda, TIPO_REUNION_LABEL } from "@/lib/trazabilidad";
 
 // Sub-fase 1.4 ("Consejo Directivo como módulo propio", 22/09): mismo
 // criterio que Asambleas (Sub-fase 1.3) — NO se duplica nada de /reuniones,
@@ -91,10 +93,15 @@ export default async function ConsejoDirectivoPage() {
   const detalles = await Promise.all(
     reuniones.map(async (r) => {
       const [agendaItems, invitadosRow, acta, documentos] = await Promise.all([
-        all<{ id: number; titulo: string; resultado: string | null }>(
-          `SELECT id, titulo, resultado FROM reunion_agenda_items WHERE reunion_id = ? ORDER BY orden ASC`,
+        all<{ id: number; titulo: string; resultado: string | null; origen_item_id?: number | null }>(
+          `SELECT id, titulo, resultado, origen_item_id FROM reunion_agenda_items WHERE reunion_id = ? ORDER BY orden ASC`,
           [r.id]
-        ).catch(() => []),
+        ).catch(() =>
+          all<{ id: number; titulo: string; resultado: string | null; origen_item_id?: number | null }>(
+            `SELECT id, titulo, resultado FROM reunion_agenda_items WHERE reunion_id = ? ORDER BY orden ASC`,
+            [r.id]
+          ).catch(() => [])
+        ),
         get<{ total: string; presentes: string }>(
           `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE presente = 1) as presentes FROM reunion_invitados WHERE reunion_id = ?`,
           [r.id]
@@ -113,6 +120,14 @@ export default async function ConsejoDirectivoPage() {
       return { agendaItems, invitados: invitadosRow, acta, documentos };
     })
   );
+  // Recorrido de decisiones (04/10): qué salió de cada resolución y de dónde
+  // vino — resumen de una línea; el detalle y las acciones están en la ficha
+  // de la reunión ("Ver ficha completa").
+  const todosLosPuntos = detalles.flatMap((x) => x.agendaItems);
+  const [vinculosPuntos, origenesPuntos] = await Promise.all([
+    vinculosDeAgendaItem(todosLosPuntos.map((x) => x.id)),
+    puntosDeAgenda(todosLosPuntos.map((x) => x.origen_item_id ?? 0)),
+  ]);
 
   const filtros: FiltroDef[] = [
     {
@@ -222,10 +237,24 @@ export default async function ConsejoDirectivoPage() {
                       titulo: "Orden del día",
                       items:
                         d.agendaItems.length > 0
-                          ? d.agendaItems.map((item) => ({
-                              label: item.titulo,
-                              valor: item.resultado || "Sin resultado registrado",
-                            }))
+                          ? d.agendaItems.map((item) => {
+                              const origen = item.origen_item_id ? origenesPuntos.get(item.origen_item_id) : undefined;
+                              return {
+                                label: item.titulo,
+                                valor: (
+                                  <>
+                                    {item.resultado || "Sin resultado registrado"}
+                                    {origen && (
+                                      <span className="block text-xs font-normal text-ink/50">
+                                        Viene de {TIPO_REUNION_LABEL[origen.reunion_tipo] ?? origen.reunion_tipo}{" "}
+                                        <Link href={`/reuniones/${origen.reunion_id}`} className="underline">{origen.reunion_titulo}</Link>
+                                      </span>
+                                    )}
+                                    <ResumenSeguimiento vinculos={vinculosPuntos.get(item.id)} />
+                                  </>
+                                ),
+                              };
+                            })
                           : [{ label: "Orden del día", valor: r.orden_del_dia || "No se cargó orden del día." }],
                     },
                     {

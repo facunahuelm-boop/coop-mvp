@@ -21,6 +21,9 @@ import { historialReunion } from "@/lib/logic";
 import { CerrarReunionForm, AgregarAgendaItemForm, ResultadoAgendaForm, AgregarInvitadoForm } from "@/components/reuniones/ReunionesFormularios";
 import { AutoSubmitCheckbox } from "@/components/AutoSubmitCheckbox";
 import { HistorialAuditoria } from "@/components/HistorialAuditoria";
+import Link from "next/link";
+import { vinculosDeAgendaItem, puntosDeAgenda, recorridoDeResolucion, TIPO_REUNION_LABEL, type NodoRecorrido } from "@/lib/trazabilidad";
+import { AccionesResolucion, RecorridoResolucion, type ReunionDestino, type DecisionDisponible } from "@/components/reuniones/SeguimientoResolucion";
 
 const TIPO_LABEL: Record<string, string> = {
   asamblea: "Asamblea",
@@ -40,7 +43,7 @@ const PRIORIDAD_LABEL: Record<string, string> = { alta: "🔴 Alta", media: "�
 
 // Comisiones como sistema de gestión, Fase 5: filas de las dos tablas nuevas
 // de la migración 0029 (reunion_agenda_items, reunion_invitados).
-type AgendaItemRow = { id: number; titulo: string; resultado: string | null; responsable_id: number | null; responsable_nombre: string | null };
+type AgendaItemRow = { id: number; titulo: string; resultado: string | null; responsable_id: number | null; responsable_nombre: string | null; origen_item_id?: number | null };
 type InvitadoRow = { id: number; user_id: number; user_nombre: string; confirmado: boolean; presente: boolean };
 
 export default async function ReunionDetallePage({ params }: { params: Promise<{ id: string }> }) {
@@ -99,6 +102,57 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
   // ya es prácticamente universal), así que — mismo criterio que Socios y
   // Usuarios — el historial de auditoría cruda se gatea con el mismo
   // permiso que ya protege a /auditoria, sin ampliar ni restringir nada.
+  // ---------- Recorrido de decisiones (04/10) ----------
+  // Cada punto con resultado es una "resolución": se muestra de dónde viene
+  // (si lo trajeron de otra reunión) y todo lo que salió de él, y quien
+  // tenga permiso puede darle seguimiento (tarea, compra, llevarlo a otra
+  // reunión, vincular una decisión). Todo tolera la migración 0049 ausente.
+  const idsAgenda = agendaItems.map((a) => a.id);
+  const [vinculos, origenes] = await Promise.all([
+    vinculosDeAgendaItem(idsAgenda),
+    puntosDeAgenda(agendaItems.map((a) => a.origen_item_id ?? 0)),
+  ]);
+  const recorridos = new Map<number, NodoRecorrido>();
+  for (const a of agendaItems) {
+    if (a.origen_item_id || vinculos.get(a.id)?.total) {
+      const arbol = await recorridoDeResolucion(a.id);
+      if (arbol) recorridos.set(a.id, arbol);
+    }
+  }
+  const puedeSeguimiento = canEdit(user.rol, "comisiones");
+  const [comisionesGestionables, reunionesDestino, decisionesDisponibles] = puedeSeguimiento && agendaItems.some((a) => a.resultado)
+    ? await Promise.all([
+        esOversightReuniones
+          ? all<{ id: number; nombre: string }>(`SELECT id, nombre FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`)
+          : all<{ id: number; nombre: string }>(
+              `SELECT c.id, c.nombre FROM comisiones c JOIN comision_miembros m ON m.comision_id = c.id
+                WHERE c.activa = 1 AND m.user_id = ? AND m.activo = 1 ORDER BY c.nombre ASC`,
+              [user.id]
+            ),
+        all<ReunionDestino & { comision_id: number | null }>(
+          `SELECT r.id, r.titulo, r.tipo, r.fecha, r.comision_id, c.nombre AS comision_nombre
+             FROM reuniones r LEFT JOIN comisiones c ON c.id = r.comision_id
+            WHERE r.estado = 'planificada' AND r.id <> ? ORDER BY r.fecha ASC LIMIT 100`,
+          [reunion.id]
+        ),
+        all<DecisionDisponible & { comision_id: number }>(
+          `SELECT d.id, d.tema, d.comision_id, c.nombre AS comision_nombre
+             FROM decisiones_comision d LEFT JOIN comisiones c ON c.id = d.comision_id
+            WHERE d.agenda_item_id IS NULL ORDER BY d.creado_en DESC LIMIT 200`
+        ).catch(() => [] as (DecisionDisponible & { comision_id: number })[]),
+      ])
+    : [[], [], []];
+  const misComisionesIds = new Set(comisionesGestionables.map((c) => c.id));
+  // Mismo criterio que el servidor (verificarPermisoReunion /
+  // puedeGestionarComision): sólo se ofrece lo que después se va a aceptar.
+  const destinosPermitidos = reunionesDestino.filter((r) =>
+    r.tipo === "comision" ? esOversightReuniones || (r.comision_id ? misComisionesIds.has(r.comision_id) : true) : esOversightReuniones
+  );
+  const decisionesPermitidas = decisionesDisponibles.filter((d) => esOversightReuniones || misComisionesIds.has(d.comision_id));
+  const comisionesCompra = canEdit(user.rol, "compras")
+    ? await all<{ id: number; nombre: string }>(`SELECT id, nombre FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`)
+    : null;
+
   const puedeVerHistorial = canRead(user.rol, "auditoria");
   const historial = puedeVerHistorial ? await historialReunion(Number(id)) : [];
 
@@ -239,7 +293,7 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
           adicional al "Orden del día" en texto libre de más arriba. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
         <div>
-          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Agenda</h3>
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Agenda y resoluciones</h3>
           <Card>
             <div className="space-y-2">
               {agendaItems.map((a) => (
@@ -251,17 +305,74 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
                         <UsuarioLink id={a.responsable_id} nombre={a.responsable_nombre} fallback="sin responsable" />
                       </p>
                     </div>
-                    {puedeGestionar && reunion.estado === "planificada" && (
+                    {puedeGestionar && reunion.estado === "planificada" && !vinculos.get(a.id)?.total && (
                       <ActionForm action={eliminarAgendaItemFormAction}>
                         <input type="hidden" name="id" value={a.id} />
                         <button className="text-xs text-ink/30 hover:text-[var(--color-rojo)]" title="Quitar punto">✕</button>
                       </ActionForm>
                     )}
                   </div>
+                  {a.origen_item_id && origenes.get(a.origen_item_id) && (() => {
+                    const o = origenes.get(a.origen_item_id!)!;
+                    return (
+                      <p className="text-xs mt-1 rounded-md bg-[var(--accent-blue-bg)] text-[var(--accent-blue)] px-2 py-1">
+                        Viene de {TIPO_REUNION_LABEL[o.reunion_tipo] ?? o.reunion_tipo}:{" "}
+                        <Link href={`/reuniones/${o.reunion_id}`} className="underline underline-offset-2">{o.reunion_titulo}</Link>
+                        {" "}({dayjs(o.reunion_fecha).format("DD/MM/YYYY")}){o.resultado ? ` — «${o.resultado}»` : ""}
+                      </p>
+                    );
+                  })()}
                   {puedeGestionar ? (
                     <ResultadoAgendaForm id={a.id} resultadoActual={a.resultado} />
                   ) : (
                     a.resultado && <p className="text-xs text-ink/60 mt-1">→ {a.resultado}</p>
+                  )}
+                  {(() => {
+                    const v = vinculos.get(a.id);
+                    if (!v || v.total === 0) return null;
+                    return (
+                      <ul className="mt-1.5 space-y-0.5 text-xs text-ink/70">
+                        {v.seguimientos.map((sg) => (
+                          <li key={`s${sg.id}`}>
+                            ↪ Llevado a {TIPO_REUNION_LABEL[sg.reunion_tipo] ?? sg.reunion_tipo}:{" "}
+                            <Link href={`/reuniones/${sg.reunion_id}`} className="underline underline-offset-2">{sg.reunion_titulo}</Link>
+                            {" "}({dayjs(sg.reunion_fecha).format("DD/MM")}){sg.resultado ? ` → ${sg.resultado}` : ""}
+                          </li>
+                        ))}
+                        {v.decisiones.map((d) => (
+                          <li key={`d${d.id}`}>
+                            ⚖️ Decisión: <Link href={`/decisiones/${d.id}`} className="underline underline-offset-2">{d.tema}</Link>{d.comision_nombre ? ` (${d.comision_nombre})` : ""} · {d.resultado}
+                          </li>
+                        ))}
+                        {v.tareas.map((t) => (
+                          <li key={`t${t.id}`}>
+                            ✅ Tarea: {t.titulo}{t.comision_nombre ? ` (${t.comision_nombre})` : ""}{t.responsable_nombre ? ` · ${t.responsable_nombre}` : ""} ·{" "}
+                            <Badge color={ESTADO_TAREA_COLOR[t.estado] ?? "gray"}>{ESTADO_TAREA_LABEL[t.estado] ?? t.estado}</Badge>
+                            {t.resultado ? <span className="block text-ink/50">Resultado: {t.resultado}</span> : null}
+                          </li>
+                        ))}
+                        {v.compras.map((c) => (
+                          <li key={`c${c.id}`}>
+                            🛒 Compra: <Link href={`/compras/${c.id}`} className="underline underline-offset-2">{c.material}</Link> · {c.estado.replace(/_/g, " ")}
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
+                  {a.resultado && puedeSeguimiento && (
+                    <AccionesResolucion
+                      resolucion={{ agendaItemId: a.id, titulo: a.titulo, resultado: a.resultado }}
+                      comisionesTarea={comisionesGestionables}
+                      usuarios={usuarios}
+                      comisionesCompra={comisionesCompra}
+                      reunionesDestino={destinosPermitidos}
+                      decisiones={decisionesPermitidas}
+                    />
+                  )}
+                  {recorridos.has(a.id) && (
+                    <div className="mt-1">
+                      <RecorridoResolucion arbol={recorridos.get(a.id)!} actualId={a.id} />
+                    </div>
                   )}
                 </div>
               ))}

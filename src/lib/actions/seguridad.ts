@@ -23,7 +23,8 @@ export async function crearDocumentoSeguridadAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "seguridad")) throw new Error("No autorizado");
   const datos = parseForm(crearDocumentoSeguridadSchema, formData);
-  await insert("documentos_seguridad", { ...datos, responsable_id: user.id });
+  const id = await insert("documentos_seguridad", { ...datos, responsable_id: user.id });
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "documentos_seguridad", entidad_id: id, valor_nuevo: datos });
   revalidatePath("/seguridad");
 }
 
@@ -42,10 +43,17 @@ export async function crearInspeccionAction(formData: FormData) {
     formData
   );
   const checklist = CHECKLIST_BASE.map((item, i) => ({ item, ok: (checkboxes as Record<string, boolean>)[`item_${i}`] }));
-  await insert("inspecciones_seguridad", {
+  const id = await insert("inspecciones_seguridad", {
     checklist_json: JSON.stringify(checklist),
     hallazgos,
     autor_id: user.id,
+  });
+  await audit({
+    usuario_id: user.id,
+    accion: "crear",
+    entidad: "inspecciones_seguridad",
+    entidad_id: id,
+    valor_nuevo: { hallazgos, items_ok: checklist.filter((c) => c.ok).length, items_total: checklist.length },
   });
   revalidatePath("/seguridad");
 }

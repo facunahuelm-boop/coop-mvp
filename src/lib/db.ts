@@ -423,24 +423,33 @@ type AuditParams = {
   valor_nuevo?: any;
 };
 
+// Auditoría (04/10): nunca se guardan contraseñas, hashes, tokens ni
+// secretos en el historial, aunque una acción pase el registro completo
+// (ej. un `SELECT *` de users como valor_anterior). Se reemplazan por
+// "[oculto]" a cualquier profundidad, antes de escribir.
+const CLAVE_SENSIBLE = /pass(word)?|contrase|hash|token|secret|api_?key|clave|credencial|session|cookie/i;
+export function sinDatosSensibles(valor: unknown, profundidad = 0): unknown {
+  if (profundidad > 6 || valor === null || typeof valor !== "object") return valor;
+  if (Array.isArray(valor)) return valor.map((v) => sinDatosSensibles(v, profundidad + 1));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(valor as Record<string, unknown>)) {
+    out[k] = CLAVE_SENSIBLE.test(k) ? "[oculto]" : sinDatosSensibles(v, profundidad + 1);
+  }
+  return out;
+}
+function valorDeAuditoria(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  return typeof v === "object" ? JSON.stringify(sinDatosSensibles(v)) : String(v);
+}
+
 export async function audit(params: AuditParams) {
   await insert("auditoria", {
     usuario_id: params.usuario_id,
     accion: params.accion,
     entidad: params.entidad,
     entidad_id: params.entidad_id,
-    valor_anterior:
-      params.valor_anterior !== undefined && params.valor_anterior !== null
-        ? typeof params.valor_anterior === "object"
-          ? JSON.stringify(params.valor_anterior)
-          : String(params.valor_anterior)
-        : null,
-    valor_nuevo:
-      params.valor_nuevo !== undefined && params.valor_nuevo !== null
-        ? typeof params.valor_nuevo === "object"
-          ? JSON.stringify(params.valor_nuevo)
-          : String(params.valor_nuevo)
-        : null,
+    valor_anterior: valorDeAuditoria(params.valor_anterior),
+    valor_nuevo: valorDeAuditoria(params.valor_nuevo),
   });
 }
 

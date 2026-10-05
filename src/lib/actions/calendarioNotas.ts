@@ -3,7 +3,7 @@
 import { z } from "zod";
 import dayjs from "dayjs";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, all, run, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
+import { insert, update, get, all, run, audit, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFecha, zFechaOpcional, zCheckbox } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
@@ -135,7 +135,8 @@ export async function crearNotaCalendarioAction(formData: FormData) {
   const datos = limpiarHoraSiTodoElDia(validarColorPersonalizado(resto));
   try {
     if (frecuencia === "no_repite") {
-      await insert("notas_calendario", { ...datos, autor_id: user.id, serie_id: null });
+      const notaId = await insert("notas_calendario", { ...datos, autor_id: user.id, serie_id: null });
+      await audit({ usuario_id: user.id, accion: "crear", entidad: "notas_calendario", entidad_id: notaId, valor_nuevo: { titulo: datos.titulo, fecha: datos.fecha } });
     } else {
       if (!fecha_fin_serie) throw new Error('Elegí hasta cuándo se repite la actividad ("Repetir hasta").');
       if (fecha_fin_serie < datos.fecha) throw new Error('La fecha de "Repetir hasta" no puede ser anterior a la fecha de la actividad.');
@@ -156,6 +157,13 @@ export async function crearNotaCalendarioAction(formData: FormData) {
       for (const fecha of fechas) {
         await insert("notas_calendario", { ...datos, fecha, autor_id: user.id, serie_id: serieId });
       }
+      await audit({
+        usuario_id: user.id,
+        accion: "crear_serie",
+        entidad: "notas_calendario",
+        entidad_id: serieId,
+        valor_nuevo: { titulo: datos.titulo, desde: datos.fecha, hasta: fecha_fin_serie, frecuencia, actividades: fechas.length },
+      });
     }
   } catch (err) {
     await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
@@ -199,6 +207,10 @@ export async function editarNotaCalendarioAction(formData: FormData) {
     );
     if (!nota) throw new Error("Esa actividad ya no existe — puede que alguien ya la haya borrado.");
     if (!puedeModificar(user, nota.autor_id)) throw new Error("No podés editar una actividad que no creaste vos.");
+    const anterior = await get<Record<string, unknown>>(
+      `SELECT titulo, fecha, hora, descripcion, responsable_id, comision_id, ubicacion FROM notas_calendario WHERE id = ?`,
+      [id]
+    );
 
     if (!nota.serie_id || alcance_serie === ("solo" as AlcanceSerie)) {
       // Actividad suelta, o "solo esta actividad" de una serie: se edita
@@ -236,6 +248,14 @@ export async function editarNotaCalendarioAction(formData: FormData) {
       }
       await run(sql, params);
     }
+    await audit({
+      usuario_id: user.id,
+      accion: nota.serie_id && alcance_serie !== ("solo" as AlcanceSerie) ? "editar_serie" : "editar",
+      entidad: "notas_calendario",
+      entidad_id: id,
+      valor_anterior: anterior,
+      valor_nuevo: { titulo: datos.titulo, fecha: datos.fecha, hora: datos.hora, descripcion: datos.descripcion, responsable_id: datos.responsable_id, comision_id: datos.comision_id, ubicacion: datos.ubicacion },
+    });
   } catch (err) {
     await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
       usuario_id: user.id,
@@ -264,6 +284,7 @@ export async function eliminarNotaCalendarioAction(formData: FormData) {
     );
     if (!nota) return; // ya no está, no hay nada que borrar
     if (!puedeModificar(user, nota.autor_id)) throw new Error("No podés borrar una actividad que no creaste vos.");
+    const anteriorBorrada = await get<Record<string, unknown>>(`SELECT titulo, fecha, hora, descripcion FROM notas_calendario WHERE id = ?`, [id]);
 
     if (!nota.serie_id || alcance_serie === ("solo" as AlcanceSerie)) {
       await run(`DELETE FROM notas_calendario WHERE id = ?`, [id]);
@@ -277,6 +298,13 @@ export async function eliminarNotaCalendarioAction(formData: FormData) {
       // sentido dejar basura acumulándose en esa tabla.
       await run(`DELETE FROM series_calendario WHERE id = ?`, [nota.serie_id]);
     }
+    await audit({
+      usuario_id: user.id,
+      accion: nota.serie_id && alcance_serie !== ("solo" as AlcanceSerie) ? "eliminar_serie" : "eliminar",
+      entidad: "notas_calendario",
+      entidad_id: id,
+      valor_anterior: { ...anteriorBorrada, ...(nota.serie_id ? { alcance: alcance_serie } : {}) },
+    });
   } catch (err) {
     await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
       usuario_id: user.id,
@@ -337,6 +365,14 @@ export async function moverNotaCalendarioAction(formData: FormData) {
         await update("notas_calendario", fila.id, { fecha: fechaCorrida });
       }
     }
+    await audit({
+      usuario_id: user.id,
+      accion: "mover",
+      entidad: "notas_calendario",
+      entidad_id: id,
+      valor_anterior: { fecha: nota.fecha },
+      valor_nuevo: { fecha: nueva_fecha, ...(nota.serie_id ? { alcance: alcance_serie } : {}) },
+    });
   } catch (err) {
     await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
       usuario_id: user.id,
@@ -381,6 +417,7 @@ export async function agregarParticipanteActividadAction(formData: FormData) {
     if (yaExiste) return; // ya es participante, no hay nada más que hacer
 
     await insert("actividad_participantes", { nota_id, usuario_id });
+    await audit({ usuario_id: user.id, accion: "agregar_participante", entidad: "notas_calendario", entidad_id: nota_id, valor_nuevo: { participante_id: usuario_id } });
   } catch (err) {
     await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
       usuario_id: user.id,
@@ -401,13 +438,14 @@ export async function quitarParticipanteActividadAction(formData: FormData) {
   const user = await requireUser();
   const { id } = parseForm(z.object({ id: zId }), formData);
   try {
-    const participante = await get<{ autor_id: number }>(
-      `SELECT n.autor_id as autor_id FROM actividad_participantes p JOIN notas_calendario n ON n.id = p.nota_id WHERE p.id = ?`,
+    const participante = await get<{ autor_id: number; nota_id: number; usuario_id: number }>(
+      `SELECT n.autor_id as autor_id, p.nota_id, p.usuario_id FROM actividad_participantes p JOIN notas_calendario n ON n.id = p.nota_id WHERE p.id = ?`,
       [id]
     );
     if (!participante) return; // ya no existe
     if (!puedeModificar(user, participante.autor_id)) throw new Error("No podés quitar un participante de una actividad que no creaste vos.");
     await run(`DELETE FROM actividad_participantes WHERE id = ?`, [id]);
+    await audit({ usuario_id: user.id, accion: "quitar_participante", entidad: "notas_calendario", entidad_id: participante.nota_id, valor_anterior: { participante_id: participante.usuario_id } });
   } catch (err) {
     await relanzarConMensajeSiFaltaTabla(err, MENSAJE_TABLA_FALTANTE, {
       usuario_id: user.id,
