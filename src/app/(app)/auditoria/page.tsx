@@ -145,6 +145,11 @@ export default async function AuditoriaPage({
               <option value="">Todas</option>
               {acciones
                 .map((a) => ({ valor: a.accion, label: etiquetaDeAccion(a.accion) }))
+                // Dos acciones distintas pueden leerse igual ("Creó" una
+                // reunión / "Creó" una serie): se aclara cuál es cuál.
+                .map((a, _i, todas) =>
+                  todas.filter((x) => x.label === a.label).length > 1 ? { ...a, label: `${a.label} (${a.valor.replace(/_/g, " ")})` } : a
+                )
                 .sort((a, b) => a.label.localeCompare(b.label, "es"))
                 .map((a) => (
                   <option key={a.valor} value={a.valor}>{a.label}</option>
