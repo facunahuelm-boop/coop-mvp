@@ -14,12 +14,15 @@ import { cambiarEstadoTareaFormAction } from "@/lib/actions/tareas";
 import { AgregarMiembroForm, CrearTareaForm, EditarComisionForm } from "@/components/comisiones/ComisionesFormularios";
 import { TareaDetalleModal } from "@/components/comisiones/TareaDetalleModal";
 import { CalendarioHoras } from "@/components/comisiones/CalendarioHoras";
+import { AsistenciaDia, type TurnoDelDia, type AvisoPendiente } from "@/components/comisiones/AsistenciaDia";
+import { LibretaHoras, type FilaLibreta } from "@/components/comisiones/LibretaHoras";
+import { calcularSemana, cargarLibretas, semanasSinCerrar, semanaCerrada, ESTADO_ASISTENCIA_LABEL } from "@/lib/libretaHoras";
 import { puedeGestionarComision, puedePlanificarHorasTrabajo, rolEnComision } from "@/lib/comisionAuth";
 import { historialComision } from "@/lib/logic";
 import { puntosDeAgenda, TIPO_REUNION_LABEL } from "@/lib/trazabilidad";
 import { FUNCION_COMISION, funcionDe, comisionDisponibleEnEtapa, textoEtapas, ETAPA_LABEL, type EtapaCooperativa } from "@/lib/comisionesFunciones";
 import { cargarSemanaHoras, obtenerHorarioObra } from "@/lib/horasTrabajo";
-import { hoyEnUruguay, lunesDe, sumarDias, diasDeSemana, textoSemana, esFechaISO, textoHoras } from "@/lib/horasObra";
+import { hoyEnUruguay, lunesDe, sumarDias, diasDeSemana, textoSemana, esFechaISO, textoHoras, textoDia } from "@/lib/horasObra";
 import type { ComisionRow } from "@/lib/comisionesResumen";
 
 /**
@@ -64,7 +67,7 @@ export default async function ComisionDetallePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; semana?: string }>;
+  searchParams: Promise<{ tab?: string; semana?: string; dia?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -165,6 +168,101 @@ export default async function ComisionDetallePage({
     ? await Promise.all([cargarSemanaHoras(lunes), obtenerHorarioObra(), disponible ? puedePlanificarHorasTrabajo(user, comisionId) : Promise.resolve(false)])
     : [null, null, false];
   const hrefSemana = (l: string) => `/comisiones/${comisionId}?tab=horas&semana=${l}`;
+  const calendarioCerrado = esTrabajo ? await semanaCerrada(lunes) : false;
+
+  // ---------- Trabajo: asistencia del día y libreta de horas (Fase 1B) ----------
+  const diaSel = esFechaISO(sp.dia) ? sp.dia : hoy;
+  const hrefDia = (d: string) => `/comisiones/${comisionId}?tab=asistencia&dia=${d}`;
+  type AvisoFila = { id: number; asignacion_id: number; motivo: string; estado: string; adjunto_url: string | null; nucleo: string; fecha: string; hora_inicio: string; hora_fin: string; avisado_por: string | null };
+  const [semanaDelDia, cerradaDelDia, avisos, sinTurnoFilas, libretas, pendientesCerrar, cerradasRec, licencias] =
+    esTrabajo && disponible
+      ? await Promise.all([
+          calcularSemana(lunesDe(diaSel), hoy),
+          semanaCerrada(lunesDe(diaSel)),
+          all<AvisoFila>(
+            `SELECT v.id, v.asignacion_id, v.motivo, v.estado, v.adjunto_url, n.nombre AS nucleo, a.fecha, a.hora_inicio, a.hora_fin, u.nombre AS avisado_por
+               FROM avisos_ausencia v
+               JOIN asignaciones_horas a ON a.id = v.asignacion_id
+               JOIN nucleos_familiares n ON n.id = v.nucleo_id
+               LEFT JOIN users u ON u.id = v.avisado_por_id
+              WHERE v.estado IN ('pendiente', 'aprobado') AND (v.estado = 'pendiente' OR a.fecha = ?)
+              ORDER BY a.fecha ASC`,
+            [diaSel]
+          ).catch(() => [] as AvisoFila[]),
+          all<{ id: number; nucleo: string; hora_inicio: string; hora_fin: string; minutos_reales: number }>(
+            `SELECT h.id, n.nombre AS nucleo, h.hora_inicio, h.hora_fin, h.minutos_reales FROM asistencias_horas h
+               JOIN nucleos_familiares n ON n.id = h.nucleo_id
+              WHERE h.fecha = ? AND h.asignacion_id IS NULL AND h.anulado_en IS NULL`,
+            [diaSel]
+          ).catch(() => []),
+          cargarLibretas(hoy),
+          semanasSinCerrar(hoy),
+          all<{ semana: string; cerrado_por: string | null }>(
+            `SELECT c.semana, u.nombre AS cerrado_por FROM cierres_semana_horas c LEFT JOIN users u ON u.id = c.cerrado_por_id
+              WHERE c.estado = 'cerrada' ORDER BY c.semana DESC LIMIT 8`
+          ).catch(() => []),
+          all<{ id: number; nucleo_id: number; desde: string; hasta: string; motivo: string }>(
+            `SELECT id, nucleo_id, desde, hasta, motivo FROM licencias_horas WHERE anulada_en IS NULL ORDER BY desde DESC`
+          ).catch(() => []),
+        ])
+      : [null, false, [], [], [], [], [], []];
+
+  const turnosDelDia: TurnoDelDia[] = (semanaDelDia ?? [])
+    .flatMap(({ nucleo, calculo }) =>
+      calculo.turnos
+        .filter((t) => t.fecha === diaSel)
+        .map((t) => {
+          const aviso = avisos.find((v) => v.asignacion_id === t.id);
+          return {
+            asignacionId: t.id,
+            nucleoId: nucleo.id,
+            nucleo: nucleo.nombre,
+            horaInicio: t.hora_inicio,
+            horaFin: t.hora_fin,
+            minutos: t.minutos,
+            estado: t.estado,
+            estadoTexto: ESTADO_ASISTENCIA_LABEL[t.estado] ?? t.estado,
+            minutosReales: t.minutosReales,
+            asistenciaId: t.asistenciaId,
+            observaciones: t.observaciones,
+            aviso: aviso ? { id: aviso.id, motivo: aviso.motivo, estado: aviso.estado, tieneAdjunto: !!aviso.adjunto_url } : null,
+          };
+        })
+    )
+    .sort((a, b) => (a.horaInicio === b.horaInicio ? a.nucleo.localeCompare(b.nucleo) : a.horaInicio < b.horaInicio ? -1 : 1));
+  const avisosPendientes: AvisoPendiente[] = avisos
+    .filter((v) => v.estado === "pendiente")
+    .map((v) => ({
+      id: v.id,
+      nucleo: v.nucleo,
+      turno: `${textoDia(v.fecha)} ${v.hora_inicio}–${v.hora_fin}`,
+      motivo: v.motivo,
+      avisadoPor: v.avisado_por,
+      adjuntoHref: v.adjunto_url ? `/api/archivos/aviso-ausencia/${v.id}` : null,
+    }));
+  const filasLibreta: FilaLibreta[] = libretas.map((l) => ({
+    nucleoId: l.nucleo.id,
+    nombre: l.nucleo.nombre,
+    objetivoHoras: l.nucleo.objetivoHoras,
+    estaSemana: l.semanaActual
+      ? {
+          realMin: l.semanaActual.realMin,
+          exigibleMin: l.semanaActual.exigibleMin,
+          faltanMin: l.semanaActual.faltanMin,
+          justificadoMin: l.semanaActual.justificadoMin,
+          licenciaMin: l.semanaActual.licenciaMin,
+        }
+      : null,
+    saldoAcumuladoMin: l.saldoAcumuladoMin,
+    horasAnteriores: l.nucleo.horasAnteriores,
+    semanas: l.semanas,
+    licencias: licencias.filter((x) => x.nucleo_id === l.nucleo.id),
+  }));
+  const hayRegistroAnterior = libretas.some((l) => l.nucleo.horasAnteriores > 0);
+  const textoDiaSel = (() => {
+    const t = textoDia(diaSel);
+    return diaSel === hoy ? `Hoy, ${t.toLowerCase()}` : t;
+  })();
 
   // Tareas: mismo armado que antes tenía el tablero (origen, checklist,
   // dependencias). Recorrido de decisiones: Asambleas / Consejos de los que
@@ -461,6 +559,12 @@ export default async function ComisionDetallePage({
             id: "horas",
             label: "Horas de trabajo",
             content: disponible ? (
+              <>
+              {calendarioCerrado && (
+                <p className="mb-3 rounded-xl bg-surface-sunken px-4 py-3 text-[15px] text-ink">
+                  Esta semana ya está cerrada en la libreta de horas: se puede ver pero no cambiar. Para corregirla, reabrila desde «Libreta de horas».
+                </p>
+              )}
               <CalendarioHoras
                 comisionId={comisionId}
                 semana={semanaHoras}
@@ -471,10 +575,52 @@ export default async function ComisionDetallePage({
                 hrefSiguiente={hrefSemana(sumarDias(lunes, 7))}
                 hrefActual={hrefSemana(lunesDe(hoy))}
                 horario={horario}
-                puedePlanificar={puedePlanificar}
+                puedePlanificar={puedePlanificar && !calendarioCerrado}
               />
+              </>
             ) : (
               <Card><EmptyState>El calendario de horas se habilita cuando la cooperativa está en una etapa en la que esta comisión está disponible.</EmptyState></Card>
+            ),
+          },
+        ]
+      : []),
+    ...(esTrabajo && disponible && horario
+      ? [
+          {
+            id: "asistencia",
+            label: `Asistencia${avisosPendientes.length && puedePlanificar ? ` (${avisosPendientes.length})` : ""}`,
+            content: (
+              <AsistenciaDia
+                comisionId={comisionId}
+                fecha={diaSel}
+                textoFecha={textoDiaSel}
+                hrefAnterior={hrefDia(sumarDias(diaSel, -1))}
+                hrefSiguiente={hrefDia(sumarDias(diaSel, 1))}
+                hrefHoy={hrefDia(hoy)}
+                esHoy={diaSel === hoy}
+                esFuturo={diaSel > hoy}
+                semanaCerrada={cerradaDelDia}
+                turnos={turnosDelDia}
+                sinTurno={sinTurnoFilas.map((x) => ({ id: x.id, nucleo: x.nucleo, horario: `${x.hora_inicio}–${x.hora_fin}`, minutos: Number(x.minutos_reales) }))}
+                avisosPendientes={avisosPendientes}
+                puedeMarcar={puedePlanificar}
+                nucleos={libretas.map((l) => ({ id: l.nucleo.id, nombre: l.nucleo.nombre }))}
+                horario={horario}
+              />
+            ),
+          },
+          {
+            id: "libreta",
+            label: "Libreta de horas",
+            content: (
+              <LibretaHoras
+                comisionId={comisionId}
+                filas={filasLibreta}
+                semanasPendientes={pendientesCerrar}
+                ultimasCerradas={cerradasRec.map((c) => ({ lunes: c.semana, cerradoPor: c.cerrado_por ?? "el sistema (automático)" }))}
+                puedeGestionar={puedePlanificar}
+                hrefRegistroAnterior={hayRegistroAnterior ? "/trabajo" : null}
+              />
             ),
           },
         ]
@@ -486,7 +632,7 @@ export default async function ComisionDetallePage({
     { id: "documentos", label: "Documentos", content: tabDocumentos },
     ...(puedeVerHistorial ? [{ id: "historial", label: "Historial", content: <Card><HistorialAuditoria registros={historial} /></Card> }] : []),
   ];
-  const tabInicial = tabs.some((t) => t.id === sp.tab) ? sp.tab : esTrabajo && sp.semana ? "horas" : "resumen";
+  const tabInicial = tabs.some((t) => t.id === sp.tab) ? sp.tab : esTrabajo && sp.semana ? "horas" : esTrabajo && sp.dia ? "asistencia" : "resumen";
 
   return (
     <div>

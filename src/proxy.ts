@@ -38,11 +38,17 @@ export function proxy(request: NextRequest) {
   const slugActual = request.cookies.get("coop_slug")?.value;
   const slugResuelto = resolverSlug(host);
 
+  // Fase 1E: la ruta pedida viaja a los layouts del servidor (que no la
+  // conocen) — la usa (app)/layout.tsx para no bloquear la propia pantalla
+  // de "Mi seguridad" cuando la cooperativa exige la verificación en dos pasos.
+  const cabeceras = new Headers(request.headers);
+  cabeceras.set("x-coova-path", request.nextUrl.pathname);
+
   if (slugActual === slugResuelto) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: cabeceras } });
   }
 
-  const response = NextResponse.next();
+  const response = NextResponse.next({ request: { headers: cabeceras } });
   response.cookies.set("coop_slug", slugResuelto, {
     httpOnly: false,
     sameSite: "lax",

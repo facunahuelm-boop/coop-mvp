@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, run, audit } from "@/lib/db";
+import { insert, update, get, run, audit, eliminarLogico } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { parseForm, zId, zTexto, zNombre, zTextoOpcional, zDocumentoOpcional, zEmailOpcional, zTelefonoOpcional, zEnumSeguro } from "@/lib/validation";
@@ -133,12 +133,12 @@ export async function cambiarEstadoProveedorFormAction(_prev: ActionState, formD
  * proveedor nunca llegó a presupuestar nada — es decir, cuando es
  * efectivamente un dato de prueba o un alta por error.
  */
-const eliminarProveedorSchema = z.object({ id: zId, confirmacion: zTexto(50) });
+const eliminarProveedorSchema = z.object({ id: zId, confirmacion: zTexto(50), motivo: zTexto(300) });
 
 export async function eliminarProveedorAction(formData: FormData) {
   const user = await requireUser();
   if (user.rol !== "admin") throw new Error("Solo un administrador del sistema puede eliminar un proveedor.");
-  const { id, confirmacion } = parseForm(eliminarProveedorSchema, formData);
+  const { id, confirmacion, motivo } = parseForm(eliminarProveedorSchema, formData);
   if (confirmacion.trim().toUpperCase() !== "ELIMINAR") {
     throw new Error('Para eliminar, escribí exactamente "ELIMINAR" en el campo de confirmación.');
   }
@@ -153,19 +153,10 @@ export async function eliminarProveedorAction(formData: FormData) {
       'Este proveedor ya tiene presupuestos o compras registradas: no se puede eliminar sin perder ese historial. Cambiá su estado a "Inactivo" desde su ficha en su lugar.'
     );
   }
-  try {
-    await run(`DELETE FROM proveedores WHERE id = ?`, [id]);
-  } catch (err: any) {
-    await audit({
-      usuario_id: user.id,
-      accion: "error_eliminar",
-      entidad: "proveedores",
-      entidad_id: Number(id),
-      valor_nuevo: { code: err?.code ?? null, message: String(err?.message ?? err) },
-    }).catch(() => {});
-    throw err;
-  }
-  await audit({ usuario_id: user.id, accion: "eliminar", entidad: "proveedores", entidad_id: Number(id), valor_anterior: proveedor });
+  // Fase 1A "nada se borra" (migración 0051): va a la papelera con motivo
+  // (eliminación lógica) — queda oculto en toda la app pero no se pierde.
+  await eliminarLogico("proveedores", Number(id), user.id, motivo);
+  await audit({ usuario_id: user.id, accion: "eliminar", entidad: "proveedores", entidad_id: Number(id), valor_anterior: proveedor, valor_nuevo: { enPapelera: true, motivo } });
   revalidatePath("/proveedores");
 }
 

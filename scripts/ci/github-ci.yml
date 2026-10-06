@@ -1,0 +1,68 @@
+# CI de COOVA (Fase 1A "Base segura").
+# Corre en cada push y pull request:
+#  1) Tipos (TypeScript) y build de Next.js: si algo no compila, no se publica.
+#  2) Base de prueba desde cero con TODAS las migraciones + verificación de
+#     aislamiento entre cooperativas, permisos de borrado y papelera.
+# Nunca toca producción: usa un Postgres temporal del propio CI.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+jobs:
+  build:
+    name: Tipos y build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci
+          APP_DATABASE_URL: postgres://ci:ci@127.0.0.1:5432/ci
+          AUTH_SECRET: ci-solo-para-compilar-no-es-un-secreto-real
+          NEXT_PUBLIC_DEFAULT_ORG_SLUG: ci
+
+  base-de-datos:
+    name: Migraciones y aislamiento
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: coova_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/coova_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Instalar cliente de Postgres
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Base de prueba con todas las migraciones
+        run: bash scripts/ci/preparar-base.sh
+      - name: Aislamiento entre cooperativas y "nada se borra"
+        run: node scripts/ci/verificar-aislamiento.mjs
+      - name: Las migraciones se pueden volver a correr sin romper nada
+        run: node scripts/run-migrations.mjs

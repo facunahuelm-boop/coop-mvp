@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { ConfirmDialog, useToast } from "./ui-client";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { ConfirmDialog, Modal, useToast } from "./ui-client";
 import { ESTADO_INICIAL, type ActionState } from "@/lib/actionState";
 
 /**
@@ -36,6 +36,8 @@ export function ConfirmarEliminar({
   textoBoton = "Eliminar definitivamente",
   confirmarLabel = "Sí, eliminar definitivamente",
   className,
+  pedirMotivo = false,
+  placeholderMotivo = "Ej.: se cargó por error",
 }: {
   action: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
   hiddenFields: Record<string, string | number>;
@@ -44,10 +46,15 @@ export function ConfirmarEliminar({
   textoBoton?: string;
   confirmarLabel?: string;
   className?: string;
+  /** Fase 1A (nada se borra): pide el motivo, que queda guardado y en la auditoría. */
+  pedirMotivo?: boolean;
+  placeholderMotivo?: string;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [estado, formAction] = useActionState(action, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
+  const formId = useId();
+  const [motivo, setMotivo] = useState("");
   const { show } = useToast();
 
   useEffect(() => {
@@ -57,27 +64,73 @@ export function ConfirmarEliminar({
 
   return (
     <>
-      <form ref={formRef} action={formAction} className="inline">
+      <form ref={formRef} id={formId} action={formAction} className="inline">
         {Object.entries(hiddenFields).map(([k, v]) => (
           <input key={k} type="hidden" name={k} value={v} />
         ))}
+        {pedirMotivo && <input type="hidden" name="motivo" value={motivo} />}
       </form>
       <button type="button" onClick={() => setAbierto(true)} className={className}>
         {textoBoton}
       </button>
-      <ConfirmDialog
-        open={abierto}
-        title={titulo}
-        description={descripcion}
-        confirmLabel={confirmarLabel}
-        cancelLabel="Cancelar"
-        danger
-        onConfirm={() => {
-          setAbierto(false);
-          formRef.current?.requestSubmit();
-        }}
-        onCancel={() => setAbierto(false)}
-      />
+      {pedirMotivo ? (
+        <Modal
+          open={abierto}
+          onClose={() => setAbierto(false)}
+          title={titulo}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setAbierto(false)}
+                className="inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold text-ink-muted hover:bg-surface-sunken transition-colors"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                disabled={motivo.trim().length < 3}
+                onClick={() => {
+                  setAbierto(false);
+                  formRef.current?.requestSubmit();
+                }}
+                className="inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold bg-[var(--color-rojo)] text-white disabled:opacity-40"
+              >
+                {confirmarLabel}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-[15px]">
+            {descripcion && <p className="text-ink">{descripcion}</p>}
+            <label className="block">
+              <span className="block text-sm font-semibold text-ink mb-1">¿Por qué? (queda registrado)</span>
+              <textarea
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                rows={3}
+                maxLength={300}
+                placeholder={placeholderMotivo}
+                className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-[15px]"
+              />
+            </label>
+          </div>
+        </Modal>
+      ) : (
+        <ConfirmDialog
+          open={abierto}
+          title={titulo}
+          description={descripcion}
+          confirmLabel={confirmarLabel}
+          cancelLabel="Cancelar"
+          danger
+          onConfirm={() => {
+            setAbierto(false);
+            formRef.current?.requestSubmit();
+          }}
+          onCancel={() => setAbierto(false)}
+        />
+      )}
     </>
   );
 }

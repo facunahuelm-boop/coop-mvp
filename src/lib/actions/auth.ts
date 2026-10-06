@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { rootGet, get, insert, audit } from "@/lib/db";
-import { verifyPassword, createSessionCookie, clearSessionCookie } from "@/lib/auth";
+import { verifyPassword, createSessionCookie, clearSessionCookie, crearIngresoPendiente2FA } from "@/lib/auth";
 import { setOrgContext } from "@/lib/tenant";
 
 const DEFAULT_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG || "coova";
@@ -113,6 +113,13 @@ export async function loginAction(_prev: { error?: string } | undefined, formDat
     console.error("[login] No se pudo registrar el intento en la auditoría:", err);
   }
   if (!user || !ok) return { error: "Email o contraseña incorrectos." };
+
+  // Fase 1E: con la verificación en dos pasos activada, la contraseña sola
+  // no alcanza — falta el código de 6 números de la app.
+  if (user.totp_activado_en) {
+    await crearIngresoPendiente2FA({ id: user.id, organization_id: org.id });
+    redirect("/login/verificacion");
+  }
 
   await createSessionCookie({
     id: user.id,

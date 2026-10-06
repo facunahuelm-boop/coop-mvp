@@ -3,12 +3,11 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { insert, update, get, all, audit } from "@/lib/db";
-import { requireUser, type SessionUser } from "@/lib/auth";
-import { canRead } from "@/lib/roles";
-import { puedePlanificarHorasTrabajo, ERROR_SIN_PERMISO_HORAS } from "@/lib/comisionAuth";
+import { requireUser } from "@/lib/auth";
+import { comisionDeTrabajo } from "@/lib/comisionTrabajo";
+import { semanaCerrada } from "@/lib/libretaHoras";
 import { parseForm, zId, zFecha, zTextoOpcional, ValidationError } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
-import { comisionDisponibleEnEtapa, funcionDe } from "@/lib/comisionesFunciones";
 import { obtenerHorarioObra } from "@/lib/horasTrabajo";
 import {
   calcularTramo,
@@ -46,23 +45,6 @@ const asignacionSchema = z.object({
   observaciones: zTextoOpcional(500),
 });
 
-async function comisionDeTrabajo(user: SessionUser, comisionId: number) {
-  if (!canRead(user.rol, "comisiones")) throw new Error("No autorizado");
-  const comision = await get<{ id: number; funcion: string | null; etapas: string | null; activa: number }>(
-    `SELECT id, funcion, etapas, activa FROM comisiones WHERE id = ?`,
-    [comisionId]
-  ).catch(() => {
-    throw new Error("Falta aplicar la actualización de la base (migración 0050) para organizar horas.");
-  });
-  if (!comision || !comision.activa) throw new Error("Esa comisión no existe o está archivada.");
-  if (funcionDe(comision.funcion) !== "trabajo") throw new Error("Las horas de trabajo se organizan desde la Comisión de Trabajo.");
-  if (!comisionDisponibleEnEtapa(comision, user.etapa)) {
-    throw new Error("La Comisión de Trabajo no está disponible en la etapa actual de la cooperativa.");
-  }
-  if (!(await puedePlanificarHorasTrabajo(user, comisionId))) throw new Error(ERROR_SIN_PERMISO_HORAS);
-  return comision;
-}
-
 type DatosAsignacion = z.infer<typeof asignacionSchema>;
 
 /** Valida el tramo y devuelve lo necesario para guardarlo + el aviso de horas semanales. */
@@ -73,6 +55,9 @@ async function validarAsignacion(datos: DatosAsignacion, excluirId: number | nul
   );
   if (!nucleo) throw new ValidationError("nucleo_id", "Ese núcleo no existe en esta cooperativa.");
 
+  if (await semanaCerrada(lunesDe(datos.fecha))) {
+    throw new ValidationError("fecha", "Esa semana ya está cerrada en la libreta de horas. Para cambiarla, primero hay que reabrirla.");
+  }
   const horario = await obtenerHorarioObra();
   const tramo = calcularTramo(datos.hora_inicio, datos.hora_fin, horario);
   if (tramo.error) throw new ValidationError("hora_fin", tramo.error);
@@ -163,6 +148,7 @@ export async function editarAsignacionHorasAction(formData: FormData): Promise<s
     [datos.id]
   );
   if (!anterior || anterior.estado !== "activa") throw new Error("Esa asignación ya no existe o fue cancelada.");
+  if (await semanaCerrada(lunesDe(anterior.fecha))) throw new Error("Esa semana ya está cerrada en la libreta de horas. Para cambiarla, primero hay que reabrirla.");
   const { nucleo, tramo, semana, aviso } = await validarAsignacion(datos, datos.id);
 
   await update("asignaciones_horas", datos.id, {
@@ -210,6 +196,7 @@ export async function cancelarAsignacionHorasAction(formData: FormData) {
     [id]
   );
   if (!fila || fila.estado !== "activa") return; // ya cancelada
+  if (await semanaCerrada(lunesDe(fila.fecha))) throw new Error("Esa semana ya está cerrada en la libreta de horas. Para cambiarla, primero hay que reabrirla.");
   await update("asignaciones_horas", id, {
     estado: "cancelada",
     motivo_cancelacion: motivo,

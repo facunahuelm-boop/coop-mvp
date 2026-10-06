@@ -126,6 +126,13 @@ export function textoEstadoHoras(minutosAsignados: number, horasObjetivo: number
   return `Faltan ${textoHoras(objetivo - minutosAsignados)}`;
 }
 
+/** Fase 1B: saldo de la libreta en palabras ("3 h a favor", "Debe 5 h", "Al día"). */
+export function textoSaldo(min: number): { texto: string; color: "verde" | "rojo" | "gray" } {
+  if (min > 0) return { texto: `${textoHoras(min)} a favor`, color: "verde" };
+  if (min < 0) return { texto: `Debe ${textoHoras(-min)}`, color: "rojo" };
+  return { texto: "Al día", color: "gray" };
+}
+
 // ---------- Semanas (lunes a domingo) ----------
 
 const pad = (n: number) => String(n).padStart(2, "0");

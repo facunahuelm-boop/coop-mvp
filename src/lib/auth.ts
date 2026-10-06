@@ -70,6 +70,10 @@ export type SessionUser = {
    * true — se fija a mano en la migración 0039, nunca vía UI.
    */
   es_platform_admin: boolean;
+  /** Fase 1A (accesibilidad): preferencia personal "Letra grande" (migración 0051). */
+  letra_grande: boolean;
+  /** Fase 1E: tiene activada la verificación en dos pasos (migración 0054). */
+  totp_activo: boolean;
 };
 
 export async function hashPassword(pw: string) {
@@ -102,6 +106,45 @@ export async function createSessionCookie(user: Pick<SessionUser, "id" | "rol" |
   });
 }
 
+/**
+ * Fase 1E — paso intermedio de la verificación en dos pasos: la contraseña
+ * (o el link por email) ya se comprobó, pero falta el código de 6 números.
+ * Esta cookie corta (5 minutos) NO es una sesión: sólo recuerda quién está
+ * en la mitad del ingreso. Firmada con la misma clave que la sesión.
+ */
+const COOKIE_2FA = "coop_2fa_pendiente";
+
+export async function crearIngresoPendiente2FA(user: { id: number; organization_id: number }) {
+  const token = await new SignJWT({ uid: user.id, org: user.organization_id, paso: "2fa" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("5m")
+    .sign(SECRET);
+  (await cookies()).set(COOKIE_2FA, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 5 * 60,
+  });
+}
+
+export async function leerIngresoPendiente2FA(): Promise<{ uid: number; org: number } | null> {
+  const token = (await cookies()).get(COOKIE_2FA)?.value;
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, SECRET);
+    if (payload.paso !== "2fa" || typeof payload.uid !== "number" || typeof payload.org !== "number") return null;
+    return { uid: payload.uid, org: payload.org };
+  } catch {
+    return null;
+  }
+}
+
+export async function borrarIngresoPendiente2FA() {
+  (await cookies()).delete(COOKIE_2FA);
+}
+
 export async function clearSessionCookie() {
   const store = await cookies();
   store.delete(COOKIE_NAME);
@@ -119,7 +162,7 @@ export async function clearSessionCookie() {
 // 5.1 puede sumar `es_platform_admin` a esta misma lista sin repetir el
 // incidente ni tener que escribir un tercer SELECT a mano si mañana se suma
 // una cuarta columna.
-const COLUMNAS_OPCIONALES_SESION = ["password_changed_en", "es_platform_admin"] as const;
+const COLUMNAS_OPCIONALES_SESION = ["password_changed_en", "es_platform_admin", "letra_grande", "sesiones_invalidadas_en", "totp_activado_en"] as const;
 
 async function filaDeSesion(uid: number): Promise<any> {
   let columnas: string[] = [...COLUMNAS_OPCIONALES_SESION];
@@ -133,7 +176,11 @@ async function filaDeSesion(uid: number): Promise<any> {
       );
     } catch (err: any) {
       if (err?.code !== "42703") throw err;
-      const columnaFaltante = /column "([^"]+)" of relation/.exec(String(err?.message || ""))?.[1];
+      // Fase 1E: Postgres informa una columna faltante en un SELECT como
+      // `column u.x does not exist` (no `column "x" of relation`, que es el
+      // formato de INSERT/UPDATE) — se aceptan los dos.
+      const mensaje = String(err?.message || "");
+      const columnaFaltante = /column "([^"]+)" of relation/.exec(mensaje)?.[1] ?? /column u\.(\w+) does not exist/.exec(mensaje)?.[1];
       if (!columnaFaltante || !columnas.includes(columnaFaltante)) throw err;
       console.error(`[auth] ${columnaFaltante} todavía no existe (migración pendiente) — sesión validada sin ese chequeo.`);
       columnas = columnas.filter((c) => c !== columnaFaltante);
@@ -195,6 +242,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       const cambiadaEnSegundos = Math.floor(new Date(row.password_changed_en).getTime() / 1000);
       if (payload.iat < cambiadaEnSegundos) return null;
     }
+    // Fase 1E: "Cerrar sesión en todos los dispositivos" (o un admin que
+    // desactiva el acceso de alguien) invalida toda sesión emitida antes.
+    if (row.sesiones_invalidadas_en && typeof payload.iat === "number") {
+      if (payload.iat < Math.floor(new Date(row.sesiones_invalidadas_en).getTime() / 1000)) return null;
+    }
     return {
       id: row.id,
       nombre: row.nombre,
@@ -212,6 +264,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
         color_secundario: row.org_color_secundario,
       },
       es_platform_admin: row.es_platform_admin === true,
+      letra_grande: row.letra_grande === true,
+      totp_activo: !!row.totp_activado_en,
     };
   } catch {
     return null;

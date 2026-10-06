@@ -387,7 +387,9 @@ export default async function DocumentosPage({
                             action={eliminarDocumentoFormAction}
                             hiddenFields={{ id: d.id, confirmacion: "ELIMINAR" }}
                             titulo="¿Eliminar este documento?"
-                            descripcion={`Se va a borrar "${d.nombre}" de forma permanente. Esta acción no se puede deshacer.`}
+                            descripcion={`"${d.nombre}" va a pasar a la papelera: deja de verse en la app, pero no se borra.`}
+                pedirMotivo
+                confirmarLabel="Sí, mandar a la papelera"
                             textoBoton="Confirmar"
                             className="rounded-md bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-2 py-1 text-[11px] font-semibold whitespace-nowrap"
                           />

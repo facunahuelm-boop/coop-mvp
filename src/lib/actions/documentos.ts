@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, get, run, audit } from "@/lib/db";
+import { insert, get, run, audit, eliminarLogico } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
@@ -293,12 +293,12 @@ export async function alternarDestacadoDocumentoFormAction(_prev: ActionState, f
  * si el documento es el PDF de un acta ya registrada, no se borra — se avisa
  * para no dejar un acta con un link roto.
  */
-const eliminarDocumentoSchema = z.object({ id: zId, confirmacion: zTexto(50) });
+const eliminarDocumentoSchema = z.object({ id: zId, confirmacion: zTexto(50), motivo: zTexto(300) });
 
 export async function eliminarDocumentoAction(formData: FormData) {
   const user = await requireUser();
   if (user.rol !== "admin") throw new Error("Solo un administrador del sistema puede eliminar un documento.");
-  const { id, confirmacion } = parseForm(eliminarDocumentoSchema, formData);
+  const { id, confirmacion, motivo } = parseForm(eliminarDocumentoSchema, formData);
   if (confirmacion.trim().toUpperCase() !== "ELIMINAR") {
     throw new Error('Para eliminar, escribí exactamente "ELIMINAR" en el campo de confirmación.');
   }
@@ -321,19 +321,10 @@ export async function eliminarDocumentoAction(formData: FormData) {
   if (tieneVersionPosterior) {
     throw new Error("Este documento tiene una versión más nueva que lo reemplaza: no se puede eliminar sin romper el historial de versiones.");
   }
-  try {
-    await run(`DELETE FROM documentos WHERE id = ?`, [id]);
-  } catch (err: any) {
-    await audit({
-      usuario_id: user.id,
-      accion: "error_eliminar",
-      entidad: "documentos",
-      entidad_id: Number(id),
-      valor_nuevo: { code: err?.code ?? null, message: String(err?.message ?? err) },
-    }).catch(() => {});
-    throw err;
-  }
-  await audit({ usuario_id: user.id, accion: "eliminar", entidad: "documentos", entidad_id: Number(id), valor_anterior: documento });
+  // Fase 1A "nada se borra" (migración 0051): va a la papelera con motivo
+  // (eliminación lógica) — queda oculto en toda la app pero no se pierde.
+  await eliminarLogico("documentos", Number(id), user.id, motivo);
+  await audit({ usuario_id: user.id, accion: "eliminar", entidad: "documentos", entidad_id: Number(id), valor_anterior: documento, valor_nuevo: { enPapelera: true, motivo } });
   revalidatePath("/documentos");
 }
 

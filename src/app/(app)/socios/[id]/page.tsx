@@ -15,6 +15,10 @@ import { RELACION_INTEGRANTE, RELACION_INTEGRANTE_LABEL, METODO_PAGO_LABEL, CATE
 import { SubirDocumentoNucleoForm } from "@/components/documentos/DocumentosFormularios";
 import { CARGO_LABEL, type CargoConsejo } from "@/lib/consejoDirectivoCargos";
 import { NucleoLink } from "@/components/EntidadLink";
+import { recibosDeSocio } from "@/lib/recibos";
+import { codigoDePago } from "@/lib/reglamento";
+import { BotonAccion } from "@/components/FormularioEnModal";
+import { emitirReciboFormAction } from "@/lib/actions/recibos";
 import {
   ActualizarSocioForm,
   AgregarIntegranteForm,
@@ -298,6 +302,11 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
     </>
   );
 
+  // Fase 1C: recibos de cada pago y código para identificar transferencias.
+  const recibos = puedeVerCuenta ? await recibosDeSocio(socio.id) : new Map<number, { id: number; numero: number }>();
+  const orgSlug = (await get<{ slug: string }>(`SELECT slug FROM organizations WHERE id = ?`, [user.organization_id]))?.slug ?? "coova";
+  const codigoPago = codigoDePago(orgSlug, socio.nucleo_id ?? null, socio.id);
+
   // ================= Pestaña: Finanzas =================
   const tabFinanzas = !puedeVerCuenta ? (
     <Card><EmptyState>El estado de cuenta lo administra Tesorería y Administración.</EmptyState></Card>
@@ -307,6 +316,10 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
         {puedeRegistrar && <RegistrarMovimientoCuentaForm socioId={socio.id} tipo="pago" cuotasAbiertas={cuotasAbiertas} />}
         {puedeRegistrar && <RegistrarMovimientoCuentaForm socioId={socio.id} tipo="cargo" />}
       </div>
+      <p className="mb-3 rounded-xl bg-surface-sunken px-4 py-3 text-[15px] text-ink">
+        Código para transferencias: <strong className="font-mono text-lg tracking-wide">{codigoPago}</strong>
+        <span className="block text-ink-muted">Al pagar por transferencia o depósito, poné este código en el concepto: así el pago se identifica solo.</span>
+      </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <StatTile label={saldo > 0 ? "Debe" : saldo < 0 ? "Saldo a favor" : "Al día"} value={money(Math.abs(saldo))} color={saldo > 0 ? "rojo" : "verde"} />
         <StatTile label="Cuotas pendientes" value={String(conteo.cuotasPendientes)} />
@@ -450,6 +463,24 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
                           { label: "En Finanzas", valor: ingreso ? (ingreso.estado === "anulado" ? "Ingreso anulado" : `Ingreso #${ingreso.id}`) : "Cargado antes de la integración" },
                           ...(p.notas ? [{ label: "Observaciones", valor: p.notas }] : []),
                           ...(anulado ? [{ label: "Estado", valor: <Badge color="gray">Anulado</Badge> }] : []),
+                          ...(!anulado
+                            ? [
+                                {
+                                  label: "Recibo",
+                                  valor: recibos.get(p.id) ? (
+                                    <a href={`/api/archivos/recibo/${recibos.get(p.id)!.id}`} target="_blank" rel="noopener noreferrer" className="underline font-semibold">
+                                      Recibo N° {recibos.get(p.id)!.numero} (ver e imprimir)
+                                    </a>
+                                  ) : puedeRegistrar ? (
+                                    <BotonAccion action={emitirReciboFormAction} ocultos={{ pago_id: p.id }} mensajeExito="Recibo emitido.">
+                                      Emitir recibo
+                                    </BotonAccion>
+                                  ) : (
+                                    "—"
+                                  ),
+                                },
+                              ]
+                            : []),
                           ...(p.comprobante_url
                             ? [{ label: "Comprobante", valor: <a href={`/api/archivos/cuota/${p.id}`} target="_blank" rel="noopener noreferrer" className="underline">Ver comprobante</a> }]
                             : []),
@@ -461,7 +492,10 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
                     <td className="py-2 pr-3 text-ink/70">{p.concepto}{anulado && <span className="ml-1"><Badge color="gray">Anulado</Badge></span>}</td>
                     <td className="py-2 pr-3 text-ink/60">{p.metodo_pago ? METODO_PAGO_LABEL[p.metodo_pago as keyof typeof METODO_PAGO_LABEL] || p.metodo_pago : "—"}</td>
                     <td className="py-2 pr-3">{ingreso && ingreso.estado !== "anulado" ? <Badge color="verde">Registrado</Badge> : <span className="text-ink/30">—</span>}</td>
-                    <td className="py-2 pr-3 text-right font-medium">{money2(Number(p.monto))}</td>
+                    <td className="py-2 pr-3 text-right font-medium">
+                      {money2(Number(p.monto))}
+                      {!anulado && recibos.get(p.id) && <span className="block text-xs text-ink-muted font-normal">Recibo N° {recibos.get(p.id)!.numero}</span>}
+                    </td>
                   </FilaConDetalle>
                 );
               })}
@@ -484,8 +518,13 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
                     <p className="text-xs text-ink-faint">
                       {c.cantidad_cuotas} cuotas de {money(c.monto_cuota)} · desde {fecha(c.fecha_inicio)}
                     </p>
+                    {c.estado === "anulado" && (c as any).motivo_anulacion && (
+                      <p className="text-xs text-ink-muted">Anulado: {(c as any).motivo_anulacion}</p>
+                    )}
                   </div>
-                  <Badge color={c.estado === "activo" ? "brand" : c.estado === "cumplido" ? "verde" : c.estado === "incumplido" ? "rojo" : "gray"}>{c.estado}</Badge>
+                  <Badge color={c.estado === "activo" ? "brand" : c.estado === "cumplido" ? "verde" : c.estado === "incumplido" ? "rojo" : "gray"}>
+                    {{ activo: "En curso", cumplido: "Cumplido", incumplido: "Incumplido", cancelado: "Cancelado", anulado: "Anulado" }[c.estado as string] ?? c.estado}
+                  </Badge>
                 </div>
               ))}
             </div>

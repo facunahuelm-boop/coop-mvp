@@ -172,6 +172,29 @@ export async function withTenantTransaction<T>(fn: (tx: TenantTx) => Promise<T>)
 }
 
 /**
+ * Fase 1A "nada se borra" (migración 0051): eliminación lógica (papelera).
+ * La fila queda en la base con eliminado_en / eliminado_por_id /
+ * motivo_eliminacion y la política de aislamiento la oculta de todas las
+ * consultas normales. Postgres exige que la fila siga siendo visible para el
+ * UPDATE que la marca, por eso se activa `app.incluir_eliminados` solo dentro
+ * de esta transacción (set_config(..., true) = local: se apaga al terminar).
+ * Devuelve false si la fila no existía o ya estaba eliminada.
+ */
+const TABLAS_CON_PAPELERA = new Set(["solicitudes_compra", "proveedores", "documentos"]);
+export async function eliminarLogico(tabla: string, id: number, usuarioId: number, motivo: string): Promise<boolean> {
+  if (!TABLAS_CON_PAPELERA.has(tabla)) throw new Error(`La tabla ${tabla} no tiene papelera.`);
+  return withTenantTransaction(async (tx) => {
+    await tx.run(`SELECT set_config('app.incluir_eliminados', '1', true)`);
+    const fila = await tx.get<{ id: number }>(
+      `UPDATE ${tabla} SET eliminado_en = now()::text, eliminado_por_id = ?, motivo_eliminacion = ?
+        WHERE id = ? AND eliminado_en IS NULL RETURNING id`,
+      [usuarioId, motivo, id]
+    );
+    return !!fila;
+  });
+}
+
+/**
  * Consultas de plataforma, sin cooperativa activa (ej: buscar una cooperativa
  * por su slug antes de iniciar sesión, o el alta de una cooperativa nueva).
  * Usar solo en flujos explícitamente a nivel de plataforma — nunca para leer

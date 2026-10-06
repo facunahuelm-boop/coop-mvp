@@ -55,6 +55,20 @@ export async function crearConvenioAction(formData: FormData) {
     throw new Error("Este socio ya tiene un convenio activo — cancelalo o marcalo cumplido antes de crear uno nuevo.");
   }
 
+  // Fase 1A "nada se borra": se calcula ANTES de crear el convenio qué
+  // cuotas refinancia (antes se creaba y, si no había nada que refinanciar,
+  // se borraba con un DELETE).
+  let cuotasRefinanciadas: { id: number; pendiente: number }[] = [];
+  if (refinancia) {
+    const { cuotas } = calcularCuotasSocio(await cargarMovimientosCuenta(socio_id));
+    cuotasRefinanciadas = cuotas
+      .filter((c) => c.estado === "vencida" && c.montoPendiente > 0)
+      .map((c) => ({ id: c.id, pendiente: c.montoPendiente }));
+    if (cuotasRefinanciadas.length === 0) {
+      throw new Error("Este socio no tiene cuotas vencidas para refinanciar — destildá \"Refinancia la deuda vencida\" si el convenio es por otro motivo.");
+    }
+  }
+
   const montoTotal = Math.round(monto_cuota * cantidad_cuotas * 100) / 100;
   const convenioId = await insert("convenios_pago", {
     socio_id,
@@ -76,16 +90,7 @@ export async function crearConvenioAction(formData: FormData) {
   // cada una en ese momento (monto_refinanciado): lo que ya hubiera pagado
   // antes sigue contando como pagado. Si el convenio después se cancela o se
   // incumple, esas cuotas vuelven a contar como deuda normal.
-  let cuotasRefinanciadas: { id: number; pendiente: number }[] = [];
   if (refinancia) {
-    const { cuotas } = calcularCuotasSocio(await cargarMovimientosCuenta(socio_id));
-    cuotasRefinanciadas = cuotas
-      .filter((c) => c.estado === "vencida" && c.montoPendiente > 0)
-      .map((c) => ({ id: c.id, pendiente: c.montoPendiente }));
-    if (cuotasRefinanciadas.length === 0) {
-      await run(`DELETE FROM convenios_pago WHERE id = ?`, [convenioId]);
-      throw new Error("Este socio no tiene cuotas vencidas para refinanciar — destildá \"Refinancia la deuda vencida\" si el convenio es por otro motivo.");
-    }
     for (const c of cuotasRefinanciadas) {
       await run(`UPDATE movimientos_cuenta_socio SET en_convenio_id = ?, monto_refinanciado = ? WHERE id = ?`, [convenioId, c.pendiente, c.id]);
     }
@@ -139,7 +144,7 @@ const cambiarEstadoConvenioSchema = z.object({
 
 /**
  * Cambiar el estado de un convenio en curso. Al cancelarlo (o marcarlo
- * incumplido), se borran las cuotas del convenio que todavía no vencieron —
+ * incumplido), se anulan las cuotas del convenio que todavía no vencieron —
  * el socio no sigue "debiendo" cuotas de un convenio que ya no rige — pero
  * las que ya vencieron quedan tal cual (si no se pagaron, siguen como deuda
  * normal; si se pagaron, el pago ya ocurrió de verdad y no hay motivo para
@@ -172,17 +177,16 @@ export async function cambiarEstadoConvenioAction(formData: FormData) {
       [user.id, `Convenio ${estado}: la deuda vuelve a sus cuotas originales.`, id]
     );
   } else if (estado === "cancelado" || estado === "incumplido") {
+    // Fase 1A "nada se borra": las cuotas del convenio que todavía no
+    // vencieron se ANULAN (antes se borraban). Quedan en el historial pero no
+    // cuentan como deuda; un pago adelantado dirigido a una de ellas pasa
+    // solo a cubrir lo más antiguo (calcularCuotasSocio ignora lo anulado).
     const hoy = hoyEnUruguay();
-    // Un pago adelantado dirigido a una de estas cuotas pasa a cubrir lo
-    // más antiguo (si no, la clave foránea de cuota_id frena el borrado).
     await run(
-      `UPDATE movimientos_cuenta_socio SET cuota_id = NULL
-       WHERE cuota_id IN (SELECT id FROM movimientos_cuenta_socio WHERE convenio_id = ? AND fecha_vencimiento > ?)`,
-      [id, hoy]
-    ).catch(() => {});
-    await run(
-      `DELETE FROM movimientos_cuenta_socio WHERE convenio_id = ? AND fecha_vencimiento > ?`,
-      [id, hoy]
+      `UPDATE movimientos_cuenta_socio
+       SET estado = 'anulado', anulado_en = now(), anulado_por_id = ?, motivo_anulacion = ?
+       WHERE convenio_id = ? AND tipo = 'cargo' AND fecha_vencimiento > ? AND COALESCE(estado, 'activo') != 'anulado'`,
+      [user.id, `Convenio ${estado}: esta cuota todavía no había vencido.`, id, hoy]
     );
   }
 
@@ -203,64 +207,73 @@ export async function cambiarEstadoConvenioFormAction(_prev: ActionState, formDa
   return conEstadoDeAccion(() => cambiarEstadoConvenioAction(formData));
 }
 
-const eliminarConvenioSchema = z.object({ id: zId });
+const anularConvenioSchema = z.object({ id: zId, motivo: zTexto(300) });
 
 /**
- * Eliminar directamente un convenio (no solo cancelarlo) — sólo se permite
- * si todavía no venció ninguna de sus cuotas (es decir, si el convenio nunca
- * llegó a tener efecto real todavía). Si ya venció alguna cuota, hay que
- * usar "Cancelar" en su lugar: eso conserva el historial de lo que ya pasó
- * en vez de borrarlo, mismo criterio que ya usa eliminarProveedorAction
- * (bloquear el borrado si ya hay historial real, no forzarlo).
+ * Fase 1A "nada se borra" (migración 0051): antes "Eliminar" borraba el
+ * convenio y todas sus cuotas con DELETE. Ahora se ANULA: el convenio queda
+ * en estado "anulado" con fecha, quién y motivo, y todas sus cuotas quedan
+ * anuladas (no cuentan como deuda pero siguen en el historial). Si el
+ * convenio refinanciaba deuda vieja, esas cuotas originales vuelven solas a
+ * contar como deuda (calcularCuotasSocio solo las da por refinanciadas si el
+ * convenio está activo o cumplido).
+ *
+ * Igual que antes, es para un convenio cargado por error: si ya venció
+ * alguna cuota, el convenio tuvo efecto real y hay que usar "Cancelar".
  */
-export async function eliminarConvenioAction(formData: FormData) {
+export async function anularConvenioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
-  const { id } = parseForm(eliminarConvenioSchema, formData);
+  const { id, motivo } = parseForm(anularConvenioSchema, formData);
 
-  const convenio = await get<{ id: number; socio_id: number }>(
-    `SELECT id, socio_id FROM convenios_pago WHERE id = ?`,
+  const convenio = await get<{ id: number; socio_id: number; estado: string }>(
+    `SELECT id, socio_id, estado FROM convenios_pago WHERE id = ?`,
     [id]
   );
-  if (!convenio) {
-    revalidatePath("/socios");
+  if (!convenio) throw new Error("Ese convenio ya no existe.");
+  if (convenio.estado === "anulado") {
+    revalidatePath(`/socios/${convenio.socio_id}`);
     return;
   }
 
   const hoy = hoyEnUruguay();
   const cuotaYaVencida = await get<{ id: number }>(
-    `SELECT id FROM movimientos_cuenta_socio WHERE convenio_id = ? AND fecha_vencimiento <= ? LIMIT 1`,
+    `SELECT id FROM movimientos_cuenta_socio
+      WHERE convenio_id = ? AND tipo = 'cargo' AND fecha_vencimiento <= ? AND COALESCE(estado, 'activo') != 'anulado' LIMIT 1`,
     [id, hoy]
   );
   if (cuotaYaVencida) {
-    throw new Error('Este convenio ya tiene cuotas vencidas: usá "Cancelar" en su lugar para conservar el historial.');
+    throw new Error('Este convenio ya tiene cuotas vencidas: usá "Cancelar convenio" en su lugar para conservar lo que ya pasó.');
   }
 
-  // Gestión cooperativa integrada (04/10, migración 0048): antes de borrar,
-  // soltar lo que apunta a este convenio — las cuotas que refinanciaba
-  // vuelven a ser deuda normal, y un pago dirigido a una cuota del convenio
-  // pasa a cubrir lo más antiguo (sin esto, la clave foránea impediría el
-  // borrado). `.catch`: base todavía sin esas columnas, nada que soltar.
-  await run(`UPDATE movimientos_cuenta_socio SET en_convenio_id = NULL, monto_refinanciado = NULL WHERE en_convenio_id = ?`, [id]).catch(() => {});
   await run(
-    `UPDATE movimientos_cuenta_socio SET cuota_id = NULL WHERE cuota_id IN (SELECT id FROM movimientos_cuenta_socio WHERE convenio_id = ?)`,
-    [id]
-  ).catch(() => {});
-  await run(`DELETE FROM movimientos_cuenta_socio WHERE convenio_id = ?`, [id]);
-  await run(`DELETE FROM convenios_pago WHERE id = ?`, [id]);
+    `UPDATE convenios_pago SET estado = 'anulado', anulado_en = now()::text, anulado_por_id = ?, motivo_anulacion = ? WHERE id = ?`,
+    [user.id, motivo, id]
+  );
+  await run(
+    `UPDATE movimientos_cuenta_socio
+     SET estado = 'anulado', anulado_en = now(), anulado_por_id = ?, motivo_anulacion = ?
+     WHERE convenio_id = ? AND tipo = 'cargo' AND COALESCE(estado, 'activo') != 'anulado'`,
+    [user.id, `Convenio anulado: ${motivo}`, id]
+  );
 
   await audit({
     usuario_id: user.id,
-    accion: "eliminar_convenio",
+    accion: "anular_convenio",
     entidad: "convenios_pago",
     entidad_id: id,
-    valor_anterior: { socio: (await get<{ nombre: string }>(`SELECT nombre FROM socios WHERE id = ?`, [convenio.socio_id]))?.nombre ?? null, socio_id: convenio.socio_id },
+    valor_anterior: { socio: (await get<{ nombre: string }>(`SELECT nombre FROM socios WHERE id = ?`, [convenio.socio_id]))?.nombre ?? null, estado: convenio.estado },
+    valor_nuevo: { estado: "anulado", motivo },
   });
   revalidatePath(`/socios/${convenio.socio_id}`);
   revalidatePath("/socios");
   revalidatePath("/finanzas");
 }
 
+export async function anularConvenioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => anularConvenioAction(formData));
+}
+/** Compatibilidad: el nombre viejo ahora anula (ya no se borra nada). */
 export async function eliminarConvenioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  return conEstadoDeAccion(() => eliminarConvenioAction(formData));
+  return conEstadoDeAccion(() => anularConvenioAction(formData));
 }

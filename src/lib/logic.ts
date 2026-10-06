@@ -458,6 +458,8 @@ export async function cargarMovimientosCuenta(socioId?: number): Promise<(Movimi
 }
 
 export type MiCuentaData = {
+  /** Fase 1A: preferencia "Letra grande" (la completa el layout con la sesión). */
+  letraGrande?: boolean;
   nombre: string;
   email: string;
   avatarUrl: string | null;
@@ -1276,6 +1278,20 @@ export async function historialComision(comisionId: number) {
         OR (a.entidad = 'tareas' AND a.entidad_id IN (SELECT id FROM tareas WHERE comision_id = ?))
         OR (a.entidad = 'decisiones_comision' AND a.entidad_id IN (SELECT id FROM decisiones_comision WHERE comision_id = ?))`;
   const orden = ` ORDER BY a.fecha DESC, a.id DESC LIMIT 300`;
+  // Fase 1B: también la asistencia, los avisos de ausencia, las licencias y
+  // los cierres de semana (estos dos últimos son de la Comisión de Trabajo).
+  try {
+    return await all<RegistroAuditoriaJoin>(
+      `${base}
+        OR (a.entidad = 'asignaciones_horas' AND a.entidad_id IN (SELECT id FROM asignaciones_horas WHERE comision_id = ?))
+        OR (a.entidad = 'asistencias_horas' AND a.entidad_id IN (SELECT id FROM asistencias_horas WHERE comision_id = ?))
+        OR (a.entidad = 'avisos_ausencia' AND a.entidad_id IN (SELECT v.id FROM avisos_ausencia v JOIN asignaciones_horas h ON h.id = v.asignacion_id WHERE h.comision_id = ?))
+        OR (a.entidad IN ('licencias_horas', 'cierres_semana_horas') AND EXISTS (SELECT 1 FROM comisiones c WHERE c.id = ? AND c.funcion = 'trabajo'))${orden}`,
+      [comisionId, comisionId, comisionId, comisionId, comisionId, comisionId, comisionId, comisionId]
+    );
+  } catch {
+    /* base sin la migración 0052: sigue el historial de siempre */
+  }
   try {
     return await all<RegistroAuditoriaJoin>(
       `${base} OR (a.entidad = 'asignaciones_horas' AND a.entidad_id IN (SELECT id FROM asignaciones_horas WHERE comision_id = ?))${orden}`,

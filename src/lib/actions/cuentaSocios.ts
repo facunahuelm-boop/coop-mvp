@@ -21,6 +21,7 @@ import {
 } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
+import { emitirReciboDePago, anularReciboDePago, enviarReciboPorEmail } from "@/lib/recibos";
 
 // Fase 10 del Plan Maestro — cuenta corriente por socio ("¿cuánto debo?").
 // Se gatea por el permiso de Finanzas (no el de Socios): registrar un cargo
@@ -156,6 +157,18 @@ export async function registrarMovimientoCuentaSocioAction(formData: FormData) {
     id = await insert("movimientos_cuenta_socio", datos);
   }
 
+  // Fase 1C: cada pago tiene su recibo numerado (y, si el reglamento lo
+  // pide, se le manda por email al socio). Si falla el recibo, el pago ya
+  // quedó registrado igual: el recibo se puede emitir después.
+  if (tipo === "pago") {
+    try {
+      const recibo = await emitirReciboDePago(id, user.id);
+      if (recibo) await enviarReciboPorEmail(recibo);
+    } catch (err) {
+      console.error("[recibos] No se pudo emitir el recibo del pago", id, err);
+    }
+  }
+
   await audit({
     usuario_id: user.id,
     accion: tipo === "pago" ? "registrar_pago_cuota" : "registrar_cargo_cuota",
@@ -271,6 +284,20 @@ export async function editarMovimientoCuentaSocioAction(formData: FormData) {
     }
   }
 
+  // Fase 1C: si cambió el monto, la fecha o dejó de ser un pago, el recibo
+  // anterior se anula (nunca se borra) y se emite uno nuevo que lo reemplaza.
+  if (movimiento.tipo === "pago") {
+    const cambioRelevante = tipo !== "pago" || Number(movimiento.monto) !== Math.abs(monto) || movimiento.fecha !== fecha;
+    if (cambioRelevante) {
+      try {
+        const anterior = await anularReciboDePago(id, "Se corrigió el pago", user.id);
+        if (tipo === "pago") await emitirReciboDePago(id, user.id, anterior?.id);
+      } catch (err) {
+        console.error("[recibos] No se pudo reemitir el recibo del pago", id, err);
+      }
+    }
+  }
+
   const nombreSocio = (await get<{ nombre: string }>(`SELECT nombre FROM socios WHERE id = ?`, [movimiento.socio_id]))?.nombre ?? null;
   await audit({
     usuario_id: user.id,
@@ -348,6 +375,7 @@ export async function anularMovimientoCuentaSocioAction(formData: FormData) {
       motivo_anulacion: `Se anuló el pago de cuota que lo generó${motivo ? `: ${motivo}` : ""}.`,
     });
   }
+  await anularReciboDePago(id, `Se anuló el pago${motivo ? `: ${motivo}` : ""}`, user.id).catch(() => null);
   await audit({
     usuario_id: user.id,
     accion: "anular_movimiento_cuenta_socio",

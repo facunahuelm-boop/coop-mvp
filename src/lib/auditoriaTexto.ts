@@ -52,6 +52,11 @@ const ENTIDADES: Record<string, DefEntidad> = {
   solicitudes_comision: { nombre: "solicitud entre comisiones", femenino: true, modulo: "Comisiones y tareas", href: (id) => `/solicitudes/${id}` },
   comunicaciones: { nombre: "comunicación", femenino: true, modulo: "Comisiones y tareas" },
   asignaciones_horas: { nombre: "jornada de trabajo", femenino: true, modulo: "Comisiones y tareas" },
+  asistencias_horas: { nombre: "asistencia", femenino: true, modulo: "Obra y trabajo" },
+  avisos_ausencia: { nombre: "aviso de ausencia", modulo: "Obra y trabajo" },
+  licencias_horas: { nombre: "licencia de horas", femenino: true, modulo: "Obra y trabajo" },
+  cierres_semana_horas: { nombre: "semana de horas", femenino: true, modulo: "Obra y trabajo" },
+  recibos: { nombre: "recibo", modulo: "Cuotas y pagos" },
   documentos: { nombre: "documento", modulo: "Documentos" },
   documento_categorias: { nombre: "categoría de documentos", femenino: true, modulo: "Documentos" },
   documentos_seguridad: { nombre: "documento de seguridad", modulo: "Obra y trabajo" },
@@ -206,11 +211,36 @@ const ACCIONES: Record<string, string> = {
   editar_asignacion_horas: "modificó la jornada de {obj}",
   reprogramar_asignacion_horas: "reprogramó la jornada de {obj}",
   cancelar_asignacion_horas: "canceló una jornada de {obj}",
+  registrar_asistencia_obra: "registró la asistencia en obra de {obj}",
+  deshacer_asistencia: "deshizo una marca de asistencia de {obj}",
+  registrar_horas_sin_turno: "registró horas sin turno de {obj}",
+  avisar_ausencia: "avisó que no puede ir: {obj}",
+  aprobar_aviso_ausencia: "justificó la falta de {obj}",
+  rechazar_aviso_ausencia: "rechazó el aviso de ausencia de {obj}",
+  registrar_licencia_horas: "registró una licencia para {obj}",
+  anular_licencia_horas: "anuló {obj}",
+  cerrar_semana_horas: "cerró {obj}",
+  reabrir_semana_horas: "reabrió {obj}",
+  anular_convenio: "anuló el convenio de {obj}",
+  cambiar_preferencia: "cambió sus preferencias de pantalla",
+  guardar_reglamento: "cambió el reglamento de la cooperativa",
+  emitir_recibo: "emitió {obj}",
+  anular_recibo: "anuló {obj}",
+  aplicar_recargo: "aplicó un recargo por atraso en {obj}",
+  pedir_link_acceso: "pidió un link para entrar por email",
+  login_link_email: "entró con el link enviado a su email",
+  login_segundo_paso: "completó la verificación en dos pasos al entrar",
+  login_segundo_paso_fallido: "escribió un código de verificación incorrecto",
+  activar_dos_pasos: "activó la verificación en dos pasos",
+  desactivar_dos_pasos: "desactivó la verificación en dos pasos",
+  quitar_dos_pasos: "quitó la verificación en dos pasos de {obj}",
+  cerrar_otras_sesiones: "cerró sus sesiones en otros dispositivos",
   enviar: "envió {obj}",
   enviar_fallido: "intentó enviar {obj} (falló)",
 };
 
 const CAMPOS_NOMBRE = ["nombre", "titulo", "tema", "material", "concepto", "descripcion", "asunto", "punto", "numero", "item"];
+// (Fase 1C: un recibo se nombra por su "numero": «Recibo N° 12».)
 
 export function parsearValor(v: string | null | undefined): Record<string, unknown> | string | null {
   if (v === null || v === undefined || v === "") return null;
@@ -253,11 +283,16 @@ export function objetoDelRegistro(r: RegistroAuditoriaCrudo): string {
   // número interno del movimiento ("…registró un pago de cuota en la cuenta
   // del núcleo «Pérez»").
   // Horas de trabajo: "…modificó la jornada del núcleo «Núcleo 8»".
-  if (entidad === "asignaciones_horas") {
+  if (entidad === "asignaciones_horas" || entidad === "asistencias_horas" || entidad === "avisos_ausencia" || entidad === "licencias_horas") {
     const a = parsearValor(r.valor_anterior);
     const n = parsearValor(r.valor_nuevo);
     const nucleo = [n, a].map((v) => (v && typeof v === "object" ? v.nucleo : null)).find((v) => typeof v === "string" && v);
     if (nucleo) return `el núcleo «${nucleo}»`;
+  }
+  if (entidad === "cierres_semana_horas") {
+    const n = parsearValor(r.valor_nuevo);
+    const semana = n && typeof n === "object" && typeof n.semana === "string" ? n.semana : null;
+    if (semana) return `la ${semana.charAt(0).toLowerCase()}${semana.slice(1)} en la libreta de horas`;
   }
   if (entidad === "movimientos_cuenta_socio" || entidad === "convenios_pago") {
     const a = parsearValor(r.valor_anterior);

@@ -6,6 +6,7 @@ import type { MiCuentaData } from "@/lib/logic";
 import { Avatar } from "./EntidadLink";
 import { Badge, StatTile, EmptyState } from "./ui";
 import { MiCuentaTrigger } from "./MiCuentaClient";
+import { LetraGrandeToggle } from "./LetraGrandeToggle";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-UY")}`;
 
@@ -94,6 +95,10 @@ export function MiCuenta({ data, size = 32, variant = "desktop" }: { data: MiCue
           <p className="text-ink">{[data.socio?.telefono, data.socio?.emailContacto].filter(Boolean).join(" · ")}</p>
         </div>
       )}
+      <LetraGrandeToggle activo={data.letraGrande === true} />
+      <a href="/mi-seguridad" className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 text-[15px] font-semibold text-ink hover:bg-surface-sunken">
+        Mi seguridad (contraseña y verificación) <span aria-hidden>→</span>
+      </a>
     </div>
   );
 

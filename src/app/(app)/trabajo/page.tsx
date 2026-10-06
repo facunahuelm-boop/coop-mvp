@@ -38,6 +38,12 @@ export default async function TrabajoPage({
     ),
     all<any>(`SELECT * FROM nucleos_familiares ORDER BY horas_acumuladas DESC`),
   ]);
+  // Fase 1B "Horas con un solo número": las horas ahora se organizan en la
+  // Comisión de Trabajo (planificación → asistencia → libreta). Esta pantalla
+  // queda como registro anterior (no se borra nada) y lo avisa arriba.
+  const comisionTrabajo = await get<{ id: number }>(
+    `SELECT id FROM comisiones WHERE funcion = 'trabajo' AND activa = 1 ORDER BY id LIMIT 1`
+  ).catch(() => undefined);
   const totalPasadas = Number(totalPasadasRow?.total || 0);
   const totalPages = Math.max(1, Math.ceil(totalPasadas / POR_PAGINA));
 
@@ -55,10 +61,23 @@ export default async function TrabajoPage({
   return (
     <div>
       <PageHeader
-        title="Trabajo"
-        subtitle="Jornadas de ayuda mutua, asignaciones y horas"
+        title="Trabajo — registro anterior"
+        subtitle="Jornadas de ayuda mutua cargadas antes del nuevo sistema de horas"
         action={puedeEditar ? <PlanificarJornadaForm /> : undefined}
       />
+      <div className="mb-6 rounded-2xl border border-[var(--color-brand-800)]/30 bg-[var(--color-brand-100)]/40 px-4 py-3 text-[15px] text-ink">
+        <p className="font-semibold">Las horas ahora se organizan en la Comisión de Trabajo.</p>
+        <p className="mt-0.5">
+          Ahí están los turnos de cada núcleo, la asistencia y la libreta de horas con el saldo de cada uno. Esta pantalla queda como registro de lo cargado antes
+          (esas horas se muestran aparte en cada libreta).
+          {comisionTrabajo && (
+            <>
+              {" "}
+              <a href={`/comisiones/${comisionTrabajo.id}?tab=libreta`} className="font-semibold underline underline-offset-2">Ir a la Comisión de Trabajo →</a>
+            </>
+          )}
+        </p>
+      </div>
 
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-3">

@@ -307,6 +307,42 @@ export async function enviarEmailRecordatorioActividad(
   });
 }
 
+/**
+ * Fase 1C: aviso que manda el SISTEMA a una sola persona (cuota generada,
+ * recordatorio de vencimiento, recibo de pago). Letra más grande y lenguaje
+ * simple. Igual que los demás avisos del sistema: si la cooperativa todavía
+ * no configuró el email, devuelve ok:false en vez de fallar.
+ */
+export async function enviarEmailAvisoSistema(
+  destinatario: string,
+  nombre: string,
+  aviso: { asunto: string; titulo: string; parrafos: string[]; boton?: { texto: string; link: string }; pie?: string }
+): Promise<ResultadoEnvio> {
+  const cfg = await getConfigEmail();
+  if (!cfg.smtp_host || !cfg.smtp_user) {
+    return { ok: false, error: "SMTP no configurado en esta cooperativa (Configuración → Configuración de Email)." };
+  }
+  return enviarEmailBase(cfg, {
+    to: destinatario,
+    subject: aviso.asunto,
+    textoPlano: `Hola ${nombre},\n\n${aviso.parrafos.join("\n\n")}${aviso.boton ? `\n\n${aviso.boton.texto}: ${aviso.boton.link}` : ""}`,
+    tituloTarjeta: aviso.titulo,
+    cuerpoHtml: `
+      <p style="margin:0 0 14px;font-size:16px;color:#1e293b;line-height:1.6;">Hola ${escapeHtml(nombre)},</p>
+      ${aviso.parrafos.map((p) => `<p style="margin:0 0 14px;font-size:16px;color:#1e293b;line-height:1.6;">${escapeHtml(p)}</p>`).join("")}
+      ${aviso.boton ? `<p style="margin:6px 0 16px;"><a href="${aviso.boton.link}" style="display:inline-block;background:#3b3f8c;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-size:16px;font-weight:bold;">${escapeHtml(aviso.boton.texto)}</a></p>` : ""}
+    `,
+    piePagina: aviso.pie ?? "Aviso automático de COOVA.",
+  });
+}
+
+/** Dirección pública de la app para los links de los avisos (también desde el cron, sin pedido HTTP). */
+export function urlBaseApp(): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  return "http://localhost:3000";
+}
+
 function escapeHtml(s: string) {
   return s
     .replace(/&/g, "&amp;")

@@ -21,6 +21,8 @@ const nextConfig: NextConfig = {
   // funcione en desarrollo local.
   outputFileTracingIncludes: {
     "/api/reportes/finanzas": ["./node_modules/pdfkit/js/data/**"],
+    // Fase 1C: recibo de pago en PDF.
+    "/api/archivos/recibo/[id]": ["./node_modules/pdfkit/js/data/**"],
   },
 
   // Endurecimiento de seguridad del servidor (pedido explícito: "que quede

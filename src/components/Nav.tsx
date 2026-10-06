@@ -54,9 +54,22 @@ import {
   BriefcaseBusiness,
   UsersRound,
   UserRound,
+  House as HomeIcon,
+  Clock,
+  Scale,
 } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: ReactNode; mod?: Module; soloPlataforma?: boolean };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: ReactNode;
+  mod?: Module;
+  soloPlataforma?: boolean;
+  /** Fase 1D: sólo en estas etapas de la cooperativa (ej. "Mis horas" sólo en obra). */
+  etapas?: string[];
+  /** Fase 1D: sólo para quien tiene ficha de socio (o rol socio). */
+  soloSocios?: boolean;
+};
 type NavGroup = { label: string; items: NavItem[] };
 
 // Navegación agrupada (Fase 2 del plan de transformación a plataforma;
@@ -94,75 +107,57 @@ const ETAPA_DEFAULT: Partial<Record<Module, string[]>> = {
   reclamos: ["habitada"],
 };
 
+// Fase 1D (menú por rol, "máximo 9 entradas"): el menú se reorganizó en 9
+// grupos con nombres de la vida de la cooperativa, y el socio común ve sólo
+// lo suyo (ver MENU_SOCIO). Ninguna pantalla se quitó: todas siguen en su
+// misma dirección y en "Más". Cambios de lugar:
+//  - "Trabajo" (registro anterior de jornadas) sale del menú: las horas ahora
+//    se organizan en la Comisión de Trabajo (planificación, asistencia y
+//    libreta). La pantalla sigue en /trabajo y se enlaza desde la libreta.
+//  - Panel Fiscal, Auditoría, Cumplimiento, Transparencia y Reportes quedan
+//    juntos en "Control y transparencia".
+//  - Reglamento, Configuración y las herramientas de administración quedan
+//    juntos en "Administración".
 const GROUPS: NavGroup[] = [
   {
     label: "Inicio",
     items: [
       { href: "/dashboard", label: "Inicio", icon: <Home size={ICON_SIZE} /> },
+      { href: "/mi-vivienda", label: "Mi vivienda", icon: <HomeIcon size={ICON_SIZE} />, soloSocios: true },
+      { href: "/mis-horas", label: "Mis horas", icon: <Clock size={ICON_SIZE} />, soloSocios: true, etapas: ["obra"] },
       { href: "/alertas", label: "Alertas", icon: <Bell size={ICON_SIZE} /> },
-      // Fase 7 de Comisiones (19/09): bandeja PERSONAL de notificaciones
-      // puntuales (solicitud recibida, tarea asignada, etc. — ver
-      // lib/actions/notificaciones.ts). Sin "mod": es de cualquier usuario
-      // logueado, no depende de ningún módulo puntual — mismo criterio que
-      // "Alertas", con quien comparte grupo por ser conceptualmente afines
-      // (ambas son "cosas que me llegaron"), aunque son bandejas distintas.
-      { href: "/notificaciones", label: "Notificaciones", icon: <Inbox size={ICON_SIZE} /> },
-      // Fase 10 de Comisiones (20/09): vista PERSONAL que reordena por
-      // persona lo que el resto del sistema ya tiene ordenado por módulo
-      // (tareas, solicitudes, reuniones, votaciones, mensajes). Sin "mod",
-      // igual que Notificaciones: es de cualquier usuario logueado, y cada
-      // consulta ya viene filtrada por el usuario o sus comisiones.
+      { href: "/notificaciones", label: "Avisos", icon: <Inbox size={ICON_SIZE} /> },
       { href: "/mi-trabajo", label: "Mi trabajo", icon: <ListChecks size={ICON_SIZE} /> },
       { href: "/calendario", label: "Calendario", icon: <CalendarDays size={ICON_SIZE} /> },
     ],
   },
   {
-    label: "Gestión",
+    label: "Socios y vivienda",
     items: [
+      { href: "/socios", label: "Socios y núcleos", icon: <Users size={ICON_SIZE} />, mod: "socios" },
+      { href: "/contactos", label: "Contactos", icon: <BookUser size={ICON_SIZE} /> },
+      { href: "/reclamos", label: "Reclamos y mantenimiento", icon: <Wrench size={ICON_SIZE} />, mod: "reclamos" },
+    ],
+  },
+  {
+    label: "Finanzas",
+    items: [
+      { href: "/finanzas", label: "Finanzas y cuotas", icon: <Wallet size={ICON_SIZE} />, mod: "finanzas" },
       { href: "/compras", label: "Compras", icon: <ShoppingCart size={ICON_SIZE} />, mod: "compras" },
       { href: "/proveedores", label: "Proveedores", icon: <Truck size={ICON_SIZE} />, mod: "compras" },
       // Sin "mod": el resumen de Gastos por Comisión lo ve cualquier usuario
-      // autenticado (decisión confirmada: "todos ven el resumen, cada uno
-      // edita solo lo suyo") — el permiso real de editar/cargar/anular un
-      // gasto se valida en el servidor (puedeUsarGastos + puedeGestionarComision
-      // en actions/gastos.ts), acá solo se decide si el ítem del menú aparece.
-      { href: "/gastos", label: "Gastos", icon: <Receipt size={ICON_SIZE} /> },
-      { href: "/reclamos", label: "Reclamos", icon: <Wrench size={ICON_SIZE} />, mod: "reclamos" },
-      { href: "/finanzas", label: "Finanzas", icon: <Wallet size={ICON_SIZE} />, mod: "finanzas" },
-      // Fase 2 ("Transparencia", sección 10, 22/09): sin "mod" a propósito —
-      // es "transparencia básica", la ve cualquier usuario autenticado
-      // (mismo criterio sin mod que ya usan Gastos/Contactos/Mi trabajo),
-      // a diferencia de Finanzas/Compras de arriba que sí dependen de
-      // canRead. Solo muestra agregados de toda la cooperativa, nunca datos
-      // de un socio en particular.
-      { href: "/transparencia", label: "Transparencia", icon: <Eye size={ICON_SIZE} /> },
+      // autenticado ("todos ven el resumen, cada uno edita solo lo suyo").
+      { href: "/gastos", label: "Gastos de comisiones", icon: <Receipt size={ICON_SIZE} /> },
     ],
   },
   {
     label: "Obra",
     items: [
-      { href: "/obra", label: "Obra", icon: <HardHat size={ICON_SIZE} />, mod: "obra" },
-      { href: "/trabajo", label: "Trabajo", icon: <Handshake size={ICON_SIZE} />, mod: "trabajo" },
+      { href: "/obra", label: "Avance de obra", icon: <HardHat size={ICON_SIZE} />, mod: "obra" },
       { href: "/seguridad", label: "Seguridad", icon: <ShieldCheck size={ICON_SIZE} />, mod: "seguridad" },
     ],
   },
-  {
-    label: "Organización",
-    items: [
-      { href: "/socios", label: "Socios", icon: <Users size={ICON_SIZE} />, mod: "socios" },
-      // Sin "mod": Contactos combina socios/integrantes (todos los roles
-      // tienen al menos "read" en "socios") y proveedores (solo si el rol
-      // puede "compras") — cada fuente se filtra sola adentro de
-      // obtenerContactos() (lib/contactos.ts), mismo criterio que "Gastos"
-      // arriba. No hace falta ocultar el ítem del menú entero por rol.
-      { href: "/contactos", label: "Contactos", icon: <BookUser size={ICON_SIZE} /> },
-      { href: "/asambleas", label: "Asambleas", icon: <Landmark size={ICON_SIZE} />, mod: "comisiones" },
-      { href: "/consejo-directivo", label: "Consejo Directivo", icon: <UserCog size={ICON_SIZE} />, mod: "comisiones" },
-    ],
-  },
-  // Pedido explícito (05/10): "Comisiones y reuniones" pasa a ser un grupo
-  // propio de la barra lateral, al mismo nivel que Organización, en vez de
-  // un subgrupo plegado adentro de ella. Mismos ítems, mismos permisos.
+  // Pedido explícito (05/10): "Comisiones y reuniones" es un grupo propio.
   {
     label: "Comisiones y reuniones",
     items: [
@@ -174,74 +169,50 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Asambleas y Consejo",
+    items: [
+      { href: "/asambleas", label: "Asambleas", icon: <Landmark size={ICON_SIZE} />, mod: "comisiones" },
+      { href: "/consejo-directivo", label: "Consejo Directivo", icon: <UserCog size={ICON_SIZE} />, mod: "comisiones" },
+      { href: "/libros-sociales", label: "Libros sociales", icon: <BookOpen size={ICON_SIZE} />, mod: "comisiones" },
+    ],
+  },
+  {
     label: "Documentos",
-    items: [
-      { href: "/documentos", label: "Documentos", icon: <FileText size={ICON_SIZE} />, mod: "documentos" },
-      // Sub-fase 1.2 ("Libros Sociales digitales", 22/09): usa "comisiones"
-      // como mod porque el contenido (actas de Asamblea/Consejo Directivo,
-      // registro de socios) ya es transparente a toda la cooperativa bajo
-      // ese mismo módulo — no hace falta un módulo nuevo.
-      { href: "/libros-sociales", label: "Libros Sociales", icon: <BookOpen size={ICON_SIZE} />, mod: "comisiones" },
-    ],
+    items: [{ href: "/documentos", label: "Documentos", icon: <FileText size={ICON_SIZE} />, mod: "documentos" }],
   },
   {
-    label: "Herramientas",
+    label: "Control y transparencia",
     items: [
-      { href: "/buscar", label: "Buscador", icon: <Search size={ICON_SIZE} /> },
-      { href: "/mails", label: "Mails", icon: <Mail size={ICON_SIZE} /> },
-      { href: "/ia", label: "Asistente IA", icon: <Sparkles size={ICON_SIZE} /> },
-      { href: "/reportes", label: "Reportes", icon: <BarChart3 size={ICON_SIZE} /> },
-      // Fase 5, Sub-fase 5.4 ("Soporte", sección 22): sin "mod" a propósito
-      // (ver lib/planes.ts) — el acceso a soporte nunca debería depender del
-      // plan de la cooperativa ni de la etapa, así que nunca puede quedar
-      // oculto por un ajuste de módulos.
-      { href: "/soporte", label: "Soporte", icon: <LifeBuoy size={ICON_SIZE} /> },
-    ],
-  },
-  {
-    label: "Configuración",
-    items: [
-      { href: "/configuracion", label: "Configuración", icon: <Settings size={ICON_SIZE} /> },
-      // Sub-fase 1.5 ("Panel de Comisión Fiscal"): usa "auditoria" como mod
-      // porque ese es exactamente el grupo de roles con lectura de control
-      // (tesorería, consejo directivo, fiscal, admin) — mismo criterio que
-      // ya usa el ítem de Auditoría de acá abajo.
+      { href: "/transparencia", label: "¿En qué se gasta?", icon: <Eye size={ICON_SIZE} /> },
       { href: "/fiscal", label: "Panel Fiscal", icon: <ClipboardCheck size={ICON_SIZE} />, mod: "auditoria" },
       { href: "/auditoria", label: "Auditoría", icon: <History size={ICON_SIZE} />, mod: "auditoria" },
-      // Fase 2, Sub-fase 2.4 ("Centro de Cumplimiento", sección 15): mismo
-      // "mod" que Panel Fiscal y Auditoría — mismo grupo de control
-      // (tesorería, consejo directivo, fiscal, admin), sin ampliar nada.
       { href: "/cumplimiento", label: "Cumplimiento", icon: <FileCheck2 size={ICON_SIZE} />, mod: "auditoria" },
-      // Fase 3, Sub-fase 3.3 ("Motor de reglas evento-condición-acción"):
-      // sin "mod" a propósito, igual que el ítem de Configuración de arriba
-      // — es una pantalla de configuración (admin/consejo_directivo), no de
-      // consulta como sus hermanas de este grupo, así que no correspondía
-      // el mismo "auditoria" (tesorería/fiscal no podrían hacer nada ahí
-      // aunque la vieran). La restricción real la hace la propia página.
+      { href: "/reportes", label: "Reportes", icon: <BarChart3 size={ICON_SIZE} /> },
+    ],
+  },
+  {
+    label: "Administración",
+    items: [
+      { href: "/reglamento", label: "Reglamento", icon: <Scale size={ICON_SIZE} /> },
+      { href: "/configuracion", label: "Configuración", icon: <Settings size={ICON_SIZE} /> },
       { href: "/reglas-automaticas", label: "Reglas automáticas", icon: <Zap size={ICON_SIZE} /> },
-      // Fase 4, Sub-fase 4.1 ("Gestión de usuarios", sección 16): mismo
-      // criterio que Configuración/Reglas automáticas de acá arriba — sin
-      // "mod" (el ítem se muestra a todos en el menú), la restricción real
-      // (solo admin, más estricta que las otras dos) la hace la propia
-      // página al entrar.
       { href: "/usuarios", label: "Gestión de usuarios", icon: <UserPlus size={ICON_SIZE} /> },
-      // Fase 6, Sub-fase 6.1 ("Migración de datos Excel/CSV", sección 30):
-      // mismo criterio que "Gestión de usuarios" de acá arriba — sin "mod"
-      // (visible a todos en el menú), la restricción real (solo admin) la
-      // hace la propia página al entrar.
       { href: "/importar", label: "Importar datos", icon: <FileUp size={ICON_SIZE} /> },
-      // Fase 5, Sub-fase 5.1 ("Administrador de plataforma", sección 20):
-      // a diferencia de "Gestión de usuarios" de acá arriba (visible para
-      // todos en el menú, la propia página redirige si no sos admin), este
-      // ítem usa `soloPlataforma` — ni siquiera aparece en el menú de quien
-      // no tiene `es_platform_admin` (ver auth.ts). No es un módulo de una
-      // cooperativa, es una herramienta que opera sobre TODAS a la vez, así
-      // que no tiene sentido mostrárselo a nadie más como algo "que existe
-      // pero no podés usar".
+      { href: "/mails", label: "Mails", icon: <Mail size={ICON_SIZE} /> },
+      { href: "/ia", label: "Asistente IA", icon: <Sparkles size={ICON_SIZE} /> },
+      { href: "/buscar", label: "Buscador", icon: <Search size={ICON_SIZE} /> },
+      { href: "/soporte", label: "Ayuda y soporte", icon: <LifeBuoy size={ICON_SIZE} /> },
       { href: "/plataforma", label: "Panel de plataforma", icon: <Building2 size={ICON_SIZE} />, soloPlataforma: true },
     ],
   },
 ];
+
+/** Roles de gestión que ven "Mi vivienda" sólo si además son socios (tienen ficha). */
+// Fase 1D: el socio común ve un menú corto, sólo con lo suyo. Lo demás que su
+// rol puede leer sigue accesible por dirección y desde "Más".
+const MENU_SOCIO = new Set(["/dashboard", "/mi-vivienda", "/mis-horas", "/notificaciones", "/calendario", "/documentos", "/transparencia", "/mi-trabajo", "/soporte"]);
+// Páginas que no tienen un lugar en el menú pero siguen existiendo (para "Más" y accesos).
+const RUTAS_FUERA_DEL_MENU: NavItem[] = [{ href: "/trabajo", label: "Trabajo (registro anterior)", icon: <Handshake size={ICON_SIZE} />, mod: "trabajo" }];
 
 // Mejora global del sidebar (28/09, pedido explícito — sección 34): un
 // ícono identificable por grupo principal, más chico que los de cada ítem
@@ -250,16 +221,17 @@ const GROUPS: NavGroup[] = [
 // necesita entrada acá: nunca se pliega, sigue sin acordeón (sección 21).
 const GROUP_ICON_SIZE = 14;
 const GROUP_ICON: Record<string, ReactNode> = {
-  Gestión: <Wallet size={GROUP_ICON_SIZE} />,
+  "Socios y vivienda": <Users size={GROUP_ICON_SIZE} />,
+  Finanzas: <Wallet size={GROUP_ICON_SIZE} />,
   Obra: <HardHat size={GROUP_ICON_SIZE} />,
-  Organización: <Users size={GROUP_ICON_SIZE} />,
   "Comisiones y reuniones": <Compass size={GROUP_ICON_SIZE} />,
+  "Asambleas y Consejo": <Landmark size={GROUP_ICON_SIZE} />,
   Documentos: <FileText size={GROUP_ICON_SIZE} />,
-  Herramientas: <Wrench size={GROUP_ICON_SIZE} />,
-  Configuración: <Settings size={GROUP_ICON_SIZE} />,
+  "Control y transparencia": <Eye size={GROUP_ICON_SIZE} />,
+  Administración: <Settings size={GROUP_ICON_SIZE} />,
 };
 
-const ALL_ITEMS: NavItem[] = GROUPS.flatMap((g) => g.items);
+const ALL_ITEMS: NavItem[] = [...GROUPS.flatMap((g) => g.items), ...RUTAS_FUERA_DEL_MENU];
 
 /**
  * Decide si un módulo se muestra. El override manual (Configuración →
@@ -288,23 +260,43 @@ function moduloVisible(mod: Module | undefined, etapa: string, overrides: Record
   return etapasDefault.includes(etapa);
 }
 
-function itemsFor(user: SessionUser) {
-  return ALL_ITEMS.filter((i) => moduloVisible(i.mod, user.etapa, user.modulos_override))
-    .filter((i) => !i.mod || canRead(user.rol, i.mod))
-    .filter((i) => !i.soloPlataforma || user.es_platform_admin);
+/** Fase 1D: ¿esta persona puede abrir este ítem? (permisos, etapa, módulos, plataforma). */
+function itemPermitido(i: NavItem, user: SessionUser, esSocio: boolean): boolean {
+  if (!moduloVisible(i.mod, user.etapa, user.modulos_override)) return false;
+  if (i.mod && !canRead(user.rol, i.mod)) return false;
+  if (i.soloPlataforma && !user.es_platform_admin) return false;
+  if (i.etapas && !i.etapas.includes(user.etapa)) return false;
+  if (i.soloSocios && !(esSocio || user.rol === "socio")) return false;
+  return true;
 }
 
-function groupsFor(user: SessionUser): NavGroup[] {
+/** ¿Va en su menú? El socio común ve un menú corto (MENU_SOCIO). */
+function itemVisible(i: NavItem, user: SessionUser, esSocio: boolean): boolean {
+  if (!itemPermitido(i, user, esSocio)) return false;
+  if (user.rol === "socio" && !MENU_SOCIO.has(i.href)) return false;
+  if (RUTAS_FUERA_DEL_MENU.includes(i)) return false;
+  return true;
+}
+
+function itemsFor(user: SessionUser, esSocio = false) {
+  return ALL_ITEMS.filter((i) => itemVisible(i, user, esSocio));
+}
+
+/** Para "Más": todo lo que esta persona puede abrir, aunque no esté en su menú corto. */
+function itemsAccesibles(user: SessionUser, esSocio = false) {
+  return ALL_ITEMS.filter((i) => itemPermitido(i, user, esSocio));
+}
+
+function groupsFor(user: SessionUser, esSocio = false): NavGroup[] {
+  // Fase 1D: el socio común ve una sola lista corta, sin grupos plegables.
+  if (user.rol === "socio") return [{ label: "Inicio", items: itemsFor(user, esSocio) }];
   return GROUPS.map((g) => ({
     label: g.label,
-    items: g.items
-      .filter((i) => moduloVisible(i.mod, user.etapa, user.modulos_override))
-      .filter((i) => !i.mod || canRead(user.rol, i.mod))
-      .filter((i) => !i.soloPlataforma || user.es_platform_admin),
+    items: g.items.filter((i) => itemVisible(i, user, esSocio)),
   })).filter((g) => g.items.length > 0);
 }
 
-export function Sidebar({ user }: { user: SessionUser }) {
+export function Sidebar({ user, esSocio = false }: { user: SessionUser; esSocio?: boolean }) {
   // La Sidebar (barra lateral de escritorio) ya no lista "Alertas" ni
   // "Buscador" como ítems del menú — pedido explícito: que la lista sea más
   // corta. Alertas y Buscar ahora se acceden desde los íconos junto al
@@ -312,7 +304,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
   // saca de GROUPS/ALL_ITEMS) para no tocar el menú "Más" del celular ni la
   // barra inferior (BottomNav), que los siguen mostrando tal cual estaban.
   const OCULTOS_EN_SIDEBAR = ["/alertas", "/buscar"];
-  const groups = groupsFor(user)
+  const groups = groupsFor(user, esSocio)
     .map((g) => ({ ...g, items: g.items.filter((i) => !OCULTOS_EN_SIDEBAR.includes(i.href)) }))
     .filter((g) => g.items.length > 0);
   const { nombre, logo_url, color_primario, color_secundario } = user.organizacion;
@@ -475,13 +467,16 @@ export function TopBarDesktop({
   );
 }
 
-export function BottomNav({ user }: { user: SessionUser }) {
-  // Prioriza en celular lo que cualquier socio necesita todos los días,
-  // independientemente de la etapa de la cooperativa (Obra/Trabajo quedan
-  // igual de accesibles desde "Más", pero no son universales como Buscar
-  // o Documentos).
-  const primary = ["/dashboard", "/buscar", "/documentos", "/alertas"];
-  const items = itemsFor(user).filter((i) => primary.includes(i.href));
+export function BottomNav({ user, esSocio = false }: { user: SessionUser; esSocio?: boolean }) {
+  // Prioriza en celular lo que cada persona usa todos los días. Fase 1D: el
+  // socio común tiene su propia barra (Inicio = su portal, sus horas en
+  // obra, sus avisos y documentos); el resto, la de siempre.
+  const primary =
+    user.rol === "socio"
+      ? ["/dashboard", user.etapa === "obra" ? "/mis-horas" : "/calendario", "/notificaciones", "/documentos"]
+      : ["/dashboard", "/buscar", "/documentos", "/alertas"];
+  const disponibles = itemsAccesibles(user, esSocio);
+  const items = primary.map((h) => disponibles.find((i) => i.href === h)).filter((i): i is NavItem => Boolean(i));
   const acento = user.organizacion.color_secundario || user.organizacion.color_primario;
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-surface border-t border-ink/10 safe-bottom">
@@ -510,4 +505,4 @@ export function BottomNav({ user }: { user: SessionUser }) {
 // documentos/page.tsx su "+ Subir documento") — no se perdió ninguna acción,
 // sólo se dejó de duplicarla en una franja global.
 
-export { ALL_ITEMS, itemsFor, groupsFor, moduloVisible };
+export { ALL_ITEMS, GROUPS, itemsFor, itemsAccesibles, groupsFor, moduloVisible };

@@ -4,6 +4,42 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## COOVA v2 — Fase 1 completa (06/10): base segura, horas con un solo número, cuotas que se hacen solas, portal del socio y acceso seguro
+
+Plan acordado en `PROMPT_COOVA_v2.md`, publicado todo junto (decisión del usuario). Migraciones nuevas: **0051 a 0054** (no destructivas).
+
+### 1A — Base segura
+- **Nada se borra.** Convenios: "Eliminar" pasó a **Anular** (con motivo; sus cuotas quedan anuladas, no borradas). Cancelar un convenio anula sus cuotas futuras en vez de borrarlas. Solicitudes de compra, proveedores y documentos van a una **papelera**: quedan en la base con fecha, quién y motivo, y la app deja de mostrarlos (filtro en la política de aislamiento, sin tocar las ~100 consultas existentes). La base le quita a la app el permiso de borrar en 21 tablas de dinero y negocio.
+- **CI en GitHub** (`.github/workflows/ci.yml`): tipos + build, y una base de prueba desde cero con todas las migraciones que verifica que toda tabla esté aislada por cooperativa, que una cooperativa no pueda leer ni escribir datos de otra, que no se pueda borrar y que la papelera funcione (`scripts/ci/`).
+- **Accesibilidad:** texto base de 17 px, texto chico mínimo 13 px, contraste AA en el texto secundario, y botón **"Letra grande"** en "Mi cuenta" (se guarda por usuario).
+
+### 1B — Horas con un solo número
+- Recorrido único **planificación → asistencia → saldo**. Pestañas nuevas en la Comisión de Trabajo: **Asistencia** (vino / llegó tarde o se fue antes / faltó, con o sin justificación; "marcar a todos los que faltan"; núcleos que vinieron sin turno; avisos de ausencia para aprobar) y **Libreta de horas** (saldo por núcleo, historial semana a semana, licencias, cierre y reapertura de semanas con motivo).
+- Un turno pasado sin marcar se toma como hecho (se marcan las excepciones). Las faltas justificadas **no generan deuda** (configurable). Las semanas se cierran solas cada día de cron.
+- **"Mis horas"** para el socio: cuánto hizo, cuánto le falta, su saldo, sus próximos turnos y "Avisar que no puedo ir" (con certificado opcional).
+- `/trabajo` queda como **registro anterior**: sus horas se muestran aparte en cada libreta, sin contarse dos veces.
+
+### 1C — Cuotas que se hacen solas
+- **Reglamento de la cooperativa** (`/reglamento`): cuotas automáticas (monto, nombre, día de generación y de vencimiento), atrasos (días de gracia, recargo % o fijo), avisos, recibos por email, horas, seguridad y teléfono de ayuda. Todo lo automático viene **apagado** por defecto.
+- Cron diario `/api/cron/diario` (07:00 UY): cierra semanas de horas, genera las cuotas del mes sin duplicar, aplica un solo recargo por cuota atrasada y manda recordatorios 3 días antes del vencimiento. Queda registro de cada ejecución.
+- **Recibos**: cada pago tiene su recibo numerado en PDF con QR; verificación pública sin datos personales (`/verificar/...`). Corregir o anular un pago anula el recibo y emite uno nuevo.
+- **Código de pago por núcleo** para identificar transferencias.
+
+### 1D — Portal del socio y menú por rol
+- El Inicio del socio es **"Mi vivienda"**: lo que debe (grande), "¿Por qué debo esto?", "Cómo pagar", sus recibos, sus horas, la próxima asamblea, sus avisos y a quién llamar.
+- El resto de los roles empieza el Inicio por **"Lo que necesita tu atención"** (tareas vencidas, solicitudes, avisos de ausencia, semanas para cerrar, cuotas sin generar, núcleos atrasados, compras a decidir, documentos vencidos, reglamento sin completar).
+- Menú reorganizado en 9 grupos; el socio ve una lista corta. Las comisiones que no corresponden a la etapa ya no aparecen en el Inicio. Ninguna ruta se quitó.
+
+### 1E — Acceso
+- **Entrar sin contraseña** con un link por email (un solo uso, 15 minutos, hay que tocar "Entrar").
+- **Verificación en dos pasos** (app del celular) con 8 códigos de respaldo; la cooperativa puede exigirla para admin, tesorería, Consejo y Fiscal. Un admin puede quitarla si alguien perdió el celular.
+- **Cerrar sesión en todos los otros dispositivos**.
+- La lista de usuarios y contraseñas de demostración ya no se muestra en el ingreso.
+
+**Pruebas:** suites nuevas t-1a (15), t-1b (26), t-1c (24), t-1d (23), t-1e (22) y todas las anteriores en verde (rutas 165/165, integrada 43, comisiones 43, trazabilidad 39, UI 25, validaciones 17, cliente 24, flujos 8). CI de aislamiento OK sobre base nueva.
+
+**Variables de entorno recomendadas en Vercel:** `CRON_SECRET` (ya usada por el otro cron) y opcional `APP_URL` para los links de los emails.
+
 ## Fase 1 — Auditoría completa del proyecto (12/09)
 
 **Qué se hizo**: lectura completa (sin cambios de código) de la capa de datos (`src/lib/db.ts`, `src/lib/tenant.ts`, `migrations/*.sql` — 21 archivos), autenticación y permisos (`src/lib/auth.ts`, `src/lib/roles.ts`, `src/lib/comisionAuth.ts`), las 23 rutas de `src/app/(app)/*` y sus componentes (`src/components/*`), las 20 acciones de servidor en `src/lib/actions/*.ts` y sus patrones de validación, y el circuito completo de documentos/PDF/email/notificaciones (`src/lib/upload.ts`, `src/lib/email.ts`, `src/lib/pdf.ts`, `src/app/api/reportes/*`).

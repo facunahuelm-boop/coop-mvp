@@ -5,6 +5,11 @@ import { tareasObraConSemaforo, resumenFinanciero, cuentasPorCobrar, recalcularA
 import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
+import { PortalSocio } from "@/components/portal/PortalSocio";
+import { BandejaAtencion } from "@/components/portal/BandejaAtencion";
+import { itemsDeAtencion } from "@/lib/atencion";
+import { comisionDisponibleEnEtapa } from "@/lib/comisionesFunciones";
+import { hoyEnUruguay as hoyUY } from "@/lib/horasObra";
 import { DashboardGrid, DashboardSection, SummaryCard, EstadoTag, DashboardCardLink, DashboardCardModal } from "@/components/DashboardCard";
 import { DashboardSummaryCard } from "@/components/DashboardSummaryCard";
 import { MonthCalendar, type EventoCalendario, type NotaCalendario } from "@/components/MonthCalendar";
@@ -89,6 +94,11 @@ function haceTiempo(fecha: string): string {
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  // Fase 1D: el Inicio del socio es su portal "Mi vivienda" (lo que debe,
+  // sus horas, la próxima asamblea y sus avisos), no un tablero de gestión.
+  if (user.rol === "socio") return <PortalSocio user={user} />;
+  const atencion = await itemsDeAtencion(user, hoyUY());
 
   await recalcularAlertas();
 
@@ -362,33 +372,36 @@ export default async function DashboardPage() {
   // integrante) salvo que tenga alcance de conjunto (Consejo/Admin), en cuyo
   // caso ve las de toda la cooperativa. Una comisión sin tareas pendientes
   // ni siquiera aparece en la lista — "existe" no es motivo para mostrarla.
-  const comisionesTrabajo = verComisiones
-    ? await all<{ id: number; nombre: string; pendientes: number; vencidas: number }>(
+  const comisionesTrabajoTodas = verComisiones
+    ? await all<{ id: number; nombre: string; pendientes: number; vencidas: number; funcion?: string | null; etapas?: string | null }>(
         esOversight
-          ? `SELECT c.id, c.nombre,
+          ? `SELECT c.id, c.nombre, c.funcion, c.etapas,
                COUNT(t.id) FILTER (WHERE t.estado != 'completada')::int as pendientes,
                COUNT(t.id) FILTER (WHERE t.estado != 'completada' AND t.fecha_vencimiento IS NOT NULL AND t.fecha_vencimiento < CURRENT_DATE::text)::int as vencidas
              FROM comisiones c
              LEFT JOIN tareas t ON t.comision_id = c.id
              WHERE c.activa = 1
-             GROUP BY c.id, c.nombre
+             GROUP BY c.id, c.nombre, c.funcion, c.etapas
              HAVING COUNT(t.id) FILTER (WHERE t.estado != 'completada') > 0
              ORDER BY vencidas DESC, pendientes DESC
              LIMIT 4`
-          : `SELECT c.id, c.nombre,
+          : `SELECT c.id, c.nombre, c.funcion, c.etapas,
                COUNT(t.id) FILTER (WHERE t.estado != 'completada')::int as pendientes,
                COUNT(t.id) FILTER (WHERE t.estado != 'completada' AND t.fecha_vencimiento IS NOT NULL AND t.fecha_vencimiento < CURRENT_DATE::text)::int as vencidas
              FROM comisiones c
              JOIN comision_miembros m ON m.comision_id = c.id AND m.user_id = ? AND m.activo = 1
              LEFT JOIN tareas t ON t.comision_id = c.id
              WHERE c.activa = 1
-             GROUP BY c.id, c.nombre
+             GROUP BY c.id, c.nombre, c.funcion, c.etapas
              HAVING COUNT(t.id) FILTER (WHERE t.estado != 'completada') > 0
              ORDER BY vencidas DESC, pendientes DESC
              LIMIT 4`,
         esOversight ? [] : [user.id]
-      )
+      ).catch(() => [])
     : [];
+  // Fase 1D: sólo las comisiones que corresponden a la etapa actual de la
+  // cooperativa (antes aparecía, por ejemplo, Trabajo en Pre-obra).
+  const comisionesTrabajo = comisionesTrabajoTodas.filter((c) => comisionDisponibleEnEtapa(c, user.etapa));
 
   // "Tus tareas": se combinan las de comisiones y las de obra asignadas a
   // esta persona puntual — nunca todas las tareas del sistema.
@@ -396,7 +409,7 @@ export default async function DashboardPage() {
     ...misTareasComisionRaw.map((t: any) => ({ id: `c${t.id}`, titulo: t.titulo, fecha: t.fecha_vencimiento as string | null, href: "/comisiones" })),
     ...misTareasObraRaw.map((t: any) => ({ id: `o${t.id}`, titulo: t.nombre, fecha: t.fecha_fin_prevista as string | null, href: "/obra" })),
   ].sort((a, b) => (a.fecha || "9999-12-31").localeCompare(b.fecha || "9999-12-31"));
-  const mostrarMisTareas = misTareasTodas.length > 0 || user.rol !== "socio";
+  const mostrarMisTareas = true; // Fase 1D: el socio ahora ve su portal (ver arriba); el resto, siempre.
   // Tarjeta compacta: sólo la más urgente (la que quedó primera tras
   // ordenar por fecha) — el resto de la lista vive en el modal de detalle.
   // Rediseño quirúrgico de "Resumen personal" (pedido explícito del
@@ -572,6 +585,8 @@ export default async function DashboardPage() {
       <InstallHint />
 
       <PageHeader title="Inicio" subtitle={dayjs().format("dddd DD [de] MMMM, YYYY")} />
+
+      <BandejaAtencion items={atencion} />
 
       {/* Rediseño del Inicio — RESUMEN → CLICK → POP-UP → DETALLE. Cada
           módulo que antes era una <Card> larga y siempre desplegada ahora es

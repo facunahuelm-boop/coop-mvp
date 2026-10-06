@@ -110,6 +110,19 @@ export function LoginForm({ nombre, logoUrl, colorPrimario, mensajeRecuperacion 
           </Link>
         </form>
 
+        {/* Fase 1E: entrar sin contraseña, con un link al email (pensado para
+            socios que no recuerdan contraseñas). */}
+        <Link
+          href="/ingreso-por-email"
+          className="mt-3 flex w-full items-center justify-center rounded-xl border border-border bg-surface py-3 text-[15px] font-semibold text-ink hover:bg-surface-sunken min-h-[48px]"
+        >
+          Entrar sin contraseña (te mandamos un link)
+        </Link>
+
+        {/* Fase 1E: la lista de usuarios de demostración ya no se muestra en
+            producción (daba pistas de cuentas a cualquiera). Se ve sólo si la
+            instalación lo pide explícitamente (NEXT_PUBLIC_MOSTRAR_DEMO=1). */}
+        {process.env.NEXT_PUBLIC_MOSTRAR_DEMO === "1" && (
         <details className="mt-4 bg-surface/60 rounded-xl border border-ink/5 p-3 text-xs text-ink/60">
           <summary className="cursor-pointer font-medium text-[var(--color-brand-800)]">Usuarios de demostración (contraseña: cooperativa2026)</summary>
           <ul className="mt-2 space-y-0.5">
@@ -118,6 +131,7 @@ export function LoginForm({ nombre, logoUrl, colorPrimario, mensajeRecuperacion 
             ))}
           </ul>
         </details>
+        )}
       </div>
     </div>
   );

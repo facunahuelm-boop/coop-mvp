@@ -87,8 +87,12 @@
      no de hex sueltos. Cambiar la identidad visual de la app
      (o el contraste, por accesibilidad) se hace acá. --- */
   --color-ink: var(--color-brand-900);            /* texto principal / títulos */
-  --color-ink-muted: #64748b;                     /* texto secundario (spec: TEXTO SECUNDARIO #64748B) */
-  --color-ink-faint: #94a3b8;                     /* texto terciario / ayudas */
+  /* Fase 1A (estándar "usable a los 70 años"): el texto secundario y el de
+     ayuda tenían contraste insuficiente sobre blanco (#94a3b8 ≈ 2,6:1). Se
+     oscurecen para cumplir WCAG AA (≥ 4,5:1): #475569 ≈ 7,6:1 y
+     #5b6577 ≈ 5,9:1. Sigue viéndose "más suave" que el texto principal. */
+  --color-ink-muted: #475569;                     /* texto secundario */
+  --color-ink-faint: #5b6577;                     /* texto terciario / ayudas */
   --color-surface: #ffffff;                       /* tarjetas, modales, menús (spec: FONDO BLANCO) */
   --color-surface-sunken: var(--color-brand-50);  /* bloques dentro de una tarjeta */
   --color-page-bg: #f8fafc;                       /* fondo de página (spec: FONDO GENERAL #F8FAFC) */
@@ -290,8 +294,9 @@ body {
      app la usan sobre todo personas grandes, y letra chica es el
      problema #1 que reportó el audit. No es un cambio agresivo —
      sigue siendo "texto normal", sólo un poco más generoso. */
-  font-size: 16.5px;
-  line-height: 1.5;
+  /* Fase 1A: en rem (no en px) para que "Letra grande" lo agrande también. */
+  font-size: 1.0625rem; /* 17px */
+  line-height: 1.55;
   background: var(--color-page-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);
@@ -364,4 +369,24 @@ textarea:has(~ [role="alert"]) {
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.97) translateY(4px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+
+/* Fase 1A (accesibilidad): tamaños mínimos legibles. text-xs de Tailwind
+   (12px) se usaba en ~600 lugares para datos que hay que leer (fechas,
+   estados, montos chicos): se sube a 13px. */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.15rem;
+}
+
+/* "Letra grande" (preferencia por usuario, ver (app)/layout.tsx): todo lo
+   que está en rem crece ~12% y los textos fijos chicos (11px/10px) se
+   llevan a un mínimo legible. */
+html.letra-grande {
+  font-size: 112.5%;
+}
+.letra-grande-raiz .text-\[10px\],
+.letra-grande-raiz .text-\[11px\] {
+  font-size: 0.8125rem;
 }

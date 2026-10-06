@@ -8,6 +8,8 @@ import { Card, PageHeader, SectionTitle, EmptyState, Badge } from "@/components/
 import { HistorialAuditoria } from "@/components/HistorialAuditoria";
 import { CambiarPasswordForm } from "@/components/CambiarPasswordForm";
 import { CambiarFotoForm } from "@/components/CambiarFotoForm";
+import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
+import { quitarDosPasosDeUsuarioFormAction } from "@/lib/actions/seguridadCuenta";
 import { Avatar } from "@/components/EntidadLink";
 import dayjs from "dayjs";
 
@@ -43,6 +45,8 @@ export default async function UsuarioDetallePage({ params }: { params: Promise<{
   if (!viewer) redirect("/login");
 
   const usuario = await get<any>(`SELECT id, nombre, email, rol, activo, creado_en, avatar_url FROM users WHERE id = ?`, [id]);
+  // Fase 1E: ¿tiene verificación en dos pasos? (para que un admin pueda quitarla si perdió el celular)
+  const dosPasos = await get<{ totp_activado_en: string | null }>(`SELECT totp_activado_en FROM users WHERE id = ?`, [id]).catch(() => undefined);
   if (!usuario) notFound();
 
   const esPropioPerfil = viewer.id === usuario.id;
@@ -117,7 +121,32 @@ export default async function UsuarioDetallePage({ params }: { params: Promise<{
           <Card className="mb-6">
             <CambiarPasswordForm />
           </Card>
+
+          <SectionTitle>Seguridad de la cuenta</SectionTitle>
+          <Card className="mb-6">
+            <p className="text-[15px] text-ink">
+              Verificación en dos pasos: <strong>{dosPasos?.totp_activado_en ? "activada" : "no activada"}</strong>.{" "}
+              <Link href="/mi-seguridad" className="underline">Ir a «Mi seguridad»</Link>
+            </p>
+          </Card>
         </>
+      )}
+
+      {!esPropioPerfil && viewer.rol === "admin" && dosPasos?.totp_activado_en && (
+        <Card className="mb-6">
+          <p className="text-[15px] text-ink mb-2">Esta persona tiene activada la verificación en dos pasos. Si perdió el celular y sus códigos de respaldo, podés quitarla para que vuelva a entrar con su contraseña (y la active de nuevo).</p>
+          <ConfirmarEliminar
+            action={quitarDosPasosDeUsuarioFormAction}
+            hiddenFields={{ id: usuario.id }}
+            titulo={`¿Quitar la verificación en dos pasos de ${usuario.nombre}?`}
+            descripcion="Se cierran también todas sus sesiones abiertas. Queda registrado quién lo hizo y por qué."
+            textoBoton="Quitar verificación en dos pasos"
+            confirmarLabel="Sí, quitarla"
+            pedirMotivo
+            placeholderMotivo="Ej.: perdió el celular"
+            className="rounded-lg bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-3 py-2 text-sm font-semibold"
+          />
+        </Card>
       )}
 
       {puedeVerActividad && (

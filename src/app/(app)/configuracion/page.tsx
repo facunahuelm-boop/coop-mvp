@@ -43,6 +43,16 @@ export default async function ConfiguracionPage() {
   return (
     <div>
       <PageHeader title="Configuración" subtitle="Email, alertas y preferencias del sistema" />
+      <a
+        href="/reglamento"
+        className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-[var(--color-brand-800)]/30 bg-[var(--color-brand-100)]/40 px-4 py-3 text-[15px] text-ink hover:bg-[var(--color-brand-100)]/70"
+      >
+        <span>
+          <span className="block font-bold">Reglamento de la cooperativa</span>
+          <span className="block text-ink-muted">Cuotas automáticas, atrasos y recargos, avisos, recibos, horas y contacto de ayuda.</span>
+        </span>
+        <span className="font-semibold text-[var(--color-brand-800)]">Abrir →</span>
+      </a>
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Marca de la cooperativa</h3>
       <Card className="mb-6">

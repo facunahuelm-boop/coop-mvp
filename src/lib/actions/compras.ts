@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, run, audit, withTenantTransaction, updateConBloqueoOptimista } from "@/lib/db";
+import { insert, update, get, run, audit, eliminarLogico, updateConBloqueoOptimista } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
@@ -423,21 +423,15 @@ export async function rechazarSolicitudFormAction(_prev: ActionState, formData: 
 }
 
 /**
- * AUDITORÍA INTEGRAL (pedido explícito): eliminar una solicitud de compra es
- * irreversible y solo tiene sentido para corregir un error de carga o limpiar
+ * AUDITORÍA INTEGRAL (pedido explícito): eliminar una solicitud de compra
+ * (desde la Fase 1A la manda a la papelera — ver más abajo) solo tiene sentido para corregir un error de carga o limpiar
  * datos de prueba — nunca como forma normal de "cancelar" una compra real
  * (para eso ya existe rechazarSolicitudAction, que deja rastro). Por eso:
  * - Solo el rol "admin" (administrador del sistema) puede usarla; ningún rol
  *   de comisión ni de conducción la tiene, ni siquiera Consejo Directivo.
  * - Exige escribir la palabra "ELIMINAR" en el formulario, para que no pueda
  *   dispararse por accidente con un solo click.
- * - Este esquema nunca usa ON DELETE CASCADE (criterio del proyecto: nada se
- *   borra en cascada sin que quede explícito en el código), así que se borran
- *   a mano, en el orden que respeta las referencias, los presupuestos y la
- *   decisión asociados antes de borrar la solicitud; gastos_comision se
- *   intenta también por si la migración 0020 ya corrió en esta base (si no
- *   corrió, la columna no existe y no hay nada que borrar ahí — ver el mismo
- *   criterio de columna-faltante que en db.ts).
+ * - Pide un motivo, que queda guardado en la fila y en la auditoría.
  * - Igual que cualquier otra escritura, corre dentro del contexto de la
  *   cooperativa activa (withTenantClient + Row-Level Security): un admin
  *   nunca puede borrar una solicitud de otra cooperativa aunque adivinara su id.
@@ -447,7 +441,10 @@ export async function rechazarSolicitudFormAction(_prev: ActionState, formData: 
 export async function eliminarSolicitudAction(formData: FormData) {
   const user = await requireUser();
   if (user.rol !== "admin") throw new Error("Solo un administrador del sistema puede eliminar una solicitud de compra.");
-  const { id, confirmacion } = parseForm(z.object({ id: zId, confirmacion: zTexto(50) }), formData);
+  const { id, confirmacion, motivo } = parseForm(
+    z.object({ id: zId, confirmacion: zTexto(50), motivo: zTexto(300) }),
+    formData
+  );
   if (confirmacion.trim().toUpperCase() !== "ELIMINAR") {
     throw new Error('Para eliminar, escribí exactamente "ELIMINAR" en el campo de confirmación.');
   }
@@ -480,59 +477,22 @@ export async function eliminarSolicitudAction(formData: FormData) {
     );
   }
 
-  // AUDITORÍA INTEGRAL (testing E2E real, 12/09): el primer intento en vivo de
-  // esta acción falló a mitad de camino — decisiones_compra y
-  // presupuestos_proveedor se borraron, pero solicitudes_compra quedó, y el
-  // boundary de errores (error.tsx, por diseño) solo muestra un mensaje
-  // genérico al usuario y manda el detalle real a la consola del servidor, a
-  // la que no tenemos acceso directo. Para poder diagnosticar sin adivinar,
-  // se registra el error real (code + message de Postgres) en auditoría
-  // antes de relanzarlo — visible en /auditoria para quien tiene ese permiso
-  // (admin, tesorería, consejo directivo, fiscal). No cambia el
-  // comportamiento para el usuario: sigue viendo el mismo mensaje genérico.
-  //
-  // H-4 (auditoría integral, 27/09, corregido): los 4 DELETE de acá abajo
-  // ahora corren en una única transacción (`withTenantTransaction`, ver
-  // db.ts) en vez de una conexión nueva por sentencia — antes, si el proceso
-  // se caía a mitad de camino (probado en vivo con un trigger de prueba
-  // temporal), quedaban decisiones_compra/presupuestos_proveedor borrados
-  // pero solicitudes_compra intacta, un estado a medio borrar que no se
-  // podía revertir. El DELETE de gastos_comision sigue siendo tolerante a
-  // que la tabla/columna todavía no exista en esta base — pero ahora con
-  // SAVEPOINT explícito: en Postgres, un error dentro de una transacción deja
-  // el resto de la transacción "abortada" aunque el error se atrape en
-  // JavaScript, así que hace falta el SAVEPOINT/ROLLBACK TO SAVEPOINT para
-  // poder seguir borrando solicitudes_compra después.
-  try {
-    await withTenantTransaction(async (tx) => {
-      await tx.run(`DELETE FROM decisiones_compra WHERE solicitud_id = ?`, [id]);
-      await tx.run(`DELETE FROM presupuestos_proveedor WHERE solicitud_id = ?`, [id]);
-      await tx.run(`SAVEPOINT antes_gastos_comision`);
-      try {
-        await tx.run(`DELETE FROM gastos_comision WHERE solicitud_compra_id = ?`, [id]);
-      } catch (err: any) {
-        // AUDITORÍA INTEGRAL (hallazgo, 12/09): el primer intento real reveló
-        // que en esta base gastos_comision no solo le falta una columna —
-        // la tabla entera todavía no existe (Postgres 42P01, "relation ...
-        // does not exist": la migración 0017 nunca corrió). Mismo criterio que
-        // con una columna faltante: si no existe, no hay nada que borrar ahí.
-        if (err?.code !== "42703" && err?.code !== "42P01") throw err;
-        await tx.run(`ROLLBACK TO SAVEPOINT antes_gastos_comision`);
-      }
-      await tx.run(`DELETE FROM solicitudes_compra WHERE id = ?`, [id]);
-    });
-  } catch (err: any) {
-    await audit({
-      usuario_id: user.id,
-      accion: "error_eliminar",
-      entidad: "solicitudes_compra",
-      entidad_id: Number(id),
-      valor_nuevo: { code: err?.code ?? null, message: String(err?.message ?? err) },
-    }).catch(() => {}); // si ni siquiera esto se puede guardar, no tapar el error original
-    throw err;
-  }
+  // Fase 1A "nada se borra" (migración 0051): antes se borraban de verdad
+  // la solicitud, sus presupuestos, su decisión y sus gastos pendientes.
+  // Ahora la solicitud pasa a la papelera (eliminación lógica, con motivo) y
+  // queda oculta en toda la app; sus presupuestos y su decisión quedan
+  // intactos colgando de ella (solo se ven a través de la solicitud). Un gasto
+  // todavía pendiente que salió de esta compra se ANULA (no se borra) para
+  // que no quede "por pagar" en /gastos.
+  await run(
+    `UPDATE gastos_comision SET estado = 'anulado' WHERE solicitud_compra_id = ? AND estado = 'pendiente'`,
+    [id]
+  ).catch((err: any) => {
+    if (err?.code !== "42703" && err?.code !== "42P01") throw err;
+  });
+  await eliminarLogico("solicitudes_compra", Number(id), user.id, motivo);
 
-  await audit({ usuario_id: user.id, accion: "eliminar", entidad: "solicitudes_compra", entidad_id: Number(id), valor_anterior: solicitud });
+  await audit({ usuario_id: user.id, accion: "eliminar", entidad: "solicitudes_compra", entidad_id: Number(id), valor_anterior: solicitud, valor_nuevo: { enPapelera: true, motivo } });
   revalidatePath("/compras");
 }
 

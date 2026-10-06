@@ -627,7 +627,7 @@ export function GestionConvenioAcciones({ convenioId, refinancia = false }: { co
         descripcion={
           refinancia
             ? "Las cuotas originales que este convenio refinanciaba vuelven a contar como deuda, y las cuotas del convenio quedan anuladas (los pagos hechos se mantienen y cubren esa deuda)."
-            : "Las cuotas del convenio que todavía no vencieron se van a borrar. Las que ya vencieron quedan como están."
+            : "Las cuotas del convenio que todavía no vencieron quedan anuladas (no se cobran, pero siguen en el historial). Las que ya vencieron quedan como están."
         }
         textoBoton="Cancelar convenio"
         confirmarLabel="Sí, cancelar convenio"
@@ -636,9 +636,11 @@ export function GestionConvenioAcciones({ convenioId, refinancia = false }: { co
       <ConfirmarEliminar
         action={eliminarConvenioFormAction}
         hiddenFields={{ id: convenioId }}
-        titulo="¿Eliminar este convenio?"
-        descripcion="Solo funciona si todavía no venció ninguna cuota. Esta acción no se puede deshacer."
-        textoBoton="Eliminar"
+        titulo="¿Anular este convenio?"
+        descripcion="Es para un convenio cargado por error: queda anulado junto con sus cuotas (siguen en el historial, pero no se cobran). Solo funciona si todavía no venció ninguna cuota."
+        textoBoton="Anular"
+        confirmarLabel="Sí, anular convenio"
+        pedirMotivo
         className="text-xs text-[var(--color-rojo)] underline underline-offset-2"
       />
     </div>

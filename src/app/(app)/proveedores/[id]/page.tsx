@@ -73,14 +73,16 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
           <details className="mt-4 pt-3 border-t border-ink/10">
             <summary className="cursor-pointer text-xs font-semibold text-[var(--color-rojo)]">Zona de administrador: eliminar este proveedor</summary>
             <p className="text-xs text-ink/50 mt-2">
-              Esto borra el proveedor de forma permanente. Solo funciona si nunca presupuestó ninguna compra — si ya tiene historial, cambiá su estado a &quot;Inactivo&quot; más arriba en su lugar. Usalo solo para corregir un alta por error o limpiar datos de prueba.
+              Esto manda el proveedor a la papelera (deja de verse, pero no se borra y queda registrado el motivo). Solo funciona si nunca presupuestó ninguna compra — si ya tiene historial, cambiá su estado a &quot;Inactivo&quot; más arriba en su lugar. Usalo solo para corregir un alta por error o limpiar datos de prueba.
             </p>
             <div className="mt-2">
               <ConfirmarEliminar
                 action={eliminarProveedorFormAction}
                 hiddenFields={{ id: proveedor.id, confirmacion: "ELIMINAR" }}
                 titulo="¿Eliminar este proveedor?"
-                descripcion={`Se va a borrar "${proveedor.nombre}" de forma permanente. Esta acción no se puede deshacer.`}
+                descripcion={`"${proveedor.nombre}" va a pasar a la papelera: deja de verse en la app, pero no se borra.`}
+                pedirMotivo
+                confirmarLabel="Sí, mandar a la papelera"
                 className="rounded-lg bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-3 py-2 text-xs font-semibold whitespace-nowrap"
               />
             </div>

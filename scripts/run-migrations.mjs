@@ -28,7 +28,9 @@ async function main() {
     process.exit(1);
   }
 
-  const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+  // CI (Fase 1A): el Postgres temporal del CI no tiene SSL; Supabase sí.
+  const esLocal = /@(127\.0\.0\.1|localhost)(:\d+)?\//.test(connectionString);
+  const pool = new Pool({ connectionString, ssl: esLocal ? false : { rejectUnauthorized: false } });
   const client = await pool.connect();
 
   try {
