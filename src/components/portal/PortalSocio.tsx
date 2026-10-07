@@ -86,7 +86,7 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
 
   // ---- Próxima asamblea ----
   const asamblea = await get<{ id: number; titulo: string; fecha: string; lugar: string | null }>(
-    `SELECT id, titulo, fecha, lugar FROM reuniones WHERE tipo = 'asamblea' AND estado = 'planificada' AND substr(fecha, 1, 10) >= ? ORDER BY fecha LIMIT 1`,
+    `SELECT id, titulo, fecha, lugar FROM reuniones WHERE tipo = 'asamblea' AND estado = 'planificada' AND substr(fecha::text, 1, 10) >= ? ORDER BY fecha LIMIT 1`,
     [hoy]
   ).catch(() => undefined);
   const temas = asamblea

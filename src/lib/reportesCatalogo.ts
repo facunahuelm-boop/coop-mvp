@@ -98,7 +98,7 @@ export const REPORTES: DefReporte[] = [
     async generar({ desde, hasta }) {
       const pagos = await all<{ fecha: string; socio: string; concepto: string; monto: string; metodo_pago: string | null }>(
         `SELECT m.fecha, s.nombre AS socio, m.concepto, m.monto, m.metodo_pago FROM movimientos_cuenta_socio m JOIN socios s ON s.id = m.socio_id
-          WHERE m.tipo = 'pago' AND COALESCE(m.estado, 'activo') <> 'anulado' AND left(m.fecha, 10) BETWEEN ? AND ? ORDER BY m.fecha, m.id`,
+          WHERE m.tipo = 'pago' AND COALESCE(m.estado, 'activo') <> 'anulado' AND left(m.fecha::text, 10) BETWEEN ? AND ? ORDER BY m.fecha, m.id`,
         [desde, hasta]
       );
       return {

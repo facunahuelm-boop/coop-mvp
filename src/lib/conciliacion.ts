@@ -218,11 +218,11 @@ export async function proponerConciliaciones(cuentaId: number, autoconfirmar = f
   const hasta = sumarDias(lineas[lineas.length - 1].fecha, 20);
   const [candidatosCrudos, socios, pref] = await Promise.all([
     all<{ id: number; tipo: string; monto: string; fecha: string; socio_id: number | null }>(
-      `SELECT m.id, m.tipo, m.monto, left(m.fecha, 10) AS fecha, mcs.socio_id
+      `SELECT m.id, m.tipo, m.monto, left(m.fecha::text, 10) AS fecha, mcs.socio_id
          FROM movimientos_financieros m
          LEFT JOIN movimientos_cuenta_socio mcs ON mcs.id = m.movimiento_cuenta_socio_id
         WHERE m.cuenta_id = ? AND COALESCE(m.estado, 'activo') <> 'anulado' AND m.conciliado_linea_id IS NULL
-          AND left(m.fecha, 10) BETWEEN ? AND ?`,
+          AND left(m.fecha::text, 10) BETWEEN ? AND ?`,
       [cuentaId, desde, hasta]
     ),
     all<{ id: number; nucleo_id: number | null; estado: string }>(`SELECT id, nucleo_id, estado FROM socios`),
@@ -332,13 +332,13 @@ export async function resumenConciliacion(cuentaId: number): Promise<ResumenConc
   const [saldoCoova, sinConciliar] = await Promise.all([
     get<{ s: string }>(
       `SELECT COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE -monto END), 0) AS s FROM movimientos_financieros
-        WHERE cuenta_id = ? AND COALESCE(estado, 'activo') <> 'anulado' ${ultimoSaldo ? "AND left(fecha, 10) <= ?" : ""}`,
+        WHERE cuenta_id = ? AND COALESCE(estado, 'activo') <> 'anulado' ${ultimoSaldo ? "AND left(fecha::text, 10) <= ?" : ""}`,
       ultimoSaldo ? [cuentaId, ultimoSaldo.fecha] : [cuentaId]
     ),
     totales?.desde
       ? get<{ n: string }>(
           `SELECT COUNT(*) AS n FROM movimientos_financieros
-            WHERE cuenta_id = ? AND COALESCE(estado, 'activo') <> 'anulado' AND conciliado_linea_id IS NULL AND left(fecha, 10) BETWEEN ? AND ?`,
+            WHERE cuenta_id = ? AND COALESCE(estado, 'activo') <> 'anulado' AND conciliado_linea_id IS NULL AND left(fecha::text, 10) BETWEEN ? AND ?`,
           [cuentaId, totales.desde, hasta]
         )
       : Promise.resolve({ n: "0" }),

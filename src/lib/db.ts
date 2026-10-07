@@ -1,4 +1,11 @@
-import { Pool, PoolClient } from "pg";
+import { Pool, PoolClient, types } from "pg";
+
+// Fase 2 (corrección en producción): algunas columnas de fecha de la base
+// real son TIMESTAMP o DATE (en la base de pruebas son TEXT). Para que el
+// código trate igual a las dos, esos tipos llegan como texto
+// ("2026-10-07 00:00:00" / "2026-10-07") en vez de objetos Date.
+types.setTypeParser(1114, (v: string) => v); // timestamp without time zone
+types.setTypeParser(1082, (v: string) => v); // date
 import { requireOrgContext } from "./tenant";
 
 // Base de datos PostgreSQL (Supabase) — producción y desarrollo.

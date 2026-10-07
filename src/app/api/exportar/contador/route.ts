@@ -41,13 +41,13 @@ export async function GET(req: Request) {
       transferencia_id: string | null;
       registrado_por: string | null;
     }>(
-      `SELECT m.id, left(m.fecha, 10) AS fecha, m.tipo, m.categoria, m.descripcion, m.monto, m.estado,
+      `SELECT m.id, left(m.fecha::text, 10) AS fecha, m.tipo, m.categoria, m.descripcion, m.monto, m.estado,
               c.nombre AS cuenta, f.nombre AS fondo, m.contra_de_id, m.transferencia_id, u.nombre AS registrado_por
          FROM movimientos_financieros m
          LEFT JOIN cuentas_financieras c ON c.id = m.cuenta_id
          LEFT JOIN fondos f ON f.id = m.fondo_id
          LEFT JOIN users u ON u.id = m.registrado_por_id
-        WHERE left(m.fecha, 10) BETWEEN ? AND ?
+        WHERE left(m.fecha::text, 10) BETWEEN ? AND ?
         ORDER BY m.fecha ASC, m.id ASC`,
       [desde, hasta]
     ),

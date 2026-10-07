@@ -240,13 +240,13 @@ BEGIN
        (NEW.tipo, NEW.monto, NEW.fecha, NEW.categoria, NEW.descripcion, NEW.cuenta_id, NEW.fondo_id, COALESCE(NEW.estado, 'activo')) THEN
       RETURN NEW;
     END IF;
-    periodo_viejo := left(OLD.fecha, 7);
+    periodo_viejo := left(OLD.fecha::text, 7);
     SELECT estado INTO est FROM periodos_financieros WHERE organization_id = OLD.organization_id AND periodo = periodo_viejo;
     IF est IN ('cerrado', 'visado') THEN
       RAISE EXCEPTION 'PERIODO_CERRADO:%', periodo_viejo USING ERRCODE = 'P0001';
     END IF;
   END IF;
-  periodo_nuevo := left(NEW.fecha, 7);
+  periodo_nuevo := left(NEW.fecha::text, 7);
   SELECT estado INTO est FROM periodos_financieros WHERE organization_id = NEW.organization_id AND periodo = periodo_nuevo;
   IF est IN ('cerrado', 'visado') THEN
     RAISE EXCEPTION 'PERIODO_CERRADO:%', periodo_nuevo USING ERRCODE = 'P0001';

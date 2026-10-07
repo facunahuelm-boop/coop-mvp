@@ -311,11 +311,11 @@ export async function candidatosParaLinea(lineaId: number) {
   if (!l) return [];
   const monto = Number(l.monto);
   return all<{ id: number; fecha: string; monto: string; categoria: string; descripcion: string | null; cuenta: string | null }>(
-    `SELECT m.id, left(m.fecha, 10) AS fecha, m.monto, m.categoria, m.descripcion, c.nombre AS cuenta
+    `SELECT m.id, left(m.fecha::text, 10) AS fecha, m.monto, m.categoria, m.descripcion, c.nombre AS cuenta
        FROM movimientos_financieros m LEFT JOIN cuentas_financieras c ON c.id = m.cuenta_id
       WHERE m.tipo = ? AND COALESCE(m.estado, 'activo') <> 'anulado' AND m.conciliado_linea_id IS NULL
-        AND left(m.fecha, 10) BETWEEN ? AND ?
-      ORDER BY abs(m.monto - ?) ASC, abs(left(m.fecha, 10)::date - ?::date) ASC LIMIT 30`,
+        AND left(m.fecha::text, 10) BETWEEN ? AND ?
+      ORDER BY abs(m.monto - ?) ASC, abs(left(m.fecha::text, 10)::date - ?::date) ASC LIMIT 30`,
     [monto > 0 ? "ingreso" : "egreso", addDays(l.fecha, -45), addDays(l.fecha, 45), Math.abs(monto), l.fecha]
   );
 }

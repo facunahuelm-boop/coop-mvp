@@ -85,7 +85,7 @@ BEGIN
     -- Historial: el estado actual de cada socio como primer renglón.
     INSERT INTO socio_estados (organization_id, socio_id, estado_anterior, estado_nuevo, fecha, motivo)
     SELECT s.organization_id, s.id, NULL, COALESCE(s.estado, 'activo'),
-           COALESCE(NULLIF(left(s.fecha_ingreso, 10), ''), left(s.creado_en, 10), to_char(now(), 'YYYY-MM-DD')),
+           COALESCE(NULLIF(left(s.fecha_ingreso::text, 10), ''), left(s.creado_en::text, 10), to_char(now(), 'YYYY-MM-DD')),
            'Estado al empezar a registrar el historial'
       FROM socios s
      WHERE s.organization_id = o.id

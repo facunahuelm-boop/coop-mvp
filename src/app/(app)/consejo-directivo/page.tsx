@@ -98,7 +98,7 @@ export default async function ConsejoDirectivoPage() {
     ? await Promise.all([
         temasParaElConsejo(),
         user.rol === "admin" ? mandatosVencidosSinRevisar() : Promise.resolve([]),
-        all<{ id: number; titulo: string; fecha: string }>(`SELECT id, titulo, fecha FROM reuniones WHERE tipo = 'consejo_directivo' AND estado = 'planificada' AND left(fecha, 10) >= ? ORDER BY fecha LIMIT 5`, [hoy]),
+        all<{ id: number; titulo: string; fecha: string }>(`SELECT id, titulo, fecha FROM reuniones WHERE tipo = 'consejo_directivo' AND estado = 'planificada' AND left(fecha::text, 10) >= ? ORDER BY fecha LIMIT 5`, [hoy]),
       ])
     : [[], [], []];
   const porOrgano = (["consejo", "fiscal", "electoral"] as Organo[]).map((o) => ({ organo: o, cargos: vigentesOrdenados.filter((c) => organoDeCargo(c.cargo as CargoConsejo) === o) }));

@@ -51,7 +51,7 @@ export async function cargarResumenComisiones(comisiones: ComisionRow[], etapa: 
     ).catch(() => []),
     all<{ comision_id: number; titulo: string; fecha: string }>(
       `SELECT comision_id, titulo, fecha FROM reuniones
-        WHERE comision_id IS NOT NULL AND estado = 'planificada' AND substr(fecha, 1, 10) >= ? ORDER BY fecha ASC`,
+        WHERE comision_id IS NOT NULL AND estado = 'planificada' AND substr(fecha::text, 1, 10) >= ? ORDER BY fecha ASC`,
       [hoy]
     ).catch(() => []),
     all<{ comision_id: number; titulo: string; fecha: string; hora: string | null }>(

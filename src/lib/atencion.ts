@@ -81,7 +81,7 @@ export async function itemsDeAtencion(user: SessionUser, hoy: string): Promise<I
       const hay = await seguro(
         async () =>
           !!(await get<{ id: number }>(
-            `SELECT id FROM movimientos_cuenta_socio WHERE tipo = 'cargo' AND convenio_id IS NULL AND substr(fecha_vencimiento, 1, 7) = ? AND COALESCE(estado, 'activo') <> 'anulado' LIMIT 1`,
+            `SELECT id FROM movimientos_cuenta_socio WHERE tipo = 'cargo' AND convenio_id IS NULL AND substr(fecha_vencimiento::text, 1, 7) = ? AND COALESCE(estado, 'activo') <> 'anulado' LIMIT 1`,
             [mes]
           )),
         true
@@ -209,7 +209,7 @@ export async function itemsDeAtencion(user: SessionUser, hoy: string): Promise<I
       const sinCerrar = await seguro(
         async () =>
           await get<{ movs: string; estado: string | null; observacion: string | null }>(
-            `SELECT (SELECT COUNT(*) FROM movimientos_financieros WHERE left(fecha, 7) = ?) AS movs,
+            `SELECT (SELECT COUNT(*) FROM movimientos_financieros WHERE left(fecha::text, 7) = ?) AS movs,
                     (SELECT estado FROM periodos_financieros WHERE periodo = ?) AS estado,
                     (SELECT observacion_fiscal FROM periodos_financieros WHERE periodo = ?) AS observacion`,
             [anterior, anterior, anterior]

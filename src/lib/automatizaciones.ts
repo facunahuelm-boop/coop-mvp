@@ -61,7 +61,7 @@ export async function generarCuotasDelMes(mes: string, reglamento: Reglamento, u
     const ya = await get<{ id: number }>(
       `SELECT id FROM movimientos_cuenta_socio
         WHERE socio_id = ? AND tipo = 'cargo' AND convenio_id IS NULL AND recargo_de_id IS NULL
-          AND COALESCE(estado, 'activo') <> 'anulado' AND substr(fecha_vencimiento, 1, 7) = ?`,
+          AND COALESCE(estado, 'activo') <> 'anulado' AND substr(fecha_vencimiento::text, 1, 7) = ?`,
       [s.id, mes]
     );
     if (ya) continue;
@@ -92,7 +92,7 @@ async function avisarCuotaGenerada(mes: string, concepto: string, vencimiento: s
   const filas = await all<{ socio_id: number; nombre: string; email: string | null; user_id: number | null; user_email: string | null; monto: number }>(
     `SELECT s.id AS socio_id, s.nombre, s.email, s.user_id, u.email AS user_email, m.monto
        FROM movimientos_cuenta_socio m JOIN socios s ON s.id = m.socio_id LEFT JOIN users u ON u.id = s.user_id
-      WHERE m.tipo = 'cargo' AND m.concepto = ? AND substr(m.fecha_vencimiento, 1, 7) = ? AND COALESCE(m.estado, 'activo') <> 'anulado'`,
+      WHERE m.tipo = 'cargo' AND m.concepto = ? AND substr(m.fecha_vencimiento::text, 1, 7) = ? AND COALESCE(m.estado, 'activo') <> 'anulado'`,
     [concepto, mes]
   );
   const [y, mm, d] = vencimiento.split("-");
@@ -308,7 +308,7 @@ export async function tareasDiariasCooperativa(hoy: string, etapa: string) {
     }
     const manana = sumarDias(hoy, 1);
     const asambleas = await all<{ id: number; titulo: string; fecha: string; lugar: string | null }>(
-      `SELECT id, titulo, fecha, lugar FROM reuniones WHERE tipo = 'asamblea' AND estado = 'planificada' AND left(fecha, 10) = ? AND convocatoria_enviada_en IS NOT NULL`,
+      `SELECT id, titulo, fecha, lugar FROM reuniones WHERE tipo = 'asamblea' AND estado = 'planificada' AND left(fecha::text, 10) = ? AND convocatoria_enviada_en IS NOT NULL`,
       [manana]
     ).catch(() => []);
     for (const a of asambleas) {
@@ -472,9 +472,9 @@ export async function enviarResumenSemanal(hoy: string): Promise<{ personas: num
   const en7 = sumarDias(hoy, 7);
   const fecha = (f: string) => f.slice(0, 10).split("-").reverse().slice(0, 2).join("/");
   const [asambleas, reuniones, jornadas, hitos, usuarios, movs] = await Promise.all([
-    all<{ titulo: string; fecha: string }>(`SELECT titulo, fecha FROM reuniones WHERE estado = 'planificada' AND tipo = 'asamblea' AND left(fecha, 10) BETWEEN ? AND ? ORDER BY fecha`, [hoy, en7]).catch(() => []),
-    all<{ titulo: string; fecha: string }>(`SELECT titulo, fecha FROM reuniones WHERE estado = 'planificada' AND tipo <> 'asamblea' AND left(fecha, 10) BETWEEN ? AND ? ORDER BY fecha`, [hoy, en7]).catch(() => []),
-    all<{ fecha: string }>(`SELECT fecha FROM jornadas_trabajo WHERE estado = 'planificada' AND left(fecha, 10) BETWEEN ? AND ? ORDER BY fecha`, [hoy, en7]).catch(() => []),
+    all<{ titulo: string; fecha: string }>(`SELECT titulo, fecha FROM reuniones WHERE estado = 'planificada' AND tipo = 'asamblea' AND left(fecha::text, 10) BETWEEN ? AND ? ORDER BY fecha`, [hoy, en7]).catch(() => []),
+    all<{ titulo: string; fecha: string }>(`SELECT titulo, fecha FROM reuniones WHERE estado = 'planificada' AND tipo <> 'asamblea' AND left(fecha::text, 10) BETWEEN ? AND ? ORDER BY fecha`, [hoy, en7]).catch(() => []),
+    all<{ fecha: string }>(`SELECT fecha FROM jornadas_trabajo WHERE estado = 'planificada' AND left(fecha::text, 10) BETWEEN ? AND ? ORDER BY fecha`, [hoy, en7]).catch(() => []),
     all<{ titulo: string; fecha_estimada: string }>(
       `SELECT titulo, fecha_estimada FROM tramites_hitos WHERE activo = 1 AND visible_socios = 1 AND estado IN ('pendiente', 'en_curso', 'trabado') AND fecha_estimada BETWEEN ? AND ?`,
       [hoy, en7]

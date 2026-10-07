@@ -175,7 +175,7 @@ export default async function FinanzasPage({
   if (f.tipo) { condiciones.push(`m.tipo = ?`); params.push(f.tipo); }
   if (f.categoria) { condiciones.push(`m.categoria = ?`); params.push(f.categoria); }
   if (f.desde) { condiciones.push(`m.fecha >= ?`); params.push(f.desde); }
-  if (f.hasta) { condiciones.push(`left(m.fecha, 10) <= ?`); params.push(f.hasta); }
+  if (f.hasta) { condiciones.push(`left(m.fecha::text, 10) <= ?`); params.push(f.hasta); }
   // Fase 2A: filtrar por cuenta y por fondo.
   if (f.cuenta && /^\d+$/.test(f.cuenta)) { condiciones.push(`m.cuenta_id = ?`); params.push(Number(f.cuenta)); }
   if (f.fondo && /^\d+$/.test(f.fondo)) { condiciones.push(`m.fondo_id = ?`); params.push(Number(f.fondo)); }

@@ -104,7 +104,7 @@ export type SaldoDe = { id: number; nombre: string; saldoInicial: number; ingres
 export async function saldosPor(dimension: "cuenta" | "fondo", hasta?: string): Promise<SaldoDe[]> {
   const tabla = dimension === "cuenta" ? "cuentas_financieras" : "fondos";
   const col = dimension === "cuenta" ? "cuenta_id" : "fondo_id";
-  const filtroFecha = hasta ? `AND left(m.fecha, 10) <= ?` : "";
+  const filtroFecha = hasta ? `AND left(m.fecha::text, 10) <= ?` : "";
   const filas = await all<{ id: number; nombre: string; saldo_inicial: string; ingresos: string; egresos: string }>(
     `SELECT t.id, t.nombre, t.saldo_inicial,
             COALESCE(SUM(CASE WHEN m.tipo = 'ingreso' THEN m.monto END), 0) AS ingresos,
@@ -179,12 +179,12 @@ export async function listarPeriodos(): Promise<Periodo[]> {
   const actual = hoyEnUruguay().slice(0, 7);
   const [totales, registrados] = await Promise.all([
     all<{ periodo: string; ingresos: string; egresos: string; n: string }>(
-      `SELECT left(fecha, 7) AS periodo,
+      `SELECT left(fecha::text, 7) AS periodo,
               COALESCE(SUM(CASE WHEN tipo = 'ingreso' AND transferencia_id IS NULL THEN monto END), 0) AS ingresos,
               COALESCE(SUM(CASE WHEN tipo = 'egreso' AND transferencia_id IS NULL THEN monto END), 0) AS egresos,
               COUNT(*) AS n
          FROM movimientos_financieros WHERE COALESCE(estado, 'activo') <> 'anulado'
-        GROUP BY left(fecha, 7)`
+        GROUP BY left(fecha::text, 7)`
     ).catch(siFaltaMigracion([] as { periodo: string; ingresos: string; egresos: string; n: string }[])),
     all<{
       periodo: string;
@@ -262,14 +262,14 @@ export async function resumenDePeriodo(periodo: string): Promise<ResumenPeriodo>
               COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto END), 0) AS ingresos,
               COALESCE(SUM(CASE WHEN tipo = 'egreso' THEN monto END), 0) AS egresos
          FROM movimientos_financieros
-        WHERE left(fecha, 7) = ? AND COALESCE(estado, 'activo') <> 'anulado' AND transferencia_id IS NULL
+        WHERE left(fecha::text, 7) = ? AND COALESCE(estado, 'activo') <> 'anulado' AND transferencia_id IS NULL
         GROUP BY categoria ORDER BY categoria`,
       [periodo]
     ).catch(siFaltaMigracion([] as { categoria: string; ingresos: string; egresos: string }[])),
     get<{ contra: string; anulados: string }>(
       `SELECT COUNT(*) FILTER (WHERE contra_de_id IS NOT NULL AND COALESCE(estado, 'activo') <> 'anulado') AS contra,
               COUNT(*) FILTER (WHERE estado = 'anulado') AS anulados
-         FROM movimientos_financieros WHERE left(fecha, 7) = ?`,
+         FROM movimientos_financieros WHERE left(fecha::text, 7) = ?`,
       [periodo]
     ).catch(siFaltaMigracion(undefined)),
   ]);
@@ -300,9 +300,9 @@ export async function verificacionesDeCierre(periodo: string): Promise<Verificac
   const anterior = periodoAnterior(periodo);
   const [estadoAnterior, hayAnteriores, sinCuenta, facturasVencidas, sinConciliar] = await Promise.all([
     estadoDePeriodo(anterior),
-    get<{ n: string }>(`SELECT COUNT(*) AS n FROM movimientos_financieros WHERE left(fecha, 7) = ?`, [anterior]).catch(() => ({ n: "0" })),
+    get<{ n: string }>(`SELECT COUNT(*) AS n FROM movimientos_financieros WHERE left(fecha::text, 7) = ?`, [anterior]).catch(() => ({ n: "0" })),
     get<{ n: string }>(
-      `SELECT COUNT(*) AS n FROM movimientos_financieros WHERE left(fecha, 7) = ? AND (cuenta_id IS NULL OR fondo_id IS NULL) AND COALESCE(estado, 'activo') <> 'anulado'`,
+      `SELECT COUNT(*) AS n FROM movimientos_financieros WHERE left(fecha::text, 7) = ? AND (cuenta_id IS NULL OR fondo_id IS NULL) AND COALESCE(estado, 'activo') <> 'anulado'`,
       [periodo]
     ).catch(() => ({ n: "0" })),
     get<{ n: string }>(
@@ -348,7 +348,7 @@ export async function verificacionesDeCierre(periodo: string): Promise<Verificac
 /** Líneas del extracto bancario sin conciliar en el mes (Fase 2B). null si todavía no existe la conciliación. */
 async function contarSinConciliar(periodo: string): Promise<number | null> {
   const r = await get<{ n: string }>(
-    `SELECT COUNT(*) AS n FROM extracto_lineas WHERE left(fecha, 7) = ? AND estado = 'pendiente'`,
+    `SELECT COUNT(*) AS n FROM extracto_lineas WHERE left(fecha::text, 7) = ? AND estado = 'pendiente'`,
     [periodo]
   ).catch(() => undefined);
   return r ? Number(r.n || 0) : null;
@@ -500,14 +500,14 @@ export async function presupuestoDelAnio(anio: string): Promise<{ lineas: LineaP
     }),
     all<{ categoria: string; total: string }>(
       `SELECT categoria, SUM(monto) AS total FROM movimientos_financieros
-        WHERE tipo = 'egreso' AND COALESCE(estado, 'activo') <> 'anulado' AND left(fecha, 4) = ? AND transferencia_id IS NULL
+        WHERE tipo = 'egreso' AND COALESCE(estado, 'activo') <> 'anulado' AND left(fecha::text, 4) = ? AND transferencia_id IS NULL
         GROUP BY categoria`,
       [anio]
     ).catch(async (err) => {
       if (!faltaMigracion(err)) throw err;
       return all<{ categoria: string; total: string }>(
         `SELECT categoria, SUM(monto) AS total FROM movimientos_financieros
-          WHERE tipo = 'egreso' AND COALESCE(estado, 'activo') <> 'anulado' AND left(fecha, 4) = ? GROUP BY categoria`,
+          WHERE tipo = 'egreso' AND COALESCE(estado, 'activo') <> 'anulado' AND left(fecha::text, 4) = ? GROUP BY categoria`,
         [anio]
       );
     }),

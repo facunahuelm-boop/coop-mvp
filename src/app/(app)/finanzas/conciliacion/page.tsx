@@ -59,7 +59,7 @@ export default async function ConciliacionPage({ searchParams }: { searchParams:
     resumenConciliacion(cuentaId),
     all<LineaUi & { monto: string; mov_desc: string | null; mov_fecha: string | null; mov_cat: string | null; socio_nombre: string | null }>(
       `SELECT l.id, l.fecha, l.descripcion, l.referencia, l.monto, l.propuesta_tipo, l.propuesta_movimiento_id, l.propuesta_socio_id,
-              m.descripcion AS mov_desc, left(m.fecha, 10) AS mov_fecha, m.categoria AS mov_cat, s.nombre AS socio_nombre
+              m.descripcion AS mov_desc, left(m.fecha::text, 10) AS mov_fecha, m.categoria AS mov_cat, s.nombre AS socio_nombre
          FROM extracto_lineas l
          LEFT JOIN movimientos_financieros m ON m.id = l.propuesta_movimiento_id
          LEFT JOIN socios s ON s.id = l.propuesta_socio_id
@@ -80,8 +80,8 @@ export default async function ConciliacionPage({ searchParams }: { searchParams:
     resumenConciliacion(cuentaId).then((r) =>
       r.desde
         ? all<{ id: number; fecha: string; tipo: string; monto: string; categoria: string; descripcion: string | null }>(
-            `SELECT id, left(fecha, 10) AS fecha, tipo, monto, categoria, descripcion FROM movimientos_financieros
-              WHERE cuenta_id = ? AND COALESCE(estado, 'activo') <> 'anulado' AND conciliado_linea_id IS NULL AND left(fecha, 10) BETWEEN ? AND ?
+            `SELECT id, left(fecha::text, 10) AS fecha, tipo, monto, categoria, descripcion FROM movimientos_financieros
+              WHERE cuenta_id = ? AND COALESCE(estado, 'activo') <> 'anulado' AND conciliado_linea_id IS NULL AND left(fecha::text, 10) BETWEEN ? AND ?
               ORDER BY fecha LIMIT 50`,
             [cuentaId, r.desde, r.hasta]
           )

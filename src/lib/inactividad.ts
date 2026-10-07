@@ -17,9 +17,9 @@ export async function cuentasSensiblesInactivas(hoy: string): Promise<CuentaInac
     `SELECT u.id, u.nombre, u.rol,
             GREATEST(
               (SELECT to_char(max(l.creado_en) AT TIME ZONE 'America/Montevideo', 'YYYY-MM-DD') FROM login_intentos l WHERE l.exitoso = 1 AND lower(l.email) = lower(u.email)),
-              (SELECT max(left(a.fecha, 10)) FROM auditoria a WHERE a.usuario_id = u.id)
+              (SELECT max(left(a.fecha::text, 10)) FROM auditoria a WHERE a.usuario_id = u.id)
             ) AS ultima,
-            left(u.creado_en, 10) AS creado
+            left(u.creado_en::text, 10) AS creado
        FROM users u
       WHERE u.activo = 1 AND u.rol = ANY(?::text[]) AND COALESCE(u.es_platform_admin, false) = false`,
     [ROLES_SENSIBLES]

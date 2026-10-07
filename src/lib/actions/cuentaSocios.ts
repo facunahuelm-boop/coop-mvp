@@ -450,7 +450,7 @@ export async function generarCuotaMensualAction(formData: FormData) {
     const yaExiste = await get<{ id: number }>(
       `SELECT id FROM movimientos_cuenta_socio
        WHERE socio_id = ? AND tipo = 'cargo' AND convenio_id IS NULL
-         AND substr(fecha_vencimiento, 1, 7) = ?`,
+         AND substr(fecha_vencimiento::text, 1, 7) = ?`,
       // Testing 04/10: antes era to_char(fecha_vencimiento, 'YYYY-MM'), pero
       // fecha_vencimiento es TEXT (migración 0027) y Postgres no tiene
       // to_char(text) — la consulta fallaba SIEMPRE y "Generar cuota mensual"
