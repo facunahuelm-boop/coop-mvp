@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
+import { ControlTabs } from "@/components/ControlTabs";
 import { getCurrentUser } from "@/lib/auth";
-import { canRead } from "@/lib/roles";
+import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
+import { REPORTES } from "@/lib/reportesCatalogo";
+import { hoyEnUruguay } from "@/lib/horasObra";
 import { all } from "@/lib/db";
-import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
+import { Card, PageHeader, Badge, EmptyState, Label, inputClass } from "@/components/ui";
 import { ActionForm } from "@/components/ui-client";
 import dayjs from "dayjs";
 import { REPORTES_HUB } from "@/lib/constants";
@@ -39,7 +42,19 @@ export default async function ReportesPage() {
   // pantalla, no solo de la tarjeta de Finanzas. Ahora se redirige solo si
   // no puede leer NINGUNO de los tipos de reporte que existen.
   const reportesDisponibles = REPORTES_HUB.filter((r) => canRead(user.rol, r.modulo));
-  if (reportesDisponibles.length === 0) redirect("/dashboard");
+  // Fase 2H: reportes de la sección 13 (PDF y Excel) según el rol.
+  const catalogo = REPORTES.filter((r) => r.puede(user));
+  if (reportesDisponibles.length === 0 && catalogo.length === 0) redirect("/dashboard");
+  const grupos = [...new Set(catalogo.map((r) => r.grupo))];
+  const hoy = hoyEnUruguay();
+  const otros = [
+    { href: "/finanzas/cierre", texto: "Cierre mensual por fondo (PDF)", ok: ROLES_FINANZAS_DETALLE.includes(user.rol) },
+    { href: "/api/exportar/contador", texto: "Libro de movimientos para el contador (Excel)", ok: ROLES_FINANZAS_DETALLE.includes(user.rol) },
+    { href: "/api/exportar/padron", texto: "Padrón de socios y lista de espera (Excel)", ok: canEdit(user.rol, "socios") || canRead(user.rol, "auditoria") },
+    { href: "/api/exportar/auditoria", texto: "Auditoría de cambios (Excel)", ok: canRead(user.rol, "auditoria") },
+    { href: "/asambleas", texto: "Convocatoria, padrón habilitado y acta de cada asamblea (PDF)", ok: canRead(user.rol, "comisiones") },
+    { href: "/plantillas", texto: "Constancias y notas desde plantillas (PDF)", ok: canEdit(user.rol, "socios") || canEdit(user.rol, "finanzas") || user.rol === "consejo_directivo" || user.rol === "admin" },
+  ].filter((o) => o.ok);
 
   // Sub-fase 6.2: antes este listado era `WHERE creado_por_id = ?` — un
   // Reporte Financiero generado por Tesorería no aparecía para Consejo
@@ -62,9 +77,76 @@ export default async function ReportesPage() {
 
   return (
     <div>
-      <PageHeader title="Reportes" subtitle="Genera reportes en PDF" />
+      <ControlTabs actual="/reportes" rol={user.rol} />
+      <PageHeader title="Reportes" subtitle="PDF para lo oficial (se firma, se entrega, va a la asamblea) y Excel para analizar o mandar al contador." />
 
-      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Generar nuevo reporte</h3>
+      {catalogo.length > 0 && (
+        <div className="mb-8 space-y-6" id="descargas">
+          {grupos.map((g) => (
+            <div key={g}>
+              <h3 className="mb-3 text-sm font-bold text-[var(--color-brand-900)]">{g}</h3>
+              <Card>
+                <ul className="divide-y divide-border">
+                  {catalogo
+                    .filter((r) => r.grupo === g)
+                    .map((r) => (
+                      <li key={r.clave} className="py-3">
+                        <form method="get" action={`/api/reportes/r/${r.clave}`} target="_blank" className="flex flex-wrap items-end justify-between gap-3">
+                          <div className="min-w-0 flex-1 basis-60">
+                            <p className="text-[15px] font-semibold text-ink">{r.titulo}</p>
+                            <p className="text-sm text-ink-muted">{r.descripcion}</p>
+                          </div>
+                          {r.periodo && (
+                            <div className="flex flex-wrap gap-2">
+                              <label className="block">
+                                <Label>Desde</Label>
+                                <input type="date" name="desde" defaultValue={`${hoy.slice(0, 7)}-01`} className={inputClass} />
+                              </label>
+                              <label className="block">
+                                <Label>Hasta</Label>
+                                <input type="date" name="hasta" defaultValue={hoy} className={inputClass} />
+                              </label>
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            {r.formatos.includes("pdf") && (
+                              <button name="formato" value="pdf" className="rounded-lg bg-[var(--color-brand-100)] px-3 py-2 text-xs font-semibold whitespace-nowrap text-[var(--color-brand-800)]">
+                                PDF
+                              </button>
+                            )}
+                            {r.formatos.includes("xlsx") && (
+                              <button name="formato" value="xlsx" className="rounded-lg bg-[var(--color-verde-bg)] px-3 py-2 text-xs font-semibold whitespace-nowrap text-[var(--color-verde)]">
+                                Excel
+                              </button>
+                            )}
+                          </div>
+                        </form>
+                      </li>
+                    ))}
+                </ul>
+              </Card>
+            </div>
+          ))}
+          {otros.length > 0 && (
+            <div>
+              <h3 className="mb-3 text-sm font-bold text-[var(--color-brand-900)]">También</h3>
+              <Card>
+                <ul className="space-y-2 text-[15px]">
+                  {otros.map((o) => (
+                    <li key={o.href}>
+                      <a href={o.href} className="font-semibold text-[var(--color-brand-800)] underline underline-offset-2">
+                        {o.texto}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </div>
+          )}
+        </div>
+      )}
+
+      {reportesDisponibles.length > 0 && <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Informes por módulo (se guardan)</h3>}
       <div className="grid grid-cols-1 gap-3 mb-8">
         {reportesDisponibles.map((r) => (
             <Card key={r.tipo} className="flex items-start justify-between">
@@ -83,12 +165,6 @@ export default async function ReportesPage() {
                     📄 Generar PDF
                   </button>
                 </ActionForm>
-                <span
-                  className="rounded-lg bg-ink/5 text-ink/30 px-3 py-2 text-xs font-semibold whitespace-nowrap cursor-not-allowed"
-                  title="Excel todavía no está disponible en esta versión"
-                >
-                  📊 Excel (próximamente)
-                </span>
               </div>
             </Card>
           ))}

@@ -9,8 +9,10 @@ import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisi
 import { generarPdfBuffer } from "@/lib/pdf";
 import { saveGeneratedFile } from "@/lib/upload";
 import dayjs from "dayjs";
-import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaHora, zFechaOpcional, zEnumSeguro, zCheckbox } from "@/lib/validation";
+import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zFechaHora, zFechaOpcional, zEnumSeguro, zCheckbox, ValidationError } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { obtenerReglamento } from "@/lib/reglamento";
+import { revisarAnticipacion, calcularPadron } from "@/lib/asambleas";
 import { crearNotificacion } from "@/lib/notificaciones";
 import { vinculosDeAgendaItem } from "@/lib/trazabilidad";
 
@@ -71,13 +73,23 @@ const crearReunionSchema = z.object({
   fecha_convocatoria: zFechaOpcional,
 });
 
-export async function crearReunionAction(formData: FormData) {
+export async function crearReunionAction(formData: FormData): Promise<string | undefined> {
   const user = await requireUser();
   if (!canEdit(user.rol, "comisiones")) throw new Error("No autorizado");
   const datos = parseForm(crearReunionSchema, formData);
   await verificarPermisoReunion(user, datos.tipo, datos.tipo === "comision" ? datos.comision_id ?? null : null);
 
   const esAsamblea = datos.tipo === "asamblea";
+  // Fase 2D (A10): plazos de convocatoria según el estatuto (avisar o bloquear).
+  let aviso: string | undefined;
+  const reglamento = esAsamblea ? await obtenerReglamento() : null;
+  if (reglamento) {
+    const plazo = revisarAnticipacion(datos.tipo_asamblea, datos.fecha, datos.fecha_convocatoria ?? null, reglamento.asambleas);
+    if (!plazo.ok) {
+      if (reglamento.asambleas.plazoModo === "bloquear") throw new ValidationError("fecha", plazo.mensaje);
+      aviso = `Asamblea creada, pero atención: ${plazo.mensaje}`;
+    }
+  }
   const id = await insert("reuniones", {
     tipo: datos.tipo,
     comision_id: datos.tipo === "comision" ? datos.comision_id : null,
@@ -93,11 +105,19 @@ export async function crearReunionAction(formData: FormData) {
     fecha_convocatoria: esAsamblea ? datos.fecha_convocatoria : null,
   });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "reuniones", entidad_id: id, valor_nuevo: { titulo: datos.titulo, fecha: datos.fecha, tipo: datos.tipo } });
+  // A10: el padrón habilitado queda armado desde la creación.
+  if (reglamento) await calcularPadron(id, reglamento.asambleas, user.id).catch((err) => console.error("[asambleas] padrón:", err?.message));
   revalidatePath("/reuniones");
+  revalidatePath("/asambleas");
+  return aviso;
 }
 
 export async function crearReunionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  return conEstadoDeAccion(() => crearReunionAction(formData));
+  let aviso: string | undefined;
+  const r = await conEstadoDeAccion(async () => {
+    aviso = await crearReunionAction(formData);
+  });
+  return r.ok && aviso ? { ...r, aviso } : r;
 }
 
 export async function cancelarReunionAction(formData: FormData) {

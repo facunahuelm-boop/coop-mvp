@@ -1,7 +1,12 @@
 import { redirect, notFound } from "next/navigation";
+import { puedeUsarPlantillas } from "@/lib/actions/plantillasTexto";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { canRead, canEdit, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
+import { canRead, canEdit, canApprove, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
+import { ESTADO_SOCIO_INFO, antiguedad, etiquetaEstadoSocio, type EstadoSocio } from "@/lib/sociosEstados";
+import { checklistDeIngreso } from "@/lib/sociosAlta";
+import { hoyEnUruguay } from "@/lib/horasObra";
+import { CambiarEstadoSocioForm, CrearNucleoBoton, PasoIngresoBoton, AgregarOficioForm, QuitarOficioBoton } from "@/components/socios/CicloVidaFormularios";
 import { get, all } from "@/lib/db";
 import { calcularCuotasSocio, cargarMovimientosCuenta, resumenDeCuotas, historialSocio } from "@/lib/logic";
 import { Card, PageHeader, SectionTitle, EmptyState, Badge, StatTile } from "@/components/ui";
@@ -114,6 +119,7 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
 
   const esElPropioSocio = !!socio.user_id && socio.user_id === user.id;
   const puedeVerCuenta = ROLES_FINANZAS_DETALLE.includes(user.rol) || (user.rol === "socio" && esElPropioSocio);
+  const puedeUsarPlantillasAqui = await puedeUsarPlantillas(user.rol);
   const puedeRegistrar = canEdit(user.rol, "finanzas");
   const puedeAnular = user.rol === "admin";
   const puedeEditar = canEdit(user.rol, "socios");
@@ -132,8 +138,11 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
         [socioId]
       ).catch(vacio<any>),
       socio.nucleo_id
-        ? all<{ habilidad: string }>(`SELECT habilidad FROM habilidades_nucleo WHERE nucleo_id = ?`, [socio.nucleo_id]).catch(vacio<{ habilidad: string }>)
-        : Promise.resolve([] as { habilidad: string }[]),
+        ? all<{ id: number; habilidad: string; persona: string | null; nota: string | null }>(
+            `SELECT id, habilidad, persona, nota FROM habilidades_nucleo WHERE nucleo_id = ? AND COALESCE(activo, 1) = 1 ORDER BY habilidad`,
+            [socio.nucleo_id]
+          ).catch(async () => (await all<{ habilidad: string }>(`SELECT habilidad FROM habilidades_nucleo WHERE nucleo_id = ?`, [socio.nucleo_id]).catch(() => [])).map((h, i) => ({ id: -i - 1, habilidad: h.habilidad, persona: null, nota: null })))
+        : Promise.resolve([] as { id: number; habilidad: string; persona: string | null; nota: string | null }[]),
       puedeVerCuenta ? cargarMovimientosCuenta(socioId) : Promise.resolve([]),
       puedeVerCuenta
         ? all<ConvenioRow>(`SELECT * FROM convenios_pago WHERE socio_id = ? ORDER BY creado_en DESC`, [socioId]).catch(vacio<ConvenioRow>)
@@ -228,8 +237,70 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
   const comprobantes = movimientos.filter((m) => m.comprobante_url && m.estado !== "anulado");
 
   // ================= Pestaña: General =================
+  // Fase 2C: estado con historial, antigüedad, ingreso y oficios.
+  const hoyUy = hoyEnUruguay();
+  const [historialEstados, pasosIngreso] = await Promise.all([
+    all<{ id: number; estado_anterior: string | null; estado_nuevo: string; fecha: string; motivo: string | null; quien: string | null }>(
+      `SELECT e.id, e.estado_anterior, e.estado_nuevo, e.fecha, e.motivo, u.nombre AS quien FROM socio_estados e LEFT JOIN users u ON u.id = e.registrado_por_id WHERE e.socio_id = ? ORDER BY e.fecha DESC, e.id DESC`,
+      [socioId]
+    ).catch(() => []),
+    checklistDeIngreso(socioId),
+  ]);
+  const infoEstado = ESTADO_SOCIO_INFO[(socio.estado ?? "activo") as EstadoSocio] ?? ESTADO_SOCIO_INFO.activo;
+  const antig = antiguedad(socio.fecha_ingreso, hoyUy);
+  const ingresoPendiente = pasosIngreso && pasosIngreso.some((p) => !p.hecho);
+
   const tabGeneral = (
     <>
+      <Card className="mb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[15px] text-ink-muted">Estado:</span>
+              <Badge color={infoEstado.color}>{infoEstado.label}</Badge>
+              {antig && <span className="text-[15px] text-ink">· socio hace {antig.texto}</span>}
+            </div>
+            <p className="mt-1 text-[15px] text-ink-muted">{infoEstado.explicacion}</p>
+          </div>
+          {puedeEditar && <CambiarEstadoSocioForm socioId={socio.id} estadoActual={socio.estado} puedeSancionar={canApprove(user.rol, "socios")} hoy={hoyUy} />}
+        </div>
+        {historialEstados.length > 0 && (
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">Historial de estados ({historialEstados.length})</summary>
+            <ul className="mt-2 divide-y divide-border text-[15px]">
+              {historialEstados.map((h) => (
+                <li key={h.id} className="py-2">
+                  <b>{fecha(h.fecha)}</b> · {h.estado_anterior ? `${etiquetaEstadoSocio(h.estado_anterior)} → ` : ""}
+                  {etiquetaEstadoSocio(h.estado_nuevo)}
+                  {h.motivo && <span className="block text-sm text-ink-muted">{h.motivo}{h.quien ? ` · ${h.quien}` : ""}</span>}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </Card>
+
+      {pasosIngreso && (ingresoPendiente || socio.estado === "aspirante") && (
+        <Card className="mb-4">
+          <h2 className="text-lg font-bold text-ink">Ingreso a la cooperativa</h2>
+          <p className="text-[15px] text-ink-muted">Los pasos para recibir bien a un socio nuevo. Algunos se marcan solos.</p>
+          <ul className="mt-2 divide-y divide-border">
+            {pasosIngreso.map((p) => (
+              <li key={p.clave} className="flex flex-wrap items-center justify-between gap-2 py-2 text-[15px]">
+                <span className="flex items-start gap-2">
+                  <span aria-hidden className={p.hecho ? "text-[var(--color-verde)]" : "text-ink-faint"}>{p.hecho ? "✔" : "○"}</span>
+                  <span>
+                    <span className="font-medium text-ink">{p.titulo}</span>
+                    <span className="block text-sm text-ink-muted">{p.automatico ? "Hecho (se marcó solo)" : p.hecho && p.quien ? `Hecho por ${p.quien}` : p.ayuda}</span>
+                  </span>
+                </span>
+                {puedeEditar && !p.automatico && <PasoIngresoBoton socioId={socio.id} item={p.clave} hecho={p.hecho} />}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <Card className="mb-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div><span className="text-ink/50">Documento:</span> {socio.documento || "—"}</div>
@@ -237,8 +308,10 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
           <div><span className="text-ink/50">Email:</span> {socio.email || "—"}</div>
           <div><span className="text-ink/50">Teléfono:</span> {socio.telefono || "—"}</div>
           <div><span className="text-ink/50">Vivienda:</span> {socio.vivienda_numero || "Sin asignar"}</div>
-          <div><span className="text-ink/50">Estado:</span> <Badge color={badgeSocio[socio.estado] || "gray"}>{socio.estado}</Badge></div>
-          <div><span className="text-ink/50">Núcleo de trabajo:</span> <NucleoLink id={socio.nucleo_id} nombre={socio.nucleo_nombre} /></div>
+          <div>
+            <span className="text-ink/50">Núcleo de trabajo:</span>{" "}
+            {socio.nucleo_id ? <NucleoLink id={socio.nucleo_id} nombre={socio.nucleo_nombre} /> : puedeEditar ? <CrearNucleoBoton socioId={socio.id} /> : "—"}
+          </div>
           {socio.nucleo_id && (
             <div>
               <span className="text-ink/50">Horas de ayuda mutua:</span>{" "}
@@ -246,8 +319,23 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
               {socio.horas_semanales_objetivo ? ` · objetivo ${Number(socio.horas_semanales_objetivo)} h/semana` : ""}
             </div>
           )}
-          {habilidades.length > 0 && (
-            <div className="sm:col-span-2"><span className="text-ink/50">Habilidades:</span> {habilidades.map((h) => h.habilidad).join(", ")}</div>
+          {(habilidades.length > 0 || (puedeEditar && socio.nucleo_id)) && (
+            <div className="sm:col-span-2">
+              <span className="text-ink/50">Oficios del núcleo:</span>{" "}
+              {habilidades.length === 0 && <span className="text-ink-muted">ninguno cargado</span>}
+              <ul className="mt-1 flex flex-wrap gap-2">
+                {habilidades.map((h) => (
+                  <li key={h.id} className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1">
+                    <span>
+                      <b>{h.habilidad}</b>
+                      {h.persona ? ` — ${h.persona}` : ""}
+                    </span>
+                    {puedeEditar && h.id > 0 && <QuitarOficioBoton id={h.id} socioId={socio.id} />}
+                  </li>
+                ))}
+              </ul>
+              {puedeEditar && socio.nucleo_id && <div className="mt-1"><AgregarOficioForm socioId={socio.id} nombreSocio={socio.nombre} /></div>}
+            </div>
           )}
           {socio.notas && <div className="sm:col-span-2"><span className="text-ink/50">Notas:</span> {socio.notas}</div>}
         </div>
@@ -875,7 +963,22 @@ export default async function SocioDetallePage({ params }: { params: Promise<{ i
       <PageHeader
         title={socio.nombre}
         subtitle={`Núcleo${socio.vivienda_numero ? ` · Vivienda ${socio.vivienda_numero}` : ""}${socio.documento ? ` · Doc. ${socio.documento}` : ""}`}
-        action={<Badge color={badgeSocio[socio.estado] || "gray"}>{socio.estado}</Badge>}
+        action={
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Fase 2H: estado de cuenta en PDF y constancias desde plantillas. */}
+            {puedeVerCuenta && (
+              <a href={`/api/reportes/estado-cuenta/${socio.id}`} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[var(--color-brand-800)] underline underline-offset-2">
+                Estado de cuenta (PDF)
+              </a>
+            )}
+            {puedeUsarPlantillasAqui && (
+              <Link href={`/plantillas?socio=${socio.id}`} className="text-sm font-semibold text-[var(--color-brand-800)] underline underline-offset-2">
+                Constancias
+              </Link>
+            )}
+            <Badge color={infoEstado.color}>{infoEstado.label}</Badge>
+          </div>
+        }
       />
       <Link href="/socios" className="text-xs text-[var(--color-brand-800)] underline underline-offset-2">
         ← Volver al padrón de socios

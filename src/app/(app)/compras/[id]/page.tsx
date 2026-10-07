@@ -17,6 +17,10 @@ import { CargarPresupuestoForm, AdjuntarFacturaForm, EditarSolicitudForm } from 
 import { SolicitudStatusBadge } from "@/components/compras/PurchaseStatus";
 import { HistorialCompra } from "@/components/compras/HistorialCompra";
 import { PurchaseComparison } from "@/components/compras/PurchaseComparison";
+import { obtenerReglamento } from "@/lib/reglamento";
+import { reglaDeCompra, puedeAprobarSegunRegla } from "@/lib/comprasRegla";
+import { proveedoresConDocVencida } from "@/lib/proveedoresDocs";
+import { hoyEnUruguay } from "@/lib/horasObra";
 
 export default async function SolicitudPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -47,7 +51,18 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
     canEdit(user.rol, "compras") &&
     (solicitud.comision_id ? await puedeGestionarComision(user, solicitud.comision_id) : true);
 
-  const puedeElegirProveedor = puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion");
+  // Fase 2G — A14 (regla de montos) y documentación vencida de los proveedores.
+  const [reglamento, docsVencidos] = await Promise.all([obtenerReglamento(), proveedoresConDocVencida(hoyEnUruguay())]);
+  const montoReferencia = Math.max(
+    Number(solicitud.presupuesto_estimado || 0),
+    ...comparacion.presupuestos.map((p: { precio: number; costo_envio: number | null }) => Number(p.precio || 0) + Number(p.costo_envio || 0))
+  );
+  const regla = reglaDeCompra(montoReferencia, comparacion.presupuestos.length, reglamento.compras);
+  const enDecision = solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion";
+  const puedeElegirProveedor = puedeAprobar && enDecision && puedeAprobarSegunRegla(user.rol, regla);
+  const vencidosPorProveedor = Object.fromEntries(
+    comparacion.presupuestos.filter((p: { proveedor_id: number }) => docsVencidos.has(p.proveedor_id)).map((p: { proveedor_id: number }) => [p.proveedor_id, docsVencidos.get(p.proveedor_id)!])
+  ) as Record<number, string[]>;
   // Rediseño profundo de Compras, Fase 5 (sección 6): editar sólo tiene
   // sentido mientras la compra sigue "viva" — una vez entregada o rechazada
   // el ciclo terminó (mismo criterio, con el mismo mensaje, que
@@ -133,11 +148,22 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
   // rápido/con garantía en una frase) y se muestra más chico, como apoyo.
   const tabPresupuestos = (
     <>
+      {regla.aplica && enDecision && (
+        <Card className={`mb-4 ${regla.faltanPresupuestos ? "!border-[var(--color-amarillo)]" : ""}`}>
+          <p className="text-[15px] text-ink">{regla.texto}</p>
+          {puedeAprobar && !puedeAprobarSegunRegla(user.rol, regla) && <p className="mt-1 text-sm text-ink-muted">Tu rol no puede aprobarla: la decide el Consejo Directivo.</p>}
+        </Card>
+      )}
       {comparacion.presupuestos.length === 0 ? (
         <EmptyState>Todavía no hay presupuestos cargados para esta solicitud.</EmptyState>
       ) : (
         <>
-          <PurchaseComparison presupuestos={comparacion.presupuestos} puedeElegir={puedeElegirProveedor} />
+          <PurchaseComparison
+            presupuestos={comparacion.presupuestos}
+            puedeElegir={puedeElegirProveedor}
+            pedirExcepcion={regla.faltanPresupuestos > 0}
+            vencidos={vencidosPorProveedor}
+          />
           {/* Las marcas 🏆/⚡ de arriba ya muestran lo mismo que las primeras
               líneas de `comparacion.texto` — acá sólo se agregan, como apoyo,
               las dos líneas de ese texto que NO se repiten visualmente: el

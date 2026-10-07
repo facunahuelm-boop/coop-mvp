@@ -2,10 +2,12 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, audit, esColumnaInexistente, updateConBloqueoOptimista } from "@/lib/db";
+import { insert, update, get, all, audit, esColumnaInexistente, updateConBloqueoOptimista } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
-import { parseForm, zId, zTexto, zTextoOpcional, zMontoPositivo, zFecha, zEnumSeguro } from "@/lib/validation";
+import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zMontoPositivo, zFecha, zFechaOpcional, zEnumSeguro, ValidationError } from "@/lib/validation";
+import { hoyEnUruguay } from "@/lib/horasObra";
+import { estadoDePeriodo, textoPeriodo } from "@/lib/finanzasLibro";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 const registrarMovimientoSchema = z.object({
@@ -13,12 +15,33 @@ const registrarMovimientoSchema = z.object({
   monto: zMontoPositivo(),
   categoria: zTexto(120),
   descripcion: zTextoOpcional(1000),
+  // Fase 2A: fecha (antes siempre "ahora"), cuenta y fondo. Vacíos → hoy y
+  // la cuenta/fondo principal (los completa la base, ver migración 0055).
+  fecha: zFechaOpcional,
+  cuenta_id: zIdOpcional,
+  fondo_id: zIdOpcional,
 });
+
+/** Fase 2A: cuenta y fondo válidos, y fecha en un mes abierto (aviso claro antes de que lo frene la base). */
+async function validarLibro(fecha: string, cuentaId: number | null, fondoId: number | null) {
+  if (fecha > hoyEnUruguay()) throw new ValidationError("fecha", "La fecha no puede ser futura. Para algo que todavía no pasó, cargá un compromiso.");
+  if ((await estadoDePeriodo(fecha.slice(0, 7))) !== "abierto") {
+    throw new ValidationError("fecha", `El mes de ${textoPeriodo(fecha.slice(0, 7))} ya está cerrado. Elegí una fecha de un mes abierto.`);
+  }
+  if (cuentaId && !(await get(`SELECT id FROM cuentas_financieras WHERE id = ? AND activa = 1`, [cuentaId]).catch(() => ({ id: cuentaId })))) {
+    throw new ValidationError("cuenta_id", "Esa cuenta no existe o está dada de baja.");
+  }
+  if (fondoId && !(await get(`SELECT id FROM fondos WHERE id = ? AND activo = 1`, [fondoId]).catch(() => ({ id: fondoId })))) {
+    throw new ValidationError("fondo_id", "Ese fondo no existe o está dado de baja.");
+  }
+}
 
 export async function registrarMovimientoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
   const datos = parseForm(registrarMovimientoSchema, formData);
+  const fecha = datos.fecha || hoyEnUruguay();
+  await validarLibro(fecha, datos.cuenta_id, datos.fondo_id);
   const id = await insert("movimientos_financieros", {
     tipo: datos.tipo,
     monto: datos.monto,
@@ -26,6 +49,9 @@ export async function registrarMovimientoAction(formData: FormData) {
     etapa_obra: datos.categoria,
     descripcion: datos.descripcion,
     registrado_por_id: user.id,
+    fecha,
+    ...(datos.cuenta_id ? { cuenta_id: datos.cuenta_id } : {}),
+    ...(datos.fondo_id ? { fondo_id: datos.fondo_id } : {}),
   });
   await audit({ usuario_id: user.id, accion: "registrar_movimiento", entidad: "movimientos_financieros", entidad_id: id, valor_nuevo: datos });
   revalidatePath("/finanzas");
@@ -49,6 +75,9 @@ const editarMovimientoSchema = z.object({
   categoria: zTexto(120),
   descripcion: zTextoOpcional(1000),
   version_esperada: zTexto(100),
+  fecha: zFechaOpcional,
+  cuenta_id: zIdOpcional,
+  fondo_id: zIdOpcional,
 });
 
 // Pedido explícito (rediseño de Finanzas, 16/09): "que todos los ingresos
@@ -79,23 +108,33 @@ async function verificarNoEsPagoDeCuota(id: number) {
 export async function editarMovimientoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
-  const { id, tipo, monto, categoria, descripcion, version_esperada } = parseForm(editarMovimientoSchema, formData);
+  const { id, tipo, monto, categoria, descripcion, version_esperada, fecha, cuenta_id, fondo_id } = parseForm(editarMovimientoSchema, formData);
   await verificarNoEsPagoDeCuota(id);
 
-  const existente = await get<{ id: number; estado?: string }>(
-    `SELECT id, estado FROM movimientos_financieros WHERE id = ?`,
+  const existente = await get<{ id: number; estado?: string; fecha?: string; transferencia_id?: string | null; factura_id?: number | null }>(
+    `SELECT id, estado, fecha, transferencia_id, factura_id FROM movimientos_financieros WHERE id = ?`,
     [id]
   ).catch(async (err) => {
     // Sub-fase 4.4 todavía no migrada en este entorno (columna `estado`
     // inexistente, 42703) — un movimiento nunca puede estar anulado sin esa
     // columna, así que se sigue exactamente igual que antes de esta sub-fase.
     if (!esColumnaInexistente(err)) throw err;
-    return get<{ id: number; estado?: string }>(`SELECT id FROM movimientos_financieros WHERE id = ?`, [id]);
+    return get<{ id: number; estado?: string; fecha?: string; transferencia_id?: string | null; factura_id?: number | null }>(
+      `SELECT id, estado, fecha FROM movimientos_financieros WHERE id = ?`,
+      [id]
+    );
   });
   if (!existente) throw new Error("Ese movimiento ya no existe.");
   if (existente.estado === "anulado") {
     throw new Error("Este movimiento está anulado — no se puede editar. Registrá un movimiento nuevo si hace falta corregir el saldo.");
   }
+  if (existente.transferencia_id) throw new Error("Un pase entre cuentas o fondos no se edita: anulalo y hacelo de nuevo.");
+  if (existente.factura_id) throw new Error("Este egreso es el pago de una factura: se corrige con un contra-movimiento.");
+  if (existente.fecha && (await estadoDePeriodo(String(existente.fecha).slice(0, 7))) !== "abierto") {
+    throw new Error(`El mes de ${textoPeriodo(String(existente.fecha).slice(0, 7))} ya está cerrado: este movimiento no se puede editar. Usá «Corregir» para hacer un contra-movimiento.`);
+  }
+  const nuevaFecha = fecha || (existente.fecha ? String(existente.fecha).slice(0, 10) : hoyEnUruguay());
+  await validarLibro(nuevaFecha, cuenta_id, fondo_id);
 
   await updateConBloqueoOptimista(
     "movimientos_financieros",
@@ -106,6 +145,9 @@ export async function editarMovimientoAction(formData: FormData) {
       categoria,
       etapa_obra: categoria,
       descripcion,
+      ...(fecha ? { fecha } : {}),
+      ...(cuenta_id ? { cuenta_id } : {}),
+      ...(fondo_id ? { fondo_id } : {}),
     },
     version_esperada
   );
@@ -168,6 +210,14 @@ export async function anularMovimientoAction(formData: FormData) {
     return;
   }
   if (fila.estado === "anulado") return; // ya está anulado, no hay nada que hacer
+  const libro = await get<{ fecha: string; transferencia_id: string | null; factura_id: number | null }>(
+    `SELECT fecha, transferencia_id, factura_id FROM movimientos_financieros WHERE id = ?`,
+    [id]
+  ).catch(() => undefined);
+  if (libro && (await estadoDePeriodo(String(libro.fecha).slice(0, 7))) !== "abierto") {
+    throw new Error(`El mes de ${textoPeriodo(String(libro.fecha).slice(0, 7))} ya está cerrado: este movimiento no se puede anular. Usá «Corregir» para hacer un contra-movimiento.`);
+  }
+  if (libro?.factura_id) throw new Error("Este egreso es el pago de una factura: se corrige con un contra-movimiento.");
 
   // .catch(() => null): gastos_comision es una tabla opcional en entornos
   // viejos (ver MENSAJE_GASTOS_TABLA_FALTANTE en gastos.ts) — si no existe,
@@ -180,12 +230,18 @@ export async function anularMovimientoAction(formData: FormData) {
     throw new Error("Este movimiento lo generó automáticamente un gasto de comisión ya pagado — anulalo o corregilo desde Gastos en su lugar, no desde acá.");
   }
 
-  await update("movimientos_financieros", id, {
+  const anulacion = {
     estado: "anulado",
     anulado_en: new Date().toISOString(),
     anulado_por_id: user.id,
     motivo_anulacion: motivo || null,
-  });
+  };
+  await update("movimientos_financieros", id, anulacion);
+  // Un pase entre cuentas o fondos son dos movimientos: se anulan juntos.
+  if (libro?.transferencia_id) {
+    const par = await all<{ id: number }>(`SELECT id FROM movimientos_financieros WHERE transferencia_id = ? AND id <> ? AND COALESCE(estado, 'activo') <> 'anulado'`, [libro.transferencia_id, id]);
+    for (const p of par) await update("movimientos_financieros", p.id, anulacion);
+  }
   await audit({ usuario_id: user.id, accion: "anular_movimiento", entidad: "movimientos_financieros", entidad_id: id, valor_nuevo: { motivo } });
   revalidatePath("/finanzas");
   revalidatePath("/dashboard");

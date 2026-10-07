@@ -178,7 +178,7 @@ export async function nucleosQueDebenHoras(): Promise<NucleoHoras[]> {
   const filas = await all<{ id: number; nombre: string; horas_semanales_objetivo: number | null; horas_acumuladas: number | null; socios: string; activos: string }>(
     `SELECT n.id, n.nombre, n.horas_semanales_objetivo, n.horas_acumuladas,
             (SELECT COUNT(*) FROM socios s WHERE s.nucleo_id = n.id) AS socios,
-            (SELECT COUNT(*) FROM socios s WHERE s.nucleo_id = n.id AND s.estado = 'activo') AS activos
+            (SELECT COUNT(*) FROM socios s WHERE s.nucleo_id = n.id AND s.estado IN ('activo', 'suspendido', 'renunciante')) AS activos
        FROM nucleos_familiares n ORDER BY n.nombre ASC`
   ).catch(() => []);
   return filas

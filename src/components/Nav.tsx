@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { SessionUser } from "@/lib/auth";
-import { canRead, ROLE_LABELS, type Module } from "@/lib/roles";
+import { canRead, canEdit, ROLE_LABELS, type Module } from "@/lib/roles";
 import { logoutAction } from "@/lib/actions/auth";
 import { Saludo } from "./Saludo";
 import { NavLink } from "./NavLink";
@@ -20,6 +20,7 @@ import {
   Truck,
   Wallet,
   HardHat,
+  Milestone,
   Handshake,
   ShieldCheck,
   Wrench,
@@ -39,6 +40,9 @@ import {
   Gavel,
   MessageSquare,
   Inbox,
+  Megaphone,
+  Rocket,
+  FileSignature,
   ListChecks,
   BookOpen,
   Landmark,
@@ -69,6 +73,10 @@ type NavItem = {
   etapas?: string[];
   /** Fase 1D: sólo para quien tiene ficha de socio (o rol socio). */
   soloSocios?: boolean;
+  /** Fase 2H: sólo el admin de la cooperativa. */
+  soloAdmin?: boolean;
+  /** Fase 2F: sólo para quien manda avisos oficiales (mismo criterio que actions/avisos.ts). */
+  soloEmisores?: boolean;
 };
 type NavGroup = { label: string; items: NavItem[] };
 
@@ -127,6 +135,8 @@ const GROUPS: NavGroup[] = [
       { href: "/mis-horas", label: "Mis horas", icon: <Clock size={ICON_SIZE} />, soloSocios: true, etapas: ["obra"] },
       { href: "/alertas", label: "Alertas", icon: <Bell size={ICON_SIZE} /> },
       { href: "/notificaciones", label: "Avisos", icon: <Inbox size={ICON_SIZE} /> },
+      // Fase 2F: los avisos oficiales le llegan a todos en «Avisos» (y arriba del Inicio); esta pantalla es para mandarlos.
+      { href: "/avisos", label: "Avisos oficiales", icon: <Megaphone size={ICON_SIZE} />, soloEmisores: true },
       { href: "/mi-trabajo", label: "Mi trabajo", icon: <ListChecks size={ICON_SIZE} /> },
       { href: "/calendario", label: "Calendario", icon: <CalendarDays size={ICON_SIZE} /> },
     ],
@@ -135,7 +145,7 @@ const GROUPS: NavGroup[] = [
     label: "Socios y vivienda",
     items: [
       { href: "/socios", label: "Socios y núcleos", icon: <Users size={ICON_SIZE} />, mod: "socios" },
-      { href: "/contactos", label: "Contactos", icon: <BookUser size={ICON_SIZE} /> },
+      { href: "/contactos", label: "Directorio", icon: <BookUser size={ICON_SIZE} /> },
       { href: "/reclamos", label: "Reclamos y mantenimiento", icon: <Wrench size={ICON_SIZE} />, mod: "reclamos" },
     ],
   },
@@ -151,8 +161,9 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Obra",
+    label: "Obra y trámites",
     items: [
+      { href: "/tramites", label: "¿En qué estamos?", icon: <Milestone size={ICON_SIZE} />, etapas: ["pre_obra", "obra"] },
       { href: "/obra", label: "Avance de obra", icon: <HardHat size={ICON_SIZE} />, mod: "obra" },
       { href: "/seguridad", label: "Seguridad", icon: <ShieldCheck size={ICON_SIZE} />, mod: "seguridad" },
     ],
@@ -178,7 +189,11 @@ const GROUPS: NavGroup[] = [
   },
   {
     label: "Documentos",
-    items: [{ href: "/documentos", label: "Documentos", icon: <FileText size={ICON_SIZE} />, mod: "documentos" }],
+    items: [
+      { href: "/documentos", label: "Documentos", icon: <FileText size={ICON_SIZE} />, mod: "documentos" },
+      // Fase 2H: constancias y notas con variables (mismo criterio que quien manda avisos).
+      { href: "/plantillas", label: "Plantillas de texto", icon: <FileSignature size={ICON_SIZE} />, soloEmisores: true },
+    ],
   },
   {
     label: "Control y transparencia",
@@ -193,10 +208,11 @@ const GROUPS: NavGroup[] = [
   {
     label: "Administración",
     items: [
-      { href: "/reglamento", label: "Reglamento", icon: <Scale size={ICON_SIZE} /> },
+      { href: "/reglamento", label: "Reglas y avisos", icon: <Scale size={ICON_SIZE} /> },
       { href: "/configuracion", label: "Configuración", icon: <Settings size={ICON_SIZE} /> },
       { href: "/reglas-automaticas", label: "Reglas automáticas", icon: <Zap size={ICON_SIZE} /> },
       { href: "/usuarios", label: "Gestión de usuarios", icon: <UserPlus size={ICON_SIZE} /> },
+      { href: "/alta", label: "Alta de la cooperativa", icon: <Rocket size={ICON_SIZE} />, soloAdmin: true },
       { href: "/importar", label: "Importar datos", icon: <FileUp size={ICON_SIZE} /> },
       { href: "/mails", label: "Mails", icon: <Mail size={ICON_SIZE} /> },
       { href: "/ia", label: "Asistente IA", icon: <Sparkles size={ICON_SIZE} /> },
@@ -210,7 +226,7 @@ const GROUPS: NavGroup[] = [
 /** Roles de gestión que ven "Mi vivienda" sólo si además son socios (tienen ficha). */
 // Fase 1D: el socio común ve un menú corto, sólo con lo suyo. Lo demás que su
 // rol puede leer sigue accesible por dirección y desde "Más".
-const MENU_SOCIO = new Set(["/dashboard", "/mi-vivienda", "/mis-horas", "/notificaciones", "/calendario", "/documentos", "/transparencia", "/mi-trabajo", "/soporte"]);
+const MENU_SOCIO = new Set(["/dashboard", "/mi-vivienda", "/tramites", "/mis-horas", "/notificaciones", "/calendario", "/documentos", "/transparencia", "/mi-trabajo", "/soporte"]);
 // Páginas que no tienen un lugar en el menú pero siguen existiendo (para "Más" y accesos).
 const RUTAS_FUERA_DEL_MENU: NavItem[] = [{ href: "/trabajo", label: "Trabajo (registro anterior)", icon: <Handshake size={ICON_SIZE} />, mod: "trabajo" }];
 
@@ -267,6 +283,8 @@ function itemPermitido(i: NavItem, user: SessionUser, esSocio: boolean): boolean
   if (i.soloPlataforma && !user.es_platform_admin) return false;
   if (i.etapas && !i.etapas.includes(user.etapa)) return false;
   if (i.soloSocios && !(esSocio || user.rol === "socio")) return false;
+  if (i.soloAdmin && user.rol !== "admin") return false;
+  if (i.soloEmisores && !(canEdit(user.rol, "socios") || canEdit(user.rol, "finanzas") || user.rol === "consejo_directivo")) return false;
   return true;
 }
 

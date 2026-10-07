@@ -4,6 +4,51 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## COOVA v2 — Fase 2 completa (07/10): "el tesorero y la Fiscal confían"
+
+Plan acordado en `PROMPT_COOVA_v2.md` (Fase 2, puntos 1 a 12), publicado todo junto (decisión del usuario). Migraciones nuevas: **0055 a 0062**, todas no destructivas. Todo lo automático nuevo que toca plata o manda emails queda **apagado** hasta que la cooperativa lo prenda en "Reglas y avisos".
+
+### 2A — Finanzas como un libro y cierre del mes
+- **Cuentas y fondos** (`/finanzas/cuentas`): cada movimiento dice de qué cuenta (caja, banco) y de qué fondo sale. Se crean solas una "Cuenta principal" y un "Fondo general" por cooperativa. Transferencias entre cuentas (no cuentan como ingreso ni gasto).
+- **Cierre del mes** (`/finanzas/cierre`): verificaciones antes de cerrar, cierre con resumen congelado, **visado de la Comisión Fiscal** (o observación), reapertura con motivo. **Un mes cerrado no se puede tocar** (lo bloquea la base de datos); las correcciones se hacen con un contra-movimiento en el mes abierto. Cierre en PDF.
+- **Presupuesto** por rubro con aviso al llegar al 90 % (A18), **compromisos** (una compra aprobada descuenta del disponible, A15), **facturas a pagar** con vencimiento y recordatorio (A16), **flujo de caja** a 30/60/90 días con alerta de liquidez (A19) y **Excel para el contador** con plan de cuentas.
+- Finanzas reorganizada en pestañas: Resumen, Lo que hay que pagar, Cuotas y convenios, Movimientos, Presupuesto.
+
+### 2B — Conciliación bancaria (A9)
+- Se sube el extracto del banco (Excel o CSV); COOVA reconoce las columnas (y recuerda el formato de cada banco), no repite líneas ya importadas y propone con qué pago o movimiento coincide cada línea (el código de pago del núcleo, monto y fecha). Se confirma, se registra el pago desde la línea, se ignora o se deshace. Confirmación automática opcional (apagada).
+
+### 2C — Socios: ciclo de vida
+- Estados: aspirante, activo, suspendido, renunciante, excluido, egresado, con **historial** (quién, cuándo, por qué). **Checklist de ingreso** (A23) y aviso a administración. **Oficios** de cada núcleo (`/socios/oficios`). **Padrón en Excel** con antigüedad y lista de espera. No se puede dar de alta dos veces la misma cédula.
+- **El núcleo es la entidad central**: la migración le crea su núcleo a cada socio titular que no tenía (en Ufama también). Los códigos de pago viejos ("XXX-S<id>") se siguen reconociendo.
+
+### 2D — Asambleas formales, Consejo y mandatos (A10, A24)
+- Asamblea (`/asambleas/[id]`): plazo de convocatoria según el estatuto (avisar o bloquear), **padrón habilitado** (cuotas, antigüedad; un voto por socio titular o por persona), envío de la convocatoria, registro de llegadas, poderes, **quórum** (COOVA cuenta, la mesa confirma), votaciones nominales o por conteo, borrador de acta y aprobación. Convocatoria, padrón y acta en PDF. COOVA no garantiza la validez legal: la decide la mesa.
+- Consejo: bandeja **"Necesita decisión del Consejo"** y orden del día con un botón. Cargos con fecha de fin: aviso 60 días antes (A24); al vencer, el admin confirma qué permisos se sacan.
+
+### 2E — Trámites e hitos (A27)
+- **"¿En qué estamos?"** (`/tramites`): los pasos para llegar a la obra (11 pasos típicos para empezar), con responsable, fechas y estado; línea de tiempo para el socio y aviso cuando se cumple un paso. Aviso al responsable y al Consejo cuando un paso pasa su fecha (A27).
+
+### 2F — Avisos, WhatsApp, preferencias, calendario y unificación
+- **Avisos oficiales** (`/avisos`): a todos, a los socios, a una comisión, a un núcleo, a un rol o a los socios con cuotas atrasadas; modelos de texto, urgente, por email opcional. **Constancia** de a quién le llegó y quién lo leyó. **WhatsApp asistido**: un botón por persona abre el chat con el texto listo (COOVA no manda nada sola) y queda anotado. Los avisos también llegan a "Avisos" (notificaciones) y arriba del Inicio del socio.
+- **Mis avisos y calendario** (`/preferencias`): celular, email sí/no, WhatsApp sí/no, resumen de los lunes sí/no y **link personal del calendario** (ICS) para Google Calendar o el iPhone.
+- **Resumen de los lunes** (A20, apagado por defecto) y aviso al admin de **cuentas con permisos sensibles sin uso hace más de 60 días** (A26).
+- **Unificación:** "Contactos" pasa a ser el **Directorio** (suma IAT, organismos y profesionales); **Control y transparencia** con pestañas y la **auditoría en Excel**; **Reglas y avisos** con el resumen "Lo que COOVA hace sola"; **calendario** con capas (reuniones y asambleas, trabajo, trámites, obra, pagos) y "Próximos 7 días" para el socio.
+
+### 2G — Compras
+- **Regla de compras grandes** (A14, en el reglamento, 0 = sin regla): a partir de un monto pide N presupuestos y, si se elige, que la apruebe sólo el Consejo. Aprobar con menos presupuestos exige escribir por qué; queda en la auditoría y le llega a la Comisión Fiscal.
+- **Documentación de proveedores** con vencimiento (BPS, DGI, BSE, habilitaciones): aviso 30 días antes, marca en la lista y en el comparador, y confirmación obligatoria al elegir un proveedor con algo vencido.
+- **Convenio con cuota impaga** (A17): aviso a tesorería y al socio y tema para el Consejo. Darlo por incumplido lo decide una persona (cambia la deuda).
+
+### 2H — Alta de cooperativa, importador, plantillas y reportes
+- **Asistente de alta** (`/alta`, sólo admin): datos y modalidad (ayuda mutua / ahorro previo), etapa con 4 plantillas (precargan comisiones, plantillas de texto y pasos de trámites), reglamento, socios, comisiones sugeridas, **invitaciones por email** (link de 7 días para elegir la contraseña) y "Tu cooperativa está lista". Las cooperativas que ya existían quedan marcadas como listas.
+- **Importador del padrón con núcleos**: una fila por persona con su núcleo y relación (titular, pareja, hijo/a…); detecta cédulas repetidas o ya cargadas e integrantes sin titular, explicado en palabras simples; plantilla en Excel; deshacer da de baja también a los integrantes.
+- **Plantillas de texto** (`/plantillas`): constancias, notas y convocatorias con `{socio}`, `{nucleo}`, `{fecha}`, `{monto}`… que salen en PDF.
+- **Reportes de la sección 13** (`/reportes`): cuotas atrasadas, cobranza, convenios, presupuesto contra real, flujo de caja, conciliación, padrón, horas por núcleo, trámites, compras con presupuestos y proveedores con documentación, en PDF y/o Excel. **Estado de cuenta en PDF** desde la ficha del socio y en el Inicio del socio.
+
+### Verificación
+- 300+ pruebas automáticas en el entorno aislado (cooperativas ficticias, nunca datos reales): 2A–2H y todas las anteriores en verde; CI (aislamiento, "nada se borra", mes cerrado bloqueado) en verde sobre una base nueva; TypeScript y build limpios.
+- Pendiente para fases siguientes: memoria y balance anual, avance de obra contra desembolsos, mantenimiento (Habitada), seguimiento de resoluciones e informe mensual de comisión en PDF, mensajes en hilos y WhatsApp Business API.
+
 ## COOVA v2 — Fase 1 completa (06/10): base segura, horas con un solo número, cuotas que se hacen solas, portal del socio y acceso seguro
 
 Plan acordado en `PROMPT_COOVA_v2.md`, publicado todo junto (decisión del usuario). Migraciones nuevas: **0051 a 0054** (no destructivas).

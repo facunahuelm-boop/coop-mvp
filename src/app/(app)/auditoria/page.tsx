@@ -6,7 +6,9 @@ import { all, get } from "@/lib/db";
 import { Card, PageHeader, Label, inputClass } from "@/components/ui";
 import { Pagination, paginaDe } from "@/components/Pagination";
 import { AuditoriaLista } from "@/components/AuditoriaLista";
-import { MODULOS_AUDITORIA, entidadesDeModulo, etiquetaDeAccion, nombreDeEntidad, moduloDeEntidad, registroLegible } from "@/lib/auditoriaTexto";
+import { MODULOS_AUDITORIA, etiquetaDeAccion, nombreDeEntidad, moduloDeEntidad, registroLegible } from "@/lib/auditoriaTexto";
+import { construirFiltrosAuditoria } from "@/lib/auditoriaFiltros";
+import { ControlTabs } from "@/components/ControlTabs";
 
 const POR_PAGINA = 30;
 
@@ -45,46 +47,8 @@ export default async function AuditoriaPage({
   // Se reemplaza por paginación real (COUNT + LIMIT/OFFSET) y se agregan
   // filtros (usuario, tipo de entidad, acción, rango de fechas) para que
   // encontrar un registro puntual no dependa de recorrer página por página.
-  const condiciones: string[] = [];
-  const valores: any[] = [];
-  if (usuarioIdFiltro) {
-    condiciones.push("a.usuario_id = ?");
-    valores.push(usuarioIdFiltro);
-  }
-  if (entidadFiltro) {
-    condiciones.push("a.entidad = ?");
-    valores.push(entidadFiltro);
-  }
-  if (moduloFiltro) {
-    const entidades = entidadesDeModulo(moduloFiltro);
-    if (moduloFiltro === "Otros") {
-      // "Otros" = todo lo que no pertenece a ningún módulo conocido.
-      const conocidas = MODULOS_AUDITORIA.filter((m) => m !== "Otros").flatMap((m) => entidadesDeModulo(m));
-      condiciones.push(`a.entidad NOT IN (${conocidas.map(() => "?").join(",")})`);
-      valores.push(...conocidas);
-    } else if (entidades.length) {
-      condiciones.push(`a.entidad IN (${entidades.map(() => "?").join(",")})`);
-      valores.push(...entidades);
-    }
-  }
-  if (qFiltro) {
-    condiciones.push("(u.nombre ILIKE ? OR a.valor_nuevo ILIKE ? OR a.valor_anterior ILIKE ?)");
-    const patron = `%${qFiltro.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
-    valores.push(patron, patron, patron);
-  }
-  if (accionFiltro) {
-    condiciones.push("a.accion = ?");
-    valores.push(accionFiltro);
-  }
-  if (desdeFiltro) {
-    condiciones.push("a.fecha::date >= ?::date");
-    valores.push(desdeFiltro);
-  }
-  if (hastaFiltro) {
-    condiciones.push("a.fecha::date <= ?::date");
-    valores.push(hastaFiltro);
-  }
-  const whereSql = condiciones.length > 0 ? `WHERE ${condiciones.join(" AND ")}` : "";
+  // Fase 2F: los filtros viven en lib/auditoriaFiltros.ts (los usa también la descarga en Excel).
+  const { whereSql, valores } = construirFiltrosAuditoria(sp);
 
   const [totalRow, registros, usuarios, entidades, acciones] = await Promise.all([
     get<{ total: string }>(`SELECT COUNT(*) as total FROM auditoria a LEFT JOIN users u ON u.id = a.usuario_id ${whereSql}`, valores),
@@ -101,7 +65,19 @@ export default async function AuditoriaPage({
 
   return (
     <div>
-      <PageHeader title="Auditoría" subtitle="Registro de solo lectura: quién hizo qué, cuándo y qué cambió. No se puede editar ni borrar." />
+      <ControlTabs actual="/auditoria" rol={user.rol} />
+      <PageHeader
+        title="Auditoría"
+        subtitle="Registro de solo lectura: quién hizo qué, cuándo y qué cambió. No se puede editar ni borrar."
+        action={
+          <a
+            href={`/api/exportar/auditoria?${new URLSearchParams(Object.entries(sp).filter(([k, v]) => k !== "page" && typeof v === "string" && v) as [string, string][]).toString()}`}
+            className="inline-flex items-center justify-center rounded-xl border border-border bg-surface px-3.5 py-2 text-sm font-semibold text-ink hover:bg-surface-sunken"
+          >
+            Descargar en Excel
+          </a>
+        }
+      />
 
       <Card className="mb-4">
         <form className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 items-end" method="get">

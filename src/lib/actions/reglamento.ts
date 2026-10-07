@@ -38,6 +38,7 @@ const ESQUEMAS = {
   avisos: z.object({
     avisos_cuotas: siNo,
     recibos_por_email: siNo,
+    avisos_resumen_semanal: siNo.optional().default("no"),
   }),
   horas: z.object({
     horas_justificadas: z.enum(["no_generan_deuda", "generan_deuda", "cuentan_como_hechas"], { message: "Elegí una opción." }),
@@ -45,6 +46,29 @@ const ESQUEMAS = {
   }),
   seguridad: z.object({
     seguridad_exigir_2fa: siNo,
+  }),
+  finanzas: z.object({
+    presupuesto_alerta_porcentaje: z.coerce.number({ message: "Indicá el porcentaje." }).int("Tiene que ser un número entero.").min(50, "Entre 50 y 150.").max(150, "Entre 50 y 150."),
+    cierre_aviso_dia: dia("aviso"),
+    conciliacion_autoconfirmar: siNo,
+  }),
+  asambleas: z.object({
+    asamblea_anticipacion_ordinaria: z.coerce.number().int("Número entero.").min(0, "Mínimo 0.").max(120, "Máximo 120 días."),
+    asamblea_anticipacion_extraordinaria: z.coerce.number().int("Número entero.").min(0, "Mínimo 0.").max(120, "Máximo 120 días."),
+    asamblea_plazo_modo: z.enum(["avisar", "bloquear"], { message: "Elegí una opción." }),
+    asamblea_quorum_primera: z.coerce.number().int("Número entero.").min(0, "Entre 0 y 100.").max(100, "Entre 0 y 100."),
+    asamblea_quorum_segunda: z.coerce.number().int("Número entero.").min(0, "Entre 0 y 100.").max(100, "Entre 0 y 100."),
+    asamblea_minutos_segunda: z.coerce.number().int("Número entero.").min(0, "Mínimo 0.").max(240, "Máximo 240 minutos."),
+    asamblea_max_cuotas_vencidas: z.string().trim().regex(/^(\d{1,2})?$/, "Dejalo vacío o poné un número."),
+    asamblea_antiguedad_minima_meses: z.coerce.number().int("Número entero.").min(0, "Mínimo 0.").max(240, "Máximo 240 meses."),
+    asamblea_poderes: siNo,
+    asamblea_poderes_max: z.coerce.number().int("Número entero.").min(1, "Mínimo 1.").max(10, "Máximo 10."),
+    asamblea_voto: z.enum(["titular", "persona"], { message: "Elegí una opción." }),
+  }),
+  compras: z.object({
+    compras_monto_formal: z.coerce.number({ message: "Indicá el monto (0 = sin regla)." }).min(0, "No puede ser negativo.").max(1_000_000_000, "Revisá el monto."),
+    compras_presupuestos_minimos: z.coerce.number().int("Número entero.").min(1, "Entre 1 y 5.").max(5, "Entre 1 y 5."),
+    compras_aprobacion: z.enum(["tesoreria_o_consejo", "consejo"], { message: "Elegí una opción." }),
   }),
   ayuda: z.object({
     ayuda_telefono: z.string().trim().max(40, "Máximo 40 caracteres."),
@@ -88,7 +112,7 @@ export async function guardarReglamentoAction(formData: FormData) {
     accion: "guardar_reglamento",
     entidad: "configuracion_reglas",
     entidad_id: user.organization_id,
-    valor_anterior: { seccion, ...(seccion === "cuotas" || seccion === "atrasos" ? anterior.cuotas : seccion === "horas" ? anterior.horas : seccion === "ayuda" ? anterior.ayuda : seccion === "seguridad" ? anterior.seguridad : { ...anterior.recibos, avisos: anterior.cuotas.avisos }) },
+    valor_anterior: { seccion, ...(seccion === "cuotas" || seccion === "atrasos" ? anterior.cuotas : seccion === "horas" ? anterior.horas : seccion === "ayuda" ? anterior.ayuda : seccion === "seguridad" ? anterior.seguridad : seccion === "finanzas" ? anterior.finanzas : seccion === "asambleas" ? anterior.asambleas : seccion === "compras" ? anterior.compras : { ...anterior.recibos, avisos: anterior.cuotas.avisos, resumenSemanal: anterior.difusion.resumenSemanal }) },
     valor_nuevo: { seccion, ...datos },
   });
   revalidatePath("/reglamento");

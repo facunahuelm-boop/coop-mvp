@@ -27,6 +27,26 @@ export type Reglamento = {
   horas: ReglasHoras;
   ayuda: { telefono: string; horario: string };
   seguridad: { exigir2fa: boolean };
+  /** Fase 2A: % del presupuesto de un rubro que dispara el aviso (A18) y día del mes en que se recuerda cerrar el mes anterior. */
+  finanzas: { alertaPresupuesto: number; avisoCierreDia: number; conciliacionAutomatica: boolean };
+  /** Fase 2D: lo que el estatuto dice de las asambleas. */
+  asambleas: {
+    anticipacionOrdinaria: number;
+    anticipacionExtraordinaria: number;
+    plazoModo: "avisar" | "bloquear";
+    quorumPrimera: number;
+    quorumSegunda: number;
+    minutosSegunda: number;
+    maxCuotasVencidas: number | null;
+    antiguedadMinimaMeses: number;
+    poderes: boolean;
+    poderesMax: number;
+    voto: "titular" | "persona";
+  };
+  /** Fase 2F: resumen de los lunes (A20). */
+  difusion: { resumenSemanal: boolean };
+  /** Fase 2G (A14): compras grandes. montoFormal 0 = no hay regla. */
+  compras: { montoFormal: number; presupuestosMinimos: number; aprobacion: "tesoreria_o_consejo" | "consejo" };
 };
 
 export const CLAVES_REGLAMENTO = [
@@ -45,6 +65,24 @@ export const CLAVES_REGLAMENTO = [
   "ayuda_telefono",
   "ayuda_horario",
   "seguridad_exigir_2fa",
+  "presupuesto_alerta_porcentaje",
+  "cierre_aviso_dia",
+  "conciliacion_autoconfirmar",
+  "asamblea_anticipacion_ordinaria",
+  "asamblea_anticipacion_extraordinaria",
+  "asamblea_plazo_modo",
+  "asamblea_quorum_primera",
+  "asamblea_quorum_segunda",
+  "asamblea_minutos_segunda",
+  "asamblea_max_cuotas_vencidas",
+  "asamblea_antiguedad_minima_meses",
+  "asamblea_poderes",
+  "asamblea_poderes_max",
+  "asamblea_voto",
+  "avisos_resumen_semanal",
+  "compras_monto_formal",
+  "compras_presupuestos_minimos",
+  "compras_aprobacion",
 ] as const;
 
 export const REGLAMENTO_DEFAULT: Reglamento = {
@@ -63,6 +101,22 @@ export const REGLAMENTO_DEFAULT: Reglamento = {
   horas: REGLAS_HORAS_DEFAULT,
   ayuda: { telefono: "", horario: "" },
   seguridad: { exigir2fa: false },
+  finanzas: { alertaPresupuesto: 90, avisoCierreDia: 10, conciliacionAutomatica: false },
+  asambleas: {
+    anticipacionOrdinaria: 10,
+    anticipacionExtraordinaria: 5,
+    plazoModo: "avisar",
+    quorumPrimera: 50,
+    quorumSegunda: 0,
+    minutosSegunda: 30,
+    maxCuotasVencidas: null,
+    antiguedadMinimaMeses: 0,
+    poderes: false,
+    poderesMax: 1,
+    voto: "titular",
+  },
+  difusion: { resumenSemanal: false },
+  compras: { montoFormal: 0, presupuestosMinimos: 3, aprobacion: "tesoreria_o_consejo" },
 };
 
 const entero = (v: string | undefined, def: number, min: number, max: number) => {
@@ -102,6 +156,30 @@ export async function obtenerReglamento(): Promise<Reglamento> {
     },
     ayuda: { telefono: v.ayuda_telefono?.trim() || "", horario: v.ayuda_horario?.trim() || "" },
     seguridad: { exigir2fa: v.seguridad_exigir_2fa === "si" },
+    finanzas: {
+      alertaPresupuesto: entero(v.presupuesto_alerta_porcentaje, d.finanzas.alertaPresupuesto, 50, 150),
+      avisoCierreDia: entero(v.cierre_aviso_dia, d.finanzas.avisoCierreDia, 1, 28),
+      conciliacionAutomatica: v.conciliacion_autoconfirmar === "si",
+    },
+    asambleas: {
+      anticipacionOrdinaria: entero(v.asamblea_anticipacion_ordinaria, d.asambleas.anticipacionOrdinaria, 0, 120),
+      anticipacionExtraordinaria: entero(v.asamblea_anticipacion_extraordinaria, d.asambleas.anticipacionExtraordinaria, 0, 120),
+      plazoModo: v.asamblea_plazo_modo === "bloquear" ? "bloquear" : "avisar",
+      quorumPrimera: entero(v.asamblea_quorum_primera, d.asambleas.quorumPrimera, 0, 100),
+      quorumSegunda: entero(v.asamblea_quorum_segunda, d.asambleas.quorumSegunda, 0, 100),
+      minutosSegunda: entero(v.asamblea_minutos_segunda, d.asambleas.minutosSegunda, 0, 240),
+      maxCuotasVencidas: v.asamblea_max_cuotas_vencidas === undefined || v.asamblea_max_cuotas_vencidas === "" ? null : entero(v.asamblea_max_cuotas_vencidas, 0, 0, 60),
+      antiguedadMinimaMeses: entero(v.asamblea_antiguedad_minima_meses, 0, 0, 240),
+      poderes: v.asamblea_poderes === "si",
+      poderesMax: entero(v.asamblea_poderes_max, d.asambleas.poderesMax, 1, 10),
+      voto: v.asamblea_voto === "persona" ? "persona" : "titular",
+    },
+    difusion: { resumenSemanal: v.avisos_resumen_semanal === "si" },
+    compras: {
+      montoFormal: numero(v.compras_monto_formal, d.compras.montoFormal),
+      presupuestosMinimos: entero(v.compras_presupuestos_minimos, d.compras.presupuestosMinimos, 1, 5),
+      aprobacion: v.compras_aprobacion === "consejo" ? "consejo" : "tesoreria_o_consejo",
+    },
   };
 }
 

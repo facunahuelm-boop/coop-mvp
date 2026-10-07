@@ -2,7 +2,9 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, all, audit, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
+import { insert, update, get, all, run, audit, relanzarConMensajeSiFaltaTabla } from "@/lib/db";
+import { estadoDePeriodo } from "@/lib/finanzasLibro";
+import { hoyEnUruguay } from "@/lib/horasObra";
 import { requireUser } from "@/lib/auth";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION, puedeUsarGastos } from "@/lib/comisionAuth";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
@@ -207,13 +209,16 @@ export async function marcarGastoPagadoAction(formData: FormData) {
   if (!(await puedeGestionarComision(user, gasto.comision_id))) throw new Error(ERROR_SIN_PERMISO_COMISION);
   if (gasto.estado !== "pendiente") throw new Error("Solo se puede marcar como pagado un gasto pendiente.");
 
+  // Fase 2A: si el mes del gasto ya se cerró, el pago se registra hoy.
+  const fechaGasto = String(gasto.fecha).slice(0, 10);
+  const fechaPago = (await estadoDePeriodo(fechaGasto.slice(0, 7))) === "abierto" ? gasto.fecha : hoyEnUruguay();
   const movimientoId = await crearMovimientoDesdeGasto({
     userId: user.id,
     comisionNombre: gasto.comision_nombre,
     descripcion: gasto.descripcion,
     categoria: gasto.categoria,
     importe: Number(gasto.importe),
-    fecha: gasto.fecha,
+    fecha: fechaPago,
     comprobanteUrl: gasto.comprobante_url,
   });
   try {
@@ -222,6 +227,21 @@ export async function marcarGastoPagadoAction(formData: FormData) {
     await relanzarConMensajeSiFaltaTabla(err, MENSAJE_GASTOS_TABLA_FALTANTE, { usuario_id: user.id, accion: "marcar_pagado", entidad: "gastos_comision", entidad_id: id });
   }
   await audit({ usuario_id: user.id, accion: "marcar_pagado", entidad: "gastos_comision", entidad_id: id, valor_nuevo: { movimientoId } });
+  // Fase 2A: si el gasto viene de una compra aprobada, su compromiso y su
+  // factura a pagar quedan saldados con este mismo egreso (no se paga dos veces).
+  if (gasto.solicitud_compra_id) {
+    const ahora = new Date().toISOString();
+    await run(
+      `UPDATE compromisos_futuros SET estado = 'pagado', movimiento_financiero_id = ?, cerrado_en = ?, cerrado_por_id = ?
+        WHERE solicitud_compra_id = ? AND estado IN ('pendiente', 'facturado')`,
+      [movimientoId, ahora, user.id, gasto.solicitud_compra_id]
+    ).catch(() => {});
+    await run(
+      `UPDATE facturas_proveedor SET estado = 'pagada', pagada_en = ?, pagada_por_id = ?, movimiento_financiero_id = ?
+        WHERE solicitud_compra_id = ? AND estado = 'a_pagar'`,
+      [String(gasto.fecha).slice(0, 10), user.id, movimientoId, gasto.solicitud_compra_id]
+    ).catch(() => {});
+  }
 
   // Fase 9 del sistema de gestión de Comisiones (20/09, sección "integración
   // Compras/Proveedores/Finanzas"): la propia comisión que cargó el gasto se

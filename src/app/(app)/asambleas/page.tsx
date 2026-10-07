@@ -193,7 +193,7 @@ export default async function AsambleasPage() {
                   key={a.id}
                   titulo={a.titulo}
                   subtitulo={`${dayjs(a.fecha).format("DD/MM/YYYY HH:mm")}${a.lugar ? ` · ${a.lugar}` : ""}`}
-                  editarHref={`/reuniones/${a.id}`}
+                  editarHref={`/asambleas/${a.id}`}
                   secciones={[
                     {
                       titulo: "Convocatoria",
@@ -265,7 +265,9 @@ export default async function AsambleasPage() {
                     },
                   ]}
                 >
-                  <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">{a.titulo}</td>
+                  <td className="py-2 pr-3 font-medium text-[var(--color-brand-900)]">
+                    <Link href={`/asambleas/${a.id}`} className="hover:underline underline-offset-2" data-no-row-click>{a.titulo}</Link>
+                  </td>
                   <td className="py-2 pr-3 text-ink/60 whitespace-nowrap">{a.tipo_asamblea ? TIPO_ASAMBLEA_LABEL[a.tipo_asamblea] ?? a.tipo_asamblea : "—"}</td>
                   <td className="py-2 pr-3 text-ink/60 whitespace-nowrap">{a.convocatoria ? CONVOCATORIA_LABEL[a.convocatoria] ?? a.convocatoria : "—"}</td>
                   <td className="py-2 pr-3 text-ink/60 whitespace-nowrap">{dayjs(a.fecha).format("DD/MM/YYYY HH:mm")}</td>

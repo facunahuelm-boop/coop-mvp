@@ -31,6 +31,7 @@ import { crearConvenioFormAction } from "@/lib/actions/convenios";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { ActionForm, FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
 import { AddButton, AddButtonSummary, Button, Card, Label, inputClass } from "@/components/ui";
+import { CamposLibro, CampoRubro, type OpcionesLibro } from "@/components/finanzas/LibroFormularios";
 
 export function AgregarCompromisoForm() {
   const [estado, formAction] = useActionState(agregarCompromisoFormAction, ESTADO_INICIAL);
@@ -96,7 +97,7 @@ function AvisoPagosDeCuotas() {
   );
 }
 
-export function RegistrarMovimientoForm() {
+export function RegistrarMovimientoForm({ opciones }: { opciones: OpcionesLibro }) {
   const [estado, formAction] = useActionState(registrarMovimientoFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -129,8 +130,7 @@ export function RegistrarMovimientoForm() {
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
-            <Label required>Categoría</Label>
-            <input name="categoria" required className={inputClass} placeholder="Estructura, Administración…" />
+            <CampoRubro opciones={opciones} />
             <FieldError message={estado.fieldErrors?.categoria} />
           </div>
           <div>
@@ -138,6 +138,8 @@ export function RegistrarMovimientoForm() {
             <input name="descripcion" className={inputClass} />
             <FieldError message={estado.fieldErrors?.descripcion} />
           </div>
+          <CamposLibro opciones={opciones} />
+          <FieldError message={estado.fieldErrors?.fecha || estado.fieldErrors?.cuenta_id || estado.fieldErrors?.fondo_id} />
           <AvisoPagosDeCuotas />
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
@@ -165,7 +167,7 @@ export function RegistrarMovimientoForm() {
  * "pegarse" — vive suelto en la cabecera. `RegistrarMovimientoForm` (más
  * abajo) sigue existiendo tal cual, sin tocar (ADD, DON'T BREAK).
  */
-export function AgregarFinanzaModal() {
+export function AgregarFinanzaModal({ opciones }: { opciones: OpcionesLibro }) {
   const [open, setOpen] = useState(false);
   const [estado, formAction] = useActionState(registrarMovimientoFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
@@ -199,8 +201,7 @@ export function AgregarFinanzaModal() {
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
-            <Label required>Categoría</Label>
-            <input name="categoria" required className={inputClass} placeholder="Estructura, Administración…" />
+            <CampoRubro opciones={opciones} />
             <FieldError message={estado.fieldErrors?.categoria} />
           </div>
           <div>
@@ -208,6 +209,8 @@ export function AgregarFinanzaModal() {
             <input name="descripcion" className={inputClass} />
             <FieldError message={estado.fieldErrors?.descripcion} />
           </div>
+          <CamposLibro opciones={opciones} />
+          <FieldError message={estado.fieldErrors?.fecha || estado.fieldErrors?.cuenta_id || estado.fieldErrors?.fondo_id} />
           <AvisoPagosDeCuotas />
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
@@ -222,13 +225,13 @@ export function AgregarFinanzaModal() {
   );
 }
 
-type Movimiento = { id: number; tipo: string; monto: number | string; categoria: string; descripcion?: string | null; actualizado_en: string };
+type Movimiento = { id: number; tipo: string; monto: number | string; categoria: string; descripcion?: string | null; actualizado_en: string; fecha?: string | null; cuenta_id?: number | null; fondo_id?: number | null };
 
 /**
  * Editar/eliminar un movimiento del libro general (pedido explícito: "que
  * todos los ingresos tengan pop-ups... que se puedan editar y eliminar").
  */
-export function EditarMovimientoForm({ movimiento: m }: { movimiento: Movimiento }) {
+export function EditarMovimientoForm({ movimiento: m, opciones }: { movimiento: Movimiento; opciones: OpcionesLibro }) {
   const [open, setOpen] = useState(false);
   const [estado, formAction] = useActionState(editarMovimientoFormAction, ESTADO_INICIAL);
   const { show } = useToast();
@@ -266,8 +269,7 @@ export function EditarMovimientoForm({ movimiento: m }: { movimiento: Movimiento
             <FieldError message={estado.fieldErrors?.monto} />
           </div>
           <div>
-            <Label required>Categoría</Label>
-            <input name="categoria" required defaultValue={m.categoria} className={inputClass} />
+            <CampoRubro opciones={opciones} defaultValue={m.categoria} />
             <FieldError message={estado.fieldErrors?.categoria} />
           </div>
           <div>
@@ -275,6 +277,8 @@ export function EditarMovimientoForm({ movimiento: m }: { movimiento: Movimiento
             <input name="descripcion" defaultValue={m.descripcion || ""} className={inputClass} />
             <FieldError message={estado.fieldErrors?.descripcion} />
           </div>
+          <CamposLibro opciones={opciones} fecha={m.fecha} cuentaId={m.cuenta_id} fondoId={m.fondo_id} />
+          <FieldError message={estado.fieldErrors?.fecha || estado.fieldErrors?.cuenta_id || estado.fieldErrors?.fondo_id} />
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
           </div>

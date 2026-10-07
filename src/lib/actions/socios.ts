@@ -19,9 +19,14 @@ import {
   zTelefonoOpcional,
   zFechaOpcional,
   zEnumSeguro,
+  ValidationError,
 } from "@/lib/validation";
 import { RELACION_INTEGRANTE, TIPO_INTEGRANTE, ESTADO_INTEGRANTE } from "@/lib/constants";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { darDeAltaSocio, registrarCambioEstado, abrirChecklistIngreso, revisarIngresoCompleto } from "@/lib/sociosAlta";
+import { ESTADOS_SANCION, ESTADO_SOCIO_INFO, ITEMS_INGRESO, type EstadoSocio } from "@/lib/sociosEstados";
+import { crearNotificacionesParaUsuarios } from "@/lib/notificaciones";
+import { hoyEnUruguay } from "@/lib/horasObra";
 
 // ---------- Núcleos / Integrantes ----------
 // Padrón de Socios y Núcleos (pedido explícito): un núcleo (grupo familiar)
@@ -41,7 +46,7 @@ import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 // actions y no pueden importar desde un archivo de página; si alguna vez se
 // agrega un estado nuevo hay que sumarlo en los dos lugares.
 const ESTADOS_VIVIENDA = ["en_obra", "terminada", "ocupada"] as const;
-const ESTADOS_SOCIO = ["activo", "inactivo", "baja"] as const;
+const ESTADOS_SOCIO = ["aspirante", "activo", "suspendido", "renunciante", "excluido", "egresado"] as const;
 const ESTADOS_LISTA_ESPERA = ["en_espera", "convocado", "incorporado", "retirado"] as const;
 
 // ---------- Viviendas ----------
@@ -97,15 +102,23 @@ const crearSocioSchema = z.object({
   nucleo_id: zIdOpcional,
   fecha_ingreso: zFechaOpcional,
   notas: zTextoOpcional(1000),
+  // Fase 2C: puede entrar como aspirante (en proceso de ingreso) o como activo.
+  estado: zEnumSeguro(["aspirante", "activo"], "activo"),
 });
 
 export async function crearSocioAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
   const datos = parseForm(crearSocioSchema, formData);
-
-  const id = await insert("socios", { ...datos, estado: "activo" });
-  await audit({ usuario_id: user.id, accion: "crear", entidad: "socios", entidad_id: id, valor_nuevo: { nombre: datos.nombre } });
+  if (datos.documento) {
+    const repetido = await get<{ id: number; nombre: string }>(
+      `SELECT id, nombre FROM socios WHERE regexp_replace(COALESCE(documento, ''), '[^0-9]', '', 'g') = regexp_replace(?, '[^0-9]', '', 'g') AND regexp_replace(?, '[^0-9]', '', 'g') <> ''`,
+      [datos.documento, datos.documento]
+    );
+    if (repetido) throw new ValidationError("documento", `Ya hay un socio con ese documento: ${repetido.nombre}.`);
+  }
+  const id = await darDeAltaSocio(user, datos as typeof datos & { estado: EstadoSocio });
+  await audit({ usuario_id: user.id, accion: "crear", entidad: "socios", entidad_id: id, valor_nuevo: { nombre: datos.nombre, estado: datos.estado } });
   revalidatePath("/socios");
 }
 
@@ -113,21 +126,66 @@ export async function crearSocioFormAction(_prev: ActionState, formData: FormDat
   return conEstadoDeAccion(() => crearSocioAction(formData));
 }
 
-export async function actualizarSocioEstadoAction(formData: FormData) {
+/**
+ * Fase 2C — cambio de estado con fecha, motivo y quién (historial en
+ * socio_estados). Las sanciones (suspensión, exclusión) las decide el
+ * Consejo Directivo o un administrador.
+ */
+const cambiarEstadoSchema = z.object({
+  id: zId,
+  estado: zEnumSeguro(ESTADOS_SOCIO),
+  fecha: zFechaOpcional,
+  motivo: zTextoOpcional(500),
+});
+
+export async function cambiarEstadoSocioAction(formData: FormData) {
   const user = await requireUser();
-  if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
-  const { id, estado } = parseForm(z.object({ id: zId, estado: zEnumSeguro(ESTADOS_SOCIO) }), formData);
-  const anterior = await get<{ estado: string; nombre: string }>(`SELECT estado, nombre FROM socios WHERE id = ?`, [id]);
-  await update("socios", id, { estado });
+  if (!canEdit(user.rol, "socios")) throw new Error("No tenés permiso para cambiar el estado de un socio.");
+  const { id, estado, fecha, motivo } = parseForm(cambiarEstadoSchema, formData);
+  const socio = await get<{ estado: string; nombre: string; fecha_ingreso: string | null }>(`SELECT estado, nombre, fecha_ingreso FROM socios WHERE id = ?`, [id]);
+  if (!socio) throw new Error("Ese socio no existe.");
+  if (socio.estado === estado) throw new ValidationError("estado", `Ya está ${ESTADO_SOCIO_INFO[estado].label.toLowerCase()}.`);
+  if ((ESTADOS_SANCION as string[]).includes(estado) && !canApprove(user.rol, "socios")) {
+    throw new Error("Suspender o excluir a un socio lo decide el Consejo Directivo.");
+  }
+  if (estado !== "activo" && estado !== "aspirante" && !motivo) {
+    throw new ValidationError("motivo", "Escribí el motivo (por ejemplo, la resolución del Consejo o la fecha de la carta de renuncia).");
+  }
+  const cuando = fecha || hoyEnUruguay();
+  await update("socios", id, {
+    estado,
+    ...(estado === "activo" && !socio.fecha_ingreso ? { fecha_ingreso: cuando } : {}),
+  });
+  await registrarCambioEstado(id, socio.estado, estado, cuando, motivo, user.id);
+  if (estado === "activo" && socio.estado === "aspirante") await abrirChecklistIngreso(id);
   await audit({
     usuario_id: user.id,
     accion: "actualizar_estado",
     entidad: "socios",
     entidad_id: id,
-    valor_anterior: anterior ? { nombre: anterior.nombre, estado: anterior.estado } : undefined,
-    valor_nuevo: { nombre: anterior?.nombre, estado },
+    valor_anterior: { nombre: socio.nombre, estado: socio.estado },
+    valor_nuevo: { nombre: socio.nombre, estado, fecha: cuando, motivo },
   });
+  // Tesorería tiene que revisar la deuda (y, al egresar, la liquidación).
+  if (["renunciante", "excluido", "egresado"].includes(estado)) {
+    const tesoreria = await all<{ id: number }>(`SELECT id FROM users WHERE rol IN ('tesoreria', 'admin') AND activo = 1 AND id <> ?`, [user.id]).catch(() => []);
+    await crearNotificacionesParaUsuarios(
+      tesoreria.map((t) => t.id),
+      { tipo: "socio_cambio_estado", titulo: `${socio.nombre} pasó a «${ESTADO_SOCIO_INFO[estado].label}». Revisá su cuenta.`, cuerpo: motivo, ref_tabla: "socios", ref_id: id }
+    ).catch(() => {});
+  }
   revalidatePath("/socios");
+  revalidatePath(`/socios/${id}`);
+}
+
+export async function cambiarEstadoSocioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => cambiarEstadoSocioAction(formData));
+}
+
+/** Compatibilidad: el cambio rápido de antes ahora pasa por el historial. */
+export async function actualizarSocioEstadoAction(formData: FormData) {
+  if (!formData.get("motivo")) formData.set("motivo", "Cambio desde el padrón");
+  await cambiarEstadoSocioAction(formData);
 }
 
 export async function actualizarSocioEstadoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -290,14 +348,11 @@ export async function incorporarDesdeListaEsperaAction(formData: FormData) {
   const aspirante = await get<any>(`SELECT * FROM lista_espera WHERE id = ?`, [id]);
   if (!aspirante) throw new Error("No se encontró el aspirante");
 
-  const socioId = await insert("socios", {
-    nombre: aspirante.nombre,
-    documento: aspirante.documento,
-    estado: "activo",
-    vivienda_id,
-    fecha_ingreso: new Date().toISOString().slice(0, 10),
-    notas: aspirante.notas,
-  });
+  const socioId = await darDeAltaSocio(
+    user,
+    { nombre: aspirante.nombre, documento: aspirante.documento, estado: "activo", vivienda_id, fecha_ingreso: hoyEnUruguay(), notas: aspirante.notas },
+    "Incorporado desde la lista de espera"
+  );
   await update("lista_espera", id, { estado: "incorporado" });
 
   await audit({ usuario_id: user.id, accion: "incorporar_desde_lista_espera", entidad: "socios", entidad_id: socioId, valor_nuevo: { desde_lista_espera_id: id } });
@@ -422,4 +477,88 @@ export async function cambiarEstadoIntegranteAction(formData: FormData) {
 
 export async function cambiarEstadoIntegranteFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => cambiarEstadoIntegranteAction(formData));
+}
+
+// ---------- Fase 2C: núcleo, ingreso y oficios ----------
+
+/** Crea el núcleo de un socio que todavía no tiene (para horas, cuotas y código de pago). */
+export async function crearNucleoParaSocioAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
+  const { socio_id } = parseForm(z.object({ socio_id: zId }), formData);
+  const socio = await get<{ nombre: string; nucleo_id: number | null; user_id: number | null }>(`SELECT nombre, nucleo_id, user_id FROM socios WHERE id = ?`, [socio_id]);
+  if (!socio) throw new Error("Ese socio no existe.");
+  if (socio.nucleo_id) throw new Error("Ya tiene núcleo.");
+  const nucleoId = await insert("nucleos_familiares", { nombre: `Núcleo ${socio.nombre}`.slice(0, 200) });
+  await update("socios", socio_id, { nucleo_id: nucleoId });
+  if (socio.user_id) await update("users", socio.user_id, { nucleo_id: nucleoId }).catch(() => {});
+  await audit({ usuario_id: user.id, accion: "crear_nucleo", entidad: "socios", entidad_id: socio_id, valor_nuevo: { nombre: socio.nombre, nucleo_id: nucleoId } });
+  revalidatePath(`/socios/${socio_id}`);
+}
+
+export async function crearNucleoParaSocioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => crearNucleoParaSocioAction(formData));
+}
+
+/** Paso del checklist de ingreso hecho / no hecho. */
+export async function marcarPasoIngresoAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "socios")) throw new Error("No autorizado");
+  const { socio_id, item, hecho } = parseForm(
+    z.object({ socio_id: zId, item: zEnumSeguro(ITEMS_INGRESO.map((i) => i.clave) as [string, ...string[]]), hecho: zEnumSeguro(["si", "no"]) }),
+    formData
+  );
+  await abrirChecklistIngreso(socio_id);
+  const fila = await get<{ id: number }>(`SELECT id FROM checklist_ingreso WHERE socio_id = ? AND item = ?`, [socio_id, item]);
+  if (!fila) throw new Error("No se encontró ese paso.");
+  await update("checklist_ingreso", fila.id, hecho === "si" ? { hecho: 1, hecho_en: new Date().toISOString(), hecho_por_id: user.id } : { hecho: 0, hecho_en: null, hecho_por_id: null });
+  const completo = await revisarIngresoCompleto(socio_id);
+  await audit({ usuario_id: user.id, accion: hecho === "si" ? "paso_ingreso_hecho" : "paso_ingreso_pendiente", entidad: "socios", entidad_id: socio_id, valor_nuevo: { item, completo } });
+  revalidatePath(`/socios/${socio_id}`);
+  revalidatePath("/dashboard");
+}
+
+export async function marcarPasoIngresoFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => marcarPasoIngresoAction(formData));
+}
+
+/** Directorio de oficios: qué sabe hacer alguien del núcleo (para la Comisión de Trabajo). */
+const oficioSchema = z.object({ socio_id: zId, oficio: zTexto(80), persona: zTextoOpcional(120), nota: zTextoOpcional(300) });
+
+export async function agregarOficioAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "socios") && !canEdit(user.rol, "trabajo")) throw new Error("No autorizado");
+  const d = parseForm(oficioSchema, formData);
+  const socio = await get<{ nucleo_id: number | null; nombre: string }>(`SELECT nucleo_id, nombre FROM socios WHERE id = ?`, [d.socio_id]);
+  if (!socio) throw new Error("Ese socio no existe.");
+  if (!socio.nucleo_id) throw new Error("Primero creá el núcleo de este socio.");
+  const id = await insert("habilidades_nucleo", {
+    nucleo_id: socio.nucleo_id,
+    habilidad: d.oficio,
+    persona: d.persona || socio.nombre,
+    nota: d.nota,
+    creado_por_id: user.id,
+  });
+  await audit({ usuario_id: user.id, accion: "agregar_oficio", entidad: "socios", entidad_id: d.socio_id, valor_nuevo: { oficio: d.oficio, persona: d.persona || socio.nombre, id } });
+  revalidatePath(`/socios/${d.socio_id}`);
+  revalidatePath("/socios/oficios");
+}
+
+export async function quitarOficioAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "socios") && !canEdit(user.rol, "trabajo")) throw new Error("No autorizado");
+  const { id, socio_id } = parseForm(z.object({ id: zId, socio_id: zId }), formData);
+  const h = await get<{ habilidad: string }>(`SELECT habilidad FROM habilidades_nucleo WHERE id = ?`, [id]);
+  if (!h) throw new Error("Ese oficio no existe.");
+  await update("habilidades_nucleo", id, { activo: 0 });
+  await audit({ usuario_id: user.id, accion: "quitar_oficio", entidad: "socios", entidad_id: socio_id, valor_anterior: { oficio: h.habilidad } });
+  revalidatePath(`/socios/${socio_id}`);
+  revalidatePath("/socios/oficios");
+}
+
+export async function agregarOficioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => agregarOficioAction(formData));
+}
+export async function quitarOficioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => quitarOficioAction(formData));
 }

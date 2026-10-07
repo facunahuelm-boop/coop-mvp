@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { ControlTabs } from "@/components/ControlTabs";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead } from "@/lib/roles";
@@ -149,6 +150,7 @@ export default async function CumplimientoPage() {
 
   return (
     <div>
+      <ControlTabs actual="/cumplimiento" rol={user.rol} />
       <PageHeader
         title="Centro de Cumplimiento"
         subtitle="Hechos de cumplimiento administrativo de toda la cooperativa, reunidos en un solo lugar"

@@ -37,6 +37,18 @@ export default async function NotificacionesPage() {
   ).catch(() => []);
 
   function hrefDe(n: NotificacionRow): string | null {
+    // Fase 2A: avisos de Finanzas (cierres, facturas, correcciones).
+    if (n.ref_tabla === "periodos_financieros") return "/finanzas/cierre";
+    if (n.ref_tabla === "facturas_proveedor") return "/finanzas?tab=pagar";
+    if (n.ref_tabla === "movimientos_financieros") return "/finanzas?tab=movimientos";
+    if ((n.tipo === "convocatoria_asamblea" || n.tipo === "recordatorio_asamblea") && n.ref_id) return `/asambleas/${n.ref_id}`;
+    if (n.ref_tabla === "consejo_directivo_cargos") return "/consejo-directivo";
+    if (n.ref_tabla === "tramites_hitos") return "/tramites";
+    if (n.ref_tabla === "avisos" && n.ref_id) return `/avisos/${n.ref_id}`;
+    if (n.ref_tabla === "proveedores" && n.ref_id) return `/proveedores/${n.ref_id}`;
+    if (n.tipo === "resumen_semanal") return "/calendario";
+    if (n.tipo === "inactividad_rol_sensible") return "/usuarios";
+    if (n.ref_tabla === "socios" && n.ref_id) return user?.rol === "socio" ? "/mi-vivienda" : `/socios/${n.ref_id}`;
     if (!n.ref_id) return n.ref_tabla === "comunicaciones" ? "/comunicaciones" : null;
     switch (n.ref_tabla) {
       case "solicitudes_comision":

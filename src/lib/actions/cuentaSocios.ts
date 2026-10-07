@@ -40,6 +40,8 @@ const registrarMovimientoCuentaSocioSchema = z.object({
   // Gestión cooperativa integrada (04/10): sólo para pagos.
   metodo_pago: zEnumSeguro(METODOS_PAGO, "efectivo").optional(),
   cuota_id: zIdOpcional,
+  // Fase 2B: el pago se registra desde una línea del extracto del banco → entra en esa cuenta.
+  cuenta_id: zIdOpcional,
 });
 
 /** Saldo pendiente de una cuota puntual de un socio, con el mismo cálculo que
@@ -69,11 +71,11 @@ const money = (n: number) => `$${n.toLocaleString("es-UY", { maximumFractionDigi
  *    ingreso (índice único de la migración 0048). Si la migración todavía no
  *    se aplicó, el pago se registra igual que antes, sin el ingreso.
  */
-export async function registrarMovimientoCuentaSocioAction(formData: FormData) {
+export async function registrarMovimientoCuentaSocioAction(formData: FormData): Promise<{ id: number; ingresoId: number | null }> {
   const user = await requireUser();
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
 
-  const { socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, notas, metodo_pago, cuota_id } = parseForm(
+  const { socio_id, tipo, concepto, monto, fecha, fecha_vencimiento, notas, metodo_pago, cuota_id, cuenta_id } = parseForm(
     registrarMovimientoCuentaSocioSchema,
     formData
   );
@@ -139,13 +141,21 @@ export async function registrarMovimientoCuentaSocioAction(formData: FormData) {
            RETURNING id`,
           [socio_id, concepto, Math.abs(monto), fecha, comprobanteUrl, notas, user.id, datos.metodo_pago, datos.cuota_id]
         );
-        const ingreso = await tx.get(
-          `INSERT INTO movimientos_financieros
-             (organization_id, tipo, monto, categoria, etapa_obra, fecha, descripcion, comprobante_url, registrado_por_id, movimiento_cuenta_socio_id)
-           VALUES (NULLIF(current_setting('app.current_org_id', true), '')::int, 'ingreso', ?, ?, ?, ?, ?, ?, ?, ?)
-           RETURNING id`,
-          [Math.abs(monto), CATEGORIA_INGRESO_CUOTAS, CATEGORIA_INGRESO_CUOTAS, fecha, `Pago de cuota — ${socio.nombre}: ${concepto}`, comprobanteUrl, user.id, fila.id]
-        );
+        const ingreso = cuenta_id
+          ? await tx.get(
+              `INSERT INTO movimientos_financieros
+                 (organization_id, tipo, monto, categoria, etapa_obra, fecha, descripcion, comprobante_url, registrado_por_id, movimiento_cuenta_socio_id, cuenta_id)
+               VALUES (NULLIF(current_setting('app.current_org_id', true), '')::int, 'ingreso', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               RETURNING id`,
+              [Math.abs(monto), CATEGORIA_INGRESO_CUOTAS, CATEGORIA_INGRESO_CUOTAS, fecha, `Pago de cuota — ${socio.nombre}: ${concepto}`, comprobanteUrl, user.id, fila.id, cuenta_id]
+            )
+          : await tx.get(
+              `INSERT INTO movimientos_financieros
+                 (organization_id, tipo, monto, categoria, etapa_obra, fecha, descripcion, comprobante_url, registrado_por_id, movimiento_cuenta_socio_id)
+               VALUES (NULLIF(current_setting('app.current_org_id', true), '')::int, 'ingreso', ?, ?, ?, ?, ?, ?, ?, ?)
+               RETURNING id`,
+              [Math.abs(monto), CATEGORIA_INGRESO_CUOTAS, CATEGORIA_INGRESO_CUOTAS, fecha, `Pago de cuota — ${socio.nombre}: ${concepto}`, comprobanteUrl, user.id, fila.id]
+            );
         return { id: fila.id as number, ingresoId: ingreso.id as number };
       }));
     } catch (err) {
@@ -188,10 +198,13 @@ export async function registrarMovimientoCuentaSocioAction(formData: FormData) {
   revalidatePath("/socios");
   revalidatePath("/finanzas");
   revalidatePath("/dashboard");
+  return { id, ingresoId };
 }
 
 export async function registrarMovimientoCuentaSocioFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  return conEstadoDeAccion(() => registrarMovimientoCuentaSocioAction(formData));
+  return conEstadoDeAccion(async () => {
+    await registrarMovimientoCuentaSocioAction(formData);
+  });
 }
 
 const editarMovimientoCuentaSocioSchema = z.object({
@@ -427,7 +440,7 @@ export async function generarCuotaMensualAction(formData: FormData) {
   if (!canEdit(user.rol, "finanzas")) throw new Error("No autorizado");
   const { concepto, monto, mes, dia_vencimiento } = parseForm(generarCuotaMensualSchema, formData);
 
-  const socios = await all<{ id: number }>(`SELECT id FROM socios WHERE estado = 'activo'`);
+  const socios = await all<{ id: number }>(`SELECT id FROM socios WHERE estado IN ('activo', 'suspendido', 'renunciante')`);
   const fecha = `${mes}-01`;
   const diaTexto = String(dia_vencimiento).padStart(2, "0");
   const fechaVencimiento = `${mes}-${diaTexto}`;

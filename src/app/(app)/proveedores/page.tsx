@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
+import { proveedoresConDocVencida } from "@/lib/proveedoresDocs";
+import { hoyEnUruguay } from "@/lib/horasObra";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
-import { Card, PageHeader, EmptyState } from "@/components/ui";
+import { Card, PageHeader, EmptyState, Badge } from "@/components/ui";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import dayjs from "dayjs";
 import { cambiarEstadoProveedorFormAction } from "@/lib/actions/proveedores";
@@ -45,6 +47,9 @@ export default async function ProveedoresPage() {
     GROUP BY pv.id
     ORDER BY pv.nombre ASC
   `);
+
+  // Fase 2G: proveedores con documentación vencida.
+  const docsVencidos = await proveedoresConDocVencida(hoyEnUruguay());
 
   const rubros = Array.from(new Set(proveedores.map((p) => p.rubro).filter(Boolean))).sort();
 
@@ -141,6 +146,11 @@ export default async function ProveedoresPage() {
                   <Link href={`/proveedores/${p.id}`} className="hover:underline underline-offset-2" data-no-row-click>
                     {p.nombre}
                   </Link>
+                  {docsVencidos.has(p.id) && (
+                    <span className="ml-2 inline-block">
+                      <Badge color="rojo">Documentación vencida</Badge>
+                    </span>
+                  )}
                 </td>
                 <td className="py-2 pr-3 text-ink/60">{p.rubro || "—"}</td>
                 <td className="py-2 pr-3 text-ink/60">{p.telefono || p.email || p.contacto || "—"}</td>

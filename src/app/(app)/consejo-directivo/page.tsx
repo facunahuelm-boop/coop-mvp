@@ -6,8 +6,10 @@ import { Card, PageHeader, Badge, EmptyState } from "@/components/ui";
 import dayjs from "dayjs";
 import Link from "next/link";
 import { CrearReunionForm } from "@/components/reuniones/ReunionesFormularios";
-import { AsignarCargoForm, FinalizarCargoForm } from "@/components/consejoDirectivo/ConsejoDirectivoFormularios";
-import { CARGO_LABEL, type CargoConsejo } from "@/lib/consejoDirectivoCargos";
+import { AsignarCargoForm, FinalizarCargoForm, ExtenderMandatoForm, CerrarMandatoVencidoForm, ArmarOrdenDelDiaForm } from "@/components/consejoDirectivo/ConsejoDirectivoFormularios";
+import { CARGO_LABEL, ORGANO_LABEL, organoDeCargo, type CargoConsejo, type Organo } from "@/lib/consejoDirectivoCargos";
+import { temasParaElConsejo, mandatosVencidosSinRevisar, TIPO_TEMA_LABEL } from "@/lib/consejo";
+import { hoyEnUruguay, sumarDias } from "@/lib/horasObra";
 import { TablaFiltrable, type FiltroDef } from "@/components/TablaFiltrable";
 import { FilaConDetalle } from "@/components/FilaConDetalle";
 import { ResumenSeguimiento } from "@/components/reuniones/ResumenSeguimiento";
@@ -49,7 +51,7 @@ const ESTADO_COLOR: Record<string, "verde" | "amarillo" | "rojo" | "brand" | "gr
   cancelada: "gray",
 };
 
-const ORDEN_CARGO: Record<CargoConsejo, number> = { presidente: 1, secretario: 2, tesorero: 3, vocal: 4 };
+const ORDEN_CARGO: Record<CargoConsejo, number> = { presidente: 1, secretario: 2, tesorero: 3, vocal: 4, suplente: 5, fiscal_titular: 6, fiscal_suplente: 7, electoral_titular: 8, electoral_suplente: 9 };
 
 export default async function ConsejoDirectivoPage() {
   const user = await getCurrentUser();
@@ -79,13 +81,27 @@ export default async function ConsejoDirectivoPage() {
       `SELECT c.*, u.nombre as nombre_usuario FROM consejo_directivo_cargos c
        JOIN users u ON u.id = c.user_id WHERE c.fecha_fin IS NOT NULL ORDER BY c.fecha_fin DESC`
     ).catch(() => []),
-    all<{ id: number; nombre: string }>(`SELECT id, nombre FROM users WHERE rol = 'consejo_directivo' AND activo = 1 ORDER BY nombre ASC`),
+    all<{ id: number; nombre: string }>(`SELECT id, nombre FROM users WHERE activo = 1 AND COALESCE(es_platform_admin, 0) = 0 ORDER BY nombre ASC`).catch(() =>
+      all<{ id: number; nombre: string }>(`SELECT id, nombre FROM users WHERE activo = 1 ORDER BY nombre ASC`)
+    ),
     all<any>(`SELECT * FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`),
   ]);
   const totalNucleosRow = await get<{ total: string }>(`SELECT COUNT(*) as total FROM nucleos_familiares`);
   const totalNucleos = Number(totalNucleosRow?.total || 0);
 
-  const vigentesOrdenados = [...vigentes].sort((a, b) => ORDEN_CARGO[a.cargo as CargoConsejo] - ORDEN_CARGO[b.cargo as CargoConsejo]);
+  const vigentesOrdenados = [...vigentes].sort((a, b) => (ORDEN_CARGO[a.cargo as CargoConsejo] ?? 99) - (ORDEN_CARGO[b.cargo as CargoConsejo] ?? 99));
+  // Fase 2D: temas que esperan decisión, mandatos y orden del día automático.
+  const esConsejo = user.rol === "consejo_directivo" || canApprove(user.rol, "comisiones");
+  const hoy = hoyEnUruguay();
+  const en60 = sumarDias(hoy, 60);
+  const [temas, vencidosSinRevisar, proximasReuniones] = esConsejo
+    ? await Promise.all([
+        temasParaElConsejo(),
+        user.rol === "admin" ? mandatosVencidosSinRevisar() : Promise.resolve([]),
+        all<{ id: number; titulo: string; fecha: string }>(`SELECT id, titulo, fecha FROM reuniones WHERE tipo = 'consejo_directivo' AND estado = 'planificada' AND left(fecha, 10) >= ? ORDER BY fecha LIMIT 5`, [hoy]),
+      ])
+    : [[], [], []];
+  const porOrgano = (["consejo", "fiscal", "electoral"] as Organo[]).map((o) => ({ organo: o, cargos: vigentesOrdenados.filter((c) => organoDeCargo(c.cargo as CargoConsejo) === o) }));
 
   // Datos del pop-up de detalle — mismo criterio que Asambleas (Fase 2):
   // todo ya existía en el sistema (agenda estructurada, invitados, actas,
@@ -155,33 +171,100 @@ export default async function ConsejoDirectivoPage() {
         }
       />
 
+      {esConsejo && (
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-ink mb-2">Necesita decisión del Consejo ({temas.length})</h3>
+          <Card>
+            {temas.length === 0 ? (
+              <EmptyState>No hay temas esperando una decisión.</EmptyState>
+            ) : (
+              <>
+                <ul className="divide-y divide-border text-[15px] mb-4">
+                  {temas.map((t) => (
+                    <li key={t.clave} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                      <span>
+                        <Link href={t.href} className="font-medium text-ink hover:underline">{t.texto}</Link>
+                        <span className="block text-sm text-ink-muted">{TIPO_TEMA_LABEL[t.tipo]}{t.detalle ? ` · ${t.detalle}` : ""}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <details>
+                  <summary className="cursor-pointer font-semibold text-[var(--color-brand-800)]">Armar el orden del día de la próxima reunión con estos temas</summary>
+                  <div className="mt-3">
+                    <ArmarOrdenDelDiaForm temas={temas.map((t) => ({ clave: t.clave, texto: t.texto, tipoLabel: TIPO_TEMA_LABEL[t.tipo] }))} reuniones={proximasReuniones} />
+                  </div>
+                </details>
+              </>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {vencidosSinRevisar.length > 0 && (
+        <Card className="mb-6 border-[var(--color-rojo)]">
+          <h3 className="font-bold text-ink">Mandatos vencidos: revisar permisos</h3>
+          <ul className="mt-2 divide-y divide-border text-[15px]">
+            {vencidosSinRevisar.map((m) => (
+              <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span>
+                  {m.nombre} — {CARGO_LABEL[m.cargo] ?? m.cargo} (venció el {m.fecha_fin_prevista.split("-").reverse().join("/")})
+                </span>
+                <span className="flex items-center gap-3">
+                  <ExtenderMandatoForm id={m.id} nombre={m.nombre} />
+                  <CerrarMandatoVencidoForm id={m.id} nombre={m.nombre} cargo={CARGO_LABEL[m.cargo] ?? m.cargo} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <Card className="mb-6 bg-[var(--color-brand-50)] border-[var(--color-brand-100)]">
-        <p className="text-xs text-ink/70">
-          📋 Este registro de composición es documental — para actas y representación institucional. No modifica ningún
-          permiso del sistema: el acceso de cada persona sigue dependiendo únicamente de su rol.
+        <p className="text-[15px] text-ink">
+          Los permisos salen del cargo: al asignar un cargo, la persona recibe el rol que corresponde (Consejo, Tesorería o Comisión Fiscal). Cuando vence el
+          mandato, COOVA avisa y un administrador confirma si se le quitan los permisos.
         </p>
       </Card>
 
-      <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Composición actual</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-        {vigentesOrdenados.length === 0 && (
-          <div className="sm:col-span-2">
-            <EmptyState>Todavía no hay cargos asignados.</EmptyState>
-          </div>
-        )}
-        {vigentesOrdenados.map((c) => (
-          <Card key={c.id}>
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <Badge color="brand">{CARGO_LABEL[c.cargo as CargoConsejo] ?? c.cargo}</Badge>
-                <p className="text-sm font-semibold text-[var(--color-brand-900)] mt-1">{c.nombre_usuario}</p>
-                <p className="text-xs text-ink/40">Desde {dayjs(c.fecha_inicio).format("DD/MM/YYYY")}</p>
+      {porOrgano.map(({ organo, cargos }) => (
+        <div key={organo} className="mb-4">
+          <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">{ORGANO_LABEL[organo]}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {cargos.length === 0 && (
+              <div className="sm:col-span-2">
+                <EmptyState>Sin cargos asignados.</EmptyState>
               </div>
-              {puedeGestionarCargos && <FinalizarCargoForm id={c.id} />}
-            </div>
-          </Card>
-        ))}
-      </div>
+            )}
+            {cargos.map((c) => {
+              const vence = c.fecha_fin_prevista as string | null;
+              const vencido = !!vence && vence < hoy;
+              const pronto = !!vence && !vencido && vence <= en60;
+              return (
+                <Card key={c.id}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <Badge color="brand">{CARGO_LABEL[c.cargo as CargoConsejo] ?? c.cargo}</Badge>{" "}
+                      {vencido ? <Badge color="rojo">Mandato vencido</Badge> : pronto ? <Badge color="amarillo">Vence pronto</Badge> : null}
+                      <p className="text-[15px] font-semibold text-[var(--color-brand-900)] mt-1">{c.nombre_usuario}</p>
+                      <p className="text-sm text-ink-muted">
+                        Desde {dayjs(c.fecha_inicio).format("DD/MM/YYYY")}
+                        {vence ? ` · hasta ${vence.split("-").reverse().join("/")}` : ""}
+                      </p>
+                    </div>
+                    {puedeGestionarCargos && (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <ExtenderMandatoForm id={c.id} nombre={c.nombre_usuario} />
+                        <FinalizarCargoForm id={c.id} />
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      ))}
       {puedeGestionarCargos && <div className="mb-6"><AsignarCargoForm integrantes={integrantes} /></div>}
 
       {historial.length > 0 && (

@@ -26,6 +26,18 @@ const SIN_DELETE = [
   "socios", "nucleos_familiares", "asignaciones_horas", "actas", "auditoria",
   "asistencias_horas", "avisos_ausencia", "licencias_horas", "cierres_semana_horas", "saldos_horas_semana",
   "recibos", "ejecuciones_automaticas",
+  // Fase 2A
+  "cuentas_financieras", "fondos", "periodos_financieros", "facturas_proveedor", "mapeo_contable", "presupuesto_general", "compromisos_futuros",
+  // Fase 2B
+  "formatos_extracto", "extractos_bancarios", "extracto_lineas",
+  // Fase 2C
+  "socio_estados", "checklist_ingreso", "habilidades_nucleo", "lista_espera",
+  // Fase 2D
+  "asamblea_padron", "asamblea_votaciones", "asamblea_votos", "consejo_directivo_cargos",
+  // Fase 2E
+  "tramites_hitos",
+  // Fase 2F
+  "avisos", "aviso_destinatarios", "contactos_externos", "proveedor_documentos", "plantillas_texto",
 ];
 
 const url = process.env.DATABASE_URL;
@@ -151,6 +163,36 @@ await client.query(`SELECT set_config('app.incluir_eliminados', '1', true)`);
 const { rows: enPapelera } = await client.query(`SELECT count(*)::int AS n FROM documentos WHERE id = $1`, [docA]);
 await client.query(`COMMIT`);
 enPapelera[0].n === 1 ? ok("sigue existiendo (recuperable) dentro de la papelera") : mal("el documento no existe ni en la papelera");
+
+// ---------- 6) Meses cerrados bloqueados (Fase 2A) ----------
+console.log("6) Un mes cerrado no se puede tocar");
+const { rows: movCi } = await enOrg(
+  orgA,
+  `INSERT INTO movimientos_financieros (organization_id, tipo, monto, categoria, fecha) VALUES ($1, 'ingreso', 100, 'CI', '2026-01-10') RETURNING id`,
+  [orgA]
+);
+await enOrg(orgA, `INSERT INTO periodos_financieros (organization_id, periodo, estado) VALUES ($1, '2026-01', 'cerrado')`, [orgA]);
+const esperaBloqueo = async (sql, params, texto) => {
+  try {
+    await enOrg(orgA, sql, params);
+    mal(`${texto}: se pudo, y no debería`);
+  } catch (err) {
+    String(err.message).includes("PERIODO_CERRADO") ? ok(`${texto}: bloqueado`) : mal(`${texto}: error inesperado (${err.message})`);
+  }
+};
+await esperaBloqueo(`INSERT INTO movimientos_financieros (organization_id, tipo, monto, categoria, fecha) VALUES ($1, 'egreso', 5, 'CI', '2026-01-20')`, [orgA], "agregar un movimiento en un mes cerrado");
+await esperaBloqueo(`UPDATE movimientos_financieros SET monto = 999 WHERE id = $1`, [movCi[0].id], "cambiar el monto de un movimiento de un mes cerrado");
+await esperaBloqueo(`UPDATE movimientos_financieros SET fecha = '2026-02-01' WHERE id = $1`, [movCi[0].id], "sacar un movimiento de un mes cerrado cambiándole la fecha");
+await esperaBloqueo(`UPDATE movimientos_financieros SET estado = 'anulado' WHERE id = $1`, [movCi[0].id], "anular un movimiento de un mes cerrado");
+try {
+  await enOrg(orgA, `UPDATE movimientos_financieros SET actualizado_en = now()::text WHERE id = $1`, [movCi[0].id]);
+  ok("un cambio que no toca la plata (ej. conciliación) sí se permite");
+} catch (err) {
+  mal(`un cambio que no toca la plata fue bloqueado (${err.message})`);
+}
+await enOrg(orgA, `INSERT INTO movimientos_financieros (organization_id, tipo, monto, categoria, fecha) VALUES ($1, 'egreso', 5, 'CI', '2026-02-03')`, [orgA])
+  .then(() => ok("en un mes abierto se puede registrar"))
+  .catch((err) => mal(`no se pudo registrar en un mes abierto (${err.message})`));
 
 await client.query(`RESET ROLE`);
 await client.end();

@@ -80,6 +80,16 @@ export function CrearSocioForm({ viviendas, nucleos }: { viviendas: Opcion[]; nu
           <input name="fecha_ingreso" type="date" className={inputClass} />
           <FieldError message={estado.fieldErrors?.fecha_ingreso} />
         </div>
+        <div>
+          <Label>¿Entra como…?</Label>
+          <select name="estado" className={inputClass} defaultValue="activo">
+            <option value="activo">Socio activo</option>
+            <option value="aspirante">Aspirante (todavía en proceso de ingreso)</option>
+          </select>
+        </div>
+        <p className="sm:col-span-2 text-[13px] text-ink-muted">
+          Si no elegís un núcleo, se le crea uno con su nombre (para sus horas, cuotas y código de pago). Después se abre su lista de pasos de ingreso.
+        </p>
         <div className="sm:col-span-2">
           <Label>Notas</Label>
           <input name="notas" className={inputClass} />

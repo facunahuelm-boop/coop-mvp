@@ -164,6 +164,15 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
         action={<Badge color={reunion.estado === "realizada" ? "verde" : reunion.estado === "cancelada" ? "gray" : "brand"}>{reunion.estado}</Badge>}
       />
 
+      {reunion.tipo === "asamblea" && (
+        <Card className="mb-5">
+          <p className="text-[15px]">
+            Para convocar, tomar asistencia, contar el quórum y votar:{" "}
+            <Link href={`/asambleas/${reunion.id}`} className="font-semibold underline">abrir la vista de la asamblea</Link>.
+          </p>
+        </Card>
+      )}
+
       {reunion.orden_del_dia && (
         <Card className="mb-5">
           <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Orden del día</h3>
@@ -245,6 +254,13 @@ export default async function ReunionDetallePage({ params }: { params: Promise<{
             </Card>
           ) : reunion.estado === "cancelada" ? (
             <EmptyState>Reunión cancelada, sin acta.</EmptyState>
+          ) : reunion.tipo === "asamblea" ? (
+            <Card>
+              <p className="text-[15px]">
+                El cierre y el acta de la asamblea se hacen en la{" "}
+                <Link href={`/asambleas/${reunion.id}`} className="font-semibold underline">vista de la asamblea</Link> (padrón, quórum y votaciones).
+              </p>
+            </Card>
           ) : puedeGestionar ? (
             <CerrarReunionForm reunionId={reunion.id} usuarios={usuarios} />
           ) : (

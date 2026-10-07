@@ -138,7 +138,7 @@ export default async function DocumentosPage({
 
   // Ficha 360° del núcleo (04/10): núcleo relacionado de cada documento.
   const sociosOpc = await all<{ id: number; nombre: string }>(
-    `SELECT id, nombre FROM socios WHERE estado != 'baja' ORDER BY nombre ASC`
+    `SELECT id, nombre FROM socios WHERE estado NOT IN ('baja', 'egresado', 'excluido') ORDER BY nombre ASC`
   ).catch(() => []);
   const nombreSocio = new Map(sociosOpc.map((x) => [x.id, x.nombre]));
 

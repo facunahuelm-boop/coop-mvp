@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { ControlTabs } from "@/components/ControlTabs";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead } from "@/lib/roles";
 import { all } from "@/lib/db";
@@ -78,6 +79,7 @@ export default async function FiscalPage() {
 
   return (
     <div>
+      <ControlTabs actual="/fiscal" rol={user.rol} />
       <PageHeader
         title="Panel de Comisión Fiscal"
         subtitle="Control de solo lectura — resumen de lo relevante para fiscalizar, en un solo lugar"

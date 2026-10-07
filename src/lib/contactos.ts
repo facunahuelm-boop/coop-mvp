@@ -28,7 +28,15 @@ import { RELACION_INTEGRANTE_LABEL, TIPO_PROVEEDOR_LABEL } from "./constants";
  * nuevas en esta fase.
  */
 
-export type TipoContacto = "socio" | "integrante" | "proveedor";
+export type TipoContacto = "socio" | "integrante" | "proveedor" | "externo";
+
+/** Fase 2F: tipos de contacto externo del Directorio. */
+export const TIPO_EXTERNO_LABEL: Record<string, string> = {
+  iat: "Instituto técnico (IAT)",
+  organismo: "Organismo público",
+  profesional: "Profesional",
+  otro: "Otro",
+};
 
 export type Contacto = {
   tipo: TipoContacto;
@@ -63,7 +71,7 @@ export async function obtenerContactos(rol: Role): Promise<Contacto[]> {
          FROM socios s
          LEFT JOIN viviendas v ON v.id = s.vivienda_id
          LEFT JOIN nucleos_familiares n ON n.id = s.nucleo_id
-         WHERE s.estado != 'baja'
+         WHERE s.estado NOT IN ('baja', 'egresado', 'excluido')
          ORDER BY s.nombre ASC`
       ).then((rows) =>
         rows.map((r) => ({
@@ -143,6 +151,26 @@ export async function obtenerContactos(rol: Role): Promise<Contacto[]> {
     );
   }
 
+  // Fase 2F — Directorio: IAT, organismos y profesionales.
+  fuentes.push(
+    all<any>(`SELECT id, nombre, tipo, persona_contacto, telefono, email, notas FROM contactos_externos WHERE activo = 1 ORDER BY nombre`)
+      .catch(() => [] as any[])
+      .then((rows) =>
+        rows.map((r) => ({
+          tipo: "externo" as const,
+          id: r.id,
+          nombre: r.nombre as string,
+          subtitulo: [TIPO_EXTERNO_LABEL[r.tipo] ?? "Contacto", r.persona_contacto].filter(Boolean).join(" · "),
+          rol: TIPO_EXTERNO_LABEL[r.tipo] ?? "Contacto",
+          nucleo: null,
+          email: r.email ?? null,
+          telefono: r.telefono ?? null,
+          documento: null,
+          estado: "activo",
+          href: "/contactos#externos",
+        }))
+      )
+  );
   const resultados = (await Promise.all(fuentes)).flat();
   return resultados;
 }

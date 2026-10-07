@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { Badge, inputClass } from "@/components/ui";
-import { ActionForm } from "@/components/ui-client";
-import { decidirCompraFormAction } from "@/lib/actions/compras";
+import { Badge } from "@/components/ui";
+import { DecidirCompraForm } from "@/components/compras/DecidirCompraForm";
 import { ESTADO_PROVEEDOR_LABEL } from "@/lib/constants";
 
 // Rediseño profundo de Compras, Fase 6 (pedido explícito, sección 18:
@@ -31,9 +30,15 @@ const PROVEEDOR_ESTADO_EMOJI: Record<string, string> = {
 export function PurchaseComparison({
   presupuestos,
   puedeElegir,
+  pedirExcepcion = false,
+  vencidos = {},
 }: {
   presupuestos: any[];
   puedeElegir: boolean;
+  /** Fase 2G (A14): faltan presupuestos según el reglamento → hay que escribir por qué se aprueba igual. */
+  pedirExcepcion?: boolean;
+  /** Fase 2G: proveedores con documentación vencida (id → qué venció). */
+  vencidos?: Record<number, string[]>;
 }) {
   if (presupuestos.length === 0) return null;
 
@@ -57,6 +62,12 @@ export function PurchaseComparison({
             <p className="text-[11px] text-ink-faint">
               {PROVEEDOR_ESTADO_EMOJI[p.proveedor_estado || "nuevo"]} {ESTADO_PROVEEDOR_LABEL[(p.proveedor_estado || "nuevo") as keyof typeof ESTADO_PROVEEDOR_LABEL] || "Nuevo"}
             </p>
+            {vencidos[p.proveedor_id] && (
+              <p className="mt-1">
+                <Badge color="rojo">Documentación vencida</Badge>
+                <span className="block text-[11px] text-[var(--color-rojo)] mt-0.5">{vencidos[p.proveedor_id].join(", ")}</span>
+              </p>
+            )}
             <p className="text-lg font-bold text-ink mt-1">${p.total.toLocaleString("es-UY")}</p>
             {p.costo_envio > 0 && (
               <p className="text-[11px] text-ink-faint">
@@ -70,12 +81,12 @@ export function PurchaseComparison({
               {p.condiciones && <div><dt className="inline font-medium text-ink/70">Condiciones: </dt><dd className="inline">{p.condiciones}</dd></div>}
             </dl>
             {puedeElegir && (
-              <ActionForm action={decidirCompraFormAction} className="mt-3">
-                <input type="hidden" name="solicitud_id" value={p.solicitud_id} />
-                <input type="hidden" name="presupuesto_id" value={p.id} />
-                <input name="motivo" placeholder="Motivo (opcional)" className={inputClass + " text-xs mb-2"} />
-                <button className="w-full rounded-lg bg-[var(--color-brand-800)] text-white px-3 py-2 text-xs font-semibold">Seleccionar proveedor</button>
-              </ActionForm>
+              <DecidirCompraForm
+                solicitudId={p.solicitud_id}
+                presupuestoId={p.id}
+                pedirExcepcion={pedirExcepcion}
+                docVencida={!!vencidos[p.proveedor_id]}
+              />
             )}
           </div>
         ))}

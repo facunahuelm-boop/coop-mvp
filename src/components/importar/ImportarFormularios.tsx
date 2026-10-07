@@ -107,9 +107,14 @@ function ImportadorArchivoBase<T extends Record<string, unknown>>({
     <Card>
       <div className="flex items-center justify-between gap-2 mb-3">
         <p className="text-sm font-semibold text-ink">Subir archivo</p>
-        <a href={`/api/importar/plantilla/${tipoPlantilla}`} className="text-xs underline text-[var(--color-brand-800)]">
-          Descargar plantilla (.csv)
-        </a>
+        <span className="flex gap-3">
+          <a href={`/api/importar/plantilla/${tipoPlantilla}?formato=xlsx`} className="text-xs underline text-[var(--color-brand-800)]">
+            Descargar plantilla (Excel)
+          </a>
+          <a href={`/api/importar/plantilla/${tipoPlantilla}`} className="text-xs underline text-[var(--color-brand-800)]">
+            (.csv)
+          </a>
+        </span>
       </div>
 
       {(paso === "elegir" || paso === "previsualizando") && (
@@ -203,6 +208,8 @@ const COLUMNAS_SOCIOS: Columna[] = [
   { clave: "email", label: "Email" },
   { clave: "telefono", label: "Teléfono" },
   { clave: "fecha_ingreso", label: "Fecha de ingreso" },
+  { clave: "nucleo", label: "Núcleo" },
+  { clave: "relacion", label: "Relación" },
 ];
 
 export function ImportarPadronSociosPanel() {

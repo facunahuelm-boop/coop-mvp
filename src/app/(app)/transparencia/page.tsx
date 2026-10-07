@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { ControlTabs } from "@/components/ControlTabs";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { all } from "@/lib/db";
@@ -65,6 +66,7 @@ export default async function TransparenciaPage() {
 
   return (
     <div>
+      <ControlTabs actual="/transparencia" rol={user.rol} />
       <PageHeader
         title="Transparencia"
         subtitle="Resumen agregado de toda la cooperativa — información general, sin datos individuales de socios"

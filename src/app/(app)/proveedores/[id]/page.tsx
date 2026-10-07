@@ -10,6 +10,9 @@ import { eliminarProveedorFormAction } from "@/lib/actions/proveedores";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { ESTADO_PROVEEDOR, ESTADO_PROVEEDOR_LABEL, TIPO_PROVEEDOR, TIPO_PROVEEDOR_LABEL } from "@/lib/constants";
 import { ActualizarProveedorForm } from "@/components/proveedores/ProveedoresFormularios";
+import { AgregarDocProveedorForm, BajaDocProveedorForm } from "@/components/proveedores/DocumentacionProveedor";
+import { documentosDeProveedor, estadoDoc, ESTADO_DOC_LABEL, ESTADO_DOC_COLOR, TIPO_DOC_PROVEEDOR_LABEL } from "@/lib/proveedoresDocs";
+import { hoyEnUruguay } from "@/lib/horasObra";
 
 const ESTADO_COLOR: Record<string, "verde" | "amarillo" | "brand" | "gray"> = {
   nuevo: "amarillo", habitual: "verde", en_evaluacion: "brand", inactivo: "gray",
@@ -32,6 +35,9 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
   const puedeEditar = canEdit(user.rol, "compras");
 
   const historial = await historialProveedor(Number(id));
+  const hoy = hoyEnUruguay();
+  const docs = await documentosDeProveedor(Number(id));
+  const hayVencidos = docs.some((d) => estadoDoc(d, hoy) === "vencido");
   const totalComprado = historial.reduce((acc: number, h: any) => acc + Number(h.monto || 0), 0);
   const estadoProveedor = (proveedor.estado || "nuevo") as (typeof ESTADO_PROVEEDOR)[number];
 
@@ -87,6 +93,47 @@ export default async function ProveedorDetallePage({ params }: { params: Promise
               />
             </div>
           </details>
+        )}
+      </Card>
+
+      <SectionTitle action={puedeEditar ? <AgregarDocProveedorForm proveedorId={proveedor.id} /> : undefined}>Documentación</SectionTitle>
+      <Card className="mb-6">
+        {hayVencidos && (
+          <p className="mb-3 rounded-xl bg-[var(--color-rojo-bg)] px-3 py-2 text-[15px] text-[var(--color-rojo)]">
+            Tiene documentación vencida: al elegirlo en una compra se va a pedir confirmarlo.
+          </p>
+        )}
+        {docs.length === 0 ? (
+          <EmptyState>No hay documentación cargada (certificados de BPS y DGI, seguro del BSE, habilitaciones).</EmptyState>
+        ) : (
+          <ul className="divide-y divide-border">
+            {docs.map((d) => {
+              const e = estadoDoc(d, hoy);
+              return (
+                <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-[15px]">
+                  <span className="min-w-0">
+                    <b className="text-ink">{TIPO_DOC_PROVEEDOR_LABEL[d.tipo] ?? d.tipo}</b>
+                    {d.descripcion ? <span className="text-ink-muted"> · {d.descripcion}</span> : null}
+                    <span className="block text-sm text-ink-muted">
+                      {d.fecha_vencimiento ? `Vence el ${d.fecha_vencimiento.split("-").reverse().join("/")}` : "Sin fecha de vencimiento"}
+                      {d.archivo_url ? (
+                        <>
+                          {" · "}
+                          <a href={`/api/archivos/documento/${d.documento_id}`} className="underline">
+                            Ver archivo
+                          </a>
+                        </>
+                      ) : null}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <Badge color={ESTADO_DOC_COLOR[e]}>{ESTADO_DOC_LABEL[e]}</Badge>
+                    {puedeEditar && <BajaDocProveedorForm id={d.id} />}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Card>
 

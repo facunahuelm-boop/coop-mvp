@@ -38,7 +38,7 @@ export function CrearReunionForm({ comisiones, esOversightReuniones, tipoInicial
       if (detailsRef.current) detailsRef.current.open = false;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTipo(tipoInicial || "comision");
-      show("Reunión agendada.");
+      show(estado.aviso || "Reunión agendada.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);

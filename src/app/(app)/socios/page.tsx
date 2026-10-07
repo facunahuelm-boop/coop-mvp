@@ -8,7 +8,6 @@ import { ActionForm } from "@/components/ui-client";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import {
   actualizarViviendaEstadoFormAction,
-  actualizarSocioEstadoFormAction,
   asignarViviendaSocioFormAction,
   actualizarListaEsperaEstadoFormAction,
   incorporarDesdeListaEsperaFormAction,
@@ -16,18 +15,16 @@ import {
 } from "@/lib/actions/socios";
 import { NucleoLink } from "@/components/EntidadLink";
 import { TablaFiltrable, type FiltroDef } from "@/components/TablaFiltrable";
-import { FilaConDetalle, EstadoBadge } from "@/components/FilaConDetalle";
+import { FilaConDetalle } from "@/components/FilaConDetalle";
 import { CrearSocioForm, CrearViviendaForm, AgregarListaEsperaForm } from "@/components/socios/SociosFormularios";
+import { ESTADOS_SOCIO, ESTADO_SOCIO_INFO, antiguedad, type EstadoSocio } from "@/lib/sociosEstados";
+import { hoyEnUruguay } from "@/lib/horasObra";
+import { checklistDeIngreso, revisarIngresoCompleto } from "@/lib/sociosAlta";
 
 const ESTADOS_VIVIENDA = ["en_obra", "terminada", "ocupada"] as const;
-const ESTADOS_SOCIO = ["activo", "inactivo", "baja"] as const;
+// Fase 2C: estados del ciclo de vida (lib/sociosEstados.ts).
 const ESTADOS_LISTA_ESPERA = ["en_espera", "convocado", "incorporado", "retirado"] as const;
 
-const badgeSocio: Record<string, "verde" | "amarillo" | "rojo"> = {
-  activo: "verde",
-  inactivo: "amarillo",
-  baja: "rojo",
-};
 
 const badgeVivienda: Record<string, "amarillo" | "verde" | "brand"> = {
   en_obra: "amarillo",
@@ -50,6 +47,23 @@ export default async function SociosPage() {
   const puedeEditar = canEdit(user.rol, "socios");
   const puedeAprobar = canApprove(user.rol, "socios");
 
+  // Fase 2C: socios con el ingreso sin terminar (checklist de ingreso).
+  const candidatosIngreso = puedeEditar
+    ? await all<{ id: number; nombre: string }>(
+        `SELECT DISTINCT s.id, s.nombre FROM socios s JOIN checklist_ingreso c ON c.socio_id = s.id
+          WHERE s.ingreso_completo_en IS NULL AND s.estado IN ('aspirante', 'activo') AND c.hecho = 0 ORDER BY s.id DESC LIMIT 30`
+      ).catch(() => [])
+    : [];
+  const ingresoPendiente = (
+    await Promise.all(
+      candidatosIngreso.map(async (c) => {
+        const pasos = await checklistDeIngreso(c.id);
+        const faltan = pasos ? pasos.filter((p) => !p.hecho).length : 0;
+        if (pasos && faltan === 0) await revisarIngresoCompleto(c.id);
+        return { ...c, pendientes: faltan };
+      })
+    )
+  ).filter((c) => c.pendientes > 0);
   const [socios, viviendas, listaEspera, nucleos] = await Promise.all([
     all<any>(
       `SELECT s.*, v.numero as vivienda_numero, n.nombre as nucleo_nombre,
@@ -97,10 +111,12 @@ export default async function SociosPage() {
     {
       id: "estado",
       label: "Estado",
-      opciones: ESTADOS_SOCIO.map((e) => ({ value: e, label: e })),
+      opciones: ESTADOS_SOCIO.filter((e) => socios.some((s) => s.estado === e)).map((e) => ({ value: e, label: ESTADO_SOCIO_INFO[e].label })),
       valores: socios.map((s) => s.estado),
     },
   ];
+  const hoyUy = hoyEnUruguay();
+  const infoDe = (e: string) => ESTADO_SOCIO_INFO[(e || "activo") as EstadoSocio] ?? ESTADO_SOCIO_INFO.activo;
 
   const viviendasLibres = viviendas.filter((v) => !socios.some((s) => s.vivienda_id === v.id));
   // Solo los aspirantes "en_espera" compiten por posición (ver
@@ -110,7 +126,20 @@ export default async function SociosPage() {
 
   return (
     <div>
-      <PageHeader title="Socios" subtitle="Padrón de socios, viviendas y lista de espera de aspirantes" />
+      <PageHeader
+        title="Socios"
+        subtitle="Padrón de socios, viviendas y lista de espera de aspirantes"
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/socios/oficios" className="inline-flex items-center rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-surface-sunken">
+              Directorio de oficios
+            </Link>
+            <a href="/api/exportar/padron" className="inline-flex items-center rounded-xl bg-[var(--color-brand-800)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--color-brand-700)]">
+              📊 Padrón en Excel
+            </a>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
         <Card className="lg:col-span-1">
@@ -118,6 +147,15 @@ export default async function SociosPage() {
           <div className="text-2xl font-bold text-[var(--color-brand-900)] mt-1">
             {socios.filter((s) => s.estado === "activo").length}
           </div>
+          {socios.some((s) => s.estado !== "activo") && (
+            <div className="mt-1 text-xs text-ink-muted">
+              {(["aspirante", "suspendido", "renunciante"] as const)
+                .map((e) => [e, socios.filter((s) => s.estado === e).length] as const)
+                .filter(([, n]) => n > 0)
+                .map(([e, n]) => `${n} ${ESTADO_SOCIO_INFO[e].label.toLowerCase()}${n === 1 ? "" : "s"}`)
+                .join(" · ")}
+            </div>
+          )}
         </Card>
         <Card className="lg:col-span-1">
           <div className="text-xs text-ink/50">Viviendas</div>
@@ -130,6 +168,22 @@ export default async function SociosPage() {
           </div>
         </Card>
       </div>
+
+      {ingresoPendiente.length > 0 && (
+        <div id="ingreso-pendiente" className="mb-6">
+          <SectionTitle>Socios nuevos con el ingreso sin terminar</SectionTitle>
+          <Card>
+            <ul className="divide-y divide-border text-[15px]">
+              {ingresoPendiente.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <Link href={`/socios/${s.id}`} className="font-medium text-[var(--color-brand-900)] hover:underline">{s.nombre}</Link>
+                  <span className="text-ink-muted">Faltan {s.pendientes} paso(s)</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      )}
 
       {/* ---------- Socios / Núcleos ---------- */}
       <SectionTitle>Padrón de socios (núcleos)</SectionTitle>
@@ -175,7 +229,8 @@ export default async function SociosPage() {
                     items: [
                       { label: "Email", valor: s.email || "—" },
                       { label: "Teléfono", valor: s.telefono || "—" },
-                      { label: "Estado", valor: <EstadoBadge estado={s.estado} /> },
+                      { label: "Estado", valor: <Badge color={infoDe(s.estado).color}>{infoDe(s.estado).label}</Badge> },
+                      { label: "Ingreso", valor: s.fecha_ingreso ? `${String(s.fecha_ingreso).slice(0, 10).split("-").reverse().join("/")} (${antiguedad(s.fecha_ingreso, hoyUy)?.texto ?? "—"})` : "—" },
                     ],
                   },
                 ]}
@@ -214,19 +269,9 @@ export default async function SociosPage() {
                     "—"
                   )}
                 </td>
-                <td className="py-2 pr-3" data-no-row-click>
-                  {puedeEditar ? (
-                    <AutoSubmitSelect
-                      action={actualizarSocioEstadoFormAction}
-                      hiddenFields={{ id: s.id }}
-                      name="estado"
-                      defaultValue={s.estado}
-                      options={ESTADOS_SOCIO.map((e) => ({ value: e, label: e }))}
-                      className="rounded-md border border-ink/10 bg-surface px-2 py-1 text-xs"
-                    />
-                  ) : (
-                    <Badge color={badgeSocio[s.estado] || "gray"}>{s.estado}</Badge>
-                  )}
+                <td className="py-2 pr-3">
+                  <Badge color={infoDe(s.estado).color}>{infoDe(s.estado).label}</Badge>
+                  {s.fecha_ingreso && <div className="text-xs text-ink-muted mt-0.5">{antiguedad(s.fecha_ingreso, hoyUy)?.texto}</div>}
                 </td>
               </FilaConDetalle>
             ))}

@@ -1,4 +1,5 @@
 import { ValidationError } from "./validation";
+import { mensajePeriodoCerrado } from "./periodos";
 
 /**
  * Fase 3 (sistema global de errores y validaciones, REQUIREMENTS.md): forma
@@ -113,6 +114,9 @@ export async function conEstadoDeAccion(fn: () => Promise<void>): Promise<Action
       if (err.message === "UNAUTHENTICATED") {
         return { ok: false, error: "Tu sesión venció — recargá la página e iniciá sesión de nuevo." };
       }
+      // Fase 2A (migración 0055): un mes cerrado está bloqueado en la base.
+      const periodoCerrado = mensajePeriodoCerrado(err);
+      if (periodoCerrado) return { ok: false, error: periodoCerrado };
       if (esErrorTecnico(err)) {
         console.error("[accion] error técnico oculto al usuario:", err);
         return { ok: false, error: "Ocurrió un problema al procesar la solicitud. Intentá de nuevo en un momento." };

@@ -2,7 +2,9 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, run, audit } from "@/lib/db";
+import { insert, update, get, all, run, audit } from "@/lib/db";
+import { registrarCambioEstado } from "@/lib/sociosAlta";
+import { hoyEnUruguay } from "@/lib/horasObra";
 import { requireUser } from "@/lib/auth";
 import { parseForm, zId, zTexto, zTextoOpcional, zEmailOpcional, zTelefonoOpcional, zFechaOpcional, zFecha, zMontoPositivo, zEnumSeguro } from "@/lib/validation";
 import { leerArchivoTabular, normalizarFecha, normalizarMonto, ArchivoImportacionError, type FilaCruda } from "@/lib/importarArchivo";
@@ -61,21 +63,105 @@ function numeroDeFila(indice: number) {
 // Padrón de socios
 // ---------------------------------------------------------------------
 
+// Fase 2H: el padrón se importa con su núcleo. Una fila por persona: el
+// titular (relación vacía o «titular») crea el socio y su núcleo; las demás
+// (pareja, hijo/a…) se agregan como integrantes del núcleo con el mismo nombre.
+const RELACIONES = ["titular", "pareja", "hijo", "hija", "padre", "madre", "hermano", "hermana", "otro"] as const;
 const filaSocioSchema = z.object({
   nombre: zTexto(200),
   documento: zTextoOpcional(50),
   email: zEmailOpcional,
   telefono: zTelefonoOpcional,
   fecha_ingreso: zFechaOpcional,
+  nucleo: zTextoOpcional(150),
+  relacion: zEnumSeguro(RELACIONES, "titular"),
   notas: zTextoOpcional(1000),
 });
 export type FilaSocio = z.infer<typeof filaSocioSchema>;
+
+function normalizarRelacion(v: string | undefined): string | undefined {
+  if (!v) return v;
+  const t = v.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (["conyuge", "esposa", "esposo", "concubina", "concubino", "pareja"].includes(t)) return "pareja";
+  if ((RELACIONES as readonly string[]).includes(t)) return t;
+  return t ? "otro" : undefined;
+}
 
 function normalizarFilaSocio(cruda: FilaCruda): FilaCruda {
   return {
     ...cruda,
     fecha_ingreso: cruda.fecha_ingreso ? normalizarFecha(cruda.fecha_ingreso) : cruda.fecha_ingreso,
+    relacion: normalizarRelacion(cruda.relacion ?? cruda.parentesco) ?? "",
+    nucleo: cruda.nucleo ?? cruda.nucleo_familiar ?? "",
   };
+}
+
+const soloDigitos = (doc: string | null | undefined) => (doc ?? "").replace(/\D/g, "");
+const claveNucleo = (n: string | null | undefined) => (n ?? "").trim().toLowerCase();
+
+/** Personas que ya están en el padrón (por cédula) y titulares de núcleos existentes (por nombre del núcleo). */
+async function padronExistente() {
+  const personas = await all<{ nombre: string; documento: string | null }>(
+    `SELECT nombre, documento FROM socios WHERE documento IS NOT NULL AND estado NOT IN ('baja', 'egresado', 'excluido')
+     UNION ALL
+     SELECT nombre || COALESCE(' ' || apellido, ''), documento FROM socio_integrantes WHERE documento IS NOT NULL AND estado = 'activo'`
+  ).catch(() => [] as { nombre: string; documento: string | null }[]);
+  const porDoc = new Map<string, string>();
+  for (const p of personas) if (soloDigitos(p.documento).length >= 6) porDoc.set(soloDigitos(p.documento), p.nombre);
+  const titulares = await all<{ socio_id: number; nucleo: string }>(
+    `SELECT MIN(s.id) AS socio_id, n.nombre AS nucleo FROM socios s JOIN nucleos_familiares n ON n.id = s.nucleo_id
+      WHERE s.estado NOT IN ('baja', 'egresado', 'excluido') GROUP BY n.nombre`
+  ).catch(() => [] as { socio_id: number; nucleo: string }[]);
+  return { porDoc, titularDeNucleo: new Map(titulares.map((t) => [claveNucleo(t.nucleo), t.socio_id])) };
+}
+
+/** Controles entre filas (repetidos, titulares) en lenguaje simple. */
+function controlarPadron(
+  validas: { fila: number; datos: FilaSocio }[],
+  existente: Awaited<ReturnType<typeof padronExistente>>
+): { ok: { fila: number; datos: FilaSocio }[]; errores: { fila: number; error: string }[] } {
+  const errores: { fila: number; error: string }[] = [];
+  const ok: { fila: number; datos: FilaSocio }[] = [];
+  const docEnArchivo = new Map<string, number>();
+  const titularEnArchivo = new Map<string, number>();
+  for (const v of validas) {
+    if (v.datos.relacion === "titular" && v.datos.nucleo) {
+      const k = claveNucleo(v.datos.nucleo);
+      if (titularEnArchivo.has(k)) {
+        errores.push({ fila: v.fila, error: `El núcleo «${v.datos.nucleo}» ya tiene titular en la fila ${titularEnArchivo.get(k)}. Si es otra persona del núcleo, poné su relación (pareja, hijo…).` });
+        continue;
+      }
+      titularEnArchivo.set(k, v.fila);
+    }
+  }
+  for (const v of validas) {
+    if (errores.some((e) => e.fila === v.fila)) continue;
+    const doc = soloDigitos(v.datos.documento);
+    if (doc.length >= 6) {
+      if (docEnArchivo.has(doc)) {
+        errores.push({ fila: v.fila, error: `La cédula ${v.datos.documento} está repetida (ya aparece en la fila ${docEnArchivo.get(doc)}).` });
+        continue;
+      }
+      if (existente.porDoc.has(doc)) {
+        errores.push({ fila: v.fila, error: `${existente.porDoc.get(doc)} ya está en el padrón con la cédula ${v.datos.documento}.` });
+        continue;
+      }
+      docEnArchivo.set(doc, v.fila);
+    }
+    if (v.datos.relacion !== "titular") {
+      if (!v.datos.nucleo) {
+        errores.push({ fila: v.fila, error: `Para un integrante (relación «${v.datos.relacion}») escribí el núcleo: el mismo nombre de núcleo que tiene su titular.` });
+        continue;
+      }
+      const k = claveNucleo(v.datos.nucleo);
+      if (!titularEnArchivo.has(k) && !existente.titularDeNucleo.has(k)) {
+        errores.push({ fila: v.fila, error: `No encontramos al titular del núcleo «${v.datos.nucleo}». Agregá una fila con su titular (relación vacía o «titular»).` });
+        continue;
+      }
+    }
+    ok.push(v);
+  }
+  return { ok, errores };
 }
 
 export async function previsualizarImportacionSocios(formData: FormData): Promise<PreviewResultado<FilaSocio>> {
@@ -97,13 +183,29 @@ export async function previsualizarImportacionSocios(formData: FormData): Promis
     if (resultado.success) validas.push({ fila: numeroDeFila(i), datos: resultado.data });
     else invalidas.push({ fila: numeroDeFila(i), error: resultado.error.issues[0]?.message ?? "Dato inválido.", valores: cruda });
   });
+  const { ok, errores } = controlarPadron(validas, await padronExistente());
+  for (const e of errores) invalidas.push({ ...e, valores: filasCrudas[e.fila - 2] ?? {} });
+  invalidas.sort((a, b) => a.fila - b.fila);
 
-  return { nombreArchivo: file.name, totalFilas: filasCrudas.length, validas, invalidas };
+  return { nombreArchivo: file.name, totalFilas: filasCrudas.length, validas: ok, invalidas };
 }
 
 export async function confirmarImportacionSocios(nombreArchivo: string, filas: { fila: number; datos: FilaSocio }[]): Promise<ConfirmarResultado> {
   const admin = await requireAdmin();
   if (filas.length === 0) throw new Error("No hay ninguna fila válida para importar.");
+  // Se revalida todo en el servidor (nunca se confía en lo que manda el cliente),
+  // incluidos los controles entre filas contra el padrón de este momento.
+  const revalidadas: { fila: number; datos: FilaSocio }[] = [];
+  let fallidas = 0;
+  for (const f of filas) {
+    const r = filaSocioSchema.safeParse(f.datos);
+    if (r.success) revalidadas.push({ fila: Number(f.fila) || 0, datos: r.data });
+    else fallidas++;
+  }
+  const existente = await padronExistente();
+  const { ok, errores } = controlarPadron(revalidadas, existente);
+  fallidas += errores.length;
+  if (ok.length === 0) throw new Error("No hay ninguna fila para importar (puede que ya se hayan importado).");
 
   const importacionId = await insert("importaciones", {
     tipo: "socios",
@@ -113,15 +215,49 @@ export async function confirmarImportacionSocios(nombreArchivo: string, filas: {
   });
 
   let insertadas = 0;
-  let fallidas = 0;
-  for (const { datos } of filas) {
-    // Se revalida server-side de nuevo (nunca se confía en el JSON que
-    // manda el cliente en el paso de confirmar, aunque venga del mismo
-    // preview) — barato, y cierra la puerta a un payload manipulado.
-    const revalidado = filaSocioSchema.safeParse(datos);
-    if (!revalidado.success) { fallidas++; continue; }
+  const titularPorNucleo = new Map(existente.titularDeNucleo);
+  // 1) Titulares (socio + núcleo).
+  for (const { datos } of ok.filter((f) => f.datos.relacion === "titular")) {
     try {
-      await insert("socios", { ...revalidado.data, estado: "activo", importacion_id: importacionId });
+      const nucleoId = await insert("nucleos_familiares", { nombre: (datos.nucleo || `Núcleo ${datos.nombre}`).slice(0, 200), importacion_id: importacionId });
+      const socioId = await insert("socios", {
+        nombre: datos.nombre,
+        documento: datos.documento,
+        email: datos.email,
+        telefono: datos.telefono,
+        fecha_ingreso: datos.fecha_ingreso,
+        notas: datos.notas,
+        nucleo_id: nucleoId,
+        estado: "activo",
+        importacion_id: importacionId,
+      });
+      await registrarCambioEstado(socioId, null, "activo", datos.fecha_ingreso || hoyEnUruguay(), "Importado desde planilla", admin.id).catch(() => {});
+      if (datos.nucleo) titularPorNucleo.set(claveNucleo(datos.nucleo), socioId);
+      insertadas++;
+    } catch {
+      fallidas++;
+    }
+  }
+  // 2) Integrantes del núcleo.
+  for (const { datos } of ok.filter((f) => f.datos.relacion !== "titular")) {
+    const titular = titularPorNucleo.get(claveNucleo(datos.nucleo));
+    if (!titular) {
+      fallidas++;
+      continue;
+    }
+    try {
+      await insert("socio_integrantes", {
+        socio_id: titular,
+        nombre: datos.nombre,
+        documento: datos.documento,
+        email: datos.email,
+        telefono: datos.telefono,
+        relacion: datos.relacion,
+        observaciones: datos.notas,
+        estado: "activo",
+        creado_por_id: admin.id,
+        importacion_id: importacionId,
+      });
       insertadas++;
     } catch {
       fallidas++;
@@ -139,6 +275,7 @@ export async function confirmarImportacionSocios(nombreArchivo: string, filas: {
   revalidatePath("/socios");
   revalidatePath("/importar");
   revalidatePath("/dashboard");
+  revalidatePath("/alta");
   return { importacionId, insertadas, fallidas };
 }
 
@@ -255,6 +392,8 @@ export async function deshacerImportacionAction(formData: FormData) {
 
   if (importacion.tipo === "socios") {
     await run(`UPDATE socios SET estado = 'baja' WHERE importacion_id = ? AND estado != 'baja'`, [id]);
+    // Fase 2H: los integrantes importados con el padrón también se dan de baja.
+    await run(`UPDATE socio_integrantes SET estado = 'inactivo' WHERE importacion_id = ? AND estado = 'activo'`, [id]).catch(() => {});
   } else if (importacion.tipo === "movimientos_financieros") {
     await run(
       `UPDATE movimientos_financieros

@@ -1,4 +1,7 @@
 import { redirect } from "next/navigation";
+import { obtenerReglamento } from "@/lib/reglamento";
+import { proveedoresConDocVencida } from "@/lib/proveedoresDocs";
+import { hoyEnUruguay } from "@/lib/horasObra";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
 import { all } from "@/lib/db";
@@ -43,6 +46,11 @@ const money = (n: number) => `$${Math.round(Number(n || 0)).toLocaleString("es-U
  */
 export default async function ComprasPage() {
   const user = await getCurrentUser();
+  // Fase 2G: regla de montos y documentación vencida de proveedores.
+  const [reglamentoCompras, provVencidos] = await Promise.all([
+    obtenerReglamento().then((r) => r.compras),
+    proveedoresConDocVencida(hoyEnUruguay()).then((m) => m.size).catch(() => 0),
+  ]);
   if (!user) redirect("/login");
   if (!canRead(user.rol, "compras")) redirect("/dashboard");
 
@@ -181,6 +189,22 @@ export default async function ComprasPage() {
       />
 
       <ResumenCompras tiles={tiles} />
+
+      {(reglamentoCompras.montoFormal > 0 || provVencidos > 0) && (
+        <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-ink-muted">
+          {reglamentoCompras.montoFormal > 0 && (
+            <span>
+              Compras de más de $ {reglamentoCompras.montoFormal.toLocaleString("es-UY")}: {reglamentoCompras.presupuestosMinimos} presupuestos
+              {reglamentoCompras.aprobacion === "consejo" ? " y aprobación del Consejo" : ""}.
+            </span>
+          )}
+          {provVencidos > 0 && (
+            <Link href="/proveedores" className="font-semibold text-[var(--color-rojo)] underline underline-offset-2">
+              {provVencidos} proveedor{provVencidos === 1 ? "" : "es"} con documentación vencida
+            </Link>
+          )}
+        </div>
+      )}
 
       <Card>
         {solicitudes.length === 0 ? (

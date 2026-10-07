@@ -6,6 +6,8 @@ import { obtenerReglamento, codigoDePago } from "@/lib/reglamento";
 import { cargarLibretas, nucleoDelUsuario } from "@/lib/libretaHoras";
 import { hoyEnUruguay, textoHoras, textoSaldo } from "@/lib/horasObra";
 import { ETAPA_LABEL, type EtapaCooperativa } from "@/lib/comisionesFunciones";
+import { listarHitos } from "@/lib/tramites";
+import { LineaDeTiempo } from "@/components/tramites/LineaDeTiempo";
 
 /**
  * Fase 1D — "Mi vivienda": la pantalla de inicio del socio. Responde, con
@@ -79,6 +81,9 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
         ).catch(() => undefined)
       : undefined;
 
+  // ---- Fase 2E: ¿En qué estamos? (trámites, sobre todo en Pre-obra) ----
+  const hitos = user.etapa !== "habitada" ? await listarHitos(true) : [];
+
   // ---- Próxima asamblea ----
   const asamblea = await get<{ id: number; titulo: string; fecha: string; lugar: string | null }>(
     `SELECT id, titulo, fecha, lugar FROM reuniones WHERE tipo = 'asamblea' AND estado = 'planificada' AND substr(fecha, 1, 10) >= ? ORDER BY fecha LIMIT 1`,
@@ -94,6 +99,12 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
     [user.id]
   ).catch(() => []);
   const sinLeer = avisos.filter((a) => !a.leida).length;
+  // Fase 2F: avisos oficiales sin leer (arriba de todo).
+  const oficiales = await all<{ id: number; titulo: string; urgente: number }>(
+    `SELECT a.id, a.titulo, a.urgente FROM aviso_destinatarios d JOIN avisos a ON a.id = d.aviso_id
+      WHERE d.user_id = ? AND d.leido_en IS NULL AND a.anulado_en IS NULL ORDER BY a.urgente DESC, a.id DESC LIMIT 3`,
+    [user.id]
+  ).catch(() => []);
 
   const primerNombre = user.nombre.split(" ")[0];
   return (
@@ -102,6 +113,21 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
         <h1 className="text-2xl font-bold text-ink">Hola, {primerNombre}</h1>
         <p className="text-[16px] text-ink-muted first-letter:uppercase">{fechaLarga(hoy)}</p>
       </div>
+
+      {oficiales.length > 0 && (
+        <Bloque titulo={oficiales.length === 1 ? "Tenés un aviso sin leer" : `Tenés ${oficiales.length} avisos sin leer`} tono="alerta">
+          <ul className="space-y-2">
+            {oficiales.map((a) => (
+              <li key={a.id}>
+                <Link href={`/avisos/${a.id}`} className="font-semibold text-ink underline underline-offset-2">
+                  {a.urgente ? "URGENTE: " : ""}
+                  {a.titulo}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Bloque>
+      )}
 
       {!socio && (
         <p className="rounded-xl bg-surface-sunken px-4 py-3 text-[16px] text-ink">
@@ -149,6 +175,11 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
               </details>
             )}
           </div>
+          <p className="mt-3">
+            <a href={`/api/reportes/estado-cuenta/${socio.id}`} target="_blank" rel="noopener noreferrer" className="text-[16px] underline underline-offset-2 text-[var(--color-brand-800)]">
+              Bajar mi estado de cuenta (PDF)
+            </a>
+          </p>
           {recibos.length > 0 && (
             <div className="mt-4">
               <p className="text-[16px] font-semibold text-ink">Tus últimos recibos</p>
@@ -185,6 +216,15 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
           <div className="mt-4">
             <Link href="/mis-horas" className={botonPrincipal}>Ver mis horas o avisar que no puedo ir</Link>
           </div>
+        </Bloque>
+      )}
+
+      {hitos.length > 0 && (
+        <Bloque titulo="¿En qué estamos?">
+          <LineaDeTiempo hitos={hitos} hoy={hoy} compacta />
+          <Link href="/tramites" className={`${botonSecundario} mt-2 inline-flex`}>
+            Ver todos los pasos
+          </Link>
         </Bloque>
       )}
 

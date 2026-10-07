@@ -29,7 +29,7 @@ import Link from "next/link";
 // una grilla de calendario tradicional (que exige más lectura visual y no
 // se adapta bien a celulares chicos).
 
-type Tipo = "reunion" | "asamblea" | "jornada" | "obra" | "finanzas" | "seguridad";
+type Tipo = "reunion" | "asamblea" | "jornada" | "obra" | "finanzas" | "seguridad" | "tramite";
 
 type Evento = {
   id: string;
@@ -48,7 +48,18 @@ const TIPO_LABEL: Record<Tipo, string> = {
   obra: "Obra",
   finanzas: "Vencimiento",
   seguridad: "Seguridad",
+  tramite: "Trámite",
 };
+
+// Fase 2F — capas del calendario: se elige qué mirar con un toque.
+const CAPAS: { clave: string; nombre: string; tipos: Tipo[] }[] = [
+  { clave: "", nombre: "Todo", tipos: [] },
+  { clave: "reuniones", nombre: "Reuniones y asambleas", tipos: ["reunion", "asamblea"] },
+  { clave: "trabajo", nombre: "Trabajo", tipos: ["jornada"] },
+  { clave: "tramites", nombre: "Trámites", tipos: ["tramite"] },
+  { clave: "obra", nombre: "Obra", tipos: ["obra", "seguridad"] },
+  { clave: "finanzas", nombre: "Pagos", tipos: ["finanzas"] },
+];
 
 const TIPO_COLOR: Record<Tipo, "brand" | "amarillo" | "rojo" | "gray"> = {
   reunion: "brand",
@@ -57,11 +68,13 @@ const TIPO_COLOR: Record<Tipo, "brand" | "amarillo" | "rojo" | "gray"> = {
   obra: "amarillo",
   finanzas: "rojo",
   seguridad: "amarillo",
+  tramite: "gray",
 };
 
-export default async function CalendarioPage() {
+export default async function CalendarioPage({ searchParams }: { searchParams: Promise<{ capa?: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const capaPedida = (await searchParams).capa ?? "";
 
   const verObra = canRead(user.rol, "obra") && moduloVisible("obra", user.etapa, user.modulos_override);
   const verTrabajo = canRead(user.rol, "trabajo") && moduloVisible("trabajo", user.etapa, user.modulos_override);
@@ -73,10 +86,11 @@ export default async function CalendarioPage() {
   // grilla visual del mes actual no le falten los días que ya pasaron.
   const desde = dayjs().startOf("month").format("YYYY-MM-DD");
 
-  const [reuniones, jornadas, hitosObra, pagos, docsSeguridad, comisionesLista, usuariosLista] = await Promise.all([
+  const [reuniones, jornadas, hitosObra, pagos, docsSeguridad, comisionesLista, usuariosLista, tramites] = await Promise.all([
+    // Fase 2F: las asambleas las ve todo socio (aunque no vea comisiones).
     verComisiones
       ? all<any>(`SELECT * FROM reuniones WHERE estado='planificada' AND fecha >= ? ORDER BY fecha ASC LIMIT 40`, [desde])
-      : Promise.resolve([] as any[]),
+      : all<any>(`SELECT * FROM reuniones WHERE estado='planificada' AND tipo = 'asamblea' AND fecha >= ? ORDER BY fecha ASC LIMIT 20`, [desde]).catch(() => [] as any[]),
     verTrabajo
       ? all<any>(`SELECT * FROM jornadas_trabajo WHERE estado='planificada' AND fecha >= ? ORDER BY fecha ASC LIMIT 40`, [desde])
       : Promise.resolve([] as any[]),
@@ -94,6 +108,11 @@ export default async function CalendarioPage() {
     // usado en /solicitudes, /reuniones, /comunicaciones, etc.
     all<{ id: number; nombre: string }>(`SELECT id, nombre FROM comisiones WHERE activa = 1 ORDER BY nombre ASC`).catch(() => []),
     all<{ id: number; nombre: string }>(`SELECT id, nombre FROM users WHERE activo = 1 ORDER BY nombre ASC`).catch(() => []),
+    // Fase 2E/2F: pasos de trámites con fecha prevista (los internos sólo para quien gestiona).
+    all<any>(
+      `SELECT id, titulo, fecha_estimada FROM tramites_hitos WHERE activo = 1 AND estado IN ('pendiente', 'en_curso', 'trabado') AND fecha_estimada IS NOT NULL AND fecha_estimada >= ? ${user.rol === "socio" ? "AND visible_socios = 1" : ""} ORDER BY fecha_estimada LIMIT 40`,
+      [desde]
+    ).catch(() => [] as any[]),
   ]);
 
   // Actividades de calendario (antes "notas de calendario", texto libre
@@ -178,7 +197,15 @@ export default async function CalendarioPage() {
       sub: dayjs(r.fecha).format("HH:mm"),
       hora: dayjs(r.fecha).format("HH:mm"),
       tipo: (r.tipo === "asamblea" ? "asamblea" : "reunion") as Tipo,
-      href: `/reuniones/${r.id}`,
+      href: r.tipo === "asamblea" ? `/asambleas/${r.id}` : `/reuniones/${r.id}`,
+    })),
+    ...tramites.map((h: any) => ({
+      id: `t${h.id}`,
+      fecha: h.fecha_estimada,
+      titulo: h.titulo,
+      sub: "Paso de trámite (fecha prevista)",
+      tipo: "tramite" as Tipo,
+      href: "/tramites",
     })),
     ...jornadas.map((j: any) => ({
       id: `j${j.id}`,
@@ -212,7 +239,13 @@ export default async function CalendarioPage() {
       tipo: "seguridad" as Tipo,
       href: "/seguridad",
     })),
-  ].sort((a, b) => a.fecha.localeCompare(b.fecha));
+  ]
+    .filter((e) => {
+      const capa = CAPAS.find((c) => c.clave === capaPedida);
+      return !capa || !capa.tipos.length || capa.tipos.includes(e.tipo);
+    })
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const capasConDatos = CAPAS.filter((c) => !c.tipos.length || c.clave === capaPedida || (c.clave === "reuniones" ? reuniones.length : c.clave === "trabajo" ? jornadas.length : c.clave === "tramites" ? tramites.length : c.clave === "obra" ? hitosObra.length + docsSeguridad.length : pagos.length) > 0);
 
   // Agrupado en lenguaje cotidiano en vez de fechas técnicas — más fácil de
   // leer de un vistazo que una lista de fechas técnicas. Solo lo de hoy en
@@ -230,7 +263,52 @@ export default async function CalendarioPage() {
 
   return (
     <div>
-      <PageHeader title="Calendario" subtitle="Reuniones, jornadas, obra y vencimientos, todo junto" />
+      <PageHeader
+        title="Calendario"
+        subtitle="Reuniones, jornadas, trámites, obra y vencimientos, todo junto"
+        action={
+          <Link href="/preferencias#calendario" className="text-sm font-semibold text-[var(--color-brand-800)] underline underline-offset-2">
+            Verlo en mi celular
+          </Link>
+        }
+      />
+
+      {capasConDatos.length > 2 && (
+        <nav aria-label="Qué mirar" className="mb-4 flex flex-wrap gap-2">
+          {capasConDatos.map((c) => (
+            <Link
+              key={c.clave}
+              href={c.clave ? `/calendario?capa=${c.clave}` : "/calendario"}
+              aria-current={c.clave === capaPedida ? "page" : undefined}
+              className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold ${c.clave === capaPedida ? "border-[var(--color-brand-800)] bg-brand-100 text-brand-800" : "border-border text-ink-muted hover:bg-surface-sunken"}`}
+            >
+              {c.nombre}
+            </Link>
+          ))}
+        </nav>
+      )}
+
+      {user.rol === "socio" && (
+        <Card className="mb-6">
+          <SectionTitle>Próximos 7 días</SectionTitle>
+          {eventosFuturos.filter((e) => e.fecha.slice(0, 10) <= en7dias).length === 0 ? (
+            <p className="text-[15px] text-ink-muted">No hay nada agendado para esta semana.</p>
+          ) : (
+            <ul className="divide-y divide-ink/5">
+              {eventosFuturos
+                .filter((e) => e.fecha.slice(0, 10) <= en7dias)
+                .map((e) => (
+                  <li key={e.id} className="py-2 text-[15px]">
+                    <Link href={e.href} className="hover:underline">
+                      <b>{dayjs(e.fecha).format("dddd DD/MM")}</b>
+                      {e.hora && e.hora !== "00:00" ? ` ${e.hora}` : ""} — {e.titulo}
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </Card>
+      )}
 
       <Card className="mb-6">
         <MonthCalendar

@@ -23,6 +23,14 @@ const nextConfig: NextConfig = {
     "/api/reportes/finanzas": ["./node_modules/pdfkit/js/data/**"],
     // Fase 1C: recibo de pago en PDF.
     "/api/archivos/recibo/[id]": ["./node_modules/pdfkit/js/data/**"],
+    // Fase 2A: cierre mensual en PDF.
+    "/api/reportes/cierre/[periodo]": ["./node_modules/pdfkit/js/data/**"],
+    // Fase 2D: convocatoria, padrón y acta de la asamblea.
+    "/api/reportes/asamblea/[id]": ["./node_modules/pdfkit/js/data/**"],
+    // Fase 2H: plantillas de texto y reportes de la sección 13.
+    "/api/reportes/plantilla/[id]": ["./node_modules/pdfkit/js/data/**"],
+    "/api/reportes/r/[clave]": ["./node_modules/pdfkit/js/data/**"],
+    "/api/reportes/estado-cuenta/[socioId]": ["./node_modules/pdfkit/js/data/**"],
   },
 
   // Endurecimiento de seguridad del servidor (pedido explícito: "que quede

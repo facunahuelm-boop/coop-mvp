@@ -3,6 +3,8 @@ import { all, get, upsertAlerta, insert, esColumnaInexistente } from "./db";
 import { enviarEmailAlerta } from "./email";
 import { canRead, type Role } from "./roles";
 import { obtenerReglasCooperativa } from "./reglas";
+import { obtenerReglamento } from "./reglamento";
+import { faltaMigracion, presupuestoDelAnio, flujoDeCaja, alertasFinancieras, type CuotaPorCobrar } from "./finanzasLibro";
 
 // Auditoría funcional Finanzas↔Socios (17/09): la app corre en un servidor
 // cuya hora local puede no ser la de Uruguay (por ejemplo, Vercel corre en
@@ -82,79 +84,84 @@ export async function tareasObraConSemaforo() {
 
 // ============ FINANZAS ============
 export async function resumenFinanciero() {
+  try {
+    return await resumenFinancieroConLibro(true);
+  } catch (err) {
+    // Justo después de publicar y antes de aplicar la migración 0055.
+    if (!faltaMigracion(err)) throw err;
+    return resumenFinancieroConLibro(false);
+  }
+}
+
+/**
+ * Fase 2A (migración 0055): las transferencias internas (de una cuenta o
+ * fondo a otro) no son ingresos ni egresos reales — se excluyen de esos
+ * totales. El saldo suma el saldo inicial de las cuentas. "Comprometido" son
+ * los compromisos todavía pendientes (los pagados o cancelados ya no cuentan)
+ * más las facturas a pagar. El presupuesto contra lo real es el del año en
+ * curso (antes sumaba todo lo gastado desde siempre).
+ */
+async function resumenFinancieroConLibro(conLibro: boolean) {
   const en30dias = dayjs().add(30, "day").format("YYYY-MM-DD");
   const inicioMes = dayjs().startOf("month").format("YYYY-MM-DD");
+  const sinTransf = conLibro ? "AND transferencia_id IS NULL" : "";
+  const activo = "COALESCE(estado, 'activo') <> 'anulado'";
 
-  const [ingresosRow, egresosRow, comprometidoRow, gastosProyectadosRow, ingresosMesRow, egresosMesRow, porCategoria, porCategoriaIngreso, presupuestoVsReal, porComision] =
+  const [ingresosRow, egresosRow, comprometidoRow, gastosProyectadosRow, ingresosMesRow, egresosMesRow, porCategoria, porCategoriaIngreso, presupuestoVsReal, porComision, saldoInicialRow] =
     await Promise.all([
-      // Sub-fase 4.4 (Eliminación segura de movimientos financieros): un
-      // movimiento "anulado" (ver anularMovimientoAction en actions/
-      // finanzas.ts) sigue en la tabla para trazabilidad, pero nunca más
-      // cuenta para ningún saldo/total — se excluye acá, en la ÚNICA función
-      // que calcula estos totales (resumenFinanciero), en vez de en cada
-      // pantalla que la usa.
-      get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso' AND estado != 'anulado'`),
-      get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso' AND estado != 'anulado'`),
-      get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM compromisos_futuros`),
+      // Un movimiento anulado sigue en la tabla para trazabilidad, pero nunca
+      // cuenta para ningún saldo/total.
+      get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso' AND ${activo} ${sinTransf}`),
+      get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso' AND ${activo} ${sinTransf}`),
+      conLibro
+        ? get<{ s: number }>(
+            `SELECT COALESCE((SELECT SUM(monto) FROM compromisos_futuros WHERE estado = 'pendiente' AND tipo = 'egreso'), 0)
+                  + COALESCE((SELECT SUM(monto) FROM facturas_proveedor WHERE estado = 'a_pagar'), 0) AS s`
+          )
+        : get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM compromisos_futuros`),
+      conLibro
+        ? get<{ s: number }>(
+            `SELECT COALESCE((SELECT SUM(monto) FROM compromisos_futuros WHERE estado = 'pendiente' AND tipo = 'egreso' AND fecha_estimada <= ?), 0)
+                  + COALESCE((SELECT SUM(monto) FROM facturas_proveedor WHERE estado = 'a_pagar' AND COALESCE(fecha_vencimiento, '0000') <= ?), 0) AS s`,
+            [en30dias, en30dias]
+          )
+        : get<{ s: number }>(`SELECT COALESCE(SUM(monto),0) as s FROM compromisos_futuros WHERE fecha_estimada <= ?`, [en30dias]),
+      // "fecha" es TEXT (fecha simple o timestamp): se compara convertida.
       get<{ s: number }>(
-        `SELECT COALESCE(SUM(monto),0) as s FROM compromisos_futuros WHERE fecha_estimada <= ?`,
-        [en30dias]
-      ),
-      // Ingresos del mes en curso — a diferencia de "ingresos" (histórico
-      // acumulado desde siempre), esto es lo que entró desde el día 1 del mes
-      // actual. "fecha" es TEXT (puede ser una fecha simple o un timestamp
-      // completo según cómo se cargó el movimiento), por eso se compara
-      // convertida a fecha en vez de como texto crudo.
-      get<{ s: number }>(
-        `SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso' AND estado != 'anulado' AND fecha::date >= ?::date`,
+        `SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'ingreso' AND ${activo} ${sinTransf} AND fecha::date >= ?::date`,
         [inicioMes]
       ),
       get<{ s: number }>(
-        `SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso' AND estado != 'anulado' AND fecha::date >= ?::date`,
+        `SELECT COALESCE(SUM(monto),0) as s FROM movimientos_financieros WHERE tipo = 'egreso' AND ${activo} ${sinTransf} AND fecha::date >= ?::date`,
         [inicioMes]
       ),
       all<{ categoria: string; total: number }>(
-        `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='egreso' AND estado != 'anulado' GROUP BY categoria ORDER BY total DESC`
+        `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='egreso' AND ${activo} ${sinTransf} GROUP BY categoria ORDER BY total DESC`
       ),
-      // Rediseño de Finanzas (18/09, pedido explícito: mismo patrón resumen
-      // → click → pop-up ya usado en Compras): antes sólo existía el
-      // desglose de EGRESOS por categoría (arriba) — el tile "Ingresos
-      // totales" no tenía nada real que mostrar en su pop-up. Misma consulta,
-      // sólo cambia el tipo.
       all<{ categoria: string; total: number }>(
-        `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='ingreso' AND estado != 'anulado' GROUP BY categoria ORDER BY total DESC`
+        `SELECT categoria, COALESCE(SUM(monto),0) as total FROM movimientos_financieros WHERE tipo='ingreso' AND ${activo} ${sinTransf} GROUP BY categoria ORDER BY total DESC`
       ),
-      all<any>(
-        `SELECT p.categoria, p.monto_presupuestado,
-           COALESCE((SELECT SUM(monto) FROM movimientos_financieros m WHERE m.categoria = p.categoria AND m.tipo='egreso' AND m.estado != 'anulado'), 0) as gastado
-         FROM presupuesto_general p`
+      presupuestoDelAnio(hoyEnUruguay().slice(0, 4)).then((p) =>
+        p.lineas.map((l) => ({ categoria: l.categoria, monto_presupuestado: l.presupuestado, gastado: l.gastado, id: l.id }))
       ),
-      // Fase 9 del sistema de gestión de Comisiones (20/09, "integración
-      // Compras/Proveedores/Finanzas"): Finanzas no mostraba nada agrupado
-      // por comisión pese a que gastos_comision.comision_id existe desde la
-      // Fase "Gastos por Comisión" — no se anula ni pagado, porque un gasto
-      // anulado nunca generó plata real y uno pendiente todavía no salió de
-      // la cuenta (mismo criterio que "egresos": movimientos_financieros ya
-      // sólo cuenta lo efectivamente pagado). `.catch(() => [])` por si esta
-      // base es muy vieja y gastos_comision todavía no existiera (mismo
-      // criterio defensivo que gastos.ts, que sigue tratando esta tabla como
-      // no garantizada incluso hoy).
+      // Gastos de comisión ya pagados, agrupados por comisión.
       all<{ comision: string; total: number }>(
         `SELECT c.nombre as comision, COALESCE(SUM(g.importe),0) as total
            FROM gastos_comision g JOIN comisiones c ON c.id = g.comision_id
           WHERE g.estado = 'pagado'
           GROUP BY c.nombre ORDER BY total DESC`
       ).catch(() => [] as { comision: string; total: number }[]),
+      conLibro ? get<{ s: number }>(`SELECT COALESCE(SUM(saldo_inicial),0) as s FROM cuentas_financieras`) : Promise.resolve({ s: 0 }),
     ]);
 
-  const ingresos = ingresosRow?.s ?? 0;
-  const egresos = egresosRow?.s ?? 0;
-  const saldo = ingresos - egresos;
-  const comprometido = comprometidoRow?.s ?? 0;
-  const gastosProyectados = gastosProyectadosRow?.s ?? 0;
+  const ingresos = Number(ingresosRow?.s ?? 0);
+  const egresos = Number(egresosRow?.s ?? 0);
+  const saldo = Number(saldoInicialRow?.s ?? 0) + ingresos - egresos;
+  const comprometido = Number(comprometidoRow?.s ?? 0);
+  const gastosProyectados = Number(gastosProyectadosRow?.s ?? 0);
   const disponiblePrudencial = saldo - comprometido;
-  const ingresosMes = ingresosMesRow?.s ?? 0;
-  const egresosMes = egresosMesRow?.s ?? 0;
+  const ingresosMes = Number(ingresosMesRow?.s ?? 0);
+  const egresosMes = Number(egresosMesRow?.s ?? 0);
 
   return {
     ingresos,
@@ -165,11 +172,49 @@ export async function resumenFinanciero() {
     disponiblePrudencial,
     ingresosMes,
     egresosMes,
-    porCategoria,
-    porCategoriaIngreso,
+    porCategoria: porCategoria.map((c) => ({ ...c, total: Number(c.total) })),
+    porCategoriaIngreso: porCategoriaIngreso.map((c) => ({ ...c, total: Number(c.total) })),
     presupuestoVsReal,
     porComision,
   };
+}
+
+/** Cuotas todavía impagas de los socios activos (para el flujo de caja). */
+export async function cuotasPorCobrar(): Promise<CuotaPorCobrar[]> {
+  const [movs, activos] = await Promise.all([
+    cargarMovimientosCuenta(),
+    all<{ id: number }>(`SELECT id FROM socios WHERE estado IN ('activo', 'suspendido', 'renunciante')`),
+  ]);
+  const ids = new Set(activos.map((a) => a.id));
+  const porSocio = new Map<number, MovimientoCuentaSocio[]>();
+  for (const m of movs) {
+    if (!ids.has(m.socio_id)) continue;
+    const l = porSocio.get(m.socio_id) ?? [];
+    l.push(m);
+    porSocio.set(m.socio_id, l);
+  }
+  const res: CuotaPorCobrar[] = [];
+  for (const l of porSocio.values()) {
+    for (const c of calcularCuotasSocio(l).cuotas) {
+      if (c.montoPendiente > 0 && c.fechaVencimiento && c.estado !== "convenio") res.push({ vence: c.fechaVencimiento, pendiente: c.montoPendiente });
+    }
+  }
+  return res;
+}
+
+/** Lo que entraría por cuotas en un mes, según el reglamento (0 si las cuotas no son automáticas). */
+export async function cuotasMensualesEstimadas(): Promise<number> {
+  const r = await obtenerReglamento();
+  if (!r.cuotas.automaticas) return 0;
+  const filas = await all<{ cuota_nucleo: number | null }>(
+    `SELECT n.cuota_social AS cuota_nucleo FROM socios s LEFT JOIN nucleos_familiares n ON n.id = s.nucleo_id WHERE s.estado IN ('activo', 'suspendido', 'renunciante')`
+  ).catch(() => [] as { cuota_nucleo: number | null }[]);
+  return filas.reduce((a, f) => a + (Number(f.cuota_nucleo) > 0 ? Number(f.cuota_nucleo) : r.cuotas.monto), 0);
+}
+
+export async function flujoDeCajaCooperativa() {
+  const [cuotas, mensual] = await Promise.all([cuotasPorCobrar(), cuotasMensualesEstimadas()]);
+  return flujoDeCaja({ cuotas, cuotasMensualesEstimadas: mensual });
 }
 
 /**
@@ -197,7 +242,7 @@ export async function cuentasPorCobrar() {
       `SELECT s.id, s.nombre, v.numero as vivienda_numero
        FROM socios s
        LEFT JOIN viviendas v ON v.id = s.vivienda_id
-       WHERE s.estado != 'baja'`
+       WHERE s.estado NOT IN ('baja', 'egresado', 'excluido')`
     ),
     cargarMovimientosCuenta(),
   ]);
@@ -567,7 +612,7 @@ export async function resumenCuotasSocios() {
        FROM socios s
        LEFT JOIN viviendas v ON v.id = s.vivienda_id
        LEFT JOIN nucleos_familiares n ON n.id = s.nucleo_id
-       WHERE s.estado != 'baja'
+       WHERE s.estado NOT IN ('baja', 'egresado', 'excluido')
        ORDER BY s.nombre ASC`
     ),
     cargarMovimientosCuenta(),
@@ -901,6 +946,14 @@ async function recalcularAlertasAhora() {
     }
   }
 
+  // Fase 2A: presupuesto cerca del tope (A18), liquidez a 60 días (A19) y facturas vencidas.
+  try {
+    const [reglamento, cuotas, mensual] = await Promise.all([obtenerReglamento(), cuotasPorCobrar(), cuotasMensualesEstimadas()]);
+    await alertasFinancieras(reglamento.finanzas.alertaPresupuesto, cuotas, mensual);
+  } catch (err) {
+    if (!faltaMigracion(err)) console.error("[alertas] finanzas:", (err as Error)?.message ?? err);
+  }
+
   // Jornada próxima con tareas sin cubrir
   const proximaJornada = await get<any>(
     `SELECT * FROM jornadas_trabajo WHERE fecha >= CURRENT_DATE::text AND estado='planificada' ORDER BY fecha ASC LIMIT 1`
@@ -983,7 +1036,7 @@ export async function proponerDistribucionJornada(jornadaId: number) {
     all<any>(`SELECT * FROM tareas_jornada WHERE jornada_id = ? ORDER BY CASE prioridad WHEN 'alta' THEN 0 WHEN 'critica' THEN -1 ELSE 1 END`, [jornadaId]),
     all<any>(`SELECT nucleo_id FROM asignaciones_jornada WHERE jornada_id = ?`, [jornadaId]),
     all<any>(`SELECT * FROM nucleos_familiares`),
-    all<any>(`SELECT * FROM habilidades_nucleo`),
+    all<any>(`SELECT * FROM habilidades_nucleo WHERE COALESCE(activo, 1) = 1`),
   ]);
   const yaAsignados = new Set(asignacionesJornada.map((a) => a.nucleo_id));
   const nucleos = nucleosTodos.filter((n) => !yaAsignados.has(n.id));

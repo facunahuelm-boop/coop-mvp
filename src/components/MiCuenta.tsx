@@ -99,6 +99,9 @@ export function MiCuenta({ data, size = 32, variant = "desktop" }: { data: MiCue
       <a href="/mi-seguridad" className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 text-[15px] font-semibold text-ink hover:bg-surface-sunken">
         Mi seguridad (contraseña y verificación) <span aria-hidden>→</span>
       </a>
+      <a href="/preferencias" className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 text-[15px] font-semibold text-ink hover:bg-surface-sunken">
+        Mis avisos y calendario en el celular <span aria-hidden>→</span>
+      </a>
     </div>
   );
 

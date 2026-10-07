@@ -17,6 +17,7 @@ const TIPO_LABEL: Record<TipoContacto, string> = {
   socio: "Socio/a",
   integrante: "Integrante",
   proveedor: "Proveedor",
+  externo: "Organismo / profesional",
 };
 
 export function ContactosLista({ contactos }: { contactos: Contacto[] }) {

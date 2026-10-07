@@ -341,6 +341,24 @@ export function AdjuntarFacturaForm({ solicitudId }: { solicitudId: number }) {
             <input name="descripcion" className={inputClass} />
             <FieldError message={estado.fieldErrors?.descripcion} />
           </div>
+          {/* Fase 2A: si es la factura a pagar, con el monto queda en Finanzas → «Lo que hay que pagar». */}
+          <fieldset className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-border p-3">
+            <legend className="px-1 text-sm font-semibold text-ink">¿Es la factura que hay que pagar? Completá esto (opcional)</legend>
+            <div>
+              <Label>Monto a pagar</Label>
+              <input name="monto" type="number" step="0.01" min="0" className={inputClass} />
+              <FieldError message={estado.fieldErrors?.monto} />
+            </div>
+            <div>
+              <Label>N° de factura</Label>
+              <input name="numero" maxLength={60} className={inputClass} />
+            </div>
+            <div>
+              <Label>Vence el</Label>
+              <input name="fecha_vencimiento" type="date" className={inputClass} />
+              <FieldError message={estado.fieldErrors?.fecha_vencimiento} />
+            </div>
+          </fieldset>
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
           </div>

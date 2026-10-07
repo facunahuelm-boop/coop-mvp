@@ -2,13 +2,19 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { insert, update, get, run, audit, eliminarLogico, updateConBloqueoOptimista } from "@/lib/db";
+import { insert, update, get, all, run, audit, eliminarLogico, updateConBloqueoOptimista } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
+import { registrarFacturaInterna } from "@/lib/facturas";
+import { obtenerReglamento } from "@/lib/reglamento";
+import { reglaDeCompra, puedeAprobarSegunRegla } from "@/lib/comprasRegla";
+import { proveedoresConDocVencida } from "@/lib/proveedoresDocs";
+import { hoyEnUruguay } from "@/lib/horasObra";
 import {
+  ValidationError,
   parseForm,
   zId,
   zIdOpcional,
@@ -258,6 +264,14 @@ export async function agregarPresupuestoFormAction(_prev: ActionState, formData:
   return conEstadoDeAccion(() => agregarPresupuestoAction(formData));
 }
 
+/** Fase 2A: si la compra no sigue, su compromiso deja de descontar del disponible. */
+async function cancelarCompromisoDeCompra(solicitudId: number, userId: number, motivo: string) {
+  await run(
+    `UPDATE compromisos_futuros SET estado = 'cancelado', cerrado_en = ?, cerrado_por_id = ?, motivo_cierre = ? WHERE solicitud_compra_id = ? AND estado = 'pendiente'`,
+    [new Date().toISOString(), userId, motivo, solicitudId]
+  ).catch(() => {});
+}
+
 export async function decidirCompraAction(formData: FormData) {
   const user = await requireUser();
   if (!canApprove(user.rol, "compras")) throw new Error("No autorizado: esta decisión requiere un rol con permiso de aprobación (Tesorería o Consejo Directivo).");
@@ -267,11 +281,52 @@ export async function decidirCompraAction(formData: FormData) {
   );
   const presupuesto = await get<any>(`SELECT * FROM presupuestos_proveedor WHERE id = ?`, [presupuestoId]);
   const solicitud = await get<any>(`SELECT * FROM solicitudes_compra WHERE id = ?`, [solicitudId]);
+  // Fase 2A: el presupuesto tiene que ser de esta solicitud, y una compra se decide una sola vez.
+  if (!solicitud) throw new Error("Esa solicitud de compra no existe.");
+  if (!presupuesto || Number(presupuesto.solicitud_id) !== solicitudId) throw new Error("Ese presupuesto no corresponde a esta solicitud.");
+  if (["aprobada", "pedida", "entregada", "rechazada"].includes(solicitud.estado)) {
+    throw new Error("Esta compra ya tiene una decisión tomada.");
+  }
+  const montoTotal = Number(presupuesto.precio || 0) + Number(presupuesto.costo_envio || 0);
+
+  // Fase 2G — A14: regla de montos del reglamento (N presupuestos y quién aprueba).
+  const reglamento = await obtenerReglamento();
+  const cantidad = Number((await get<{ n: string }>(`SELECT COUNT(*) AS n FROM presupuestos_proveedor WHERE solicitud_id = ?`, [solicitudId]))?.n ?? 0);
+  const regla = reglaDeCompra(montoTotal, cantidad, reglamento.compras);
+  if (!puedeAprobarSegunRegla(user.rol, regla)) {
+    throw new Error(`${regla.texto} Tu rol no la puede aprobar: tiene que hacerlo el Consejo Directivo.`);
+  }
+  const excepcion = String(formData.get("excepcion_regla") || "").trim().slice(0, 500);
+  if (regla.faltanPresupuestos > 0 && excepcion.length < 5) {
+    throw new ValidationError("excepcion_regla", `${regla.texto} Para aprobarla igual, escribí por qué (queda registrado y le llega a la Comisión Fiscal).`);
+  }
+  // Fase 2G: aviso si el proveedor tiene documentación vencida (se elige igual sólo confirmándolo).
+  const vencidos = (await proveedoresConDocVencida(hoyEnUruguay())).get(Number(presupuesto.proveedor_id));
+  const confirmoDoc = String(formData.get("confirmo_doc_vencida") || "") === "si";
+  if (vencidos && !confirmoDoc) {
+    throw new ValidationError("confirmo_doc_vencida", `Este proveedor tiene documentación vencida (${vencidos.join(", ")}). Si igual lo querés elegir, marcá que lo sabés.`);
+  }
 
   await insert("decisiones_compra", {
     solicitud_id: solicitudId, presupuesto_id: presupuestoId, decidido_por_id: user.id,
-    motivo, monto: presupuesto?.precio ?? null,
+    motivo, monto: montoTotal || (presupuesto?.precio ?? null),
+    excepcion_regla: regla.faltanPresupuestos > 0 ? excepcion : null,
+    doc_vencida_confirmada: vencidos ? 1 : 0,
   });
+  if (regla.faltanPresupuestos > 0) {
+    await audit({ usuario_id: user.id, accion: "excepcion_regla_compra", entidad: "solicitudes_compra", entidad_id: solicitudId, valor_nuevo: { monto: montoTotal, presupuestos: cantidad, pedidos: regla.minimo, motivo: excepcion } });
+    const fiscales = await all<{ id: number }>(`SELECT id FROM users WHERE rol = 'fiscal' AND activo = 1`).catch(() => []);
+    for (const f of fiscales) {
+      await crearNotificacion({
+        user_id: f.id,
+        tipo: "excepcion_regla_compra",
+        titulo: `Se aprobó una compra con ${cantidad} presupuesto${cantidad === 1 ? "" : "s"} (el reglamento pide ${regla.minimo}): ${solicitud.material}`,
+        cuerpo: `Motivo: ${excepcion}`,
+        ref_tabla: "solicitudes_compra",
+        ref_id: solicitudId,
+      }).catch(() => {});
+    }
+  }
   await update("solicitudes_compra", solicitudId, { estado: "aprobada" });
   await audit({ usuario_id: user.id, accion: "aprobar_compra", entidad: "solicitudes_compra", entidad_id: solicitudId, valor_nuevo: { presupuestoId, motivo, monto: presupuesto?.precio } });
 
@@ -294,6 +349,29 @@ export async function decidirCompraAction(formData: FormData) {
       estado: "pendiente",
       observaciones: motivo || null,
       creado_por_id: user.id,
+    });
+  }
+
+  // Fase 2A (A15): la compra aprobada queda como compromiso en Finanzas
+  // (descuenta del disponible) hasta que llegue la factura y se pague.
+  if (montoTotal > 0) {
+    const vence = solicitud.fecha_necesaria && /^\d{4}-\d{2}-\d{2}/.test(String(solicitud.fecha_necesaria))
+      ? String(solicitud.fecha_necesaria).slice(0, 10)
+      : new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    await insert("compromisos_futuros", {
+      descripcion: `Compra: ${solicitud.material}`,
+      monto: montoTotal,
+      fecha_estimada: vence,
+      origen: "Compra aprobada",
+      estado: "pendiente",
+      tipo: "egreso",
+      categoria: solicitud.categoria || null,
+      solicitud_compra_id: solicitudId,
+      proveedor_id: presupuesto.proveedor_id ?? null,
+      creado_por_id: user.id,
+    }).catch((err) => {
+      // Migración 0055 pendiente (columnas nuevas) o ya existía: no frena la aprobación.
+      if (!["42703", "42P01", "23505"].includes(err?.code)) throw err;
     });
   }
 
@@ -401,6 +479,7 @@ export async function rechazarSolicitudAction(formData: FormData) {
     [id]
   );
   await update("solicitudes_compra", id, { estado: "rechazada" });
+  await cancelarCompromisoDeCompra(id, user.id, "La compra se rechazó.");
   await audit({ usuario_id: user.id, accion: "rechazar_compra", entidad: "solicitudes_compra", entidad_id: id, valor_nuevo: { motivo } });
   // Fase 9: la otra cara de la notificación de decidirCompraAction — que no
   // se apruebe también es una respuesta que quien pidió necesita conocer.
@@ -491,6 +570,7 @@ export async function eliminarSolicitudAction(formData: FormData) {
     if (err?.code !== "42703" && err?.code !== "42P01") throw err;
   });
   await eliminarLogico("solicitudes_compra", Number(id), user.id, motivo);
+  await cancelarCompromisoDeCompra(Number(id), user.id, `Se eliminó la solicitud: ${motivo}`);
 
   await audit({ usuario_id: user.id, accion: "eliminar", entidad: "solicitudes_compra", entidad_id: Number(id), valor_anterior: solicitud, valor_nuevo: { enPapelera: true, motivo } });
   revalidatePath("/compras");
@@ -525,12 +605,16 @@ const adjuntarFacturaCompraSchema = z.object({
   solicitud_id: zId,
   nombre: zTexto(200),
   descripcion: zTextoOpcional(500),
+  // Fase 2A: si se indica el monto, además queda como factura a pagar en Finanzas.
+  monto: zMontoOpcional(),
+  numero: zTextoOpcional(60),
+  fecha_vencimiento: zFechaOpcional,
 });
 
 export async function adjuntarFacturaCompraAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
-  const { solicitud_id: solicitudId, ...datos } = parseForm(adjuntarFacturaCompraSchema, formData);
+  const { solicitud_id: solicitudId, monto, numero, fecha_vencimiento, ...datos } = parseForm(adjuntarFacturaCompraSchema, formData);
   await verificarPermisoSobreSolicitud(user, solicitudId);
 
   const archivoUrl = await saveUploadedFile(formData.get("archivo") as File | null, user.organization_id, "documentos", {
@@ -552,6 +636,21 @@ export async function adjuntarFacturaCompraAction(formData: FormData) {
     solicitud_compra_id: solicitudId,
   });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "documentos", entidad_id: documentoId, valor_nuevo: { solicitudId, ...datos } });
+  if (monto && monto > 0) {
+    const decision = await get<{ proveedor_id: number | null }>(
+      `SELECT pp.proveedor_id FROM decisiones_compra dc JOIN presupuestos_proveedor pp ON pp.id = dc.presupuesto_id WHERE dc.solicitud_id = ? ORDER BY dc.id DESC LIMIT 1`,
+      [solicitudId]
+    );
+    const fd = new FormData();
+    fd.set("solicitud_compra_id", String(solicitudId));
+    if (decision?.proveedor_id) fd.set("proveedor_id", String(decision.proveedor_id));
+    fd.set("monto", String(monto));
+    if (numero) fd.set("numero", numero);
+    if (fecha_vencimiento) fd.set("fecha_vencimiento", fecha_vencimiento);
+    fd.set("descripcion", datos.nombre);
+    await registrarFacturaInterna(user, fd, documentoId);
+    revalidatePath("/finanzas");
+  }
   revalidatePath(`/compras/${solicitudId}`);
 }
 
