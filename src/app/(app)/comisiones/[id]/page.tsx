@@ -20,6 +20,9 @@ import { calcularSemana, cargarLibretas, semanasSinCerrar, semanaCerrada, ESTADO
 import { puedeGestionarComision, puedePlanificarHorasTrabajo, rolEnComision } from "@/lib/comisionAuth";
 import { historialComision } from "@/lib/logic";
 import { puntosDeAgenda, TIPO_REUNION_LABEL } from "@/lib/trazabilidad";
+import { panelDeFuncion, kpisComunes, correspondenciaReciente, eleccionesAbiertas } from "@/lib/panelesComision";
+import { PanelFuncion, Kpis } from "@/components/comisiones/PanelFuncion";
+import { CorrespondenciaPanel, EleccionesPanel } from "@/components/comisiones/PanelFormularios";
 import { FUNCION_COMISION, funcionDe, comisionDisponibleEnEtapa, textoEtapas, ETAPA_LABEL, type EtapaCooperativa } from "@/lib/comisionesFunciones";
 import { cargarSemanaHoras, obtenerHorarioObra } from "@/lib/horasTrabajo";
 import { hoyEnUruguay, lunesDe, sumarDias, diasDeSemana, textoSemana, esFechaISO, textoHoras, textoDia } from "@/lib/horasObra";
@@ -306,6 +309,19 @@ export default async function ComisionDetallePage({
             ? { label: "En actividad", color: "verde" as const }
             : { label: "Sin actividad", color: "gray" as const };
 
+  // ---------- Fase 3B: panel propio de la función y KPIs comunes ----------
+  const [panel, comunes] = await Promise.all([disponible ? panelDeFuncion(funcion, comisionId) : Promise.resolve(null), kpisComunes(comisionId).catch(() => [])]);
+  const [correspondencia, elecciones] = await Promise.all([
+    panel?.formularios?.includes("correspondencia") ? correspondenciaReciente() : Promise.resolve([]),
+    panel?.formularios?.includes("eleccion") ? eleccionesAbiertas() : Promise.resolve([]),
+  ]);
+  const extraPanel = panel?.formularios?.length ? (
+    <div className="space-y-4">
+      {panel.formularios.includes("correspondencia") && <CorrespondenciaPanel comisionId={comisionId} filas={correspondencia} hoy={hoy} puede={puedeGestionar} />}
+      {panel.formularios.includes("eleccion") && <EleccionesPanel comisionId={comisionId} elecciones={elecciones} hoy={hoy} puede={puedeGestionar} />}
+    </div>
+  ) : null;
+
   // ---------- Pestañas ----------
   const tabResumen = (
     <div className="space-y-5">
@@ -315,6 +331,15 @@ export default async function ComisionDetallePage({
         <Dato label="Tareas pendientes" valor={`${pendientes.length}${vencidas.length ? ` (${vencidas.length} vencidas)` : ""}`} />
         <Dato label="Próxima reunión" valor={proximaReunion ? dayjs(proximaReunion.fecha).format("DD/MM HH:mm") : "Sin agendar"} />
       </div>
+      {panel && panel.kpis.length > 0 && (
+        <div>
+          <Kpis kpis={panel.kpis} titulo={`Indicadores de ${def.label}`} />
+          <Link href={`/comisiones/${comisionId}?tab=panel`} className="mt-2 inline-block text-sm font-semibold text-[var(--color-brand-800)] underline underline-offset-2">
+            Ver el panel completo →
+          </Link>
+        </div>
+      )}
+      <Kpis kpis={comunes} titulo="Cómo viene la comisión" />
       {esTrabajo && semanaHoras && (
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -553,6 +578,7 @@ export default async function ComisionDetallePage({
 
   const tabs = [
     { id: "resumen", label: "Resumen", content: tabResumen },
+    ...(panel ? [{ id: "panel", label: `Panel de ${def.label}`, content: <PanelFuncion panel={panel} extra={extraPanel} /> }] : []),
     ...(esTrabajo && semanaHoras && horario
       ? [
           {

@@ -95,7 +95,10 @@ export default async function ReglamentoPage() {
           <h2 className="text-lg font-bold text-ink">Cuotas del mes</h2>
           <Badge color={c.automaticas ? "verde" : "gray"}>{c.automaticas ? "Se generan solas" : "Se generan a mano"}</Badge>
         </div>
-        <Explicacion>Si lo activás, cada mes COOVA crea la cuota de cada socio activo el día que elijas. Nunca la crea dos veces.</Explicacion>
+        <Explicacion>
+          Si lo activás, cada mes COOVA crea la cuota de cada socio activo el día que elijas. Nunca la crea dos veces. Lo que se cobra además de la cuota social (fondo de mantenimiento, gastos comunes…) se define en{" "}
+          <Link href="/conceptos-cuota" className="underline">Conceptos de la cuota</Link>.
+        </Explicacion>
         <div className="mt-4">
           <SeccionReglamentoForm seccion="cuotas" editable={editable}>
             <fieldset className="space-y-2">
@@ -317,6 +320,49 @@ export default async function ReglamentoPage() {
               <Opcion name="horas_a_favor" value="acumulan" actual={r.horas.aFavor} titulo="Le quedan a favor para otras semanas" />
               <Opcion name="horas_a_favor" value="no_acumulan" actual={r.horas.aFavor} titulo="No se acumulan" />
             </fieldset>
+          </SeccionReglamentoForm>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-bold text-ink">Seguridad en la obra</h2>
+        <Explicacion>
+          Nadie debería ir a la obra sin la inducción de seguridad. Las inducciones se registran en Seguridad → Inducción; el control empieza cuando se carga la primera.
+        </Explicacion>
+        <div className="mt-4">
+          <SeccionReglamentoForm seccion="obra" editable={editable}>
+            <fieldset className="space-y-2">
+              <legend className="font-semibold text-ink mb-1">Si se le asignan horas de obra a un núcleo donde nadie hizo la inducción…</legend>
+              <Opcion name="seguridad_induccion_modo" value="avisar" actual={r.obra.induccionModo} titulo="Avisar, pero dejar asignarlas" />
+              <Opcion name="seguridad_induccion_modo" value="bloquear" actual={r.obra.induccionModo} titulo="No dejar asignarlas hasta que haga la inducción" />
+            </fieldset>
+          </SeccionReglamentoForm>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-bold text-ink">Seguimiento automático</h2>
+        <Explicacion>
+          Avisos que COOVA prepara solo, una vez por día. Están apagados con 0. Nunca se aplica una sanción sola: la medida queda propuesta para que la conducción la apruebe o la descarte.
+        </Explicacion>
+        <div className="mt-4">
+          <SeccionReglamentoForm seccion="seguimiento" editable={editable}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="block">
+                <Label required>Proponer una medida si un núcleo debe más de (horas)</Label>
+                <input name="horas_deuda_umbral" type="number" min={0} max={1000} defaultValue={r.seguimiento.deudaHorasUmbral} className={inputClass} />
+                <span className="text-[13px] text-ink-muted">0 = apagado</span>
+              </label>
+              <label className="block">
+                <Label required>Escalar un reclamo sin respuesta después de (días)</Label>
+                <input name="reclamos_dias_escalar" type="number" min={0} max={365} defaultValue={r.seguimiento.reclamosDiasEscalar} className={inputClass} />
+                <span className="text-[13px] text-ink-muted">0 = apagado. Le avisa a la Comisión de Mantenimiento (o al Consejo).</span>
+              </label>
+            </div>
+            <label className="block">
+              <Label required>Medida que dice el reglamento para la deuda de horas</Label>
+              <input name="horas_deuda_medida" maxLength={200} defaultValue={r.seguimiento.deudaHorasMedida} className={inputClass} />
+            </label>
           </SeccionReglamentoForm>
         </div>
       </Card>

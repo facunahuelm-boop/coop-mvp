@@ -23,7 +23,7 @@ export default async function ConfiguracionPage() {
     redirect("/dashboard");
   }
 
-  const [config, alertasEmail, usuariosActivosRow, organizacion, reglas] = await Promise.all([
+  const [config, , usuariosActivosRow, organizacion, reglas] = await Promise.all([
     all<any>(`SELECT * FROM config_email`),
     all<any>(
       `SELECT ae.*, u.nombre as usuario_nombre FROM alertas_email ae
@@ -72,6 +72,10 @@ export default async function ConfiguracionPage() {
           mientras se está construyendo. Si tu caso es distinto, podés forzarlo desde &quot;Módulos&quot; más abajo.
         </p>
         <EtapaForm etapaActual={organizacion?.etapa || "obra"} />
+        <p className="mt-2 text-sm text-ink-muted">
+          Para pasar de una etapa a otra con todo revisado (lo pendiente, qué cambia y qué preparar), usá el{" "}
+          <a href="/cambiar-etapa" className="font-semibold underline underline-offset-2">asistente «Cambiar de etapa»</a>.
+        </p>
       </Card>
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-3">Módulos</h3>

@@ -116,6 +116,24 @@ export async function itemsDeAtencion(user: SessionUser, hoy: string): Promise<I
     if (ingresos) items.push({ texto: `${ingresos} ${plural(ingresos, "socio nuevo tiene", "socios nuevos tienen")} el ingreso sin terminar`, detalle: "Documentos, bienvenida, inducción…", href: "/socios#ingreso-pendiente", boton: "Ver socios", tono: "azul" });
   }
 
+  // Fase 3I: medidas propuestas por el reglamento (A25) y encuestas sin responder.
+  if (user.rol === "consejo_directivo" || user.rol === "admin") {
+    const medidas = await seguro(async () => Number((await get<{ n: string }>(`SELECT COUNT(*) AS n FROM medidas_propuestas WHERE estado = 'propuesta'`))?.n ?? 0), 0);
+    if (medidas) items.push({ texto: `${medidas} ${plural(medidas, "medida propuesta", "medidas propuestas")} para decidir`, detalle: "Según el reglamento (por ejemplo, deuda de horas).", href: "/medidas", boton: "Decidir", tono: "amarillo" });
+  }
+  const encuestas = await seguro(
+    async () =>
+      Number(
+        (await get<{ n: string }>(
+          `SELECT COUNT(*) AS n FROM encuestas e WHERE e.estado = 'abierta' AND (e.cierra_en IS NULL OR e.cierra_en >= ?)
+             AND NOT EXISTS (SELECT 1 FROM encuesta_respuestas r WHERE r.encuesta_id = e.id AND r.user_id = ?)`,
+          [hoy, user.id]
+        ))?.n ?? 0
+      ),
+    0
+  );
+  if (encuestas) items.push({ texto: `${encuestas} ${plural(encuestas, "encuesta para responder", "encuestas para responder")}`, href: "/encuestas", boton: "Responder", tono: "azul" });
+
   // Fase 2D: temas para el Consejo y mandatos vencidos (decide el admin).
   if (user.rol === "consejo_directivo") {
     const temas = await seguro(async () => (await temasParaElConsejo()).length, 0);

@@ -8,6 +8,7 @@ import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/compo
 import { PortalSocio } from "@/components/portal/PortalSocio";
 import { BandejaAtencion } from "@/components/portal/BandejaAtencion";
 import { itemsDeAtencion } from "@/lib/atencion";
+import { saludCooperativa, veSalud, colorGeneral } from "@/lib/saludCooperativa";
 import { comisionDisponibleEnEtapa } from "@/lib/comisionesFunciones";
 import { hoyEnUruguay as hoyUY } from "@/lib/horasObra";
 import { DashboardGrid, DashboardSection, SummaryCard, EstadoTag, DashboardCardLink, DashboardCardModal } from "@/components/DashboardCard";
@@ -99,6 +100,8 @@ export default async function DashboardPage() {
   // sus horas, la próxima asamblea y sus avisos), no un tablero de gestión.
   if (user.rol === "socio") return <PortalSocio user={user} />;
   const atencion = await itemsDeAtencion(user, hoyUY());
+  // Fase 3I: semáforo de salud (sólo conducción, Fiscal y Finanzas).
+  const salud = veSalud(user) ? await saludCooperativa(user.etapa).catch(() => []) : [];
 
   await recalcularAlertas();
 
@@ -587,6 +590,24 @@ export default async function DashboardPage() {
       <PageHeader title="Inicio" subtitle={dayjs().format("dddd DD [de] MMMM, YYYY")} />
 
       <BandejaAtencion items={atencion} />
+
+      {salud.length > 0 && (
+        <Link href="/salud" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3 hover:bg-surface-sunken" data-testid="semaforo-salud">
+          <span className="font-semibold text-ink">
+            Salud de la cooperativa:{" "}
+            {colorGeneral(salud) === "verde" ? "bien" : colorGeneral(salud) === "amarillo" ? "hay cosas para atender" : "necesita atención"}
+          </span>
+          <span className="flex items-center gap-1.5" aria-hidden>
+            {salud.map((i) => (
+              <span
+                key={i.clave}
+                title={`${i.titulo}: ${i.valor}`}
+                className={`inline-block h-3 w-3 rounded-full ${i.color === "verde" ? "bg-[var(--color-verde)]" : i.color === "amarillo" ? "bg-[var(--color-amarillo)]" : i.color === "rojo" ? "bg-[var(--color-rojo)]" : "bg-ink-faint"}`}
+              />
+            ))}
+          </span>
+        </Link>
+      )}
 
       {/* Rediseño del Inicio — RESUMEN → CLICK → POP-UP → DETALLE. Cada
           módulo que antes era una <Card> larga y siempre desplegada ahora es

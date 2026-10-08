@@ -101,6 +101,15 @@ export function AsistenciaDia({
 
   return (
     <div className="space-y-4">
+      {/* Fase 3A: QR del día para que los socios marquen llegada y salida. */}
+      {puedeMarcar && esHoy && (
+        <p className="text-[15px]">
+          <a href="/qr-obra" className="font-semibold text-[var(--color-brand-800)] underline underline-offset-2">
+            Mostrar el QR de hoy
+          </a>{" "}
+          <span className="text-ink-muted">— los socios lo escanean al llegar y al irse, y la asistencia se anota sola.</span>
+        </p>
+      )}
       {puedeMarcar && avisosPendientes.length > 0 && (
         <Card className="!border-[var(--color-amarillo)]/40">
           <p className="text-base font-bold text-ink mb-2">

@@ -18,6 +18,7 @@ import {
   cerrarAsambleaFormAction,
   guardarActaFormAction,
   aprobarActaFormAction,
+  pasarAlPuntoFormAction,
 } from "@/lib/actions/asambleas";
 
 /** Fase 2D — asamblea formal: botones grandes, una acción por toque. */
@@ -306,5 +307,14 @@ export function AprobarActaBoton({ actaId }: { actaId: number }) {
       ocultos={{ acta_id: actaId }}
       textoConfirmar="Sí, aprobarla"
     />
+  );
+}
+
+/** Fase 3F — la mesa elige qué punto se ve en el proyector. */
+export function PasarAlPuntoBoton({ reunionId, puntoId, children }: { reunionId: number; puntoId: number; children: React.ReactNode }) {
+  return (
+    <BotonAccion action={pasarAlPuntoFormAction} ocultos={{ reunion_id: reunionId, punto_id: puntoId }}>
+      {children}
+    </BotonAccion>
   );
 }

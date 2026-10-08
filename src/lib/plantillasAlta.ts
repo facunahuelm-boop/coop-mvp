@@ -28,11 +28,11 @@ export type PlantillaAlta = {
 };
 
 const ADMINISTRATIVA: ComisionSugerida = { nombre: "Comisión Administrativa", funcion: "administrativa", descripcion: "Padrón, correspondencia, libros y documentación." };
-const FOMENTO: ComisionSugerida = { nombre: "Comisión de Fomento", funcion: "general", descripcion: "Actividades, integración y comunicación con los socios." };
+const FOMENTO: ComisionSugerida = { nombre: "Comisión de Fomento", funcion: "fomento", descripcion: "Actividades, integración y comunicación con los socios." };
 const TRABAJO: ComisionSugerida = { nombre: "Comisión de Trabajo", funcion: "trabajo", descripcion: "Organiza las horas de ayuda mutua y la asistencia a la obra." };
 const COMPRAS: ComisionSugerida = { nombre: "Comisión de Compras", funcion: "compras", descripcion: "Pide presupuestos, compara y sigue las compras." };
 const SEGURIDAD: ComisionSugerida = { nombre: "Comisión de Seguridad", funcion: "seguridad", descripcion: "Seguridad en la obra, elementos de protección e incidentes." };
-const MANTENIMIENTO: ComisionSugerida = { nombre: "Comisión de Mantenimiento", funcion: "general", descripcion: "Reclamos, mantenimiento preventivo y el fondo de mantenimiento." };
+const MANTENIMIENTO: ComisionSugerida = { nombre: "Comisión de Mantenimiento", funcion: "mantenimiento", descripcion: "Reclamos, mantenimiento preventivo y el fondo de mantenimiento." };
 
 export const PLANTILLAS_ALTA: PlantillaAlta[] = [
   {

@@ -8,6 +8,7 @@ import { hoyEnUruguay, textoHoras, textoSaldo } from "@/lib/horasObra";
 import { ETAPA_LABEL, type EtapaCooperativa } from "@/lib/comisionesFunciones";
 import { listarHitos } from "@/lib/tramites";
 import { LineaDeTiempo } from "@/components/tramites/LineaDeTiempo";
+import { sociosQueAyudo } from "@/lib/accesoDelegado";
 
 /**
  * Fase 1D — "Mi vivienda": la pantalla de inicio del socio. Responde, con
@@ -106,6 +107,16 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
     [user.id]
   ).catch(() => []);
 
+  // Fase 3I: encuestas abiertas que todavía no respondió.
+  const encuesta = await get<{ id: number; pregunta: string }>(
+    `SELECT e.id, e.pregunta FROM encuestas e WHERE e.estado = 'abierta' AND (e.cierra_en IS NULL OR e.cierra_en >= ?)
+       AND NOT EXISTS (SELECT 1 FROM encuesta_respuestas r WHERE r.encuesta_id = e.id AND r.user_id = ?) ORDER BY e.id DESC LIMIT 1`,
+    [hoy, user.id]
+  ).catch(() => undefined);
+
+  // Fase 3G: a quiénes ayuda esta persona (acceso delegado).
+  const ayudo = await sociosQueAyudo(user.id);
+
   const primerNombre = user.nombre.split(" ")[0];
   return (
     <div className="space-y-5 text-[17px]">
@@ -113,6 +124,31 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
         <h1 className="text-2xl font-bold text-ink">Hola, {primerNombre}</h1>
         <p className="text-[16px] text-ink-muted first-letter:uppercase">{fechaLarga(hoy)}</p>
       </div>
+
+      {encuesta && (
+        <Bloque titulo="Una pregunta rápida" tono="normal">
+          <p className="text-[17px] text-ink">{encuesta.pregunta}</p>
+          <div className="mt-3">
+            <Link href="/encuestas" className={botonPrincipal}>
+              Responder
+            </Link>
+          </div>
+        </Bloque>
+      )}
+
+      {ayudo.length > 0 && (
+        <Bloque titulo={ayudo.length === 1 ? "Ayudás a" : "Ayudás a estas personas"} tono="normal">
+          <ul className="space-y-2">
+            {ayudo.map((a) => (
+              <li key={a.id}>
+                <Link href={`/ayudo/${a.socio_id}`} className={botonPrincipal}>
+                  Ver lo de {a.socio_nombre}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Bloque>
+      )}
 
       {oficiales.length > 0 && (
         <Bloque titulo={oficiales.length === 1 ? "Tenés un aviso sin leer" : `Tenés ${oficiales.length} avisos sin leer`} tono="alerta">
@@ -263,6 +299,15 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
           <Link href="/notificaciones" className={botonSecundario}>Ver todos los avisos</Link>
         </div>
       </Bloque>
+
+      {socio && (
+        <p className="text-[16px] text-ink">
+          ¿Querés que un familiar te ayude a seguir tus cuotas y tus horas?{" "}
+          <Link href="/acceso-familiar" className="font-semibold underline underline-offset-2">
+            Darle acceso
+          </Link>
+        </p>
+      )}
 
       <p className="text-[16px] text-ink-muted">
         La cooperativa está en etapa: <strong className="text-ink">{ETAPA_LABEL[user.etapa as EtapaCooperativa] ?? user.etapa}</strong>.

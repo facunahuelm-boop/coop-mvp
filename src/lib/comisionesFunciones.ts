@@ -24,7 +24,18 @@ export const ETAPA_LABEL: Record<EtapaCooperativa, string> = {
   habitada: "Habitada",
 };
 
-export const FUNCIONES_COMISION = ["trabajo", "compras", "seguridad", "administrativa", "general"] as const;
+export const FUNCIONES_COMISION = [
+  "trabajo",
+  "compras",
+  "seguridad",
+  "obra",
+  "administrativa",
+  "fiscal",
+  "electoral",
+  "mantenimiento",
+  "fomento",
+  "general",
+] as const;
 export type FuncionComision = (typeof FUNCIONES_COMISION)[number];
 
 /** Herramienta propia de una función: una pestaña extra en su página. */
@@ -39,27 +50,44 @@ type DefFuncion = {
   modulo?: { href: string; label: string };
 };
 
+/**
+ * Fase 3B — cada función suma su panel propio (pestaña «Panel», ver
+ * src/lib/panelesComision.ts). Agregar una función nueva = sumarla acá y
+ * registrar su panel allá; la página de la comisión no cambia.
+ */
+const PANEL: HerramientaComision = { id: "panel", label: "Panel propio" };
+
 export const FUNCION_COMISION: Record<FuncionComision, DefFuncion> = {
   trabajo: {
     label: "Trabajo",
     etapasDefault: ["obra"],
-    herramientas: [{ id: "horas", label: "Horas de trabajo" }],
+    herramientas: [{ id: "horas", label: "Horas de trabajo" }, PANEL],
     modulo: { href: "/trabajo", label: "Jornadas de trabajo" },
   },
   compras: {
     label: "Compras",
     etapasDefault: ["obra"],
-    herramientas: [],
+    herramientas: [PANEL],
     modulo: { href: "/compras", label: "Compras" },
   },
   seguridad: {
     label: "Seguridad",
     etapasDefault: ["obra"],
-    herramientas: [],
+    herramientas: [PANEL],
     modulo: { href: "/seguridad", label: "Seguridad" },
   },
-  administrativa: { label: "Administrativa", etapasDefault: null, herramientas: [] },
-  general: { label: "General", etapasDefault: null, herramientas: [] },
+  obra: {
+    label: "Obra",
+    etapasDefault: ["obra"],
+    herramientas: [PANEL],
+    modulo: { href: "/obra", label: "Avance de obra" },
+  },
+  administrativa: { label: "Administrativa", etapasDefault: null, herramientas: [PANEL], modulo: { href: "/documentos", label: "Documentos" } },
+  fiscal: { label: "Fiscal", etapasDefault: null, herramientas: [PANEL], modulo: { href: "/fiscal", label: "Control fiscal" } },
+  electoral: { label: "Electoral", etapasDefault: null, herramientas: [PANEL], modulo: { href: "/consejo-directivo", label: "Consejo y cargos" } },
+  mantenimiento: { label: "Mantenimiento", etapasDefault: ["habitada"], herramientas: [PANEL], modulo: { href: "/reclamos", label: "Reclamos y mantenimiento" } },
+  fomento: { label: "Fomento", etapasDefault: null, herramientas: [PANEL] },
+  general: { label: "General", etapasDefault: null, herramientas: [PANEL] },
 };
 
 export function funcionDe(valor: string | null | undefined): FuncionComision {

@@ -70,6 +70,14 @@ const ESQUEMAS = {
     compras_presupuestos_minimos: z.coerce.number().int("Número entero.").min(1, "Entre 1 y 5.").max(5, "Entre 1 y 5."),
     compras_aprobacion: z.enum(["tesoreria_o_consejo", "consejo"], { message: "Elegí una opción." }),
   }),
+  seguimiento: z.object({
+    horas_deuda_umbral: z.coerce.number().int("Número entero.").min(0, "Mínimo 0.").max(1000, "Máximo 1000 horas."),
+    horas_deuda_medida: z.string().trim().min(3, "Escribí la medida.").max(200, "Máximo 200 caracteres."),
+    reclamos_dias_escalar: z.coerce.number().int("Número entero.").min(0, "Mínimo 0.").max(365, "Máximo 365 días."),
+  }),
+  obra: z.object({
+    seguridad_induccion_modo: z.enum(["avisar", "bloquear"], { message: "Elegí una opción." }),
+  }),
   ayuda: z.object({
     ayuda_telefono: z.string().trim().max(40, "Máximo 40 caracteres."),
     ayuda_horario: z.string().trim().max(80, "Máximo 80 caracteres."),
@@ -112,7 +120,7 @@ export async function guardarReglamentoAction(formData: FormData) {
     accion: "guardar_reglamento",
     entidad: "configuracion_reglas",
     entidad_id: user.organization_id,
-    valor_anterior: { seccion, ...(seccion === "cuotas" || seccion === "atrasos" ? anterior.cuotas : seccion === "horas" ? anterior.horas : seccion === "ayuda" ? anterior.ayuda : seccion === "seguridad" ? anterior.seguridad : seccion === "finanzas" ? anterior.finanzas : seccion === "asambleas" ? anterior.asambleas : seccion === "compras" ? anterior.compras : { ...anterior.recibos, avisos: anterior.cuotas.avisos, resumenSemanal: anterior.difusion.resumenSemanal }) },
+    valor_anterior: { seccion, ...(seccion === "cuotas" || seccion === "atrasos" ? anterior.cuotas : seccion === "horas" ? anterior.horas : seccion === "ayuda" ? anterior.ayuda : seccion === "seguridad" ? anterior.seguridad : seccion === "finanzas" ? anterior.finanzas : seccion === "asambleas" ? anterior.asambleas : seccion === "compras" ? anterior.compras : seccion === "obra" ? anterior.obra : seccion === "seguimiento" ? anterior.seguimiento : { ...anterior.recibos, avisos: anterior.cuotas.avisos, resumenSemanal: anterior.difusion.resumenSemanal }) },
     valor_nuevo: { seccion, ...datos },
   });
   revalidatePath("/reglamento");
@@ -133,15 +141,17 @@ export async function generarCuotasAhoraAction(): Promise<string> {
   revalidatePath("/finanzas");
   revalidatePath("/socios");
   revalidatePath("/reglamento");
+  const extra = r.conceptosGenerados ? ` Además, ${r.conceptosGenerados} cargo${r.conceptosGenerados === 1 ? "" : "s"} de los otros conceptos (fondo de mantenimiento, gastos comunes…).` : "";
   if (r.generadas === 0) {
+    if (r.conceptosGenerados) return `No hubo cuotas sociales nuevas.${extra}`;
     return r.sinMonto === r.total
       ? "No se generó ninguna cuota: falta cargar el monto de la cuota en el reglamento (o en cada núcleo)."
       : "Ya estaban generadas las cuotas de este mes para todos los socios activos.";
   }
-  return `Listo: se generaron ${r.generadas} cuota${r.generadas === 1 ? "" : "s"} (${r.concepto}).`;
+  return `Listo: se generaron ${r.generadas} cuota${r.generadas === 1 ? "" : "s"} (${r.concepto}).${extra}`;
 }
 
-export async function generarCuotasAhoraFormAction(_prev: ActionState, _formData: FormData): Promise<ActionState> {
+export async function generarCuotasAhoraFormAction(): Promise<ActionState> {
   let aviso = "";
   const r = await conEstadoDeAccion(async () => {
     aviso = await generarCuotasAhoraAction();

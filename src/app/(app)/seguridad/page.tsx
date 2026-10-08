@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
@@ -9,6 +10,8 @@ import { resolverIncidenteFormAction } from "@/lib/actions/seguridad";
 import { CHECKLIST_BASE } from "@/lib/constants";
 import { obtenerReglasCooperativa } from "@/lib/reglas";
 import { UsuarioLink } from "@/components/EntidadLink";
+import { hoyEnUruguay } from "@/lib/horasObra";
+import { puedeGestionarSeguridad, personasDeLaCooperativa, personasConInduccion, leerChecklist, fallasDe } from "@/lib/seguridadObra";
 import { CargarDocumentoSeguridadForm, RegistrarIncidenteForm, NuevaInspeccionForm } from "@/components/seguridad/SeguridadFormularios";
 
 export default async function SeguridadPage() {
@@ -17,10 +20,27 @@ export default async function SeguridadPage() {
   if (!canRead(user.rol, "seguridad")) redirect("/dashboard");
 
   const puedeEditar = canEdit(user.rol, "seguridad");
+  const gestiona = await puedeGestionarSeguridad(user);
+  const hoyIso = hoyEnUruguay();
+  const [checklistHoy, personas, conInduccion, ultimoIncidente, tareasPorInspeccion, eppPersonas] = await Promise.all([
+    all<{ id: number; checklist_json: string }>(`SELECT id, checklist_json FROM inspecciones_seguridad WHERE tipo = 'diaria' AND dia = ? LIMIT 1`, [hoyIso]).catch(() => []),
+    personasDeLaCooperativa(),
+    personasConInduccion(),
+    all<{ f: string }>(`SELECT left(fecha::text, 10) AS f FROM incidentes_seguridad WHERE tipo IN ('incidente', 'accidente') ORDER BY fecha DESC LIMIT 1`).catch(() => []),
+    all<{ inspeccion_id: number; n: string; hechas: string }>(
+      `SELECT inspeccion_id, COUNT(*) AS n, COUNT(*) FILTER (WHERE estado = 'completada') AS hechas FROM tareas WHERE inspeccion_id IS NOT NULL GROUP BY inspeccion_id`
+    ).catch(() => []),
+    all<{ n: string }>(`SELECT COUNT(DISTINCT COALESCE('i-' || integrante_id, 's-' || socio_id)) AS n FROM epp_entregas WHERE anulado_en IS NULL`).catch(() => [{ n: "0" }]),
+  ]);
+  const hayInd = conInduccion.size > 0;
+  const sinInduccion = personas.filter((p) => !conInduccion.has(p.clave)).length;
+  const diasSinIncidentes = ultimoIncidente[0] ? dayjs(hoyIso).diff(dayjs(ultimoIncidente[0].f), "day") : null;
+  const tareasDe = new Map(tareasPorInspeccion.map((t) => [Number(t.inspeccion_id), { n: Number(t.n), hechas: Number(t.hechas) }]));
+  const fallasHoy = checklistHoy[0] ? fallasDe(leerChecklist(checklistHoy[0].checklist_json)).length : 0;
   const [docs, incidentes, inspecciones, reglas] = await Promise.all([
     all<any>(`SELECT * FROM documentos_seguridad ORDER BY fecha_vencimiento ASC`),
     all<any>(`SELECT i.*, u.nombre as autor_nombre FROM incidentes_seguridad i LEFT JOIN users u ON u.id = i.autor_id ORDER BY fecha DESC`),
-    all<any>(`SELECT i.*, u.nombre as autor_nombre FROM inspecciones_seguridad i LEFT JOIN users u ON u.id = i.autor_id ORDER BY fecha DESC LIMIT 5`),
+    all<any>(`SELECT i.*, u.nombre as autor_nombre FROM inspecciones_seguridad i LEFT JOIN users u ON u.id = i.autor_id ORDER BY fecha DESC LIMIT 8`),
     // Fase 3, Sub-fase 3.1 ("Reglas de la cooperativa"): mismo umbral
     // configurable que usa recalcularAlertas() — antes hardcodeado en 15.
     obtenerReglasCooperativa(),
@@ -30,6 +50,35 @@ export default async function SeguridadPage() {
   return (
     <div>
       <PageHeader title="Seguridad, Higiene y Prevención" subtitle="Documentación, inspecciones e incidentes" />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <Link href="/seguridad/hoy" className="block rounded-2xl border border-border bg-surface p-4 hover:bg-surface-sunken">
+          <p className="text-sm text-ink-muted">Checklist de hoy</p>
+          <p className="text-lg font-bold text-ink">{checklistHoy[0] ? (fallasHoy ? `Hecho · ${fallasHoy} a corregir` : "Hecho · todo bien") : "Sin hacer"}</p>
+          <p className="text-sm font-semibold text-[var(--color-brand-800)]">{checklistHoy[0] ? "Ver" : gestiona ? "Hacerlo ahora" : "Ver"}</p>
+        </Link>
+        <Link href="/seguridad/induccion" className="block rounded-2xl border border-border bg-surface p-4 hover:bg-surface-sunken">
+          <p className="text-sm text-ink-muted">Inducción</p>
+          <p className="text-lg font-bold text-ink">{hayInd ? `${sinInduccion} ${sinInduccion === 1 ? "persona sin" : "personas sin"} inducción` : "Sin registrar"}</p>
+          <p className="text-sm font-semibold text-[var(--color-brand-800)]">Ver quiénes</p>
+        </Link>
+        {gestiona ? (
+          <Link href="/seguridad/epp" className="block rounded-2xl border border-border bg-surface p-4 hover:bg-surface-sunken">
+            <p className="text-sm text-ink-muted">Elementos de protección</p>
+            <p className="text-lg font-bold text-ink">{`${Number(eppPersonas[0]?.n ?? 0)} de ${personas.length} personas con EPP`}</p>
+            <p className="text-sm font-semibold text-[var(--color-brand-800)]">Anotar entregas</p>
+          </Link>
+        ) : (
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <p className="text-sm text-ink-muted">Elementos de protección</p>
+            <p className="text-lg font-bold text-ink">{`${Number(eppPersonas[0]?.n ?? 0)} de ${personas.length} personas con EPP`}</p>
+          </div>
+        )}
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <p className="text-sm text-ink-muted">Días sin incidentes</p>
+          <p className="text-lg font-bold text-ink">{diasSinIncidentes == null ? "Ningún incidente registrado" : diasSinIncidentes}</p>
+        </div>
+      </div>
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Documentación y vencimientos</h3>
       <div className="space-y-2 mb-6">
@@ -81,13 +130,17 @@ export default async function SeguridadPage() {
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Inspecciones (checklist)</h3>
       <div className="space-y-2 mb-4">
         {inspecciones.map((i) => {
-          const items = JSON.parse(i.checklist_json) as { item: string; ok: boolean }[];
-          const fallas = items.filter((x) => !x.ok);
+          const fallas = fallasDe(leerChecklist(i.checklist_json));
           return (
             <Card key={i.id}>
-              <p className="text-xs text-ink/40">{dayjs(i.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={i.autor_id} nombre={i.autor_nombre} /></p>
+              <p className="text-xs text-ink/40">{i.tipo === "diaria" ? "Checklist diario" : "Inspección"} · {dayjs(i.fecha).format("DD/MM/YYYY")} · <UsuarioLink id={i.autor_id} nombre={i.autor_nombre} /></p>
               <p className="text-sm mt-1">{fallas.length === 0 ? "🟢 Todos los puntos del checklist OK." : `🟠 ${fallas.length} punto(s) a corregir: ${fallas.map((f) => f.item).join(", ")}`}</p>
               {i.hallazgos && <p className="text-xs text-ink/60 mt-1">{i.hallazgos}</p>}
+              {tareasDe.get(i.id) && (
+                <p className="text-xs text-ink/60 mt-1">
+                  Tareas para corregir: {tareasDe.get(i.id)!.hechas} de {tareasDe.get(i.id)!.n} hechas.
+                </p>
+              )}
             </Card>
           );
         })}

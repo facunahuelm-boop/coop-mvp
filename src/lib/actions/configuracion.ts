@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
-import { all, insert, update, audit } from "@/lib/db";
+import { all, get, insert, update, audit } from "@/lib/db";
 import { saveUploadedFile, TIPOS_IMAGEN } from "@/lib/upload";
 import { cifrar } from "@/lib/crypto";
 import { redirect } from "next/navigation";
@@ -11,6 +11,7 @@ import { parseForm, zNombre, zTextoOpcional, zEmailOpcional } from "@/lib/valida
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { CLAVES_HORARIO_OBRA } from "@/lib/horasTrabajo";
 import { aMinutos } from "@/lib/horasObra";
+import { comisionesSugeridas } from "@/lib/plantillasAlta";
 
 // AUDITORÍA INTEGRAL (cobertura de auditoría, sección "trazabilidad"): las
 // cinco acciones de este archivo cambian configuración sensible de toda la
@@ -393,4 +394,46 @@ export async function guardarHorarioObraAction(formData: FormData) {
 
 export async function guardarHorarioObraFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => guardarHorarioObraAction(formData));
+}
+
+// ---------- Fase 3H: asistente «Cambiar de etapa» ----------
+
+export async function cambiarEtapaAsistenteFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  let aviso = "";
+  const r = await conEstadoDeAccion(async () => {
+    const user = await requireAdminOConsejo();
+    const etapa = String(formData.get("etapa") || "");
+    if (!ETAPAS.includes(etapa as (typeof ETAPAS)[number])) throw new Error("Etapa inválida");
+    if (formData.get("revisado") !== "1") throw new Error("Marcá que revisaste lo pendiente antes de cambiar de etapa.");
+    const org = await get<{ etapa: string; modalidad: string | null }>(`SELECT etapa, modalidad FROM organizations WHERE id = ?`, [user.organization_id]).catch(() =>
+      get<{ etapa: string; modalidad: string | null }>(`SELECT etapa, NULL AS modalidad FROM organizations WHERE id = ?`, [user.organization_id])
+    );
+    if (!org) throw new Error("No se encontró la cooperativa.");
+    if (org.etapa === etapa) throw new Error("La cooperativa ya está en esa etapa.");
+    await update("organizations", user.organization_id, { etapa });
+    const hechos: string[] = [];
+    if (formData.get("crear_comisiones") === "1") {
+      const existentes = new Set((await all<{ nombre: string }>(`SELECT nombre FROM comisiones WHERE activa = 1`)).map((c) => c.nombre.trim().toLowerCase()));
+      let n = 0;
+      for (const c of comisionesSugeridas((org.modalidad as "ayuda_mutua" | "ahorro_previo") || "ayuda_mutua", etapa as "pre_obra" | "obra" | "habitada")) {
+        if (existentes.has(c.nombre.toLowerCase())) continue;
+        const id = await insert("comisiones", { nombre: c.nombre, descripcion: c.descripcion, funcion: c.funcion, activa: 1 });
+        await audit({ usuario_id: user.id, accion: "crear", entidad: "comisiones", entidad_id: id, valor_nuevo: { nombre: c.nombre, funcion: c.funcion, origen: "cambio de etapa" } });
+        n++;
+      }
+      if (n) hechos.push(`${n} comisión(es) nueva(s)`);
+    }
+    if (etapa === "habitada" && formData.get("crear_fondo_mantenimiento") === "1") {
+      const ya = await get<{ id: number }>(`SELECT id FROM fondos WHERE tipo = 'mantenimiento' AND activo = 1`);
+      if (!ya) {
+        const id = await insert("fondos", { nombre: "Fondo de mantenimiento", tipo: "mantenimiento", descripcion: "Creado al pasar a la etapa Habitada.", creado_por_id: user.id });
+        await audit({ usuario_id: user.id, accion: "crear", entidad: "fondos", entidad_id: id, valor_nuevo: { nombre: "Fondo de mantenimiento", origen: "cambio de etapa" } });
+        hechos.push("el fondo de mantenimiento");
+      }
+    }
+    await audit({ usuario_id: user.id, accion: "cambiar_etapa", entidad: "organizations", entidad_id: user.organization_id, valor_anterior: { etapa: org.etapa }, valor_nuevo: { etapa, creado: hechos } });
+    revalidatePath("/", "layout");
+    aviso = `Listo: la cooperativa pasó a la nueva etapa.${hechos.length ? ` Se creó ${hechos.join(" y ")}.` : ""}`;
+  });
+  return r.ok ? { ...r, aviso } : r;
 }

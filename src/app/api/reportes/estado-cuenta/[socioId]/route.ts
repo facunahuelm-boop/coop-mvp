@@ -5,6 +5,7 @@ import { ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { generarPdfBuffer, type SeccionPdf } from "@/lib/pdf";
 import { calcularCuotasSocio, cargarMovimientosCuenta, resumenDeCuotas } from "@/lib/logic";
 import { hoyEnUruguay } from "@/lib/horasObra";
+import { accesoSobre } from "@/lib/accesoDelegado";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ socioId
     [socioId]
   );
   if (!socio) return NextResponse.json({ error: "No existe" }, { status: 404 });
-  if (!ROLES_FINANZAS_DETALLE.includes(user.rol) && socio.user_id !== user.id) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
+  const delegado = !ROLES_FINANZAS_DETALLE.includes(user.rol) && socio.user_id !== user.id ? await accesoSobre(user.id, socioId) : undefined;
+  if (!ROLES_FINANZAS_DETALLE.includes(user.rol) && socio.user_id !== user.id && !delegado) return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
 
   const movs = await cargarMovimientosCuenta(socioId);
   const { cuotas, saldo } = calcularCuotasSocio(movs);
@@ -55,7 +57,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ socioId
     },
   ];
   const pdf = await generarPdfBuffer({ titulo: "Estado de cuenta", subtitulo: `Al ${dmy(hoy)}`, organizacion: user.organizacion, secciones });
-  await audit({ usuario_id: user.id, accion: "descargar_estado_cuenta", entidad: "socios", entidad_id: socioId }).catch(() => {});
+  await audit({ usuario_id: user.id, accion: "descargar_estado_cuenta", entidad: "socios", entidad_id: socioId, valor_nuevo: delegado ? { en_nombre_de: socio.nombre } : undefined }).catch(() => {});
   return new Response(new Uint8Array(pdf), {
     headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="estado-de-cuenta-${socioId}-${hoy}.pdf"`, "Cache-Control": "no-store" },
   });

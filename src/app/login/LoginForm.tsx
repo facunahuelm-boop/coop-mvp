@@ -36,9 +36,11 @@ type Props = {
    * exitoso, para confirmarle a la persona que ya puede iniciar sesión con
    * la contraseña nueva. */
   mensajeRecuperacion?: boolean;
+  /** Fase 3A: a dónde volver después de entrar (sólo el QR de la obra). */
+  volver?: string;
 };
 
-export function LoginForm({ nombre, logoUrl, colorPrimario, mensajeRecuperacion }: Props) {
+export function LoginForm({ nombre, logoUrl, colorPrimario, mensajeRecuperacion, volver }: Props) {
   const [state, formAction, pending] = useActionState(loginAction, undefined);
 
   return (
@@ -60,6 +62,7 @@ export function LoginForm({ nombre, logoUrl, colorPrimario, mensajeRecuperacion 
         )}
 
         <form action={formAction} className="bg-surface rounded-2xl shadow-sm border border-ink/5 p-5 space-y-4">
+          {volver && <input type="hidden" name="volver" value={volver} />}
           <div>
             <Label>Email</Label>
             <input name="email" type="email" required className={inputClass} placeholder="tu@coop.uy" autoComplete="username" />

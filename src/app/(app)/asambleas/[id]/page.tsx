@@ -16,6 +16,7 @@ import {
   CerrarAsambleaBoton,
   ActaEditor,
   AprobarActaBoton,
+  PasarAlPuntoBoton,
 } from "@/components/asambleas/AsambleaFormularios";
 
 /**
@@ -75,6 +76,8 @@ export default async function AsambleaFormalPage({ params }: { params: Promise<{
     : {};
   const votantes = padron.filter((p) => p.habilitado && (p.presente || (reglamento.asambleas.poderes && p.representado_por_id))).map((p) => ({ id: p.id, nombre: p.presente ? p.nombre : `${p.nombre} (con poder)` }));
   const enCurso = r.estado === "planificada";
+  // Fase 3F: el punto que se ve en el proyector.
+  const puntoActual = (await get<{ punto_actual_id: number | null }>(`SELECT punto_actual_id FROM reuniones WHERE id = ?`, [r.id]).catch(() => undefined))?.punto_actual_id ?? null;
 
   return (
     <div className="max-w-5xl">
@@ -93,6 +96,35 @@ export default async function AsambleaFormalPage({ params }: { params: Promise<{
       <p className="mb-4 rounded-xl bg-surface-sunken px-4 py-3 text-[15px] text-ink-muted">
         COOVA ayuda a contar según el reglamento de la cooperativa. Lo que vale es lo que decide la mesa de la asamblea según el estatuto.
       </p>
+
+      {/* En vivo (Fase 3F) */}
+      <Card className="mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="font-semibold text-ink">Modo asamblea en vivo</p>
+            <p className="text-sm text-ink-muted">Una pantalla para el proyector con el quórum, el punto que se trata y la votación. Se actualiza sola.</p>
+          </div>
+          <a href={`/vivo/asamblea/${r.id}`} target="_blank" rel="noopener" className="rounded-xl bg-[var(--color-brand-800)] px-4 py-2.5 text-sm font-semibold text-white">
+            Abrir la pantalla del proyector
+          </a>
+        </div>
+        {conduce && enCurso && agenda.length > 0 && (
+          <ol className="mt-3 divide-y divide-border">
+            {agenda.map((a, i) => (
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-[15px]">
+                <span className={a.id === puntoActual ? "font-bold text-[var(--color-brand-800)]" : ""}>
+                  {i + 1}. {a.titulo} {a.id === puntoActual && <Badge color="brand">En pantalla</Badge>}
+                </span>
+                {a.id === puntoActual ? (
+                  <PasarAlPuntoBoton reunionId={r.id} puntoId={0}>Sacar de la pantalla</PasarAlPuntoBoton>
+                ) : (
+                  <PasarAlPuntoBoton reunionId={r.id} puntoId={a.id}>Tratar este punto</PasarAlPuntoBoton>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </Card>
 
       {/* 1. Convocatoria */}
       <SectionTitle>1. Convocatoria</SectionTitle>

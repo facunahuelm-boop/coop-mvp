@@ -47,6 +47,10 @@ export type Reglamento = {
   difusion: { resumenSemanal: boolean };
   /** Fase 2G (A14): compras grandes. montoFormal 0 = no hay regla. */
   compras: { montoFormal: number; presupuestosMinimos: number; aprobacion: "tesoreria_o_consejo" | "consejo" };
+  /** Fase 3E: qué pasa al asignar horas de obra a un núcleo sin nadie con la inducción de seguridad. */
+  obra: { induccionModo: "avisar" | "bloquear" };
+  /** Fase 3I: A25 (deuda de horas → medida propuesta) y A28 (reclamo sin respuesta → escalar). 0 = apagado. */
+  seguimiento: { deudaHorasUmbral: number; deudaHorasMedida: string; reclamosDiasEscalar: number };
 };
 
 export const CLAVES_REGLAMENTO = [
@@ -83,6 +87,10 @@ export const CLAVES_REGLAMENTO = [
   "compras_monto_formal",
   "compras_presupuestos_minimos",
   "compras_aprobacion",
+  "seguridad_induccion_modo",
+  "horas_deuda_umbral",
+  "horas_deuda_medida",
+  "reclamos_dias_escalar",
 ] as const;
 
 export const REGLAMENTO_DEFAULT: Reglamento = {
@@ -117,6 +125,8 @@ export const REGLAMENTO_DEFAULT: Reglamento = {
   },
   difusion: { resumenSemanal: false },
   compras: { montoFormal: 0, presupuestosMinimos: 3, aprobacion: "tesoreria_o_consejo" },
+  obra: { induccionModo: "avisar" },
+  seguimiento: { deudaHorasUmbral: 0, deudaHorasMedida: "Citación de la Comisión de Trabajo según el reglamento interno", reclamosDiasEscalar: 0 },
 };
 
 const entero = (v: string | undefined, def: number, min: number, max: number) => {
@@ -179,6 +189,12 @@ export async function obtenerReglamento(): Promise<Reglamento> {
       montoFormal: numero(v.compras_monto_formal, d.compras.montoFormal),
       presupuestosMinimos: entero(v.compras_presupuestos_minimos, d.compras.presupuestosMinimos, 1, 5),
       aprobacion: v.compras_aprobacion === "consejo" ? "consejo" : "tesoreria_o_consejo",
+    },
+    obra: { induccionModo: v.seguridad_induccion_modo === "bloquear" ? "bloquear" : "avisar" },
+    seguimiento: {
+      deudaHorasUmbral: entero(v.horas_deuda_umbral, 0, 0, 1000),
+      deudaHorasMedida: v.horas_deuda_medida?.trim() || d.seguimiento.deudaHorasMedida,
+      reclamosDiasEscalar: entero(v.reclamos_dias_escalar, 0, 0, 365),
     },
   };
 }

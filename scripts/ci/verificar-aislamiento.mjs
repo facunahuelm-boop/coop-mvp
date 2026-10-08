@@ -38,6 +38,13 @@ const SIN_DELETE = [
   "tramites_hitos",
   // Fase 2F
   "avisos", "aviso_destinatarios", "contactos_externos", "proveedor_documentos", "plantillas_texto",
+  // Fase 3
+  "fichadas_obra", "epp_entregas", "inducciones_seguridad",
+  "recepciones_material", "panol_items", "panol_movimientos", "diario_obra", "diario_obra_fotos",
+  "obra_rubros", "obra_avances_rubro", "obra_plan_mensual", "prestamo_desembolsos",
+  "correspondencia", "elecciones", "listas_electorales",
+  "accesos_delegados", "conceptos_cuota", "mantenimiento_preventivo", "mantenimiento_registros", "espacios_comunes", "reservas_espacios", "liquidaciones_egreso",
+  "encuestas", "encuesta_respuestas", "medidas_propuestas",
 ];
 
 const url = process.env.DATABASE_URL;
@@ -127,7 +134,8 @@ for (const t of tablas.filter((x) => x.con_org)) {
 }
 if (!fugas) ok("ninguna tabla deja ver filas de otra cooperativa");
 const { rows: propias } = await enOrg(orgA, `SELECT count(*)::int AS n FROM socios`);
-propias[0].n >= 1 ? ok("la cooperativa A sí ve sus propios datos") : mal("la cooperativa A no ve sus propios socios");
+if (propias[0].n >= 1) ok("la cooperativa A sí ve sus propios datos");
+else mal("la cooperativa A no ve sus propios socios");
 
 // ---------- 3) No se puede escribir a nombre de otra cooperativa ----------
 console.log("3) Escritura cruzada bloqueada");
@@ -135,7 +143,8 @@ try {
   await enOrg(orgB, `INSERT INTO socios (organization_id, nombre) VALUES ($1, 'Intruso')`, [orgA]);
   mal("app_user pudo insertar un socio en otra cooperativa");
 } catch (err) {
-  err.code === "42501" ? ok("insertar en otra cooperativa es rechazado") : mal(`error inesperado: ${err.message}`);
+  if (err.code === "42501") ok("insertar en otra cooperativa es rechazado");
+  else mal(`error inesperado: ${err.message}`);
 }
 
 // ---------- 4) Sin DELETE en tablas de negocio ----------
@@ -157,12 +166,14 @@ await client.query(`SELECT set_config('app.incluir_eliminados', '1', true)`);
 await client.query(`UPDATE documentos SET eliminado_en = now()::text, eliminado_por_id = $1, motivo_eliminacion = 'CI' WHERE id = $2`, [userA, docA]);
 await client.query(`COMMIT`);
 const { rows: visibles } = await enOrg(orgA, `SELECT count(*)::int AS n FROM documentos WHERE id = $1`, [docA]);
-visibles[0].n === 0 ? ok("un documento en la papelera no se ve en la app") : mal("un documento en la papelera sigue visible");
+if (visibles[0].n === 0) ok("un documento en la papelera no se ve en la app");
+else mal("un documento en la papelera sigue visible");
 await client.query(`BEGIN`);
 await client.query(`SELECT set_config('app.incluir_eliminados', '1', true)`);
 const { rows: enPapelera } = await client.query(`SELECT count(*)::int AS n FROM documentos WHERE id = $1`, [docA]);
 await client.query(`COMMIT`);
-enPapelera[0].n === 1 ? ok("sigue existiendo (recuperable) dentro de la papelera") : mal("el documento no existe ni en la papelera");
+if (enPapelera[0].n === 1) ok("sigue existiendo (recuperable) dentro de la papelera");
+else mal("el documento no existe ni en la papelera");
 
 // ---------- 6) Meses cerrados bloqueados (Fase 2A) ----------
 console.log("6) Un mes cerrado no se puede tocar");
@@ -177,7 +188,8 @@ const esperaBloqueo = async (sql, params, texto) => {
     await enOrg(orgA, sql, params);
     mal(`${texto}: se pudo, y no debería`);
   } catch (err) {
-    String(err.message).includes("PERIODO_CERRADO") ? ok(`${texto}: bloqueado`) : mal(`${texto}: error inesperado (${err.message})`);
+    if (String(err.message).includes("PERIODO_CERRADO")) ok(`${texto}: bloqueado`);
+    else mal(`${texto}: error inesperado (${err.message})`);
   }
 };
 await esperaBloqueo(`INSERT INTO movimientos_financieros (organization_id, tipo, monto, categoria, fecha) VALUES ($1, 'egreso', 5, 'CI', '2026-01-20')`, [orgA], "agregar un movimiento en un mes cerrado");

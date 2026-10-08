@@ -2,10 +2,10 @@ import { all, get, insert, audit, run } from "@/lib/db";
 import { calcularCuotasSocio, cargarMovimientosCuenta, cuotasPorCobrar, cuotasMensualesEstimadas } from "@/lib/logic";
 import { alertasFinancieras } from "@/lib/finanzasLibro";
 import { obtenerReglamento, montoRecargo, textoMes, type Reglamento } from "@/lib/reglamento";
-import { semanasSinCerrar, cerrarSemanaHoras } from "@/lib/libretaHoras";
+import { semanasSinCerrar, cerrarSemanaHoras, cargarLibretas } from "@/lib/libretaHoras";
 import { enviarEmailAvisoSistema, urlBaseApp } from "@/lib/email";
 import { crearNotificacion } from "@/lib/notificaciones";
-import { sumarDias, textoSemana } from "@/lib/horasObra";
+import { sumarDias, textoSemana, textoHoras } from "@/lib/horasObra";
 import { cuentasSensiblesInactivas, DIAS_INACTIVIDAD } from "@/lib/inactividad";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { conveniosConCuotaImpaga } from "@/lib/conveniosAtraso";
@@ -52,7 +52,31 @@ export async function generarCuotasDelMes(mes: string, reglamento: Reglamento, u
   const concepto = `${r.concepto} ${textoMes(mes)}`;
   let generadas = 0;
   let sinMonto = 0;
+  // Fase 3H: conceptos que se suman a la cuota (fondo de mantenimiento, gastos comunes…).
+  // Sin conceptos, todo sigue igual que antes (y no se toca la columna nueva).
+  const conceptos = await all<{ id: number; nombre: string; monto: number }>(`SELECT id, nombre, monto FROM conceptos_cuota WHERE activo = 1 AND monto > 0 ORDER BY orden, id`).catch(() => []);
+  const sinConcepto = conceptos.length ? " AND concepto_cuota_id IS NULL" : "";
+  let conceptosGenerados = 0;
   for (const s of socios) {
+    for (const c of conceptos) {
+      const yaC = await get<{ id: number }>(
+        `SELECT id FROM movimientos_cuenta_socio WHERE socio_id = ? AND tipo = 'cargo' AND concepto_cuota_id = ? AND COALESCE(estado, 'activo') <> 'anulado' AND substr(fecha_vencimiento::text, 1, 7) = ?`,
+        [s.id, c.id, mes]
+      );
+      if (yaC) continue;
+      await insert("movimientos_cuenta_socio", {
+        socio_id: s.id,
+        tipo: "cargo",
+        concepto: `${c.nombre} ${textoMes(mes)}`,
+        monto: Number(c.monto),
+        fecha: `${mes}-01`,
+        fecha_vencimiento: vencimiento,
+        concepto_cuota_id: c.id,
+        registrado_por_id: usuarioId,
+        notas: usuarioId ? null : "Generado automáticamente según el reglamento.",
+      });
+      conceptosGenerados++;
+    }
     const monto = Number(s.cuota_nucleo) > 0 ? Number(s.cuota_nucleo) : r.monto;
     if (!(monto > 0)) {
       sinMonto++;
@@ -60,7 +84,7 @@ export async function generarCuotasDelMes(mes: string, reglamento: Reglamento, u
     }
     const ya = await get<{ id: number }>(
       `SELECT id FROM movimientos_cuenta_socio
-        WHERE socio_id = ? AND tipo = 'cargo' AND convenio_id IS NULL AND recargo_de_id IS NULL
+        WHERE socio_id = ? AND tipo = 'cargo' AND convenio_id IS NULL AND recargo_de_id IS NULL${sinConcepto}
           AND COALESCE(estado, 'activo') <> 'anulado' AND substr(fecha_vencimiento::text, 1, 7) = ?`,
       [s.id, mes]
     );
@@ -82,9 +106,9 @@ export async function generarCuotasDelMes(mes: string, reglamento: Reglamento, u
     accion: "generar_cuota_mensual",
     entidad: "movimientos_cuenta_socio",
     entidad_id: 0,
-    valor_nuevo: { concepto, mes, generadas, totalSocios: socios.length, sinMonto, automatica: usuarioId === null },
+    valor_nuevo: { concepto, mes, generadas, conceptosGenerados, totalSocios: socios.length, sinMonto, automatica: usuarioId === null },
   });
-  return { generadas, total: socios.length, sinMonto, concepto, vencimiento };
+  return { generadas, total: socios.length, sinMonto, concepto, vencimiento, conceptosGenerados };
 }
 
 /** Avisa al socio (email + notificación en COOVA) que se generó su cuota. */
@@ -464,7 +488,93 @@ export async function tareasDiariasCooperativa(hoy: string, etapa: string) {
   } catch (err) {
     resultado.errorResumen = String((err as Error)?.message ?? err);
   }
+  // 10) Fase 3I — A25: núcleos con deuda de horas por encima del límite → medida propuesta (la aprueba una persona).
+  try {
+    if (reglamento.seguimiento.deudaHorasUmbral > 0 && !(await yaEjecutada("a25_deuda_horas", hoy))) {
+      const r = await proponerMedidasDeudaHoras(hoy, reglamento.seguimiento.deudaHorasUmbral, reglamento.seguimiento.deudaHorasMedida);
+      await registrarEjecucion("a25_deuda_horas", hoy, r);
+      resultado.medidasPropuestas = r.propuestas;
+    }
+  } catch (err) {
+    resultado.errorA25 = String((err as Error)?.message ?? err);
+  }
+
+  // 11) Fase 3I — A28: reclamos de mantenimiento sin respuesta en N días → escalar.
+  try {
+    if (reglamento.seguimiento.reclamosDiasEscalar > 0 && !(await yaEjecutada("a28_reclamos", hoy))) {
+      const r = await escalarReclamosSinRespuesta(hoy, reglamento.seguimiento.reclamosDiasEscalar);
+      await registrarEjecucion("a28_reclamos", hoy, r);
+      resultado.reclamosEscalados = r.escalados;
+    }
+  } catch (err) {
+    resultado.errorA28 = String((err as Error)?.message ?? err);
+  }
   return resultado;
+}
+
+/** Usuarios que conducen (Consejo Directivo y admin), activos. */
+async function conduccion(): Promise<number[]> {
+  return (await all<{ id: number }>(`SELECT id FROM users WHERE rol IN ('consejo_directivo', 'admin') AND activo = 1`).catch(() => [])).map((u) => u.id);
+}
+
+/**
+ * A25 — por cada núcleo que debe más horas que el límite del reglamento, se
+ * PROPONE la medida que dice el reglamento (una por núcleo mientras haya una
+ * propuesta abierta). Nunca se aplica sola: la aprueba o descarta la
+ * conducción en «Medidas propuestas».
+ */
+export async function proponerMedidasDeudaHoras(hoy: string, umbralHoras: number, medida: string): Promise<{ propuestas: number }> {
+  const libretas = await cargarLibretas(hoy);
+  const destinatarios = new Set(await conduccion());
+  const trabajo = await get<{ id: number }>(`SELECT id FROM comisiones WHERE funcion = 'trabajo' AND activa = 1 ORDER BY id LIMIT 1`).catch(() => undefined);
+  if (trabajo) {
+    for (const c of await all<{ user_id: number }>(`SELECT user_id FROM comision_miembros WHERE comision_id = ? AND activo = 1 AND rol_en_comision = 'coordinador'`, [trabajo.id]).catch(() => [])) destinatarios.add(c.user_id);
+  }
+  let propuestas = 0;
+  for (const l of libretas) {
+    const debeMin = -l.saldoAcumuladoMin;
+    if (debeMin <= umbralHoras * 60) continue;
+    const abierta = await get<{ id: number }>(`SELECT id FROM medidas_propuestas WHERE tipo = 'deuda_horas' AND nucleo_id = ? AND estado = 'propuesta'`, [l.nucleo.id]);
+    if (abierta) continue;
+    const titulo = `${l.nucleo.nombre} debe ${textoHoras(debeMin)} de ayuda mutua`;
+    const id = await insert("medidas_propuestas", {
+      tipo: "deuda_horas",
+      nucleo_id: l.nucleo.id,
+      titulo,
+      detalle: `El reglamento pone el límite en ${umbralHoras} h. Saldo calculado con las semanas ya cerradas de la libreta.`,
+      medida,
+      periodo: hoy.slice(0, 7),
+    });
+    await audit({ usuario_id: null, accion: "proponer_medida", entidad: "medidas_propuestas", entidad_id: id, valor_nuevo: { titulo, medida, automatica: "A25" } });
+    for (const uid of destinatarios) {
+      await crearNotificacion({ user_id: uid, tipo: "medida_propuesta", titulo: `Para decidir: ${titulo}`, cuerpo: `Medida propuesta: ${medida}`, ref_tabla: "medidas_propuestas", ref_id: id }).catch(() => {});
+    }
+    propuestas++;
+  }
+  return { propuestas };
+}
+
+/** A28 — reclamos abiertos (nadie los tomó) hace más de N días: se avisa a la Comisión de Mantenimiento, o al Consejo si no hay. */
+export async function escalarReclamosSinRespuesta(hoy: string, dias: number): Promise<{ escalados: number }> {
+  const limite = sumarDias(hoy, -dias);
+  const reclamos = await all<{ id: number; titulo: string; fecha: string }>(
+    `SELECT id, titulo, fecha FROM reclamos WHERE estado = 'abierto' AND escalado_en IS NULL AND left(fecha, 10) <= ? ORDER BY fecha`,
+    [limite]
+  );
+  if (!reclamos.length) return { escalados: 0 };
+  const comision = await get<{ id: number; nombre: string }>(`SELECT id, nombre FROM comisiones WHERE funcion = 'mantenimiento' AND activa = 1 ORDER BY id LIMIT 1`).catch(() => undefined);
+  let destinatarios: number[] = [];
+  if (comision) destinatarios = (await all<{ user_id: number }>(`SELECT user_id FROM comision_miembros WHERE comision_id = ? AND activo = 1`, [comision.id]).catch(() => [])).map((m) => m.user_id);
+  const a = destinatarios.length ? comision!.nombre : "el Consejo Directivo";
+  if (!destinatarios.length) destinatarios = (await all<{ id: number }>(`SELECT id FROM users WHERE rol = 'consejo_directivo' AND activo = 1`).catch(() => [])).map((u) => u.id);
+  for (const r of reclamos) {
+    for (const uid of destinatarios) {
+      await crearNotificacion({ user_id: uid, tipo: "reclamo_escalado", titulo: `Reclamo sin respuesta hace más de ${dias} días: ${r.titulo}`, ref_tabla: "reclamos", ref_id: r.id }).catch(() => {});
+    }
+    await run(`UPDATE reclamos SET escalado_en = ? WHERE id = ?`, [new Date().toISOString(), r.id]);
+    await audit({ usuario_id: null, accion: "escalar_reclamo", entidad: "reclamos", entidad_id: r.id, valor_nuevo: { a, dias, automatica: "A28" } });
+  }
+  return { escalados: reclamos.length };
 }
 
 /** A20: a cada persona, lo que viene en la semana, sus cuotas pendientes y sus avisos sin leer. */

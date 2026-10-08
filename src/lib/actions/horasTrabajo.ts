@@ -9,6 +9,8 @@ import { semanaCerrada } from "@/lib/libretaHoras";
 import { parseForm, zId, zFecha, zTextoOpcional, ValidationError } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { obtenerHorarioObra } from "@/lib/horasTrabajo";
+import { obtenerReglamento } from "@/lib/reglamento";
+import { hayInducciones, nucleoTieneInduccion } from "@/lib/seguridadObra";
 import {
   calcularTramo,
   seSuperponen,
@@ -85,10 +87,19 @@ async function validarAsignacion(datos: DatosAsignacion, excluirId: number | nul
   const objetivoHoras = Number(nucleo.horas_semanales_objetivo) > 0 ? Number(nucleo.horas_semanales_objetivo) : HORAS_SEMANALES_DEFAULT;
   const objetivo = Math.round(objetivoHoras * 60);
   const totalNuevo = Number(otras?.total || 0) + tramo.minutos;
-  const aviso =
-    totalNuevo > objetivo
-      ? `Atención: ${nucleo.nombre} queda con ${textoHoras(totalNuevo)} esta semana — exceso de ${textoHoras(totalNuevo - objetivo)} sobre ${textoHoras(objetivo)}.`
-      : undefined;
+  const avisos: string[] = [];
+  if (totalNuevo > objetivo) {
+    avisos.push(`Atención: ${nucleo.nombre} queda con ${textoHoras(totalNuevo)} esta semana — exceso de ${textoHoras(totalNuevo - objetivo)} sobre ${textoHoras(objetivo)}.`);
+  }
+  // Fase 3E: inducción de seguridad obligatoria (se controla desde que la cooperativa carga la primera).
+  if ((await hayInducciones()) && !(await nucleoTieneInduccion(nucleo.id))) {
+    const { obra } = await obtenerReglamento();
+    if (obra.induccionModo === "bloquear" && excluirId === null) {
+      throw new ValidationError("nucleo_id", `Nadie de ${nucleo.nombre} hizo la inducción de seguridad. Según el reglamento, no se le pueden asignar horas de obra hasta que la haga.`);
+    }
+    avisos.push(`Ojo: nadie de ${nucleo.nombre} hizo todavía la inducción de seguridad.`);
+  }
+  const aviso = avisos.length ? avisos.join(" ") : undefined;
   return { nucleo, tramo, semana, aviso };
 }
 

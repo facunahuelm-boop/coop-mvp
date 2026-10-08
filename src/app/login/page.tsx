@@ -13,11 +13,11 @@ const DEFAULT_SLUG = process.env.NEXT_PUBLIC_DEFAULT_ORG_SLUG || "coova";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ recuperada?: string }>;
+  searchParams: Promise<{ recuperada?: string; volver?: string }>;
 }) {
   const store = await cookies();
   const slug = store.get("coop_slug")?.value || DEFAULT_SLUG;
-  const { recuperada } = await searchParams;
+  const { recuperada, volver } = await searchParams;
 
   const organizacion = await rootGet<{ nombre: string; logo_url: string | null; color_primario: string }>(
     `SELECT nombre, logo_url, color_primario FROM organizations WHERE slug = ?`,
@@ -30,6 +30,7 @@ export default async function LoginPage({
       logoUrl={organizacion?.logo_url || "/logo-coova.png"}
       colorPrimario={organizacion?.color_primario || "#3b3f8c"}
       mensajeRecuperacion={recuperada === "1"}
+      volver={volver && /^\/fichar\/[A-Za-z0-9_-]{8,40}$/.test(volver) ? volver : undefined}
     />
   );
 }

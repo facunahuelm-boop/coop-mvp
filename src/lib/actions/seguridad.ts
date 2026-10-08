@@ -9,6 +9,7 @@ import { saveUploadedFile, TIPOS_IMAGEN } from "@/lib/upload";
 import { CHECKLIST_BASE } from "@/lib/constants";
 import { parseForm, zId, zTexto, zTextoOpcional, zFechaOpcional, zEnumSeguro, zCheckbox } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
+import { crearTareasCorrectivas, fallasDe } from "@/lib/seguridadObra";
 
 const TIPO_INCIDENTE = ["observacion", "incidente", "accidente"] as const;
 const SEVERIDAD_INCIDENTE = ["baja", "media", "critica"] as const;
@@ -32,7 +33,7 @@ export async function crearDocumentoSeguridadFormAction(_prev: ActionState, form
   return conEstadoDeAccion(() => crearDocumentoSeguridadAction(formData));
 }
 
-export async function crearInspeccionAction(formData: FormData) {
+export async function crearInspeccionAction(formData: FormData): Promise<string> {
   const user = await requireUser();
   if (!canEdit(user.rol, "seguridad")) throw new Error("No autorizado");
   const { hallazgos, ...checkboxes } = parseForm(
@@ -55,11 +56,19 @@ export async function crearInspeccionAction(formData: FormData) {
     entidad_id: id,
     valor_nuevo: { hallazgos, items_ok: checklist.filter((c) => c.ok).length, items_total: checklist.length },
   });
+  // A22: cada punto a corregir genera una tarea correctiva.
+  const tareas = await crearTareasCorrectivas(id, fallasDe(checklist), "inspección", user.id);
   revalidatePath("/seguridad");
+  revalidatePath("/comisiones", "layout");
+  return tareas ? `Inspección guardada. Se ${tareas === 1 ? "creó 1 tarea" : `crearon ${tareas} tareas`} para corregir lo que faltaba.` : "Inspección guardada. Todo en orden.";
 }
 
 export async function crearInspeccionFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  return conEstadoDeAccion(() => crearInspeccionAction(formData));
+  let aviso = "";
+  const r = await conEstadoDeAccion(async () => {
+    aviso = await crearInspeccionAction(formData);
+  });
+  return r.ok ? { ...r, aviso } : r;
 }
 
 const crearIncidenteSchema = z.object({

@@ -32,6 +32,19 @@ export default async function ObraPage() {
         action={puedeEditar ? <CrearTareaObraForm /> : undefined}
       />
 
+      <div className="mb-5 flex flex-wrap gap-2">
+        {[
+          { href: "/obra/avance", texto: "Avance físico y financiero" },
+          { href: "/obra/diario", texto: "Diario de obra" },
+          { href: "/obra/panol", texto: "Pañol" },
+          { href: "/compras/recepciones", texto: "Recepción de materiales" },
+        ].map((l) => (
+          <Link key={l.href} href={l.href} className="inline-flex items-center rounded-xl border border-border bg-surface px-3.5 py-2 text-sm font-semibold text-ink hover:bg-surface-sunken">
+            {l.texto}
+          </Link>
+        ))}
+      </div>
+
       {problemasAbiertos.length > 0 && (
         <Card className="mb-5 !border-[var(--color-rojo)]/20">
           <p className="text-sm font-semibold text-[var(--color-rojo)] mb-2">Problemas abiertos ({problemasAbiertos.length})</p>

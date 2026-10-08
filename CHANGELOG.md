@@ -4,6 +4,46 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## COOVA v2 — Fase 3 completa (07/10): "lo que nadie más tiene"
+
+Plan acordado en `PROMPT_COOVA_v2.md` (Fase 3, puntos 1 a 11), publicado todo junto (decisión del usuario). Migraciones nuevas: **0063 a 0071**, todas no destructivas (nada se borra: se anula, se revoca o se desactiva). Lo automático nuevo (A25, A28) queda **apagado** hasta que se prenda en "Reglas y avisos". El código funciona aunque las migraciones todavía no estén aplicadas (probado contra una base sin las migraciones 0055+).
+
+### 3A — Asistencia por QR en la obra
+- `/qr-obra`: el QR del día (cambia solo cada día, se imprime). El socio lo escanea, toca «Llegué» / «Me voy» (`/fichar/[codigo]`) y la asistencia del turno se anota sola (vino, llegó tarde, se fue antes). Si vino sin turno, queda para que el coordinador lo confirme. Sin sesión, después de entrar vuelve al QR.
+
+### 3B — Paneles propios por función de comisión
+- Funciones nuevas: Obra, Fiscal, Electoral, Mantenimiento y Fomento (además de Trabajo, Compras, Seguridad, Administrativa y General). Cada comisión tiene la pestaña **«Panel de …»** con sus indicadores, lo que hay que atender y accesos directos; el Resumen suma los **KPIs comunes** (tareas en plazo, vencidas, solicitudes respondidas en plazo, asistencia a reuniones, días sin actividad). Agregar una función = registrar su panel en `src/lib/panelesComision.ts`.
+- Compras: embudo, tiempo de compra, % con N presupuestos, desvío, compras sin recepción, proveedores con documentación vencida. Seguridad: días sin incidentes, observaciones corregidas en plazo, EPP pendiente, personas sin inducción. Obra: avance físico/financiero, diario, hitos atrasados. Administrativa: **correspondencia de entrada y salida** (con respuesta), documentos vencidos, actas atrasadas, altas y bajas. Fiscal: cierres a visar, observaciones, cambios sensibles. Electoral: padrón, **cronograma de elecciones y listas**, mandatos que vencen. Mantenimiento: reclamos, tiempo de resolución, fondo y preventivo.
+
+### 3C — Recepción de materiales, pañol y diario de obra
+- **Recepción** contra la compra (`/compras/[id]` y `/compras/recepciones`): lo pedido contra lo recibido, foto y número del remito, diferencias. Conforme → la compra queda entregada; con diferencias → sigue abierta. Lo recibido puede entrar al pañol.
+- **Pañol** (`/obra/panol`): herramientas y materiales con stock, préstamos (a quién y desde cuándo) y devoluciones, salidas, ajustes con motivo, aviso de reponer.
+- **Diario de obra con fotos** (`/obra/diario`): qué se hizo cada día, clima, personas (según el QR), novedades y hasta 6 fotos.
+
+### 3D — Avance físico contra financiero y desembolsos
+- `/obra/avance`: rubros con incidencia y monto, mediciones de avance, plan mensual, **curva** planificado / físico / financiero, aviso si se gastó mucho más de lo construido. **Desembolsos del préstamo**: avance que exige cada uno, aviso de «ya se puede pedir», pedido y cobro (entra como ingreso esperado al flujo de caja y se registra con «Ya entró»).
+
+### 3E — Seguridad en la obra
+- **Checklist diario** en el celular (`/seguridad/hoy`): cada punto que falta genera una **tarea correctiva** (A22, también en las inspecciones). **EPP** por persona con **constancia en PDF** para firmar (`/seguridad/epp`). **Inducción** (`/seguridad/induccion`): al asignar horas a un núcleo sin nadie con inducción, avisa o no deja (según el reglamento; empieza a controlarse con la primera inducción cargada).
+
+### 3F — Modo asamblea en vivo
+- Pantalla para el proyector (`/vivo/asamblea/[id]`): quórum, el punto que se trata (lo elige la mesa) y la votación en curso o su resultado. Se actualiza sola.
+
+### 3G — Acceso delegado para familiares
+- `/acceso-familiar`: el socio le da acceso a un familiar **que ya tiene su propia cuenta** (un socio no crea cuentas). El familiar ve sus cuotas, horas, estado de cuenta y la próxima asamblea (`/ayudo/[socio]`) y, si el socio lo permite, avisa una ausencia en su nombre. Todo queda en la auditoría «en nombre de». Se revoca cuando se quiera.
+
+### 3H — Etapa Habitada v1 y «Cambiar de etapa»
+- **Conceptos de la cuota** (`/conceptos-cuota`): fondo de mantenimiento, gastos comunes… se suman a cada socio al generar las cuotas (sin duplicar). **Mantenimiento preventivo** (`/mantenimiento`). **Reservas de espacios comunes** (`/reservas`, sin superposiciones, con aprobación opcional). **Liquidación de egreso** (`/liquidaciones`, borrador → aprobada → pagada, PDF; no reemplaza el asesoramiento contable o legal).
+- **Asistente «Cambiar de etapa»** (`/cambiar-etapa`): lo pendiente de la etapa que termina, qué cambia en el menú y las comisiones, qué preparar, y crea las comisiones sugeridas y el fondo de mantenimiento.
+
+### 3I — Semáforo de salud, encuestas y automatizaciones
+- **Salud de la cooperativa** (`/salud` y en el Inicio de la conducción): cuotas al día, plata disponible, cierre del mes, horas, seguridad o mantenimiento según la etapa, participación, tareas y documentos vencidos.
+- **Encuestas rápidas** (`/encuestas`): una pregunta, opciones, una respuesta por persona, anónima o con nombre; aparece en el Inicio del socio.
+- **A25** (apagado): un núcleo que debe más horas que el límite → **medida propuesta** que decide el Consejo (`/medidas`), nunca se aplica sola. **A28** (apagado): reclamo sin respuesta en N días → aviso a la Comisión de Mantenimiento o al Consejo. **A22**: ver 3E. Directorio de oficios enlazado desde el panel de Trabajo.
+
+### Pruebas
+- Suites nuevas `t-3a` a `t-3i` y recorrido `t-sinmig-f3` (todas las rutas sin las migraciones nuevas). Aislamiento entre cooperativas (CI) con las 21 tablas nuevas sin permiso de borrar.
+
 ## COOVA v2 — Fase 2 completa (07/10): "el tesorero y la Fiscal confían"
 
 Plan acordado en `PROMPT_COOVA_v2.md` (Fase 2, puntos 1 a 12), publicado todo junto (decisión del usuario). Migraciones nuevas: **0055 a 0062**, todas no destructivas. Todo lo automático nuevo que toca plata o manda emails queda **apagado** hasta que la cooperativa lo prenda en "Reglas y avisos".

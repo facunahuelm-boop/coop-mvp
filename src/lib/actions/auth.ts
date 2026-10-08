@@ -126,7 +126,9 @@ export async function loginAction(_prev: { error?: string } | undefined, formDat
     rol: user.rol,
     organization_id: org.id,
   });
-  redirect("/dashboard");
+  // Fase 3A: después de entrar desde el QR de la obra, se vuelve al QR (sólo esa ruta).
+  const volver = String(formData.get("volver") || "");
+  redirect(/^\/fichar\/[A-Za-z0-9_-]{8,40}$/.test(volver) ? volver : "/dashboard");
 }
 
 export async function logoutAction() {

@@ -184,6 +184,9 @@ export default async function ComprasPage() {
             <Link href="/proveedores" className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap">
               Ver proveedores →
             </Link>
+            <Link href="/compras/recepciones" className="text-xs font-semibold text-[var(--color-brand-800)] underline underline-offset-2 whitespace-nowrap">
+              Recepciones →
+            </Link>
           </div>
         }
       />

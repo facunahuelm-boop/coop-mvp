@@ -10,7 +10,11 @@ import { ToastProvider, CommandPaletteProvider, PreservarDatosAnteErrores, Valid
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) {
+    // Fase 3A: quien escanea el QR de la obra sin sesión vuelve al QR después de entrar.
+    const ruta = (await headers()).get("x-coova-path") || "";
+    redirect(/^\/fichar\/[A-Za-z0-9_-]{8,40}$/.test(ruta) ? `/login?volver=${encodeURIComponent(ruta)}` : "/login");
+  }
 
   // Fase 1E: si la cooperativa exige la verificación en dos pasos para los
   // roles que manejan dinero o datos sensibles, quien todavía no la activó

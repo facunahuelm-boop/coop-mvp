@@ -46,9 +46,22 @@ export default async function MisHorasPage() {
   const saldo = textoSaldo(libreta?.saldoAcumuladoMin ?? 0);
   const turnosPasados = (semana?.turnos ?? []).filter((t) => t.fecha < hoy);
 
+  // Fase 3E: la seguridad de la persona en la obra (inducción y elementos de protección).
+  const socioPropio = await get<{ id: number }>(`SELECT id FROM socios WHERE user_id = ? ORDER BY id LIMIT 1`, [user.id]).catch(() => undefined);
+  const induccion = socioPropio
+    ? await get<{ fecha: string }>(`SELECT fecha FROM inducciones_seguridad WHERE socio_id = ? AND integrante_id IS NULL AND anulado_en IS NULL ORDER BY fecha LIMIT 1`, [socioPropio.id]).catch(() => undefined)
+    : undefined;
+  const epp = socioPropio
+    ? await all<{ elemento: string; fecha: string }>(`SELECT elemento, fecha FROM epp_entregas WHERE socio_id = ? AND integrante_id IS NULL AND anulado_en IS NULL ORDER BY fecha`, [socioPropio.id]).catch(() => [])
+    : [];
+  const hayControlInduccion = !!(await get<{ id: number }>(`SELECT id FROM inducciones_seguridad WHERE anulado_en IS NULL LIMIT 1`).catch(() => undefined));
+
   return (
     <div className="space-y-5">
       <PageHeader title="Mis horas" subtitle={nucleo ? `Núcleo ${nucleo.nombre}` : undefined} />
+      <p className="mb-4 rounded-xl bg-surface-sunken px-4 py-3 text-[16px] text-ink">
+        En la obra: escaneá con la cámara del celular el <b>QR del día</b> al llegar y al irte. Tus horas se anotan solas.
+      </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card>
@@ -170,6 +183,27 @@ export default async function MisHorasPage() {
           <p className="text-[15px] text-ink-muted mt-2">Además, en el registro anterior tenés {Math.round(libreta.nucleo.horasAnteriores)} h cargadas.</p>
         )}
       </section>
+
+      {socioPropio && (hayControlInduccion || epp.length > 0) && (
+        <section>
+          <h2 className="text-lg font-bold text-ink mb-2">Tu seguridad en la obra</h2>
+          <Card>
+            <p className="text-[15px] text-ink">
+              {induccion
+                ? `Hiciste la inducción de seguridad el ${induccion.fecha.slice(0, 10).split("-").reverse().join("/")}.`
+                : "Todavía no tenés registrada la inducción de seguridad. Hablá con la Comisión de Seguridad antes de ir a la obra."}
+            </p>
+            {epp.length > 0 && (
+              <p className="text-[15px] text-ink mt-2">
+                Elementos de protección que recibiste: {epp.map((e) => e.elemento).join(", ")}.{" "}
+                <a href={`/api/seguridad/constancia-epp/s-${socioPropio.id}`} target="_blank" rel="noopener" className="underline underline-offset-2">
+                  Ver la constancia
+                </a>
+              </p>
+            )}
+          </Card>
+        </section>
+      )}
     </div>
   );
 }

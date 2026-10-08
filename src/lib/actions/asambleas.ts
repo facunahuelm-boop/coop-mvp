@@ -349,3 +349,27 @@ export async function guardarActaFormAction(_p: ActionState, fd: FormData): Prom
 export async function aprobarActaFormAction(_p: ActionState, fd: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => aprobarActaAction(fd));
 }
+
+// ---------- Fase 3F: modo asamblea en vivo ----------
+
+/** La mesa marca qué punto del orden del día se está tratando (se ve en el proyector). */
+export async function pasarAlPuntoFormAction(_p: ActionState, fd: FormData): Promise<ActionState> {
+  let aviso = "";
+  const r = await conEstadoDeAccion(async () => {
+    const user = await requireConduccion();
+    const { reunion_id, punto_id } = parseForm(z.object({ reunion_id: zId, punto_id: z.coerce.number().int().min(0) }), fd);
+    const a = await asamblea(reunion_id);
+    if (a.estado !== "planificada") throw new Error("La asamblea ya se cerró.");
+    let titulo: string | null = null;
+    if (punto_id) {
+      const p = await get<{ titulo: string }>(`SELECT titulo FROM reunion_agenda_items WHERE id = ? AND reunion_id = ?`, [punto_id, reunion_id]);
+      if (!p) throw new Error("Ese punto no es de esta asamblea.");
+      titulo = p.titulo;
+    }
+    await update("reuniones", reunion_id, { punto_actual_id: punto_id || null });
+    await audit({ usuario_id: user.id, accion: "pasar_punto", entidad: "reuniones", entidad_id: reunion_id, valor_nuevo: { punto: titulo } });
+    revalidatePath(`/asambleas/${reunion_id}`);
+    aviso = titulo ? `En pantalla: ${titulo}` : "Sin punto en pantalla.";
+  });
+  return r.ok ? { ...r, aviso } : r;
+}

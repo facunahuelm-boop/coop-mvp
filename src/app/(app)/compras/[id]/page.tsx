@@ -9,6 +9,8 @@ import { OrigenResolucion } from "@/components/reuniones/ResumenSeguimiento";
 import { puntosDeAgenda } from "@/lib/trazabilidad";
 import { ActionForm, Tabs } from "@/components/ui-client";
 import dayjs from "dayjs";
+import { RecepcionForm } from "@/components/obra/ObraRecursos";
+import { puedeRecibirMateriales } from "@/lib/obraRecursos";
 import { marcarPedidaFormAction, marcarEntregadaFormAction, rechazarSolicitudFormAction, eliminarSolicitudFormAction } from "@/lib/actions/compras";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
@@ -50,6 +52,12 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
   const puedeEditar =
     canEdit(user.rol, "compras") &&
     (solicitud.comision_id ? await puedeGestionarComision(user, solicitud.comision_id) : true);
+  // Fase 3C: recepción contra la compra, con remito y diferencias.
+  const puedeRecibir = (await puedeRecibirMateriales(user)) && (puedeEditar || canEdit(user.rol, "obra"));
+  const recepciones = await all<{ id: number; fecha: string; cantidad_recibida: number; unidad: string | null; remito_numero: string | null; remito_foto_url: string | null; conforme: number; diferencias: string | null }>(
+    `SELECT id, fecha, cantidad_recibida, unidad, remito_numero, remito_foto_url, conforme, diferencias FROM recepciones_material WHERE solicitud_id = ? AND anulado_en IS NULL ORDER BY fecha, id`,
+    [solicitud.id]
+  ).catch(() => []);
 
   // Fase 2G — A14 (regla de montos) y documentación vencida de los proveedores.
   const [reglamento, docsVencidos] = await Promise.all([obtenerReglamento(), proveedoresConDocVencida(hoyEnUruguay())]);
@@ -97,10 +105,32 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
             <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">Marcar como pedida al proveedor</button>
           </ActionForm>
         )}
-        {puedeEditar && (solicitud.estado === "aprobada" || solicitud.estado === "pedida") && (
+        {puedeRecibir && (solicitud.estado === "aprobada" || solicitud.estado === "pedida") && (
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">Registrar la recepción (llegó a la obra)</summary>
+            <div className="mt-3">
+              <RecepcionForm solicitud={{ id: solicitud.id, material: solicitud.material, cantidad: Number(solicitud.cantidad), unidad: solicitud.unidad }} hoy={hoyEnUruguay()} />
+            </div>
+          </details>
+        )}
+        {puedeEditar && recepciones.length > 0 && (solicitud.estado === "aprobada" || solicitud.estado === "pedida") && (
           <ActionForm action={marcarEntregadaFormAction} className="mt-3 inline-block"><input type="hidden" name="id" value={solicitud.id} />
-            <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">Marcar como entregada</button>
+            <button className="rounded-lg bg-[var(--color-brand-100)] text-[var(--color-brand-800)] px-3 py-1.5 text-xs font-semibold">Dar la compra por entregada igual</button>
           </ActionForm>
+        )}
+        {recepciones.length > 0 && (
+          <div className="mt-4 border-t border-ink/10 pt-3">
+            <p className="text-sm font-semibold text-ink">Recepciones</p>
+            <ul className="mt-1 space-y-1">
+              {recepciones.map((r) => (
+                <li key={r.id} className="text-sm">
+                  {dayjs(r.fecha).format("DD/MM/YYYY")} · llegaron {Number(r.cantidad_recibida).toLocaleString("es-UY")} {r.unidad ?? ""}
+                  {r.remito_numero ? ` · remito ${r.remito_numero}` : ""} · {r.conforme ? "conforme" : `con diferencias: ${r.diferencias ?? ""}`}
+                  {r.remito_foto_url && <> · <a href={`/api/archivos/remito/${r.id}`} target="_blank" rel="noopener" className="underline underline-offset-2">foto del remito</a></>}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         {puedeAprobar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
           <details className="mt-3">

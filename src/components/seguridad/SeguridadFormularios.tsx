@@ -129,7 +129,7 @@ export function NuevaInspeccionForm({ checklistBase }: { checklistBase: readonly
     if (estado.ok) {
       formRef.current?.reset();
       if (detailsRef.current) detailsRef.current.open = false;
-      show("Inspección guardada.");
+      show(estado.aviso || "Inspección guardada.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
