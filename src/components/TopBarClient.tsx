@@ -2,9 +2,10 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Search, Bell, MessagesSquare, Mail, UsersRound } from "lucide-react";
+import { Search, Bell, MessagesSquare, Mail, UsersRound, Megaphone } from "lucide-react";
 import { useCommandPalette } from "./ui-client";
 import dayjs from "dayjs";
+import type { AvisosTopBar } from "@/lib/avisos";
 
 type AlertaItem = { id: number; titulo: string; severidad: string; fecha: string };
 
@@ -23,13 +24,18 @@ type AlertaItem = { id: number; titulo: string; severidad: string; fecha: string
  */
 export function TopBarClient({
   alertas,
+  avisos,
+  puedeEmitirAvisos,
   miCuenta,
 }: {
   alertas: { count: number; hayCriticas: boolean; items: AlertaItem[] };
+  avisos: AvisosTopBar;
+  puedeEmitirAvisos: boolean;
   miCuenta: ReactNode;
 }) {
   const { abrir: abrirBuscador } = useCommandPalette();
   const [notifsAbiertas, setNotifsAbiertas] = useState(false);
+  const [avisosAbiertos, setAvisosAbiertos] = useState(false);
   const [comAbierta, setComAbierta] = useState(false);
 
   return (
@@ -113,6 +119,90 @@ export function TopBarClient({
                 >
                   Ver todas →
                 </Link>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 10/10 (pedido explícito): "Avisos oficiales" ya no está en la barra
+          lateral — vive acá, al lado de las notificaciones, con el mismo
+          patrón de pop-up chico. Muestra los últimos avisos que le llegaron a
+          esta persona; "Ver todos" lleva a /avisos y quien puede mandarlos
+          tiene además "Nuevo aviso". */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setAvisosAbiertos((v) => !v)}
+          aria-label={avisos.sinLeer > 0 ? `${avisos.sinLeer} avisos oficiales sin leer` : "Avisos oficiales"}
+          title="Avisos oficiales"
+          className="relative inline-flex items-center justify-center h-10 w-10 rounded-full border border-border bg-surface text-ink-muted hover:bg-[var(--color-secondary-bg)] hover:text-[var(--color-secondary)] transition-colors"
+        >
+          <Megaphone size={18} />
+          {avisos.sinLeer > 0 && (
+            <span
+              className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white ${
+                avisos.hayUrgentes ? "bg-[var(--color-rojo)]" : "bg-[var(--color-brand-800)]"
+              }`}
+            >
+              {avisos.sinLeer}
+            </span>
+          )}
+        </button>
+
+        {avisosAbiertos && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setAvisosAbiertos(false)} />
+            <div className="absolute right-0 mt-2 w-80 max-w-[90vw] rounded-2xl border border-border bg-surface shadow-[var(--shadow-lg)] z-40 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border">
+                <h3 className="text-sm font-bold text-ink">Avisos oficiales</h3>
+              </div>
+              {avisos.items.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-ink-faint text-center">No tenés avisos oficiales.</p>
+              ) : (
+                <ul className="max-h-80 overflow-y-auto divide-y divide-border">
+                  {avisos.items.map((a) => (
+                    <li key={a.id}>
+                      <Link
+                        href={`/avisos/${a.id}`}
+                        onClick={() => setAvisosAbiertos(false)}
+                        className="flex items-start gap-2.5 px-4 py-2.5 text-sm hover:bg-surface-sunken"
+                      >
+                        <span
+                          className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${
+                            a.leido ? "bg-transparent" : a.urgente ? "bg-[var(--color-rojo)]" : "bg-[var(--color-brand-800)]"
+                          }`}
+                          aria-hidden
+                        />
+                        <span className="min-w-0">
+                          <span className={`block truncate text-ink ${a.leido ? "" : "font-semibold"}`}>
+                            {a.urgente ? "URGENTE: " : ""}
+                            {a.titulo}
+                          </span>
+                          <span className="block text-xs text-ink-faint">{dayjs(a.enviado_en).format("DD/MM HH:mm")}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="px-4 py-2.5 border-t border-border flex items-center justify-between gap-3">
+                <Link
+                  href="/avisos"
+                  onClick={() => setAvisosAbiertos(false)}
+                  className="text-xs font-semibold text-[var(--color-secondary)] hover:underline underline-offset-2"
+                >
+                  Ver todos →
+                </Link>
+                {puedeEmitirAvisos && (
+                  <Link
+                    href="/avisos"
+                    onClick={() => setAvisosAbiertos(false)}
+                    className="text-xs font-semibold text-[var(--color-secondary)] hover:underline underline-offset-2"
+                  >
+                    Nuevo aviso
+                  </Link>
+                )}
               </div>
             </div>
           </>

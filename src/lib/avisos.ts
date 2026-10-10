@@ -9,6 +9,40 @@ import { calcularCuotasSocio, cargarMovimientosCuenta } from "@/lib/logic";
 export type TipoDestinatarios = "todos" | "socios" | "comision" | "morosos" | "nucleo" | "rol";
 export type Destinatario = { user_id: number | null; socio_id: number | null; nombre: string; telefono: string | null; email: string | null; quiere_email: boolean; quiere_whatsapp: boolean };
 
+/** Datos del botón "Avisos oficiales" de la barra superior (pop-up al lado de las notificaciones). */
+export type AvisosTopBar = {
+  sinLeer: number;
+  hayUrgentes: boolean;
+  items: { id: number; titulo: string; urgente: boolean; enviado_en: string; leido: boolean }[];
+};
+
+/**
+ * Los avisos oficiales que le llegaron a esta persona (no anulados): cuántos
+ * sin leer y los últimos. Sólo LEE, igual que alertasParaTopBar(); si algo
+ * falla (por ejemplo, tablas todavía sin migrar) devuelve vacío en vez de
+ * romper la barra de toda la app.
+ */
+export async function avisosParaTopBar(userId: number, limite: number = 5): Promise<AvisosTopBar> {
+  try {
+    const filas = await all<{ id: number; titulo: string; urgente: number; enviado_en: string; leido_en: string | null; sin_leer: string; urgentes_sin_leer: string }>(
+      `SELECT a.id, a.titulo, a.urgente, a.enviado_en, d.leido_en,
+              COUNT(*) FILTER (WHERE d.leido_en IS NULL) OVER () AS sin_leer,
+              COUNT(*) FILTER (WHERE d.leido_en IS NULL AND a.urgente = 1) OVER () AS urgentes_sin_leer
+         FROM aviso_destinatarios d JOIN avisos a ON a.id = d.aviso_id
+        WHERE d.user_id = ? AND a.anulado_en IS NULL
+        ORDER BY a.id DESC`,
+      [userId]
+    );
+    return {
+      sinLeer: Number(filas[0]?.sin_leer ?? 0),
+      hayUrgentes: Number(filas[0]?.urgentes_sin_leer ?? 0) > 0,
+      items: filas.slice(0, limite).map((f) => ({ id: f.id, titulo: f.titulo, urgente: !!f.urgente, enviado_en: f.enviado_en, leido: !!f.leido_en })),
+    };
+  } catch {
+    return { sinLeer: 0, hayUrgentes: false, items: [] };
+  }
+}
+
 const FUERA = "('baja', 'egresado', 'excluido')";
 
 type FilaSocio = { socio_id: number; nombre: string; s_tel: string | null; s_email: string | null; user_id: number | null; u_tel: string | null; u_email: string | null; aviso_email: number | null; aviso_whatsapp: number | null; activo: number | null };

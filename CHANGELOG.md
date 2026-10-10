@@ -4,6 +4,14 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Barra lateral más corta + botón de Avisos oficiales (10/10)
+
+Pedido del usuario: menos información en la barra lateral.
+- `Nav.tsx` (`Sidebar`): ya no se muestra el grupo **«Control y transparencia»** ni **«Avisos oficiales»** (ni «¿En qué se gasta?» en la lista corta del socio). Se filtran sólo en la barra lateral: las pantallas siguen existiendo por dirección, Ctrl+K y el menú «Más» del celular.
+- **Auditoría** y **Reportes** se quedan en el menú: pasan al grupo «Administración».
+- Botón nuevo **«Avisos oficiales»** (ícono de megáfono) en la barra superior, al lado de la campana: pop-up con los últimos 5 avisos que le llegaron a la persona (sin leer en negrita y con punto, URGENTE en rojo), contador de sin leer, «Ver todos →» y, para quien puede mandar avisos, «Nuevo aviso». Datos: `avisosParaTopBar()` en `lib/avisos.ts`, resuelto una vez en `(app)/layout.tsx`; si falla devuelve vacío.
+- Sin migraciones. tsc sin errores en los archivos tocados; eslint igual que antes (0 errores).
+
 ## Inicio reordenado (10/10): tarjetas arriba, "Lo que necesita tu atención" abajo
 
 Pedido del usuario: que arriba del Inicio queden las tarjetas con pop-up y que la bandeja de atención pase para abajo, sin repetir lo que ya muestran las tarjetas.

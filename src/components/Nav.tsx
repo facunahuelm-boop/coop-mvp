@@ -12,6 +12,7 @@ import { TopBarClient } from "./TopBarClient";
 import { HeaderQuickLinks, type QuickLinkItem } from "./HeaderQuickLinks";
 import { MiCuenta } from "./MiCuenta";
 import type { MiCuentaData } from "@/lib/logic";
+import type { AvisosTopBar } from "@/lib/avisos";
 import {
   Home,
   Bell,
@@ -125,8 +126,9 @@ const ETAPA_DEFAULT: Partial<Record<Module, string[]>> = {
 //  - "Trabajo" (registro anterior de jornadas) sale del menú: las horas ahora
 //    se organizan en la Comisión de Trabajo (planificación, asistencia y
 //    libreta). La pantalla sigue en /trabajo y se enlaza desde la libreta.
-//  - Panel Fiscal, Auditoría, Cumplimiento, Transparencia y Reportes quedan
-//    juntos en "Control y transparencia".
+//  - Panel Fiscal, Cumplimiento, Salud y Transparencia quedan en "Control y
+//    transparencia" (grupo que la barra lateral ya no muestra, 10/10);
+//    Auditoría y Reportes pasaron a "Administración".
 //  - Reglamento, Configuración y las herramientas de administración quedan
 //    juntos en "Administración".
 const GROUPS: NavGroup[] = [
@@ -209,9 +211,7 @@ const GROUPS: NavGroup[] = [
       { href: "/transparencia", label: "¿En qué se gasta?", icon: <Eye size={ICON_SIZE} /> },
       { href: "/salud", label: "Salud de la cooperativa", icon: <ClipboardCheck size={ICON_SIZE} />, mod: "auditoria" },
       { href: "/fiscal", label: "Panel Fiscal", icon: <ClipboardCheck size={ICON_SIZE} />, mod: "auditoria" },
-      { href: "/auditoria", label: "Auditoría", icon: <History size={ICON_SIZE} />, mod: "auditoria" },
       { href: "/cumplimiento", label: "Cumplimiento", icon: <FileCheck2 size={ICON_SIZE} />, mod: "auditoria" },
-      { href: "/reportes", label: "Reportes", icon: <BarChart3 size={ICON_SIZE} /> },
     ],
   },
   {
@@ -220,6 +220,10 @@ const GROUPS: NavGroup[] = [
       { href: "/reglamento", label: "Reglas y avisos", icon: <Scale size={ICON_SIZE} /> },
       { href: "/configuracion", label: "Configuración", icon: <Settings size={ICON_SIZE} /> },
       { href: "/reglas-automaticas", label: "Reglas automáticas", icon: <Zap size={ICON_SIZE} /> },
+      // 10/10: Auditoría y Reportes se quedan en el menú lateral, ahora acá (el
+      // resto de "Control y transparencia" ya no se muestra en la barra lateral).
+      { href: "/auditoria", label: "Auditoría", icon: <History size={ICON_SIZE} />, mod: "auditoria" },
+      { href: "/reportes", label: "Reportes", icon: <BarChart3 size={ICON_SIZE} /> },
       { href: "/usuarios", label: "Gestión de usuarios", icon: <UserPlus size={ICON_SIZE} /> },
       { href: "/alta", label: "Alta de la cooperativa", icon: <Rocket size={ICON_SIZE} />, soloAdmin: true },
       { href: "/cambiar-etapa", label: "Cambiar de etapa", icon: <Milestone size={ICON_SIZE} />, soloAdmin: true },
@@ -332,8 +336,18 @@ export function Sidebar({ user, esSocio = false }: { user: SessionUser; esSocio?
   // saludo, arriba de la pantalla de Inicio. Se filtra recién acá (no se
   // saca de GROUPS/ALL_ITEMS) para no tocar el menú "Más" del celular ni la
   // barra inferior (BottomNav), que los siguen mostrando tal cual estaban.
-  const OCULTOS_EN_SIDEBAR = ["/alertas", "/buscar"];
+  //
+  // 10/10 (pedido explícito): tampoco van en la barra lateral el grupo
+  // "Control y transparencia" entero (demasiada información) ni "Avisos
+  // oficiales" — éstos ahora se abren desde el botón con pop-up al lado de
+  // las notificaciones (TopBarClient). Igual que arriba, se filtran sólo acá:
+  // las pantallas siguen existiendo (por dirección, Ctrl+K y el menú "Más" del
+  // celular) y el socio común, que ve una sola lista, también deja de ver
+  // "¿En qué se gasta?" en el menú lateral.
+  const OCULTOS_EN_SIDEBAR = ["/alertas", "/buscar", "/avisos", "/transparencia"];
+  const GRUPOS_OCULTOS_EN_SIDEBAR = ["Control y transparencia"];
   const groups = groupsFor(user, esSocio)
+    .filter((g) => !GRUPOS_OCULTOS_EN_SIDEBAR.includes(g.label))
     .map((g) => ({ ...g, items: g.items.filter((i) => !OCULTOS_EN_SIDEBAR.includes(i.href)) }))
     .filter((g) => g.items.length > 0);
   const { nombre, logo_url, color_primario, color_secundario } = user.organizacion;
@@ -466,10 +480,14 @@ const ORDEN_ACCESOS_RAPIDOS = ["/mi-trabajo", "/comisiones", "/socios"];
 export function TopBarDesktop({
   user,
   alertas,
+  avisos,
+  puedeEmitirAvisos,
   miCuenta,
 }: {
   user: SessionUser;
   alertas: { count: number; hayCriticas: boolean; items: { id: number; titulo: string; severidad: string; fecha: string }[] };
+  avisos: AvisosTopBar;
+  puedeEmitirAvisos: boolean;
   miCuenta: MiCuentaData | null;
 }) {
   // Reutiliza exactamente el mismo filtro de permisos que ya arma la
@@ -491,7 +509,7 @@ export function TopBarDesktop({
           `justify-end` deja todo pegado a la derecha, sin nada más en esta
           franja (el logo/marca vive en la Sidebar, no acá). */}
       <HeaderQuickLinks items={accesosRapidos} />
-      <TopBarClient alertas={alertas} miCuenta={miCuenta && <MiCuenta data={miCuenta} />} />
+      <TopBarClient alertas={alertas} avisos={avisos} puedeEmitirAvisos={puedeEmitirAvisos} miCuenta={miCuenta && <MiCuenta data={miCuenta} />} />
     </header>
   );
 }
