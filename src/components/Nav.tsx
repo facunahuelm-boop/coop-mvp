@@ -344,7 +344,9 @@ export function Sidebar({ user, esSocio = false }: { user: SessionUser; esSocio?
   // las pantallas siguen existiendo (por dirección, Ctrl+K y el menú "Más" del
   // celular) y el socio común, que ve una sola lista, también deja de ver
   // "¿En qué se gasta?" en el menú lateral.
-  const OCULTOS_EN_SIDEBAR = ["/alertas", "/buscar", "/avisos", "/transparencia"];
+  // "Encuestas" (10/10, mismo criterio): se usa poco, pasa al pop-up
+  // "Comunicación" de la barra superior.
+  const OCULTOS_EN_SIDEBAR = ["/alertas", "/buscar", "/avisos", "/transparencia", "/encuestas"];
   const GRUPOS_OCULTOS_EN_SIDEBAR = ["Control y transparencia"];
   const groups = groupsFor(user, esSocio)
     .filter((g) => !GRUPOS_OCULTOS_EN_SIDEBAR.includes(g.label))

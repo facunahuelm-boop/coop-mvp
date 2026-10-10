@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Search, Bell, MessagesSquare, Mail, UsersRound, Megaphone } from "lucide-react";
+import { Search, Bell, MessagesSquare, Mail, UsersRound, Megaphone, ListChecks } from "lucide-react";
 import { useCommandPalette } from "./ui-client";
 import dayjs from "dayjs";
 import type { AvisosTopBar } from "@/lib/avisos";
@@ -259,6 +259,22 @@ export function TopBarClient({
                     <span className="block text-xs text-ink-faint">Mensajes internos y con las comisiones</span>
                   </span>
                 </Link>
+                {/* 10/10: "Encuestas" sale de la barra lateral (se usa poco) y
+                    vive acá; mismo criterio de visibilidad que tenía en el
+                    menú: sólo quien puede mandar avisos. */}
+                {puedeEmitirAvisos && (
+                  <Link
+                    href="/encuestas"
+                    onClick={() => setComAbierta(false)}
+                    className="flex items-start gap-3 px-4 py-2.5 text-sm hover:bg-surface-sunken"
+                  >
+                    <ListChecks size={17} className="mt-0.5 text-[var(--color-brand-800)] shrink-0" aria-hidden />
+                    <span className="min-w-0">
+                      <span className="block text-ink font-medium">Encuestas</span>
+                      <span className="block text-xs text-ink-faint">Preguntale a los socios y mirá las respuestas</span>
+                    </span>
+                  </Link>
+                )}
               </div>
             </div>
           </>
