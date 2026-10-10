@@ -589,8 +589,6 @@ export default async function DashboardPage() {
 
       <PageHeader title="Inicio" subtitle={dayjs().format("dddd DD [de] MMMM, YYYY")} />
 
-      <BandejaAtencion items={atencion} />
-
       {salud.length > 0 && (
         <Link href="/salud" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3 hover:bg-surface-sunken" data-testid="semaforo-salud">
           <span className="font-semibold text-ink">
@@ -1078,6 +1076,10 @@ export default async function DashboardPage() {
           </DashboardGrid>
         </DashboardSection>
       )}
+
+      <div className="mt-6">
+        <BandejaAtencion items={atencion} />
+      </div>
 
       <div className="mt-6">
         <SectionTitle>Preguntale a la IA</SectionTitle>

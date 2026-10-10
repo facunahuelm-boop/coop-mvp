@@ -1,6 +1,6 @@
 import { all, get } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
-import { canEdit, canApprove, canRead } from "@/lib/roles";
+import { canEdit, canRead } from "@/lib/roles";
 import { obtenerReglamento } from "@/lib/reglamento";
 import { semanasSinCerrar } from "@/lib/libretaHoras";
 import { calcularCuotasSocio, cargarMovimientosCuenta } from "@/lib/logic";
@@ -13,9 +13,10 @@ import { estadoAlta } from "@/lib/alta";
 import { proveedoresConDocVencida } from "@/lib/proveedoresDocs";
 
 /**
- * Fase 1D — "Lo que necesita tu atención": arriba de todo en el Inicio, las
- * cosas que esta persona tiene que HACER (no números para mirar), según su
- * rol. Cada ítem lleva directo a dónde se resuelve. Máximo 6.
+ * Fase 1D — "Lo que necesita tu atención": al final del Inicio (debajo de las
+ * tarjetas con pop-up), las cosas que esta persona tiene que HACER (no números
+ * para mirar), según su rol. Cada ítem lleva directo a dónde se resuelve. Sin
+ * repetir lo que ya muestran las tarjetas de arriba. Máximo 6.
  */
 
 export type ItemAtencion = { texto: string; detalle?: string; href: string; boton: string; tono: "rojo" | "amarillo" | "azul" };
@@ -32,18 +33,8 @@ export async function itemsDeAtencion(user: SessionUser, hoy: string): Promise<I
     }
   };
 
-  // 1) Mis tareas vencidas.
-  const vencidas = await seguro(
-    async () =>
-      Number(
-        (await get<{ n: string }>(
-          `SELECT COUNT(*) AS n FROM tareas WHERE responsable_id = ? AND estado <> 'completada' AND fecha_vencimiento IS NOT NULL AND fecha_vencimiento < ?`,
-          [user.id, hoy]
-        ))?.n ?? 0
-      ),
-    0
-  );
-  if (vencidas) items.push({ texto: `Tenés ${vencidas} ${plural(vencidas, "tarea vencida", "tareas vencidas")}`, href: "/mi-trabajo", boton: "Ver mis tareas", tono: "rojo" });
+  // (Las tareas vencidas propias y las compras por decidir ya no van acá: el
+  // Inicio las muestra arriba en sus tarjetas "Tareas vencidas" y "Compras".)
 
   // 2) Solicitudes de otras comisiones que esperan respuesta de las mías.
   if (canRead(user.rol, "comisiones")) {
@@ -248,11 +239,6 @@ export async function itemsDeAtencion(user: SessionUser, hoy: string): Promise<I
   if (user.rol === "fiscal") {
     const paraVisar = await seguro(async () => Number((await get<{ n: string }>(`SELECT COUNT(*) AS n FROM periodos_financieros WHERE estado = 'cerrado'`))?.n ?? 0), 0);
     if (paraVisar) items.push({ texto: `${paraVisar} ${plural(paraVisar, "mes cerrado espera", "meses cerrados esperan")} tu visto`, href: "/finanzas/cierre", boton: "Revisar", tono: "amarillo" });
-  }
-
-  if (canApprove(user.rol, "compras")) {
-    const compras = await seguro(async () => Number((await get<{ n: string }>(`SELECT COUNT(*) AS n FROM solicitudes_compra WHERE estado = 'en_comparacion'`))?.n ?? 0), 0);
-    if (compras) items.push({ texto: `${compras} ${plural(compras, "compra espera", "compras esperan")} una decisión`, href: "/compras", boton: "Decidir", tono: "amarillo" });
   }
 
   // 6) Documentos vencidos.

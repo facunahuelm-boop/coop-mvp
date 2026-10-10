@@ -4,6 +4,13 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Inicio reordenado (10/10): tarjetas arriba, "Lo que necesita tu atención" abajo
+
+Pedido del usuario: que arriba del Inicio queden las tarjetas con pop-up y que la bandeja de atención pase para abajo, sin repetir lo que ya muestran las tarjetas.
+- `dashboard/page.tsx`: `BandejaAtencion` pasa de estar arriba de todo a ir después de "Información" y antes de "Preguntale a la IA". El semáforo de salud queda donde estaba.
+- `lib/atencion.ts`: se sacan los 2 ítems que repetían tarjetas del Inicio — «Tenés N tareas vencidas» (tarjeta «Tareas vencidas») y «N compras esperan una decisión» (tarjeta «Compras», que ya dice «N a decidir»). El resto de los ítems no tiene tarjeta equivalente y se mantiene. Con menos repetidos, el tope de 6 queda para cosas que sólo aparecen acá.
+- Sin cambios de datos, permisos ni migraciones. tsc sin errores en los archivos tocados; eslint 45→45 en esos archivos (los `any` ya existentes).
+
 ## COOVA v2 — Fase 3 completa (07/10): "lo que nadie más tiene"
 
 Plan acordado en `PROMPT_COOVA_v2.md` (Fase 3, puntos 1 a 11), publicado todo junto (decisión del usuario). Migraciones nuevas: **0063 a 0071**, todas no destructivas (nada se borra: se anula, se revoca o se desactiva). Lo automático nuevo (A25, A28) queda **apagado** hasta que se prenda en "Reglas y avisos". El código funciona aunque las migraciones todavía no estén aplicadas (probado contra una base sin las migraciones 0055+).

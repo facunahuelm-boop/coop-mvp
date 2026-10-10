@@ -8,7 +8,7 @@ const BORDE: Record<ItemAtencion["tono"], string> = {
   azul: "border-l-[var(--color-brand-800)]",
 };
 
-/** Fase 1D — "Lo que necesita tu atención" (arriba de todo en el Inicio). */
+/** Fase 1D — "Lo que necesita tu atención" (al final del Inicio, debajo de las tarjetas). */
 export function BandejaAtencion({ items }: { items: ItemAtencion[] }) {
   return (
     <section className="mb-6" aria-labelledby="atencion-titulo">
