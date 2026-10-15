@@ -27,6 +27,11 @@ import { FUNCION_COMISION, funcionDe, comisionDisponibleEnEtapa, textoEtapas, ET
 import { cargarSemanaHoras, obtenerHorarioObra } from "@/lib/horasTrabajo";
 import { hoyEnUruguay, lunesDe, sumarDias, diasDeSemana, textoSemana, esFechaISO, textoHoras, textoDia } from "@/lib/horasObra";
 import type { ComisionRow } from "@/lib/comisionesResumen";
+import {
+  REPRESENTA, HORARIO_GUARDIA, cargarIntegracion, cargarPlanes, cargarTurnosExtendidos, cargarControlesCalidad, rubrosParaSelect,
+  cargarContratados, cargarLicitaciones, cargarGuardias, nucleosParaSelect, personasParaSelect, puedeGestionarObra, puedeAprobarContratacion,
+} from "@/lib/obraGestion";
+import { IntegracionPanel, PlanTrabajoPanel, TurnosExtendidosPanel, CalidadPanel, ContratacionPanel, GuardiasPanel } from "@/components/obra/ObraGestion";
 
 /**
  * Página propia de una comisión (05/10) — /comisiones/[id]. NO está en el
@@ -321,6 +326,18 @@ export default async function ComisionDetallePage({
       {panel.formularios.includes("eleccion") && <EleccionesPanel comisionId={comisionId} elecciones={elecciones} hoy={hoy} puede={puedeGestionar} />}
     </div>
   ) : null;
+
+  // ---------- Obra: gestión según reglamento / Trabajo: guardias ----------
+  const esObra = funcion === "obra";
+  const puedeObra = esObra && disponible ? await puedeGestionarObra(user, comisionId) : false;
+  const gestionObra = esObra && disponible
+    ? await Promise.all([
+        cargarIntegracion(comisionId), cargarPlanes(), cargarTurnosExtendidos(), cargarControlesCalidad(), rubrosParaSelect(),
+        cargarContratados(), cargarLicitaciones(), personasParaSelect(),
+        all<{ id: number; nombre: string }>(`SELECT id, nombre FROM proveedores ORDER BY nombre`).catch(() => []),
+      ])
+    : null;
+  const guardiasTrabajo = esTrabajo && disponible ? await Promise.all([cargarGuardias(), nucleosParaSelect()]) : null;
 
   // ---------- Pestañas ----------
   const tabResumen = (
@@ -650,6 +667,19 @@ export default async function ComisionDetallePage({
             ),
           },
         ]
+      : []),
+    ...(gestionObra
+      ? [
+          { id: "obra-integracion", label: "Integración", content: <IntegracionPanel comisionId={comisionId} integracion={gestionObra[0]} puede={puedeObra} representaciones={REPRESENTA} /> },
+          { id: "obra-plan", label: "Plan de trabajo", content: <PlanTrabajoPanel comisionId={comisionId} planes={gestionObra[1]} personas={gestionObra[7]} puede={puedeObra} hoy={hoy} /> },
+          { id: "obra-extendido", label: "Horario extendido", content: <TurnosExtendidosPanel comisionId={comisionId} turnos={gestionObra[2]} personas={gestionObra[7]} puede={puedeObra} hoy={hoy} /> },
+          { id: "obra-calidad", label: "Calidad", content: <CalidadPanel comisionId={comisionId} controles={gestionObra[3]} rubros={gestionObra[4]} puede={puedeObra} hoy={hoy} /> },
+          { id: "obra-contratacion", label: "Contratación", content: <ContratacionPanel comisionId={comisionId} contratados={gestionObra[5]} licitaciones={gestionObra[6]} proveedores={gestionObra[8]} puede={puedeObra} puedeAprobar={puedeAprobarContratacion(user)} /> },
+          { id: "obra-obrador", label: "Vista del obrador", content: <Card><p className="text-[15px] mb-2">Cronograma y flujo financiero para imprimir y exhibir en el obrador (Art. 5e).</p><Link href="/obra/obrador" className="font-semibold text-[var(--color-brand-800)] underline underline-offset-2">Abrir vista imprimible</Link></Card> },
+        ]
+      : []),
+    ...(guardiasTrabajo
+      ? [{ id: "guardias", label: "Guardias", content: <GuardiasPanel comisionId={comisionId} guardias={guardiasTrabajo[0]} nucleos={guardiasTrabajo[1]} puede={puedePlanificar} hoy={hoy} horario={HORARIO_GUARDIA} /> }]
       : []),
     { id: "integrantes", label: `Integrantes (${miembros.length})`, content: tabIntegrantes },
     { id: "tareas", label: `Tareas${pendientes.length ? ` (${pendientes.length})` : ""}`, content: tabTareas },

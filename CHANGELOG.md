@@ -4,6 +4,16 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Comisión de Obra y Trabajo según el Reglamento de UFAMA (15/10)
+
+Pedido: llevar a las comisiones los siete faltantes detectados al leer el Reglamento (misma dinámica: pestañas, formularios en modal, auditoría).
+- Migración `0073_comision_obra_gestion.sql`: `comision_miembros.representa` y las tablas `plan_trabajo_obra`, `turnos_extendidos_obra`, `controles_calidad_obra`, `personal_contratado_obra`, `licitaciones_obra`, `ofertas_licitacion`, `guardias_obra`, con RLS forzada y sin DELETE (se anula o se cambia de estado).
+- Comisión de Obra, pestañas nuevas: **Integración** (Art. 10a: Compras, Administración, Tesorería, Dirección de Obra, Capataz y 3 socios votados; avisa lo que falta), **Plan de trabajo** mensual y semanal (11b), **Horario extendido** (lun–vie 17–22 y sábados 07–12, con tarea y encargado/a; se valida en el servidor, 18 d/f/g), **Calidad** y uso de materiales (11d), **Contratación** (personal no socio, lo aprueba el Consejo Directivo, 5c; pedidos de precios con mínimo de 3 ofertas o justificación, 5b/11c) y **Vista del obrador**.
+- Nueva pantalla imprimible `/obra/obrador` con cronograma, avance por rubro y flujo financiero (5e).
+- Comisión de Trabajo: pestaña **Guardias** (17–22) y **serenatas** (22–07) por núcleo; no suman horas de ayuda mutua; la falta injustificada avisa que corresponde sanción (8o, 18h, 34).
+- Permisos: integrar la comisión o conducción para cargar; solo directiva aprueba contrataciones; guardias con el permiso de planificación de Trabajo. Las lecturas toleran que la migración todavía no esté aplicada.
+- Pruebas: `test-obra.mjs` (17 chequeos) además de los 92 y 11 existentes. Pendiente: que la asamblea defina las versiones en amarillo del reglamento y cargar los cargos reales.
+
 ## Barra lateral sin «Obra y trámites» + QR en la barra superior (15/10)
 
 Pedido: lo de la obra va dentro de la Comisión de Obra, lo demás sale de la barra lateral, y el QR pasa a un ícono arriba que use la cámara del celular; solo la directiva genera el QR.
