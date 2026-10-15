@@ -5,7 +5,6 @@ import { tareasObraConSemaforo, resumenFinanciero, cuentasPorCobrar, recalcularA
 import { canRead, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
 import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
-import { PortalSocio } from "@/components/portal/PortalSocio";
 import { BandejaAtencion } from "@/components/portal/BandejaAtencion";
 import { itemsDeAtencion } from "@/lib/atencion";
 import { saludCooperativa, veSalud, colorGeneral } from "@/lib/saludCooperativa";
@@ -98,7 +97,8 @@ export default async function DashboardPage() {
 
   // Fase 1D: el Inicio del socio es su portal "Mi vivienda" (lo que debe,
   // sus horas, la próxima asamblea y sus avisos), no un tablero de gestión.
-  if (user.rol === "socio") return <PortalSocio user={user} />;
+  // 15/10 (pedido explícito): el socio ve el mismo Inicio que el resto (tarjetas con
+  // pop-ups de finanzas, tareas, comisiones…); su portal sigue en «Mi vivienda».
   const atencion = await itemsDeAtencion(user, hoyUY());
   // Fase 3I: semáforo de salud (sólo conducción, Fiscal y Finanzas).
   const salud = veSalud(user) ? await saludCooperativa(user.etapa).catch(() => []) : [];
@@ -106,6 +106,8 @@ export default async function DashboardPage() {
   await recalcularAlertas();
 
   const verFinanzasDetalle = ROLES_FINANZAS_DETALLE.includes(user.rol);
+  // El socio ve el resumen de finanzas de la cooperativa (no deudores ni compromisos).
+  const verResumenFinanzas = verFinanzasDetalle || user.rol === "socio";
   // Fase D: Obra/Trabajo/Seguridad quedan afuera del dashboard cuando la
   // etapa (o un override manual desde Configuración → Módulos) los oculta
   // del menú — mismo criterio en los dos lugares.
@@ -735,7 +737,7 @@ export default async function DashboardPage() {
             />
           </DashboardCardModal>
 
-          {verFinanzasDetalle && fin && (
+          {verResumenFinanzas && fin && (
             <DashboardCardModal
               title="Finanzas"
               size="lg"
@@ -763,8 +765,8 @@ export default async function DashboardPage() {
                 />
                 <StatTile label="Ingresos del mes" value={money(fin.ingresosMes)} color="verde" />
                 <StatTile label="Comprometido" value={money(fin.comprometido)} />
-                <StatTile label="Pendiente de cobrar" value={money(pendienteCobrar?.totalACobrar ?? 0)} />
-                <StatTile label="Próximos pagos" value={String(proximosPagosCountRow?.n ?? 0)} />
+                {verFinanzasDetalle && <StatTile label="Pendiente de cobrar" value={money(pendienteCobrar?.totalACobrar ?? 0)} />}
+                {verFinanzasDetalle && <StatTile label="Próximos pagos" value={String(proximosPagosCountRow?.n ?? 0)} />}
               </div>
               <p className="text-xs text-ink-faint mt-2">Balance total: todo el dinero de la cooperativa a hoy (ingresos menos egresos, desde siempre).</p>
               {proximosPagos.length > 0 && (

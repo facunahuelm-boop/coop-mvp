@@ -346,7 +346,9 @@ export function Sidebar({ user, esSocio = false }: { user: SessionUser; esSocio?
   // "¿En qué se gasta?" en el menú lateral.
   // "Encuestas" (10/10, mismo criterio): se usa poco, pasa al pop-up
   // "Comunicación" de la barra superior.
-  const OCULTOS_EN_SIDEBAR = ["/alertas", "/buscar", "/avisos", "/transparencia", "/encuestas"];
+  // 15/10 (pedido explícito): «Mi vivienda» pasa al acceso rápido de arriba y
+  // «¿En qué estamos?» sale del lateral (sigue en «Más», Ctrl+K y su dirección /tramites).
+  const OCULTOS_EN_SIDEBAR = ["/alertas", "/buscar", "/avisos", "/transparencia", "/encuestas", "/mi-vivienda", "/tramites"];
   // "Obra y trámites" (15/10, pedido explícito): lo de la obra vive dentro de la
   // Comisión de Obra (su panel enlaza avance, diario, pañol y cronograma) y el
   // QR pasó al ícono de la barra superior. Las pantallas siguen existiendo por
@@ -481,10 +483,11 @@ export function TopBar({ user, miCuenta }: { user: SessionUser; miCuenta: MiCuen
 // existe o no para este usuario) sigue siendo el mismo de siempre.
 const ICONO_ACCESO_RAPIDO: Record<string, ReactNode> = {
   "/mi-trabajo": <BriefcaseBusiness size={16} />,
+  "/mi-vivienda": <HomeIcon size={16} />,
   "/comisiones": <UsersRound size={16} />,
   "/socios": <UserRound size={16} />,
 };
-const ORDEN_ACCESOS_RAPIDOS = ["/mi-trabajo", "/comisiones", "/socios"];
+const ORDEN_ACCESOS_RAPIDOS = ["/mi-trabajo", "/mi-vivienda", "/comisiones", "/socios"];
 
 export function TopBarDesktop({
   user,
@@ -503,7 +506,10 @@ export function TopBarDesktop({
   // Sidebar/BottomNav (moduloVisible + canRead + soloPlataforma, ver
   // itemsFor arriba) — nunca una lista de visibilidad aparte para el header.
   // Si un rol no ve "Comisiones" en el menú, tampoco lo ve acá.
-  const disponibles = itemsFor(user);
+  // 15/10 (pedido explícito): el socio común también ve Comisiones y Socios y
+  // núcleos arriba, y «Mi vivienda» pasó de la barra lateral a este acceso rápido.
+  // Por eso acá se usa lo que la persona PUEDE abrir, no su menú lateral corto.
+  const disponibles = itemsAccesibles(user);
   const accesosRapidos: QuickLinkItem[] = ORDEN_ACCESOS_RAPIDOS.map((href) => disponibles.find((i) => i.href === href))
     .filter((i): i is NonNullable<typeof i> => Boolean(i))
     .map((i) => ({ href: i.href, label: i.label, icon: ICONO_ACCESO_RAPIDO[i.href] }));

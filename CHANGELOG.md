@@ -4,6 +4,13 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Vista del socio igual a la de conducción (15/10)
+
+Pedido (tras entrar con un usuario real): el socio ve el mismo Inicio, las comisiones, socios y núcleos, QR, notificaciones y avisos.
+- Inicio: el socio ya no cae en el portal viejo; ve el tablero de tarjetas con pop-ups (finanzas de la cooperativa —sin deudores ni compromisos—, tareas, comisiones…). Su portal sigue en «Mi vivienda».
+- Barra superior: «Mi trabajo», «Mi vivienda», «Comisiones» y «Socios y núcleos» para todos, junto con QR, notificaciones y avisos.
+- Barra lateral: «Mi vivienda» y «¿En qué estamos?» salen del lateral (siguen en «Más», Ctrl+K y `/tramites`).
+
 ## Vaciado de datos de prueba con respaldo (15/10)
 
 Pedido: dejar UFAMA limpia (finanzas, notificaciones y lo cargado en comisiones) para cargar con personas reales.
