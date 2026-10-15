@@ -25,6 +25,7 @@ import {
   cargarComisionesEnLoteFormAction,
   ejecutarLimpiezaPruebaFormAction,
   restaurarRespaldoLimpiezaFormAction,
+  vaciarDatosPruebaFormAction,
 } from "@/lib/actions/plataformaCooperativa";
 import type { NucleoFila, UsuarioFila, ComisionFila, IntegranteFila } from "@/lib/plataformaCoop";
 import type { VistaPreviaLimpieza } from "@/lib/plataformaLimpieza";
@@ -574,5 +575,32 @@ export function RestaurarRespaldoBoton({ orgId, respaldoId }: { orgId: number; r
       mensajeExito="Respaldo restaurado."
       claseBoton={CLASE_BOTON_CHICO}
     />
+  );
+}
+
+export function VaciarDatosForm({ orgId }: { orgId: number }) {
+  const [estado, formAction] = useActionState(vaciarDatosPruebaFormAction, ESTADO_INICIAL);
+  const { show } = useToast();
+  useEffect(() => {
+    if (estado.ok && estado.aviso) show(estado.aviso);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+  return (
+    <form action={formAction} className="space-y-3 text-ink rounded-xl border border-border bg-surface-sunken/50 p-3">
+      <input type="hidden" name="org_id" value={orgId} />
+      <p className="text-sm">
+        Borra <b>todas las finanzas</b> (movimientos, compromisos, cuentas, fondos), las <b>notificaciones</b> y todo lo cargado en las comisiones (tareas, reuniones, actividades, obra, guardias, licitaciones…).
+        Se conservan usuarios, núcleos, comisiones con sus integrantes, la configuración y la auditoría. Antes de borrar se guarda un <b>respaldo completo</b> que se puede restaurar.
+      </p>
+      <FormError message={estado.error} />
+      {estado.ok && estado.aviso && <p className="rounded-lg bg-[var(--color-verde-bg)] px-3 py-2 text-sm font-medium text-[var(--color-verde)]">{estado.aviso}</p>}
+      <div>
+        <Label required>Para confirmar, escribí VACIAR</Label>
+        <input name="confirmacion" required autoComplete="off" className={inputClass} placeholder="VACIAR" />
+      </div>
+      <div className="flex justify-end">
+        <SubmitButton variant="danger" pendingLabel="Vaciando…">Vaciar datos de prueba</SubmitButton>
+      </div>
+    </form>
   );
 }

@@ -21,6 +21,7 @@ import {
   CrearUsuariosParaNucleosBoton,
   CargarComisionesLoteForm,
   LimpiezaForm,
+  VaciarDatosForm,
   RestaurarRespaldoBoton,
 } from "@/components/plataforma/CooperativaAdmin";
 
@@ -258,6 +259,7 @@ export default async function CooperativaAdminPage({ params }: { params: Promise
         </p>
       </Card>
       <LimpiezaForm orgId={orgId} vista={vistaLimpieza} />
+      <div className="mt-4"><VaciarDatosForm orgId={orgId} /></div>
       <section>
         <h3 className="text-sm font-semibold text-ink/70 mb-1">Respaldos guardados</h3>
         {vistaLimpieza.respaldos.length === 0 ? (

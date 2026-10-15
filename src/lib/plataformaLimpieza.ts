@@ -86,7 +86,7 @@ export async function leerVistaPreviaLimpieza(orgId: number): Promise<VistaPrevi
     );
     const respaldos = await tx.all<{ id: number; creado_en: string; motivo: string; cantidad: string; restaurado: boolean }>(
       `SELECT id, creado_en::text AS creado_en, motivo,
-              (jsonb_array_length(contenido->'socios') + jsonb_array_length(contenido->'users'))::text AS cantidad,
+              (CASE WHEN contenido->>'tipo' = 'vaciado' THEN (SELECT COALESCE(sum(jsonb_array_length(v)), 0) FROM jsonb_each(contenido->'tablas') e(k, v)) ELSE jsonb_array_length(contenido->'socios') + jsonb_array_length(contenido->'users') END)::text AS cantidad,
               (restaurado_en IS NOT NULL) AS restaurado
          FROM respaldos_limpieza ORDER BY id DESC LIMIT 10`
     );

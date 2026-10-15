@@ -798,6 +798,11 @@ export async function restaurarRespaldoLimpiezaAction(formData: FormData): Promi
     );
     if (!fila) throw new Error("Ese respaldo no existe.");
     if (fila.restaurado_en) throw new Error("Ese respaldo ya se restauró.");
+    if ((fila.contenido as { tipo?: string }).tipo === "vaciado") {
+      await tx.get(`SELECT restaurar_vaciado(?, ?)`, [tx.orgId, d.id]);
+      await auditarTx(tx, admin, "restaurar", "respaldos_limpieza", d.id, { tipo: "vaciado" });
+      return { vaciado: true as const };
+    }
     const c = fila.contenido as {
       socios: { id: number; estado: string; user_id: number | null; numero_nucleo: number | null; nombre: string }[];
       nucleos_familiares: { id: number }[];
@@ -847,12 +852,43 @@ export async function restaurarRespaldoLimpiezaAction(formData: FormData): Promi
     return { socios: c.socios.length, usuarios: c.users.length };
   });
   revalidar(d.org_id);
+  if ("vaciado" in r) return "Datos de prueba restaurados.";
   return `Respaldo restaurado: ${r.socios} núcleos y ${r.usuarios} usuarios volvieron a como estaban.`;
 }
 export async function restaurarRespaldoLimpiezaFormAction(_p: ActionState, fd: FormData): Promise<ActionState> {
   let aviso = "";
   const r = await conEstadoDeAccion(async () => {
     aviso = await restaurarRespaldoLimpiezaAction(fd);
+  });
+  return r.ok ? { ...r, aviso } : r;
+}
+
+/**
+ * Vacía los datos de prueba de la cooperativa (finanzas, notificaciones, comisiones y demás registros),
+ * dejando usuarios, núcleos, comisiones con sus integrantes, configuración y auditoría. Guarda un respaldo
+ * completo que se puede restaurar (ver la función SQL vaciar_datos_prueba, migración 0074).
+ */
+export async function vaciarDatosPruebaAction(formData: FormData): Promise<string> {
+  const d = parseForm(z.object({ org_id: zId, confirmacion: z.string() }), formData);
+  if (d.confirmacion !== "VACIAR") throw new ValidationError("confirmacion", "Escribí VACIAR en mayúsculas para confirmar.");
+  const r = await conCooperativa(d.org_id, async (tx, admin) => {
+    const res = await tx.get<{ r: { respaldo_id: number; borradas: Record<string, number>; omitidas: string[] } }>(
+      `SELECT vaciar_datos_prueba(?, ?, ?) AS r`,
+      [tx.orgId, admin.id, "Vaciado de datos de prueba antes de cargar los datos reales"]
+    );
+    const out = res!.r;
+    const total = Object.values(out.borradas).reduce((a, b) => a + Number(b), 0);
+    await auditarTx(tx, admin, "vaciar", "respaldos_limpieza", out.respaldo_id, { registros: total, tablas: Object.keys(out.borradas).length, omitidas: out.omitidas });
+    revalidar(d.org_id);
+    return { total, tablas: Object.keys(out.borradas).length, respaldo: out.respaldo_id, omitidas: out.omitidas };
+  });
+  return `Listo: se borraron ${r.total} registros de ${r.tablas} tablas. Respaldo n.º ${r.respaldo}.${r.omitidas.length ? ` No se pudieron borrar: ${r.omitidas.join(", ")}.` : ""}`;
+}
+
+export async function vaciarDatosPruebaFormAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  let aviso = "";
+  const r = await conEstadoDeAccion(async () => {
+    aviso = await vaciarDatosPruebaAction(fd);
   });
   return r.ok ? { ...r, aviso } : r;
 }

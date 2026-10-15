@@ -4,6 +4,12 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Vaciado de datos de prueba con respaldo (15/10)
+
+Pedido: dejar UFAMA limpia (finanzas, notificaciones y lo cargado en comisiones) para cargar con personas reales.
+- Migración `0074_vaciar_datos_prueba.sql`: funciones `vaciar_datos_prueba` y `restaurar_vaciado` (SECURITY DEFINER, solo sobre la cooperativa de la sesión). Copian todas las filas a `respaldos_limpieza` antes de borrar; se conservan usuarios, socios, núcleos, comisiones e integrantes, configuración, auditoría y viviendas.
+- `/plataforma/[id]`: bloque «Vaciar datos de prueba» (confirmación escribiendo VACIAR) y el respaldo se restaura desde la lista de respaldos.
+
 ## Comisión de Obra y Trabajo según el Reglamento de UFAMA (15/10)
 
 Pedido: llevar a las comisiones los siete faltantes detectados al leer el Reglamento (misma dinámica: pestañas, formularios en modal, auditoría).
