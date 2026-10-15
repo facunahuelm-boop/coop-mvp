@@ -45,8 +45,10 @@ const nextConfig: NextConfig = {
   //  - Referrer-Policy: al hacer clic en un link que sale del sistema hacia
   //    otro sitio, no se le manda la URL completa de origen (que podría
   //    incluir el subdominio de la cooperativa) — solo el dominio.
-  //  - Permissions-Policy: apaga cámara/micrófono/ubicación del navegador
-  //    para este sitio, que no los usa para nada.
+  //  - Permissions-Policy: apaga micrófono/ubicación del navegador. La cámara
+  //    se permite SOLO para este mismo sitio (camera=(self)): la usa el
+  //    escáner del QR de asistencia de la obra; ningún otro sitio incrustado
+  //    puede pedirla.
   //  - Strict-Transport-Security: le dice al navegador que, una vez visitado
   //    por HTTPS, no vuelva a intentar por HTTP nunca (evita ataques que
   //    fuerzan una conexión sin cifrar).
@@ -63,7 +65,7 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
         ],
       },

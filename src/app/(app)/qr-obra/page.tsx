@@ -8,6 +8,7 @@ import { Card, PageHeader, SectionTitle, Badge, EmptyState } from "@/components/
 import { ImprimirBoton, RevisarFichadaBoton } from "@/components/obra/FicharBotones";
 import { codigoQrDelDia } from "@/lib/qrObra";
 import { comisionTrabajoDe } from "@/lib/fichadasPermisos";
+import { esDirectiva } from "@/lib/qrPermisos";
 import { hoyEnUruguay, textoDia } from "@/lib/horasObra";
 
 /**
@@ -19,14 +20,17 @@ type Fila = { id: number; nucleo: string; persona: string; tipo: string; hora: s
 export default async function QrObraPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  // El QR del día solo lo genera la directiva. La Comisión de Trabajo entra a
+  // esta pantalla únicamente para revisar las fichadas (sin ver el QR).
+  const generaQr = esDirectiva(user);
   const comisionId = await comisionTrabajoDe(user);
-  if (!comisionId) redirect("/dashboard");
+  if (!generaQr && !comisionId) redirect("/dashboard");
   const hoy = hoyEnUruguay();
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
   const proto = h.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
-  const link = `${proto}://${host}/fichar/${codigoQrDelDia(user.organization_id, hoy)}`;
-  const qr = await QRCode.toDataURL(link, { margin: 1, width: 480 });
+  const link = generaQr ? `${proto}://${host}/fichar/${codigoQrDelDia(user.organization_id, hoy)}` : "";
+  const qr = generaQr ? await QRCode.toDataURL(link, { margin: 1, width: 480 }) : "";
   const filas = await all<Fila>(
     `SELECT f.id, n.nombre AS nucleo, u.nombre AS persona, f.tipo, f.hora, f.asignacion_id, f.asistencia_id, f.revisada_en
        FROM fichadas_obra f JOIN nucleos_familiares n ON n.id = f.nucleo_id JOIN users u ON u.id = f.user_id
@@ -38,8 +42,9 @@ export default async function QrObraPage() {
   return (
     <div className="max-w-3xl">
       <div className="print:hidden">
-        <PageHeader title="QR de la obra" subtitle="Los socios lo escanean con el celular al llegar y al irse. Cambia solo cada día." action={<ImprimirBoton />} />
+        <PageHeader title="QR de la obra" subtitle={generaQr ? "Los socios lo escanean con el ícono QR de arriba (o con la cámara del celular) al llegar y al irse. Cambia solo cada día." : "Fichadas de hoy. El QR del día lo genera la directiva."} action={generaQr ? <ImprimirBoton /> : undefined} />
       </div>
+      {generaQr && (
       <Card className="mb-6 text-center">
         <p className="text-lg font-bold text-ink first-letter:uppercase">Asistencia — {textoDia(hoy)}</p>
         {/* eslint-disable-next-line @next/next/no-img-element -- QR generado en el servidor como data URL */}
@@ -47,6 +52,7 @@ export default async function QrObraPage() {
         <p className="text-[15px] text-ink">Escaneá con la cámara del celular y tocá «Llegué» o «Me voy».</p>
         <p className="mt-1 break-all text-xs text-ink-faint print:hidden">{link}</p>
       </Card>
+      )}
 
       <div className="print:hidden">
         {sinTurno.length > 0 && (
@@ -62,7 +68,7 @@ export default async function QrObraPage() {
                         <b>{f.nucleo}</b> · {f.persona} · {llegada?.hora ?? "?"} a {f.hora}
                       </span>
                       <span className="flex items-center gap-3">
-                        <Link href={`/comisiones/${comisionId}`} className="text-sm font-semibold underline">
+                        <Link href={comisionId ? `/comisiones/${comisionId}` : "/comisiones"} className="text-sm font-semibold underline">
                           Registrar las horas
                         </Link>
                         <RevisarFichadaBoton id={f.id} />

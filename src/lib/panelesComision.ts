@@ -306,9 +306,11 @@ async function panelObra(): Promise<Panel> {
       },
     ],
     accesos: [
+      { href: "/obra", label: "Cronograma y problemas" },
       { href: "/obra/avance", label: "Avance físico y financiero" },
       { href: "/obra/diario", label: "Diario de obra" },
       { href: "/obra/panol", label: "Pañol" },
+      { href: "/compras/recepciones", label: "Recepción de materiales" },
     ],
   };
 }

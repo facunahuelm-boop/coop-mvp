@@ -108,7 +108,8 @@ export async function revisarFichadaFormAction(_p: ActionState, fd: FormData): P
     const user = await requireUser();
     const { id } = parseForm(z.object({ id: zId }), fd);
     const { puedeOrganizarHoras } = await import("@/lib/fichadasPermisos");
-    if (!(await puedeOrganizarHoras(user))) throw new Error("No tenés permiso para revisar las fichadas.");
+    const { esDirectiva } = await import("@/lib/qrPermisos");
+    if (!esDirectiva(user) && !(await puedeOrganizarHoras(user))) throw new Error("No tenés permiso para revisar las fichadas.");
     await update("fichadas_obra", id, { revisada_en: new Date().toISOString(), revisada_por_id: user.id });
     await audit({ usuario_id: user.id, accion: "revisar_fichada", entidad: "fichadas_obra", entidad_id: id });
     revalidatePath("/qr-obra");

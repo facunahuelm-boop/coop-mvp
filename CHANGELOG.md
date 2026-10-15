@@ -4,6 +4,15 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Barra lateral sin «Obra y trámites» + QR en la barra superior (15/10)
+
+Pedido: lo de la obra va dentro de la Comisión de Obra, lo demás sale de la barra lateral, y el QR pasa a un ícono arriba que use la cámara del celular; solo la directiva genera el QR.
+- `Nav.tsx`: el grupo «Obra y trámites» ya no se muestra en la barra lateral (las pantallas siguen por dirección, Ctrl+K y «Más»). El ítem «QR de asistencia» sale del menú. El panel de la Comisión de Obra suma accesos a «Cronograma y problemas» y «Recepción de materiales» (ya tenía avance, diario y pañol).
+- Ícono QR en la barra superior (escritorio y celular), visible en etapa de obra. `EscanerQrBoton.tsx` abre la cámara trasera, pide el permiso del navegador, lee el QR (detector nativo o `jsqr`) y solo acepta rutas `/fichar/<código>` de la misma cooperativa.
+- `next.config.ts`: `Permissions-Policy` pasa de `camera=()` a `camera=(self)`: sin esto el navegador bloqueaba la cámara. Micrófono y ubicación siguen apagados.
+- Solo la directiva genera el QR del día (`lib/qrPermisos.ts`: Consejo Directivo y administrador, hasta que se configuren los cargos). La Comisión de Trabajo sigue viendo y revisando las fichadas en `/qr-obra`, sin ver el QR.
+- Dependencia nueva: `jsqr`. Sin migraciones. Probado en navegador con cámara simulada que muestra el QR del día (11 verificaciones OK, incluido celular de 390 px).
+
 ## Inicio del testing real con UFAMA: panel de administración por cooperativa (15/10)
 
 Pedido: limpiar los datos ficticios de UFAMA, cargar los 29 núcleos reales con su numeración y crear los usuarios y asignaciones a comisiones, todo desde la interfaz de plataforma.

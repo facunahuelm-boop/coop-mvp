@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Search, Bell, MessagesSquare, Mail, UsersRound, Megaphone, ListChecks } from "lucide-react";
 import { useCommandPalette } from "./ui-client";
+import { EscanerQrBoton } from "./obra/EscanerQrBoton";
 import dayjs from "dayjs";
 import type { AvisosTopBar } from "@/lib/avisos";
 
@@ -26,11 +27,15 @@ export function TopBarClient({
   alertas,
   avisos,
   puedeEmitirAvisos,
+  mostrarQr,
+  puedeGenerarQr,
   miCuenta,
 }: {
   alertas: { count: number; hayCriticas: boolean; items: AlertaItem[] };
   avisos: AvisosTopBar;
   puedeEmitirAvisos: boolean;
+  mostrarQr: boolean;
+  puedeGenerarQr: boolean;
   miCuenta: ReactNode;
 }) {
   const { abrir: abrirBuscador } = useCommandPalette();
@@ -58,6 +63,8 @@ export function TopBarClient({
       >
         <Search size={18} />
       </button>
+      {/* 15/10 (pedido explícito): QR de asistencia de la obra, primero en la fila. */}
+      {mostrarQr && <EscanerQrBoton puedeGenerar={puedeGenerarQr} />}
 
       <div className="relative">
         <button

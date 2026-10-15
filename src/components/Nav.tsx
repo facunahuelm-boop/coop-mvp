@@ -9,6 +9,8 @@ import { NavTopGroup } from "./NavGroupSection";
 import { Logo3D } from "./Logo3D";
 import { Avatar } from "./EntidadLink";
 import { TopBarClient } from "./TopBarClient";
+import { EscanerQrBoton } from "./obra/EscanerQrBoton";
+import { esDirectiva } from "@/lib/qrPermisos";
 import { HeaderQuickLinks, type QuickLinkItem } from "./HeaderQuickLinks";
 import { MiCuenta } from "./MiCuenta";
 import type { MiCuentaData } from "@/lib/logic";
@@ -44,7 +46,6 @@ import {
   Megaphone,
   Rocket,
   FileSignature,
-  QrCode,
   ListChecks,
   BookOpen,
   Landmark,
@@ -174,7 +175,6 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: "/tramites", label: "¿En qué estamos?", icon: <Milestone size={ICON_SIZE} />, etapas: ["pre_obra", "obra"] },
       { href: "/obra", label: "Avance de obra", icon: <HardHat size={ICON_SIZE} />, mod: "obra" },
-      { href: "/qr-obra", label: "QR de asistencia", icon: <QrCode size={ICON_SIZE} />, mod: "trabajo", soloHoras: true },
       { href: "/seguridad", label: "Seguridad", icon: <ShieldCheck size={ICON_SIZE} />, mod: "seguridad" },
     ],
   },
@@ -347,7 +347,11 @@ export function Sidebar({ user, esSocio = false }: { user: SessionUser; esSocio?
   // "Encuestas" (10/10, mismo criterio): se usa poco, pasa al pop-up
   // "Comunicación" de la barra superior.
   const OCULTOS_EN_SIDEBAR = ["/alertas", "/buscar", "/avisos", "/transparencia", "/encuestas"];
-  const GRUPOS_OCULTOS_EN_SIDEBAR = ["Control y transparencia"];
+  // "Obra y trámites" (15/10, pedido explícito): lo de la obra vive dentro de la
+  // Comisión de Obra (su panel enlaza avance, diario, pañol y cronograma) y el
+  // QR pasó al ícono de la barra superior. Las pantallas siguen existiendo por
+  // dirección, Ctrl+K y el menú "Más" del celular.
+  const GRUPOS_OCULTOS_EN_SIDEBAR = ["Control y transparencia", "Obra y trámites"];
   const groups = groupsFor(user, esSocio)
     .filter((g) => !GRUPOS_OCULTOS_EN_SIDEBAR.includes(g.label))
     .map((g) => ({ ...g, items: g.items.filter((i) => !OCULTOS_EN_SIDEBAR.includes(i.href)) }))
@@ -438,11 +442,14 @@ export function TopBar({ user, miCuenta }: { user: SessionUser; miCuenta: MiCuen
           en escritorio (ver TopBarDesktop), pero sí para este único acceso
           compacto — mismo Avatar de siempre, ahora abre el modal "Mi cuenta"
           en vez de navegar a otra página. */}
-      {miCuenta ? (
-        <MiCuenta data={miCuenta} size={30} variant="mobile" />
-      ) : (
-        <Avatar url={user.avatar_url} nombre={user.nombre} size={30} className="border-white/30" />
-      )}
+      <div className="flex items-center gap-2">
+        {user.etapa === "obra" && <EscanerQrBoton puedeGenerar={esDirectiva(user)} variante="oscuro" />}
+        {miCuenta ? (
+          <MiCuenta data={miCuenta} size={30} variant="mobile" />
+        ) : (
+          <Avatar url={user.avatar_url} nombre={user.nombre} size={30} className="border-white/30" />
+        )}
+      </div>
     </header>
   );
 }
@@ -511,7 +518,7 @@ export function TopBarDesktop({
           `justify-end` deja todo pegado a la derecha, sin nada más en esta
           franja (el logo/marca vive en la Sidebar, no acá). */}
       <HeaderQuickLinks items={accesosRapidos} />
-      <TopBarClient alertas={alertas} avisos={avisos} puedeEmitirAvisos={puedeEmitirAvisos} miCuenta={miCuenta && <MiCuenta data={miCuenta} />} />
+      <TopBarClient alertas={alertas} avisos={avisos} puedeEmitirAvisos={puedeEmitirAvisos} mostrarQr={user.etapa === "obra"} puedeGenerarQr={esDirectiva(user)} miCuenta={miCuenta && <MiCuenta data={miCuenta} />} />
     </header>
   );
 }
