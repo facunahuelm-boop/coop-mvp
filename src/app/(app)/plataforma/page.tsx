@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { obtenerEstadoPlataforma } from "@/lib/actions/plataforma";
@@ -138,6 +139,12 @@ export default async function PlataformaPage() {
                   <p className="text-xs text-ink/35">Creada {dayjs(c.creado_en).format("DD/MM/YYYY")}</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
+                  <Link
+                    href={`/plataforma/${c.id}`}
+                    className="inline-flex items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:bg-surface-sunken transition-colors"
+                  >
+                    Administrar
+                  </Link>
                   <EstadoCooperativaBadge activo={c.activo} />
                   <AlternarActivoCooperativaButton id={c.id} activo={c.activo} disabled={esLaMia && c.activo} />
                 </div>

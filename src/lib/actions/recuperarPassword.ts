@@ -185,6 +185,11 @@ export async function restablecerPasswordAction(
     password_changed_en: new Date().toISOString(),
     reset_token_hash: null,
     reset_token_expira_en: null,
+    // Una cuenta «pendiente de activación» (creada desde el panel de
+    // plataforma, migración 0072) pasa a activa en el momento en que la
+    // persona elige su contraseña. Para cuentas que ya eran activas no
+    // cambia nada.
+    estado_cuenta: "activa",
   });
 
   // Sin valor_anterior/valor_nuevo a propósito, mismo criterio que el resto

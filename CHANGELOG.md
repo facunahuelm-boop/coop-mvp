@@ -4,6 +4,18 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Inicio del testing real con UFAMA: panel de administración por cooperativa (15/10)
+
+Pedido: limpiar los datos ficticios de UFAMA, cargar los 29 núcleos reales con su numeración y crear los usuarios y asignaciones a comisiones, todo desde la interfaz de plataforma.
+- **Migración 0072** (aditiva): `socios.numero_nucleo` (único por cooperativa entre fichas no dadas de baja), `users.email` opcional + `users.estado_cuenta` (activa | pendiente | baja), tabla `respaldos_limpieza`, papelera (`eliminado_en`…) para `nucleos_familiares` y único (comisión, usuario) entre membresías activas.
+- **Nueva pantalla `/plataforma/[id]`** (solo administrador de plataforma, aparte del admin de la cooperativa): pestañas Núcleos / Usuarios / Comisiones / Limpieza, botones arriba a la derecha, búsqueda y filtros por comisión y estado, confirmaciones y validaciones en línea, usable en celular. Cada operación corre en una transacción con `app.current_org_id` local, así que la base sigue aislando cooperativas.
+- **Núcleos**: alta/edición con N.º real y nombre exacto, carga en lote «N Nombre» (todo o nada, repetir no duplica), integrantes, baja lógica. No se inventa ningún dato.
+- **Usuarios**: pendientes sin email (no pueden iniciar sesión, sin contraseña inventada), invitación por enlace de 7 días, activación al elegir contraseña, desactivar/reactivar. Nadie recibe privilegios de admin.
+- **Comisiones**: carga en lote «Comisión: Persona 1, Persona 2» (todo o nada), edición por usuario; sin duplicar comisiones ni membresías.
+- **Limpieza**: vista previa que solo tilda lo que dice ser de prueba (lo dudoso nunca), respaldo JSON completo ANTES de tocar nada, confirmación escribiendo LIMPIAR, y **nada se borra**: socios a baja, núcleos a la papelera, usuarios a baja con membresías cerradas. Botón **Restaurar** que lo devuelve todo (frena si un N.º ya fue tomado).
+- Prueba E2E con navegador (92 verificaciones: limpieza, 29 núcleos, usuarios, 18 asignaciones, duplicados, invitación, permisos, aislamiento contra otra cooperativa, persistencia, 390 px y restauración) sin fallas. tsc sin errores; eslint 418 (base 419).
+- Pendiente: permisos, cargos y tesorería de los usuarios (no se configuran todavía, por pedido).
+
 ## Barra lateral más corta + botón de Avisos oficiales (10/10)
 
 Pedido del usuario: menos información en la barra lateral.
