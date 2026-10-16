@@ -10,6 +10,7 @@ import { all } from "@/lib/db";
 import { comisionDisponibleEnEtapa } from "@/lib/comisionesFunciones";
 import { Sidebar, TopBar, TopBarDesktop, BottomNav } from "@/components/Nav";
 import { CommandPalette } from "@/components/CommandPalette";
+import { DetallesPopup } from "@/components/DetallesPopup";
 import { ToastProvider, CommandPaletteProvider, PreservarDatosAnteErrores, ValidacionEnFormularios } from "@/components/ui-client";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -60,6 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // de que cada formulario migrado tenga que armar su propio mecanismo de
     // aviso de guardado/error.
     <ToastProvider>
+      <DetallesPopup />
       <CommandPaletteProvider>
         <div className={`min-h-full flex-1 bg-[var(--color-page-bg)]${user.letra_grande ? " letra-grande-raiz" : ""}`}>
           {/* Fase 1A (accesibilidad): "Letra grande" agranda la raíz del

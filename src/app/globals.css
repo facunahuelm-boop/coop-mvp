@@ -390,3 +390,48 @@ html.letra-grande {
 .letra-grande-raiz .text-\[11px\] {
   font-size: 0.8125rem;
 }
+
+/* ------------------------------------------------------------------
+   Altas en pop-up (pedido 16/10): todo `<details>` cuyo `<summary>` es un
+   botón de alta (AddButtonSummary, data-popup) se abre como ventana
+   emergente centrada con fondo oscurecido, en vez de empujar la página.
+   Se cierra con la X, tocando afuera o con Esc (ver DetallesPopup).
+   ------------------------------------------------------------------ */
+details:has(> summary[data-popup])[open]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgb(0 0 0 / 0.45);
+}
+details:has(> summary[data-popup])[open]::after {
+  content: "✕  Cerrar";
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 100;
+  cursor: pointer;
+  border-radius: 9999px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.25);
+}
+details:has(> summary[data-popup])[open] > :not(summary) {
+  position: fixed !important;
+  z-index: 95;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(44rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+  margin: 0 !important;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}

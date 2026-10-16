@@ -160,6 +160,7 @@ export function AddButton({
 export function AddButtonSummary({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <summary
+      data-popup
       className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden ${ADD_BUTTON_STYLES} ${className}`}
     >
       <Plus size={16} aria-hidden />

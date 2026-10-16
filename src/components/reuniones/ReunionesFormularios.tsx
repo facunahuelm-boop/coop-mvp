@@ -44,7 +44,7 @@ export function CrearReunionForm({ comisiones, esOversightReuniones, tipoInicial
   }, [estado]);
 
   return (
-    <details ref={detailsRef} open={!!tipoInicial}>
+    <details ref={detailsRef}>
       <AddButtonSummary>
         {tipoInicial === "asamblea" ? "Convocar asamblea" : "Agendar reunión"}
       </AddButtonSummary>
