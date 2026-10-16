@@ -14,8 +14,8 @@ import { puedeRecibirMateriales } from "@/lib/obraRecursos";
 import { marcarPedidaFormAction, marcarEntregadaFormAction, rechazarSolicitudFormAction, eliminarSolicitudFormAction } from "@/lib/actions/compras";
 import { ConfirmarEliminar } from "@/components/ConfirmarEliminar";
 import { puedeGestionarComision } from "@/lib/comisionAuth";
-import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
-import { CargarPresupuestoForm, AdjuntarFacturaForm, EditarSolicitudForm } from "@/components/compras/ComprasFormularios";
+import { CATEGORIA_COMPRA_LABEL, ESTADO_PAGO_LABEL } from "@/lib/constants";
+import { CargarPresupuestoForm, AdjuntarFacturaForm, EditarSolicitudForm, RegistrarPagoCompraForm } from "@/components/compras/ComprasFormularios";
 import { SolicitudStatusBadge } from "@/components/compras/PurchaseStatus";
 import { HistorialCompra } from "@/components/compras/HistorialCompra";
 import { PurchaseComparison } from "@/components/compras/PurchaseComparison";
@@ -89,8 +89,43 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
   // de la cooperativa. Acá, en cambio, las pestañas comparten los datos que
   // esta página ya pidió una sola vez para la solicitud puntual que se está
   // mirando, así que no hay ningún costo extra en tenerlas ya armadas.
+  const tienePago = ["aprobada", "pedida", "entregada"].includes(solicitud.estado) && !!decision;
+  const totalCompra = Number(decision?.monto ?? 0);
+  const pagoEstado: string = solicitud.pago_estado || "pendiente";
+  const pagoVencido = tienePago && pagoEstado !== "pagado" && solicitud.pago_vencimiento && solicitud.pago_vencimiento < hoyEnUruguay();
+  const tarjetaPago = tienePago ? (
+    <Card className="mb-5 text-sm">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="font-semibold">Pago al proveedor</p>
+        {puedeEditar && (
+          <RegistrarPagoCompraForm
+            solicitudId={solicitud.id}
+            total={totalCompra}
+            pago={{
+              medio: solicitud.pago_medio ?? null, plazo: solicitud.pago_plazo ?? null, condicion: solicitud.pago_condicion ?? null,
+              vencimiento: solicitud.pago_vencimiento ?? null, estado: pagoEstado, pendiente: solicitud.pago_pendiente != null ? Number(solicitud.pago_pendiente) : null,
+              comprobante: solicitud.pago_comprobante ?? null,
+            }}
+          />
+        )}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div><Label>Proveedor</Label>{decision.proveedor_nombre}</div>
+        <div><Label>Medio de pago</Label>{solicitud.pago_medio || "—"}</div>
+        <div><Label>Plazo</Label>{solicitud.pago_plazo || "—"}</div>
+        <div><Label>Condición negociada</Label>{solicitud.pago_condicion || "—"}</div>
+        <div><Label>Vence el</Label>{solicitud.pago_vencimiento ? dayjs(solicitud.pago_vencimiento).format("DD/MM/YYYY") : "—"}{pagoVencido && <> <Badge color="rojo">Vencido</Badge></>}</div>
+        <div><Label>Estado</Label><Badge color={pagoEstado === "pagado" ? "verde" : pagoEstado === "parcial" ? "amarillo" : "brand"}>{ESTADO_PAGO_LABEL[pagoEstado] || pagoEstado}</Badge></div>
+        <div><Label>Importe pendiente</Label>{pagoEstado === "pagado" ? "$0" : solicitud.pago_pendiente != null ? `$${Number(solicitud.pago_pendiente).toLocaleString("es-UY")}` : totalCompra ? `$${totalCompra.toLocaleString("es-UY")}` : "—"}</div>
+        <div><Label>Comprobante</Label>{solicitud.pago_comprobante || "—"}</div>
+      </div>
+      <p className="text-[11px] text-ink-faint mt-3">Seguimiento de lo acordado con el proveedor. Que el sistema permita elegir 30, 60 o 90 días no significa que el proveedor los otorgue: confirmalo con él.</p>
+    </Card>
+  ) : null;
+
   const tabInformacion = (
     <>
+      {tarjetaPago}
       <Card className="mb-5 text-sm">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div><Label>Categoría</Label>{CATEGORIA_COMPRA_LABEL[solicitud.categoria] || CATEGORIA_COMPRA_LABEL.obra}{solicitud.subcategoria ? ` · ${solicitud.subcategoria}` : ""}</div>

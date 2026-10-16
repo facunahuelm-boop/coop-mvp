@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { insert, update, get, all, run, audit, eliminarLogico, updateConBloqueoOptimista } from "@/lib/db";
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
-import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
+import { CATEGORIA_COMPRA_LABEL, MEDIOS_PAGO, PLAZOS_PAGO, CONDICIONES_PAGO } from "@/lib/constants";
 import { puedeGestionarComision, puedeCargarCompras, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
 import { registrarFacturaInterna } from "@/lib/facturas";
@@ -216,12 +216,30 @@ export async function editarSolicitudFormAction(_prev: ActionState, formData: Fo
   return conEstadoDeAccion(() => editarSolicitudAction(formData));
 }
 
+// ---- Formas y plazos de pago (migración 0079) ----
+function validarFormaDePago(medio: string | null, plazo: string | null, condicion: string | null) {
+  if (medio && !(MEDIOS_PAGO as readonly string[]).includes(medio)) throw new ValidationError("medio_pago", "Elegí un medio de pago de la lista.");
+  if (plazo && !PLAZOS_PAGO.some((p) => p.valor === plazo)) throw new ValidationError("plazo_pago", "Elegí un plazo de pago de la lista.");
+  if (condicion && !(CONDICIONES_PAGO as readonly string[]).includes(condicion)) throw new ValidationError("condicion_pago", "Elegí una condición de la lista.");
+}
+function resumenFormaDePago(medio: string | null, plazo: string | null, condicion: string | null): string | null {
+  const t = [medio, plazo, condicion].filter(Boolean).join(" · ");
+  return t || null;
+}
+function sumarDias(iso: string, dias: number): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
 const agregarPresupuestoSchema = z.object({
   solicitud_id: zId,
   precio: zMonto(),
   precio_unitario: zMontoOpcional(),
   plazo_entrega_dias: zEnteroOpcional(3650),
-  forma_pago: zTextoOpcional(200),
+  medio_pago: zTextoOpcional(80),
+  plazo_pago: zTextoOpcional(80),
+  condicion_pago: zTextoOpcional(80),
   garantia: zTextoOpcional(300),
   costo_envio: zNumeroOpcionalConDefault(0),
   condiciones: zTextoOpcional(500),
@@ -231,7 +249,9 @@ const agregarPresupuestoSchema = z.object({
 export async function agregarPresupuestoAction(formData: FormData) {
   const user = await requireUser();
   if (!(await puedeCargarCompras(user))) throw new Error("No autorizado");
-  const { solicitud_id: solicitudId, ...datos } = parseForm(agregarPresupuestoSchema, formData);
+  const { solicitud_id: solicitudId, medio_pago, plazo_pago, condicion_pago, ...resto } = parseForm(agregarPresupuestoSchema, formData);
+  validarFormaDePago(medio_pago, plazo_pago, condicion_pago);
+  const datos = { ...resto, medio_pago, plazo_pago, condicion_pago, forma_pago: resumenFormaDePago(medio_pago, plazo_pago, condicion_pago) };
   await verificarPermisoSobreSolicitud(user, solicitudId);
   if (!canEdit(user.rol, "compras")) {
     const s = await get<{ comision_id: number | null }>(`SELECT comision_id FROM solicitudes_compra WHERE id = ?`, [solicitudId]).catch(() => undefined);
@@ -334,7 +354,20 @@ export async function decidirCompraAction(formData: FormData) {
       }).catch(() => {});
     }
   }
-  await update("solicitudes_compra", solicitudId, { estado: "aprobada" });
+  const diasPlazo = PLAZOS_PAGO.find((p) => p.valor === presupuesto.plazo_pago)?.dias;
+  await update("solicitudes_compra", solicitudId, {
+    estado: "aprobada",
+    pago_medio: presupuesto.medio_pago ?? null,
+    pago_plazo: presupuesto.plazo_pago ?? null,
+    pago_condicion: presupuesto.condicion_pago ?? null,
+    pago_vencimiento: diasPlazo != null ? sumarDias(hoyEnUruguay(), diasPlazo) : null,
+    pago_estado: "pendiente",
+    pago_pendiente: montoTotal || null,
+  }).catch(async (err) => {
+    // Migración 0079 pendiente: se aprueba igual, sin los datos de pago.
+    if (err?.code !== "42703") throw err;
+    await update("solicitudes_compra", solicitudId, { estado: "aprobada" });
+  });
   await audit({ usuario_id: user.id, accion: "aprobar_compra", entidad: "solicitudes_compra", entidad_id: solicitudId, valor_nuevo: { presupuestoId, motivo, monto: presupuesto?.precio } });
 
   // Cadena "Comisión → Gasto → Proveedor → Financiero" (pedido explícito):
@@ -663,4 +696,54 @@ export async function adjuntarFacturaCompraAction(formData: FormData) {
 
 export async function adjuntarFacturaCompraFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => adjuntarFacturaCompraAction(formData));
+}
+
+
+// ---- Pago al proveedor: condición negociada, vencimiento, estado, importe pendiente y comprobante ----
+const registrarPagoCompraSchema = z.object({
+  solicitud_id: zId,
+  medio_pago: zTextoOpcional(80),
+  plazo_pago: zTextoOpcional(80),
+  condicion_pago: zTextoOpcional(80),
+  pago_vencimiento: zFechaOpcional,
+  pago_estado: z.enum(["pendiente", "parcial", "pagado"], { message: "Elegí el estado del pago." }),
+  pago_pendiente: zMontoOpcional(),
+  pago_comprobante: zTextoOpcional(120),
+});
+
+export async function registrarPagoCompraAction(formData: FormData) {
+  const user = await requireUser();
+  if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
+  const { solicitud_id: solicitudId, pago_pendiente, ...d } = parseForm(registrarPagoCompraSchema, formData);
+  await verificarPermisoSobreSolicitud(user, solicitudId);
+  validarFormaDePago(d.medio_pago, d.plazo_pago, d.condicion_pago);
+
+  const solicitud = await get<{ estado: string }>(`SELECT estado FROM solicitudes_compra WHERE id = ?`, [solicitudId]);
+  if (!solicitud) throw new Error("Esa solicitud de compra no existe.");
+  if (!["aprobada", "pedida", "entregada"].includes(solicitud.estado)) {
+    throw new Error("El pago se registra una vez que la compra está aprobada.");
+  }
+  const total = Number((await get<{ monto: number | null }>(`SELECT monto FROM decisiones_compra WHERE solicitud_id = ? ORDER BY id DESC LIMIT 1`, [solicitudId]))?.monto ?? 0);
+
+  let pendiente: number | null = pago_pendiente;
+  if (d.pago_estado === "pagado") pendiente = 0;
+  else if (d.pago_estado === "pendiente") pendiente = pago_pendiente ?? (total || null);
+  else {
+    if (!pendiente || pendiente <= 0) throw new ValidationError("pago_pendiente", "En un pago parcial, indicá cuánto queda por pagar.");
+    if (total && pendiente >= total) throw new ValidationError("pago_pendiente", "Lo que queda por pagar tiene que ser menos que el total de la compra.");
+  }
+  if (total && pendiente != null && pendiente > total) throw new ValidationError("pago_pendiente", "No puede ser más que el total de la compra.");
+
+  await update("solicitudes_compra", solicitudId, {
+    pago_medio: d.medio_pago, pago_plazo: d.plazo_pago, pago_condicion: d.condicion_pago,
+    pago_vencimiento: d.pago_vencimiento, pago_estado: d.pago_estado, pago_pendiente: pendiente,
+    pago_comprobante: d.pago_comprobante, pago_actualizado_en: new Date().toISOString(),
+  });
+  await audit({ usuario_id: user.id, accion: "registrar_pago_compra", entidad: "solicitudes_compra", entidad_id: solicitudId, valor_nuevo: { ...d, pendiente } });
+  revalidatePath(`/compras/${solicitudId}`);
+  revalidatePath("/compras");
+}
+
+export async function registrarPagoCompraFormAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return conEstadoDeAccion(() => registrarPagoCompraAction(formData));
 }

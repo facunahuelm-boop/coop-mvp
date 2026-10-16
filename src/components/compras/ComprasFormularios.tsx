@@ -18,11 +18,12 @@
 // patrón correcto (no hay "lista" de la que abrir un pop-up).
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { crearSolicitudFormAction, editarSolicitudFormAction, agregarPresupuestoFormAction, adjuntarFacturaCompraFormAction } from "@/lib/actions/compras";
+import { crearSolicitudFormAction, editarSolicitudFormAction, agregarPresupuestoFormAction, adjuntarFacturaCompraFormAction, registrarPagoCompraFormAction } from "@/lib/actions/compras";
 import { ESTADO_INICIAL } from "@/lib/actionState";
 import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
 import { AddButton, AddButtonSummary, Button, Card, Label, inputClass } from "@/components/ui";
-import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
+import { CATEGORIA_COMPRA_LABEL, MEDIOS_PAGO, PLAZOS_PAGO, CONDICIONES_PAGO } from "@/lib/constants";
+import { FormularioEnModal } from "@/components/FormularioEnModal";
 
 type Opcion = { id: number; nombre: string };
 // Rediseño profundo de Compras, Fase 6 (sección 18): el selector de proveedor
@@ -474,9 +475,29 @@ export function CargarPresupuestoForm({
               <FieldError message={estado.fieldErrors?.plazo_entrega_dias} />
             </div>
             <div>
-              <Label>Forma de pago</Label>
-              <input name="forma_pago" className={inputClass} placeholder="contado, 30 días…" />
-              <FieldError message={estado.fieldErrors?.forma_pago} />
+              <Label>Medio de pago — ¿cómo se paga?</Label>
+              <select name="medio_pago" className={inputClass} defaultValue="">
+                <option value="">— sin definir —</option>
+                {MEDIOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <FieldError message={estado.fieldErrors?.medio_pago} />
+            </div>
+            <div>
+              <Label>Plazo de pago — ¿cuándo se paga?</Label>
+              <select name="plazo_pago" className={inputClass} defaultValue="">
+                <option value="">— sin definir —</option>
+                {PLAZOS_PAGO.map((p) => <option key={p.valor} value={p.valor}>{p.valor}</option>)}
+              </select>
+              <FieldError message={estado.fieldErrors?.plazo_pago} />
+            </div>
+            <div>
+              <Label>Condición negociada</Label>
+              <select name="condicion_pago" className={inputClass} defaultValue="">
+                <option value="">— sin definir —</option>
+                {CONDICIONES_PAGO.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <FieldError message={estado.fieldErrors?.condicion_pago} />
+              <p className="text-[11px] text-ink-faint mt-1">Confirmá con el proveedor que ofrezca ese plazo.</p>
             </div>
             <div>
               <Label>Garantía</Label>
@@ -504,5 +525,76 @@ export function CargarPresupuestoForm({
         )}
       </Modal>
     </>
+  );
+}
+
+
+/**
+ * Pago al proveedor de una compra aprobada: condición negociada, vencimiento,
+ * estado (pendiente / parcial / pagado), importe que queda por pagar y
+ * comprobante. Es un registro de seguimiento: no mueve plata en Finanzas.
+ */
+export function RegistrarPagoCompraForm({ solicitudId, pago, total }: {
+  solicitudId: number;
+  total: number;
+  pago: { medio: string | null; plazo: string | null; condicion: string | null; vencimiento: string | null; estado: string; pendiente: number | null; comprobante: string | null };
+}) {
+  const [estadoPago, setEstadoPago] = useState(pago.estado);
+  return (
+    <FormularioEnModal
+      textoBoton="Actualizar pago"
+      claseBoton="rounded-xl border border-border px-3 py-1.5 text-sm font-semibold text-ink hover:bg-surface-sunken"
+      titulo="Pago al proveedor"
+      action={registrarPagoCompraFormAction}
+      ocultos={{ solicitud_id: solicitudId }}
+      mensajeExito="Pago actualizado."
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <Label>Medio de pago</Label>
+          <select name="medio_pago" className={inputClass} defaultValue={pago.medio ?? ""}>
+            <option value="">— sin definir —</option>
+            {MEDIOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+        <div>
+          <Label>Plazo de pago</Label>
+          <select name="plazo_pago" className={inputClass} defaultValue={pago.plazo ?? ""}>
+            <option value="">— sin definir —</option>
+            {PLAZOS_PAGO.map((p) => <option key={p.valor} value={p.valor}>{p.valor}</option>)}
+          </select>
+        </div>
+        <div>
+          <Label>Condición negociada</Label>
+          <select name="condicion_pago" className={inputClass} defaultValue={pago.condicion ?? ""}>
+            <option value="">— sin definir —</option>
+            {CONDICIONES_PAGO.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <Label>Fecha de vencimiento</Label>
+          <input name="pago_vencimiento" type="date" defaultValue={pago.vencimiento ?? ""} className={inputClass} />
+        </div>
+        <div>
+          <Label required>Estado</Label>
+          <select name="pago_estado" className={inputClass} value={estadoPago} onChange={(e) => setEstadoPago(e.target.value)}>
+            <option value="pendiente">Pendiente</option>
+            <option value="parcial">Pago parcial</option>
+            <option value="pagado">Pagado</option>
+          </select>
+        </div>
+        {estadoPago !== "pagado" && (
+          <div>
+            <Label>{estadoPago === "parcial" ? "Importe pendiente" : "Importe a pagar"}</Label>
+            <input name="pago_pendiente" type="number" step="0.01" min="0" defaultValue={pago.pendiente ?? (total || "")} className={inputClass} />
+          </div>
+        )}
+        <div className="sm:col-span-2">
+          <Label>Comprobante (N° de factura o recibo)</Label>
+          <input name="pago_comprobante" maxLength={120} defaultValue={pago.comprobante ?? ""} className={inputClass} />
+          <p className="text-[11px] text-ink-faint mt-1">Para adjuntar el archivo, usá la pestaña Documentos.</p>
+        </div>
+      </div>
+    </FormularioEnModal>
   );
 }

@@ -17,6 +17,7 @@ No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se
 - Todo botón de alta que antes desplegaba el formulario hacia abajo (`AddButtonSummary`) ahora abre una ventana emergente centrada con fondo oscurecido; se cierra con «Cerrar», tocando afuera o con Esc. Afecta Socios, Reuniones, Asambleas, Consejo Directivo, Finanzas (movimientos), Documentos, Gastos, Seguridad, Decisiones, Obra, Trabajo, etc.
 - Asambleas y Consejo Directivo dejan de abrir el formulario al entrar a la pantalla.
 - Revisión con un usuario de Consejo Directivo (15 altas probadas de punta a punta): agregar finanza, cuenta, fondo, factura a pagar, compromiso, generar cuota del mes, rubro de presupuesto, categoría de documentos, convocar asamblea, agendar reunión del consejo, gasto, actividad del calendario, aspirante, vivienda y socio. Todas guardan bien.
+- Compras: el presupuesto tiene medio de pago, plazo de pago y condición negociada (listas). Al aprobar se copian a la compra y se calcula el vencimiento; la tarjeta «Pago al proveedor» (pop-up «Actualizar pago») registra vencimiento, estado (pendiente / parcial / pagado), importe pendiente y N° de comprobante. Migración 0079.
 - Calendario: las actividades del recuadro van sin fondo gris, solo el texto con el color de la categoría.
 - Calendario: cada actividad en el recuadro muestra el nombre arriba, la fecha abajo y la hora debajo.
 - Calendario: los días con actividades marcan el contorno de la celda con el color de la categoría.

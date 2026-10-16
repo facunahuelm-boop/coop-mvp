@@ -182,3 +182,27 @@ export const CATEGORIA_DOCUMENTO_LABEL: Record<string, string> = {
   tecnicos: "Documentos técnicos", obra: "Documentación de obra", socios: "Documentación de socios", seguridad: "Seguridad",
   compras: "Compras", reglamentos: "Reglamentos", informes: "Informes", comunicaciones: "Comunicaciones",
 };
+
+// ---- Compras: formas y plazos de pago ----
+export const MEDIOS_PAGO = [
+  "Efectivo", "Transferencia bancaria", "Tarjeta de débito", "Tarjeta de crédito", "Cheque al día",
+  "Cheque diferido", "Mercado Pago / billetera electrónica", "Depósito bancario", "Cuenta corriente de la barraca", "Otro",
+] as const;
+
+/** Plazo de pago y, si corresponde, los días que se suman para calcular el vencimiento. */
+export const PLAZOS_PAGO: { valor: string; dias: number | null }[] = [
+  { valor: "Contado / al retirar", dias: 0 },
+  { valor: "Contra entrega", dias: 0 },
+  { valor: "A 7 días", dias: 7 },
+  { valor: "A 15 días", dias: 15 },
+  { valor: "A 30 días", dias: 30 },
+  { valor: "A 45 días", dias: 45 },
+  { valor: "A 60 días", dias: 60 },
+  { valor: "A 90 días", dias: 90 },
+  { valor: "Pago en cuotas", dias: null },
+  { valor: "Fecha acordada", dias: null },
+];
+
+export const CONDICIONES_PAGO = ["Contado", "Crédito de proveedor", "Cuotas"] as const;
+
+export const ESTADO_PAGO_LABEL: Record<string, string> = { pendiente: "Pendiente", parcial: "Pago parcial", pagado: "Pagado" };
