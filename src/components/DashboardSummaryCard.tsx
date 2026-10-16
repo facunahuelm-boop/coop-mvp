@@ -66,29 +66,29 @@ export function DashboardSummaryCard({
 }) {
   return (
     <div
-      className="rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)] p-5 h-full min-h-[152px] flex flex-col gap-2.5
+      className="rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)] p-3.5 sm:p-5 h-full sm:min-h-[152px] flex flex-col gap-1.5 sm:gap-2.5 active:scale-[.98]
                  transition-[box-shadow,border-color] duration-200 ease-out
                  group-hover:shadow-[var(--shadow-md)] group-hover:border-[var(--color-border-strong)]
                  group-focus-visible:shadow-[var(--shadow-md)] group-focus-visible:border-[var(--color-border-strong)]"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <span
-          className="inline-flex items-center justify-center w-10 h-10 rounded-xl shrink-0"
+          className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-xl shrink-0"
           style={{ background: TONE_BG[tone], color: TONE_FG[tone] }}
           aria-hidden
         >
           {icon}
         </span>
-        <span className="text-sm font-semibold text-ink-muted truncate">{title}</span>
+        <span className="text-[13px] sm:text-sm font-semibold leading-tight text-ink-muted line-clamp-2 sm:truncate">{title}</span>
       </div>
 
-      <div className="text-[1.75rem] leading-tight font-bold text-ink truncate">{value}</div>
+      <div className="text-lg sm:text-[1.75rem] leading-tight font-bold text-ink truncate">{value}</div>
 
-      {status && <div>{status}</div>}
-      {description && <p className="text-sm text-ink-faint truncate">{description}</p>}
+      {status && <div className="leading-snug">{status}</div>}
+      {description && <p className="hidden sm:block text-sm text-ink-faint truncate">{description}</p>}
 
       {action && (
-        <div className="text-sm font-semibold mt-auto pt-1 text-[var(--color-brand-800)]">{action}</div>
+        <div className="hidden sm:block text-sm font-semibold mt-auto pt-1 text-[var(--color-brand-800)]">{action}</div>
       )}
     </div>
   );

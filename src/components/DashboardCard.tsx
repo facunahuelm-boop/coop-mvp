@@ -145,14 +145,14 @@ export function SummaryCard({
         ) : (
           <span className="text-[var(--color-brand-800)]" aria-hidden>{icon}</span>
         )}
-        <span className="truncate">{title}</span>
+        <span className="leading-tight line-clamp-2 sm:truncate">{title}</span>
       </div>
       {error ? (
         <p className="text-sm text-[var(--color-rojo)] mt-1">No pudimos cargar esta información.</p>
       ) : (
         <>
           <div
-            className={`text-xl sm:text-3xl font-bold leading-tight truncate ${accent ? "" : "text-ink"}`}
+            className={`text-lg sm:text-3xl font-bold leading-tight truncate ${accent ? "" : "text-ink"}`}
             style={accent ? { color: ACCENT_FG[accent] } : undefined}
           >
             {value}
