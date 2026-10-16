@@ -7,7 +7,7 @@ No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se
 ## Núcleos de baja a la papelera, comisiones en la barra lateral, anular en pop-up (15/10)
 
 - Migración 0077: los núcleos cuyos socios están todos de baja pasan a la papelera (reversible) y dejan de aparecer en padrón, conteos y listados. `darDeBajaNucleoAction` hace lo mismo desde ahora.
-- Barra lateral: las comisiones activas de la etapa se listan en «Comisiones y reuniones» (abierto por defecto) y, para el socio, bajo «Inicio».
+- Barra lateral: un solo ítem «Comisiones» que se despliega al tocarlo (cerrado por defecto; se abre solo si estás dentro de una comisión) en «Comisiones y reuniones» y, para el socio, bajo «Inicio».
 - Finanzas: «Anular movimiento» pasa a pop-up con motivo. Verificado en local: saldos iniciales, movimientos, pases entre cuentas, anulación, cierre y registrar pago.
 
 ## «Mis horas» en tarjetas y letra más chica en las pantallas del socio (15/10)

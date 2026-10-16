@@ -5,7 +5,7 @@ import { canRead, canEdit, ROLE_LABELS, type Module } from "@/lib/roles";
 import { logoutAction } from "@/lib/actions/auth";
 import { Saludo } from "./Saludo";
 import { NavLink } from "./NavLink";
-import { NavTopGroup } from "./NavGroupSection";
+import { NavTopGroup, NavGroupSection } from "./NavGroupSection";
 import { Logo3D } from "./Logo3D";
 import { Avatar } from "./EntidadLink";
 import { TopBarClient } from "./TopBarClient";
@@ -333,17 +333,19 @@ export type ComisionNav = { id: number; nombre: string };
 
 /** Las comisiones de la cooperativa, una por una, en la barra lateral (pedido 15/10). */
 function ComisionesLateral({ comisiones, acento }: { comisiones: ComisionNav[]; acento: string }) {
+  // Un solo ítem «Comisiones» que se despliega al tocarlo (pedido 15/10).
   return (
-    <div className="space-y-0.5 pl-3" data-testid="comisiones-lateral">
-      {comisiones.map((c) => (
-        <NavLink
-          key={c.id}
-          href={`/comisiones/${c.id}`}
-          icon={<span className="block h-1.5 w-1.5 rounded-full bg-current opacity-70" aria-hidden />}
-          label={c.nombre}
-          accentColor={acento}
-        />
-      ))}
+    <div data-testid="comisiones-lateral">
+      <NavGroupSection
+        label="Comisiones"
+        icon={<Users size={18} aria-hidden />}
+        accentColor={acento}
+        items={comisiones.map((c) => ({
+          href: `/comisiones/${c.id}`,
+          label: c.nombre,
+          icon: <span className="block h-1.5 w-1.5 rounded-full bg-current opacity-70" aria-hidden />,
+        }))}
+      />
     </div>
   );
 }
@@ -425,7 +427,7 @@ export function Sidebar({ user, esSocio = false, comisiones = [] }: { user: Sess
             );
           }
           return (
-            <NavTopGroup key={g.label} label={g.label} abiertoPorDefecto={g.label === "Comisiones y reuniones" && comisiones.length > 0} icon={GROUP_ICON[g.label]} allHrefs={[...g.items.map((i) => i.href), ...(g.label === "Comisiones y reuniones" ? comisiones.map((c) => `/comisiones/${c.id}`) : [])]}>
+            <NavTopGroup key={g.label} label={g.label} icon={GROUP_ICON[g.label]} allHrefs={[...g.items.map((i) => i.href), ...(g.label === "Comisiones y reuniones" ? comisiones.map((c) => `/comisiones/${c.id}`) : [])]}>
               {contenido}
             </NavTopGroup>
           );
