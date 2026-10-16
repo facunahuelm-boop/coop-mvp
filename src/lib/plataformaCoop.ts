@@ -156,9 +156,18 @@ export type ComisionFila = {
   miembros: { user_id: number; nombre: string; numero_nucleo: number | null }[];
 };
 
+export type NucleoBajaFila = {
+  nucleo_id: number;
+  socio_id: number;
+  numero_nucleo: number | null;
+  nombre: string;
+  usuarios: string[];
+};
+
 export type DetalleCooperativa = {
   org: { id: number; slug: string; nombre: string; etapa: string; plan: string; activo: boolean };
   nucleos: NucleoFila[];
+  bajas: NucleoBajaFila[];
   usuarios: UsuarioFila[];
   comisiones: ComisionFila[];
 };
@@ -189,6 +198,18 @@ export async function leerDetalleCooperativa(orgId: number): Promise<DetalleCoop
         WHERE s.estado <> 'baja'
         ORDER BY s.numero_nucleo ASC NULLS LAST, s.nombre ASC`
     );
+    // Núcleos dados de baja (están en la papelera): solo para poder eliminarlos definitivamente.
+    await tx.run(`SELECT set_config('app.incluir_eliminados', '1', true)`);
+    const bajasCrudas = await tx.all<{ nucleo_id: number; socio_id: number; numero_nucleo: number | null; nombre: string; usuario: string | null }>(
+      `SELECT n.id AS nucleo_id, s.id AS socio_id, s.numero_nucleo, s.nombre, u.nombre AS usuario
+         FROM nucleos_familiares n
+         JOIN socios s ON s.nucleo_id = n.id
+         LEFT JOIN users u ON u.id = s.user_id
+        WHERE s.estado = 'baja'
+          AND NOT EXISTS (SELECT 1 FROM socios s2 WHERE s2.nucleo_id = n.id AND s2.estado <> 'baja')
+        ORDER BY s.numero_nucleo ASC NULLS LAST, s.nombre ASC`
+    );
+    const bajas: NucleoBajaFila[] = bajasCrudas.map((b) => ({ nucleo_id: b.nucleo_id, socio_id: b.socio_id, numero_nucleo: b.numero_nucleo, nombre: b.nombre, usuarios: b.usuario ? [b.usuario] : [] }));
     const integrantes = await tx.all<IntegranteFila>(
       `SELECT id, socio_id, nombre, apellido, documento, telefono, email, relacion, estado
          FROM socio_integrantes ORDER BY id ASC`
@@ -216,6 +237,7 @@ export async function leerDetalleCooperativa(orgId: number): Promise<DetalleCoop
               s.id AS socio_id, s.numero_nucleo,
               (u.reset_token_hash IS NOT NULL AND u.reset_token_expira_en > NOW()) AS invitacion_vigente
          FROM users u LEFT JOIN socios s ON s.user_id = u.id AND s.estado <> 'baja'
+        WHERE NOT EXISTS (SELECT 1 FROM socios sb WHERE sb.user_id = u.id AND sb.estado = 'baja')
         ORDER BY u.nombre ASC`
     );
     const membresias = await tx.all<{ comision_id: number; user_id: number }>(
@@ -251,6 +273,7 @@ export async function leerDetalleCooperativa(orgId: number): Promise<DetalleCoop
     const detalle: DetalleCooperativa = {
       org: { id: org.id, slug: org.slug, nombre: org.nombre, etapa: org.etapa, plan: org.plan, activo: org.activo === 1 },
       nucleos: socios.map((s) => ({ ...s, integrantes: porSocio.get(s.socio_id) ?? [] })),
+      bajas,
       usuarios,
       comisiones,
     };

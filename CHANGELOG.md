@@ -4,6 +4,12 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Eliminar definitivamente un núcleo dado de baja (15/10)
+
+- Plataforma → Núcleos: nueva sección «Núcleos dados de baja» con el botón «Eliminar definitivamente». Pide confirmación en un pop-up y escribir ELIMINAR.
+- Migración 0078 (`eliminar_nucleo_definitivo`): solo acepta núcleos ya dados de baja; borra el núcleo, sus socios e integrantes, sus usuarios (rol socio) y todo lo que cuelgue de ellos. No queda en la papelera ni hay respaldo. Las referencias a esos usuarios en registros de otras personas quedan vacías.
+- Los usuarios de núcleos dados de baja ya no aparecen en la lista de usuarios de la plataforma.
+
 ## Comisiones: «Cómo viene la comisión» plegado y fechas en hora de Uruguay (15/10)
 
 - En el resumen de todas las comisiones, «Cómo viene la comisión» pasa al final, plegado (se abre al tocarlo).

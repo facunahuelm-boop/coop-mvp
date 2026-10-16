@@ -15,6 +15,7 @@ import {
   editarCooperativaFormAction,
   guardarNucleoFormAction,
   darDeBajaNucleoFormAction,
+  eliminarNucleoDefinitivoFormAction,
   cargarNucleosEnLoteFormAction,
   guardarIntegranteFormAction,
   cambiarEstadoIntegranteFormAction,
@@ -28,7 +29,7 @@ import {
   vaciarDatosPruebaFormAction,
   invitarNucleoFormAction,
 } from "@/lib/actions/plataformaCooperativa";
-import type { NucleoFila, UsuarioFila, ComisionFila, IntegranteFila } from "@/lib/plataformaCoop";
+import type { NucleoBajaFila, NucleoFila, UsuarioFila, ComisionFila, IntegranteFila } from "@/lib/plataformaCoop";
 import type { VistaPreviaLimpieza } from "@/lib/plataformaLimpieza";
 
 export const CLASE_BOTON_AGREGAR =
@@ -623,5 +624,51 @@ export function InvitarNucleoBoton({ orgId, nucleo }: { orgId: number; nucleo: N
         <input name="email" type="email" required defaultValue={nucleo.email ?? ""} className={inputClass} placeholder="nombre@gmail.com" />
       </div>
     </FormularioEnModal>
+  );
+}
+
+/** Borra para siempre un núcleo ya dado de baja (y sus usuarios). Pide confirmación en un pop-up y escribir ELIMINAR. */
+export function EliminarNucleoDefinitivoBoton({ orgId, nucleo }: { orgId: number; nucleo: NucleoBajaFila }) {
+  const [abierto, setAbierto] = useState(false);
+  const [estado, formAction] = useActionState(eliminarNucleoDefinitivoFormAction, ESTADO_INICIAL);
+  const { show } = useToast();
+  useEffect(() => {
+    if (estado.ok) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAbierto(false);
+      show(estado.aviso || "Núcleo eliminado.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+  return (
+    <>
+      <button type="button" onClick={() => setAbierto(true)} className={`${CLASE_BOTON_CHICO} text-[var(--color-rojo)]`}>
+        Eliminar definitivamente
+      </button>
+      <Modal open={abierto} onClose={() => setAbierto(false)} title="Eliminar definitivamente">
+        <form action={formAction} className="space-y-3 text-ink">
+          <input type="hidden" name="org_id" value={orgId} />
+          <input type="hidden" name="nucleo_id" value={nucleo.nucleo_id} />
+          <p className="text-sm">
+            ¿Eliminar para siempre el núcleo N.º {nucleo.numero_nucleo ?? "—"} ({nucleo.nombre})?
+            {nucleo.usuarios.length > 0 && <> También se borra su usuario ({nucleo.usuarios.join(", ")}).</>}
+          </p>
+          <p className="rounded-lg bg-[var(--color-rojo-bg)] px-3 py-2 text-sm font-medium text-[var(--color-rojo)]">
+            No se puede deshacer: no queda en la papelera ni hay respaldo. Se borran también sus integrantes, cuotas, pagos, horas y todo lo que tenga cargado.
+          </p>
+          <FormError message={estado.error} />
+          <div>
+            <Label required>Para confirmar, escribí ELIMINAR</Label>
+            <input name="confirmacion" required autoComplete="off" className={inputClass} placeholder="ELIMINAR" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setAbierto(false)} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-ink-muted hover:bg-surface-sunken">
+              Volver
+            </button>
+            <SubmitButton variant="danger" pendingLabel="Eliminando…">Eliminar definitivamente</SubmitButton>
+          </div>
+        </form>
+      </Modal>
+    </>
   );
 }

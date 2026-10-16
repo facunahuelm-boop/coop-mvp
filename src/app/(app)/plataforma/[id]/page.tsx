@@ -24,6 +24,7 @@ import {
   LimpiezaForm,
   VaciarDatosForm,
   RestaurarRespaldoBoton,
+  EliminarNucleoDefinitivoBoton,
 } from "@/components/plataforma/CooperativaAdmin";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +53,7 @@ export default async function CooperativaAdminPage({ params }: { params: Promise
   if (!detalle) notFound();
   const vistaLimpieza = await leerVistaPreviaLimpieza(orgId);
 
-  const { org, nucleos, usuarios, comisiones } = detalle;
+  const { org, nucleos, bajas, usuarios, comisiones } = detalle;
   const nombreComision = new Map(comisiones.map((c) => [c.id, c.nombre]));
   const usuarioDeNucleo = new Map(usuarios.filter((u) => u.socio_id).map((u) => [u.socio_id as number, u]));
   const pendientes = usuarios.filter((u) => u.activo && u.estado_cuenta === "pendiente");
@@ -127,6 +128,23 @@ export default async function CooperativaAdminPage({ params }: { params: Promise
         >
           {filasNucleos}
         </TablaFiltrable>
+      )}
+      {bajas.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-sm font-bold text-ink mb-1">Núcleos dados de baja ({bajas.length})</h3>
+          <p className="text-sm text-ink/60 mb-3">No aparecen en ningún otro lado. Desde acá se pueden eliminar para siempre.</p>
+          <div className="divide-y divide-border rounded-xl border border-border bg-surface">
+            {bajas.map((b) => (
+              <div key={b.nucleo_id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                <span>
+                  <b>{b.numero_nucleo ?? "—"}</b> · {b.nombre}
+                  {b.usuarios.length > 0 && <span className="text-ink/50"> · usuario: {b.usuarios.join(", ")}</span>}
+                </span>
+                <EliminarNucleoDefinitivoBoton orgId={orgId} nucleo={b} />
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

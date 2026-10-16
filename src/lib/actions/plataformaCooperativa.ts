@@ -225,6 +225,35 @@ export async function darDeBajaNucleoAction(formData: FormData) {
   });
   revalidar(d.org_id);
 }
+/**
+ * Elimina DEFINITIVAMENTE un núcleo que ya está dado de baja, con sus usuarios y registros asociados.
+ * No hay respaldo ni papelera. Exige escribir ELIMINAR; la función SQL (migración 0078) solo acepta núcleos de baja.
+ */
+export async function eliminarNucleoDefinitivoAction(formData: FormData): Promise<string> {
+  const d = parseForm(z.object({ org_id: zId, nucleo_id: zId, confirmacion: z.string() }), formData);
+  if (d.confirmacion !== "ELIMINAR") throw new ValidationError("confirmacion", "Escribí ELIMINAR en mayúsculas para confirmar.");
+  const r = await conCooperativa(d.org_id, async (tx, admin) => {
+    await verPapelera(tx);
+    const antes = await tx.get<{ nombre: string; numero_nucleo: number | null }>(
+      `SELECT s.nombre, s.numero_nucleo FROM socios s WHERE s.nucleo_id = ? ORDER BY s.id LIMIT 1`,
+      [d.nucleo_id]
+    );
+    if (!antes) throw new Error("No se encontró el núcleo.");
+    const res = await tx.get<{ r: { socios: number; usuarios: number; integrantes: number } }>(`SELECT eliminar_nucleo_definitivo(?, ?) AS r`, [tx.orgId, d.nucleo_id]);
+    await auditarTx(tx, admin, "eliminar_definitivo", "nucleos_familiares", d.nucleo_id, { ...res!.r }, antes);
+    return { ...res!.r, nombre: antes.nombre };
+  });
+  revalidar(d.org_id);
+  return `Se eliminó definitivamente el núcleo de ${r.nombre}${r.usuarios ? ` y ${r.usuarios === 1 ? "su usuario" : `sus ${r.usuarios} usuarios`}` : ""}.`;
+}
+export async function eliminarNucleoDefinitivoFormAction(_p: ActionState, fd: FormData): Promise<ActionState> {
+  let aviso = "";
+  const r = await conEstadoDeAccion(async () => {
+    aviso = await eliminarNucleoDefinitivoAction(fd);
+  });
+  return r.ok ? { ...r, aviso } : r;
+}
+
 export async function darDeBajaNucleoFormAction(_p: ActionState, fd: FormData): Promise<ActionState> {
   return conEstadoDeAccion(() => darDeBajaNucleoAction(fd));
 }
