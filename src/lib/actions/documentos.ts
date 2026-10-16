@@ -6,7 +6,7 @@ import { insert, get, run, audit, eliminarLogico } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
-import { parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zEnumSeguro, zFechaOpcional } from "@/lib/validation";
+import { ValidationError, parseForm, zId, zIdOpcional, zTexto, zTextoOpcional, zEnumSeguro, zFechaOpcional } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 
 // Sub-fase 1.1 ("Centro Documental", 22/09) — mismo valor que
@@ -139,6 +139,8 @@ export async function crearCategoriaDocumentoAction(formData: FormData) {
   const user = await requireUser();
   if (!canEdit(user.rol, "documentos")) throw new Error("No autorizado");
   const { nombre } = parseForm(z.object({ nombre: zTexto(100) }), formData);
+  const repetida = await get<{ id: number }>(`SELECT id FROM documento_categorias WHERE lower(nombre) = lower(?) LIMIT 1`, [nombre]);
+  if (repetida) throw new ValidationError("nombre", `Ya existe una categoría llamada «${nombre}».`);
   const id = await insert("documento_categorias", { nombre, creado_por_id: user.id });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "documento_categorias", entidad_id: id, valor_nuevo: { nombre } });
   revalidatePath("/documentos");
