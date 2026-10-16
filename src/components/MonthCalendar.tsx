@@ -1276,7 +1276,7 @@ export function MonthCalendar({
                 <div className="flex flex-col gap-0.5 min-w-0">
                   {visibles.map((it) => {
                     const contenido = (
-                      <span className="block rounded px-1.5 py-1 leading-tight" style={fondoSuave(it.colorVar, it.bgVar)}>
+                      <span className="block px-1 py-0.5 leading-tight" style={{ color: `var(${it.colorVar})` }}>
                         <span className="block text-[11px] font-semibold line-clamp-2 break-words">{it.titulo}</span>
                         <span className="block text-[10px] opacity-80">{key.slice(8, 10)}/{key.slice(5, 7)}/{key.slice(0, 4)}</span>
                         <span className="block text-[10px] opacity-80">{it.hora ? `${it.hora} hs` : "Todo el día"}</span>
