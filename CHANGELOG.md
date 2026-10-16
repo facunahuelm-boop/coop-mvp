@@ -40,6 +40,10 @@ Pedido: llevar a las comisiones los siete faltantes detectados al leer el Reglam
 - Permisos: integrar la comisión o conducción para cargar; solo directiva aprueba contrataciones; guardias con el permiso de planificación de Trabajo. Las lecturas toleran que la migración todavía no esté aplicada.
 - Pruebas: `test-obra.mjs` (17 chequeos) además de los 92 y 11 existentes. Pendiente: que la asamblea defina las versiones en amarillo del reglamento y cargar los cargos reales.
 
+## El vaciado conserva la configuración de finanzas
+
+- El vaciado de datos de prueba había borrado también las cuentas, los fondos, el plan de cuentas del contador y los conceptos de cuota (es configuración, no datos de prueba), y Finanzas quedaba sin dónde cargar saldos. La migración 0076 hace que el vaciado los conserve y los restaura desde el último respaldo en las cooperativas donde quedaron vacíos.
+
 ## Compras: «Agregar presupuesto» arriba a la derecha y altas en pop-up
 
 - La ficha de cada comisión tiene arriba a la derecha su botón principal de alta. En Compras: «Agregar presupuesto» (eligiendo a qué solicitud abierta va, con el conteo de presupuestos contra el mínimo de 3 del art. 5b) y «Nueva solicitud» ya a nombre de la comisión. En las demás: «Agregar tarea».
