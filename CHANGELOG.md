@@ -4,6 +4,11 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Comisiones: «Cómo viene la comisión» plegado y fechas en hora de Uruguay (15/10)
+
+- En el resumen de todas las comisiones, «Cómo viene la comisión» pasa al final, plegado (se abre al tocarlo).
+- «Desde» de los integrantes mostraba el día siguiente de noche (fecha UTC); ahora se muestra en hora de Uruguay.
+
 ## Núcleos de baja a la papelera, comisiones en la barra lateral, anular en pop-up (15/10)
 
 - Migración 0077: los núcleos cuyos socios están todos de baja pasan a la papelera (reversible) y dejan de aparecer en padrón, conteos y listados. `darDeBajaNucleoAction` hace lo mismo desde ahora.

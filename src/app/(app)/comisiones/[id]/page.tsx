@@ -36,6 +36,17 @@ import {
 } from "@/lib/obraGestion";
 import { BotonNuevaTareaPlan, BotonAsignarGuardia, IntegracionPanel, PlanTrabajoPanel, TurnosExtendidosPanel, CalidadPanel, ContratacionPanel, GuardiasPanel } from "@/components/obra/ObraGestion";
 
+/** Fecha DD/MM/AAAA en Uruguay de un instante guardado en UTC (de noche no debe verse el día siguiente). */
+function fechaUruguay(ts: string | null | undefined): string {
+  if (!ts) return "";
+  const t = String(ts).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t.split("-").reverse().join("/");
+  const tieneZona = /(Z|[+-]\d{2}(:?\d{2})?)$/i.test(t);
+  const d = new Date(t.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00") + (tieneZona ? "" : "Z"));
+  if (Number.isNaN(d.getTime())) return dayjs(t).format("DD/MM/YYYY");
+  return d.toLocaleDateString("es-UY", { timeZone: "America/Montevideo", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 /**
  * Página propia de una comisión (05/10) — /comisiones/[id]. NO está en el
  * menú lateral: se entra desde Comisiones → la comisión → "Ver comisión
@@ -372,7 +383,6 @@ export default async function ComisionDetallePage({
           </Link>
         </div>
       )}
-      <Kpis kpis={comunes} titulo="Cómo viene la comisión" />
       {esTrabajo && semanaHoras && (
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -418,6 +428,14 @@ export default async function ComisionDetallePage({
           </Card>
         </div>
       )}
+      {comunes.length > 0 && (
+        <details className="group rounded-2xl border border-border bg-surface px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-[var(--color-brand-800)]">Cómo viene la comisión</summary>
+          <div className="mt-3">
+            <Kpis kpis={comunes} />
+          </div>
+        </details>
+      )}
     </div>
   );
 
@@ -428,7 +446,7 @@ export default async function ComisionDetallePage({
           <div key={m.id} className="py-2.5 flex flex-wrap items-center justify-between gap-2 text-sm">
             <div className="min-w-0">
               <Link href={`/usuarios/${m.user_id}`} className="font-medium hover:underline underline-offset-2">{m.user_nombre}</Link>
-              <p className="text-xs text-ink-faint">Desde {dayjs(m.desde).format("DD/MM/YYYY")}</p>
+              <p className="text-xs text-ink-faint">Desde {fechaUruguay(m.desde)}</p>
             </div>
             <div className="flex items-center gap-3">
               {puedeGestionar ? (
