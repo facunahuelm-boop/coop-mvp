@@ -207,7 +207,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
       )}
       {puedeEditar && (solicitud.estado === "pendiente_cotizacion" || solicitud.estado === "en_comparacion") && (
         <div className="mt-4">
-          <CargarPresupuestoForm solicitudId={solicitud.id} proveedores={proveedores} abiertoPorDefecto={comparacion.presupuestos.length < 3} />
+          <CargarPresupuestoForm solicitudId={solicitud.id} proveedores={proveedores} />
         </div>
       )}
     </>

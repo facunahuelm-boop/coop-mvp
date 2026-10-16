@@ -22,6 +22,7 @@ import { historialComision } from "@/lib/logic";
 import { puntosDeAgenda, TIPO_REUNION_LABEL } from "@/lib/trazabilidad";
 import { panelDeFuncion, kpisComunes, correspondenciaReciente, eleccionesAbiertas } from "@/lib/panelesComision";
 import { PanelFuncion, Kpis } from "@/components/comisiones/PanelFuncion";
+import { CargarPresupuestoForm, CrearSolicitudForm, type SolicitudOpcion } from "@/components/compras/ComprasFormularios";
 import { CargaRapida } from "@/components/comisiones/CargaRapida";
 import { CorrespondenciaPanel, EleccionesPanel } from "@/components/comisiones/PanelFormularios";
 import { FUNCION_COMISION, funcionDe, comisionDisponibleEnEtapa, textoEtapas, ETAPA_LABEL, type EtapaCooperativa } from "@/lib/comisionesFunciones";
@@ -336,6 +337,19 @@ export default async function ComisionDetallePage({
         cargarIntegracion(comisionId), cargarPlanes(), cargarTurnosExtendidos(), cargarControlesCalidad(), rubrosParaSelect(),
         cargarContratados(), cargarLicitaciones(), personasParaSelect(),
         all<{ id: number; nombre: string }>(`SELECT id, nombre FROM proveedores ORDER BY nombre`).catch(() => []),
+      ])
+    : null;
+  const esCompras = funcion === "compras";
+  const datosCompras = esCompras && disponible && puedeGestionar && comision.activa
+    ? await Promise.all([
+        all<{ id: number; material: string; presupuestos: string | number }>(
+          `SELECT s.id, s.material, (SELECT COUNT(*) FROM presupuestos_proveedor p WHERE p.solicitud_id = s.id) AS presupuestos
+           FROM solicitudes_compra s WHERE s.comision_id = ? AND s.estado IN ('pendiente_cotizacion','en_comparacion') ORDER BY s.id DESC`,
+          [comisionId]
+        ).catch(() => []),
+        all<{ id: number; nombre: string; estado: string | null }>(`SELECT id, nombre, estado FROM proveedores ORDER BY nombre`).catch(() =>
+          all<{ id: number; nombre: string; estado: string | null }>(`SELECT id, nombre, NULL AS estado FROM proveedores ORDER BY nombre`).catch(() => [])
+        ),
       ])
     : null;
   const guardiasTrabajo = esTrabajo && disponible ? await Promise.all([cargarGuardias(), nucleosParaSelect()]) : null;
@@ -709,6 +723,19 @@ export default async function ComisionDetallePage({
         ].join(" · ")}
         action={
           <div className="flex flex-wrap items-center justify-end gap-3">
+            {puedeGestionar && disponible && comision.activa ? (
+              datosCompras ? (
+                <>
+                  <CrearSolicitudForm comisiones={[{ id: comision.id, nombre: comision.nombre }]} comisionPorDefecto={{ id: comision.id, nombre: comision.nombre }} />
+                  <CargarPresupuestoForm
+                    solicitudes={datosCompras[0].map((x): SolicitudOpcion => ({ id: x.id, material: x.material, presupuestos: Number(x.presupuestos) }))}
+                    proveedores={datosCompras[1]}
+                  />
+                </>
+              ) : (
+                <CrearTareaForm comisionId={comisionId} usuarios={usuarios} />
+              )
+            ) : null}
             <Badge color={estado.color}>{estado.label}</Badge>
             {esOversight && comision.activa ? (
               <ActionForm action={archivarComisionFormAction}>

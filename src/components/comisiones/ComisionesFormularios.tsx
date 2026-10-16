@@ -9,7 +9,8 @@
 // integrantes), así que ese formulario solo se resetea al guardar con éxito,
 // sin colapsar nada.
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import {
   FUNCIONES_COMISION,
   FUNCION_COMISION,
@@ -26,89 +27,78 @@ import {
 } from "@/lib/actions/comisiones";
 import { crearTareaFormAction } from "@/lib/actions/tareas";
 import { ESTADO_INICIAL } from "@/lib/actionState";
-import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
-import { AddButtonSummary, Card, Label, inputClass } from "@/components/ui";
+import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
+import { FormularioEnModal } from "@/components/FormularioEnModal";
+import { AddButton, Label, inputClass } from "@/components/ui";
+
+// Mismo aspecto que el botón «agregar» del sistema; siempre abre un pop-up.
+const CLASE_AGREGAR =
+  "inline-flex items-center justify-center gap-2 rounded-xl border-2 border-[var(--color-verde)] text-[var(--color-verde)] bg-transparent hover:bg-[var(--color-verde-bg)] px-4 py-2.5 text-sm font-semibold transition-colors whitespace-nowrap";
 
 type Usuario = { id: number; nombre: string };
 type Comision = { id: number; nombre: string };
 
 export function AgregarMiembroForm({ comisionId, usuarios }: { comisionId: number; usuarios: Usuario[] }) {
-  const [estado, formAction] = useActionState(agregarMiembroFormAction, ESTADO_INICIAL);
-  const formRef = useRef<HTMLFormElement>(null);
-  const { show } = useToast();
-
-  useEffect(() => {
-    if (estado.ok) {
-      formRef.current?.reset();
-      show("Integrante agregado.");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estado]);
-
   return (
-    <form ref={formRef} action={formAction} className="mt-3 flex flex-wrap items-end gap-2">
-      <input type="hidden" name="comision_id" value={comisionId} />
-      <div className="flex-1 min-w-[140px]">
-        <Label required>Agregar integrante</Label>
-        <select name="user_id" required className={inputClass}>
-          {usuarios.map((u) => (
-            <option key={u.id} value={u.id}>{u.nombre}</option>
-          ))}
-        </select>
-        <FieldError message={estado.fieldErrors?.user_id} />
+    <FormularioEnModal
+      textoBoton={<><Plus size={16} aria-hidden /> Agregar integrante</>}
+      claseBoton={CLASE_AGREGAR}
+      titulo="Agregar integrante"
+      action={agregarMiembroFormAction}
+      ocultos={{ comision_id: comisionId }}
+      textoConfirmar="Agregar"
+      mensajeExito="Integrante agregado."
+    >
+      <div className="space-y-3">
+        <div>
+          <Label required>Persona</Label>
+          <select name="user_id" required className={inputClass}>
+            {usuarios.map((u) => (
+              <option key={u.id} value={u.id}>{u.nombre}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label>Rol en la comisión</Label>
+          <select name="rol_en_comision" className={inputClass} defaultValue="integrante">
+            <option value="integrante">Integrante</option>
+            <option value="coordinador">Coordinador/a</option>
+            <option value="suplente">Suplente</option>
+          </select>
+        </div>
       </div>
-      <div>
-        <Label>Rol</Label>
-        <select name="rol_en_comision" className={inputClass} defaultValue="integrante">
-          <option value="integrante">Integrante</option>
-          <option value="coordinador">Coordinador/a</option>
-          <option value="suplente">Suplente</option>
-        </select>
-        <FieldError message={estado.fieldErrors?.rol_en_comision} />
-      </div>
-      <SubmitButton variant="add" className="text-xs px-3 py-2 whitespace-nowrap">Agregar</SubmitButton>
-      <div className="w-full">
-        <FormError message={estado.error} />
-      </div>
-    </form>
+    </FormularioEnModal>
   );
 }
 
 export function CrearTareaForm({ comisionId, usuarios }: { comisionId: number; usuarios: Usuario[] }) {
-  const [estado, formAction] = useActionState(crearTareaFormAction, ESTADO_INICIAL);
-  const formRef = useRef<HTMLFormElement>(null);
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  const { show } = useToast();
-
-  useEffect(() => {
-    if (estado.ok) {
-      formRef.current?.reset();
-      if (detailsRef.current) detailsRef.current.open = false;
-      show("Tarea agregada.");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estado]);
-
   return (
-    <details ref={detailsRef} className="mt-2">
-      <AddButtonSummary className="text-xs px-3 py-1.5">Agregar tarea</AddButtonSummary>
-      <form ref={formRef} action={formAction} className="mt-2 grid grid-cols-1 gap-2">
-        <input type="hidden" name="comision_id" value={comisionId} />
+    <FormularioEnModal
+      textoBoton={<><Plus size={16} aria-hidden /> Agregar tarea</>}
+      claseBoton={CLASE_AGREGAR}
+      titulo="Agregar tarea"
+      action={crearTareaFormAction}
+      ocultos={{ comision_id: comisionId }}
+      textoConfirmar="Agregar tarea"
+      mensajeExito="Tarea agregada."
+    >
+      <div className="space-y-3">
         <div>
+          <Label required>Título</Label>
           <input name="titulo" required placeholder="Título de la tarea" className={inputClass} />
-          <FieldError message={estado.fieldErrors?.titulo} />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <div>
+            <Label>Responsable</Label>
             <select name="responsable_id" className={inputClass} defaultValue="">
               <option value="">Sin asignar</option>
               {usuarios.map((u) => (
                 <option key={u.id} value={u.id}>{u.nombre}</option>
               ))}
             </select>
-            <FieldError message={estado.fieldErrors?.responsable_id} />
           </div>
           <div>
+            <Label>Prioridad</Label>
             <select name="prioridad" className={inputClass} defaultValue="media">
               <option value="alta">Alta</option>
               <option value="media">Media</option>
@@ -117,22 +107,16 @@ export function CrearTareaForm({ comisionId, usuarios }: { comisionId: number; u
           </div>
         </div>
         <div>
+          <Label>Vence el</Label>
           <input name="fecha_vencimiento" type="date" className={inputClass} />
-          <FieldError message={estado.fieldErrors?.fecha_vencimiento} />
         </div>
-        {/* Comisiones como sistema de gestión, Fase 4 (sección 12: "etiquetas"):
-            la dependencia con otra tarea deliberadamente no se ofrece acá —
-            recién se puede elegir con sentido una vez que existen las otras
-            tareas de la comisión, así que se agrega desde "Editar tarea"
-            dentro del detalle (TareaDetalleModal), no en este alta rápida. */}
+        {/* La dependencia con otra tarea se elige después, desde el detalle de la tarea. */}
         <div>
-          <input name="etiquetas" placeholder="Etiquetas (opcional, separadas por coma)" className={inputClass} />
-          <FieldError message={estado.fieldErrors?.etiquetas} />
+          <Label>Etiquetas (opcional)</Label>
+          <input name="etiquetas" placeholder="separadas por coma" className={inputClass} />
         </div>
-        <FormError message={estado.error} />
-        <SubmitButton variant="add" className="text-xs px-3 py-2">Agregar tarea</SubmitButton>
-      </form>
-    </details>
+      </div>
+    </FormularioEnModal>
   );
 }
 
@@ -243,25 +227,24 @@ function CamposComision({
 }
 
 export function CrearComisionForm({ comisiones }: { comisiones?: Comision[] }) {
+  const [abierto, setAbierto] = useState(false);
   const [estado, formAction] = useActionState(crearComisionFormAction, ESTADO_INICIAL);
-  const formRef = useRef<HTMLFormElement>(null);
-  const detailsRef = useRef<HTMLDetailsElement>(null);
   const { show } = useToast();
 
   useEffect(() => {
     if (estado.ok) {
-      formRef.current?.reset();
-      if (detailsRef.current) detailsRef.current.open = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAbierto(false);
       show("Comisión creada.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
   return (
-    <details ref={detailsRef}>
-      <AddButtonSummary>Crear comisión</AddButtonSummary>
-      <Card className="mt-3">
-        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <>
+      <AddButton onClick={() => setAbierto(true)}>Crear comisión</AddButton>
+      <Modal open={abierto} onClose={() => setAbierto(false)} title="Crear comisión" size="lg">
+        <form action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
           <div>
             <Label required>Nombre</Label>
             <input name="nombre" required data-validar="nombre" placeholder="Ej: Comisión de Educación" className={inputClass} />
@@ -276,12 +259,13 @@ export function CrearComisionForm({ comisiones }: { comisiones?: Comision[] }) {
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
           </div>
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 flex justify-end gap-2">
+            <button type="button" onClick={() => setAbierto(false)} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-ink-muted hover:bg-surface-sunken">Volver</button>
             <SubmitButton variant="add" pendingLabel="Creando…">Crear comisión</SubmitButton>
           </div>
         </form>
-      </Card>
-    </details>
+      </Modal>
+    </>
   );
 }
 
@@ -297,23 +281,24 @@ export function EditarComisionForm({
   };
   comisiones: Comision[];
 }) {
+  const [abierto, setAbierto] = useState(false);
   const [estado, formAction] = useActionState(editarComisionFormAction, ESTADO_INICIAL);
-  const detailsRef = useRef<HTMLDetailsElement>(null);
   const { show } = useToast();
 
   useEffect(() => {
     if (estado.ok) {
-      if (detailsRef.current) detailsRef.current.open = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAbierto(false);
       show("Comisión actualizada.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
   return (
-    <details ref={detailsRef} className="mt-2">
-      <summary className="text-xs text-ink/40 hover:text-[var(--color-brand-800)] underline underline-offset-2 cursor-pointer select-none">Editar</summary>
-      <Card className="mt-2">
-        <form action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <>
+      <button type="button" onClick={() => setAbierto(true)} className="text-xs text-ink/40 hover:text-[var(--color-brand-800)] underline underline-offset-2">Editar comisión</button>
+      <Modal open={abierto} onClose={() => setAbierto(false)} title="Editar comisión" size="lg">
+        <form action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
           <input type="hidden" name="id" value={comision.id} />
           {/* H-3 (auditoría integral, 27/09): versión cargada al abrir este
              formulario — ver updateConBloqueoOptimista() en db.ts. */}
@@ -343,11 +328,12 @@ export function EditarComisionForm({
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
           </div>
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 flex justify-end gap-2">
+            <button type="button" onClick={() => setAbierto(false)} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-ink-muted hover:bg-surface-sunken">Volver</button>
             <SubmitButton variant="secondary" pendingLabel="Guardando…">Guardar cambios</SubmitButton>
           </div>
         </form>
-      </Card>
-    </details>
+      </Modal>
+    </>
   );
 }

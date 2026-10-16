@@ -41,8 +41,11 @@ const PROVEEDOR_ESTADO_EMOJI: Record<string, string> = {
 export function CrearSolicitudForm({
   comisiones,
   desdeResolucion,
+  comisionPorDefecto,
 }: {
   comisiones: Opcion[];
+  /** Desde la ficha de una comisión: la solicitud ya sale a su nombre. */
+  comisionPorDefecto?: Opcion;
   /** Recorrido de decisiones (04/10): la solicitud sale de una resolución
    * (punto de asamblea/consejo/comisión) — misma acción y mismos campos que
    * "Nueva solicitud" de Compras; sólo guarda de qué resolución salió. */
@@ -100,12 +103,12 @@ export function CrearSolicitudForm({
           </div>
           <div>
             <Label required>Comisión solicitante</Label>
-            <input name="comision" required className={inputClass} placeholder="Comisión de Obra" />
+            <input name="comision" required className={inputClass} placeholder="Comisión de Obra" defaultValue={comisionPorDefecto?.nombre} />
             <FieldError message={estado.fieldErrors?.comision} />
           </div>
           <div>
             <Label>Vincular a una comisión real (opcional)</Label>
-            <select name="comision_id" className={inputClass} defaultValue="">
+            <select name="comision_id" className={inputClass} defaultValue={comisionPorDefecto?.id ?? ""}>
               <option value="">— sin vincular —</option>
               {comisiones.map((c) => (
                 <option key={c.id} value={c.id}>{c.nombre}</option>
@@ -371,89 +374,135 @@ export function AdjuntarFacturaForm({ solicitudId }: { solicitudId: number }) {
   );
 }
 
-export function CargarPresupuestoForm({ solicitudId, proveedores, abiertoPorDefecto }: { solicitudId: number; proveedores: ProveedorOpcion[]; abiertoPorDefecto: boolean }) {
+/**
+ * «Agregar presupuesto» en un pop-up (nunca se despliega hacia abajo). Dos usos:
+ * - desde la ficha de una solicitud (`solicitudId` fijo);
+ * - desde la comisión de Compras (arriba a la derecha): `solicitudes` abiertas
+ *   para elegir a cuál se le carga la oferta.
+ * El Reglamento (art. 5b) pide un mínimo de 3 presupuestos por compra; el
+ * pop-up avisa cuántos lleva la solicitud elegida.
+ */
+export type SolicitudOpcion = { id: number; material: string; presupuestos: number };
+
+export function CargarPresupuestoForm({
+  solicitudId,
+  solicitudes,
+  proveedores,
+  minimo = 3,
+}: {
+  solicitudId?: number;
+  solicitudes?: SolicitudOpcion[];
+  proveedores: ProveedorOpcion[];
+  minimo?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [elegida, setElegida] = useState<number | "">(solicitudId ?? solicitudes?.[0]?.id ?? "");
   const [estado, formAction] = useActionState(agregarPresupuestoFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
-  const detailsRef = useRef<HTMLDetailsElement>(null);
   const { show } = useToast();
 
   useEffect(() => {
     if (estado.ok) {
       formRef.current?.reset();
-      if (detailsRef.current) detailsRef.current.open = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpen(false);
       show("Presupuesto cargado.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
+  const sinSolicitudes = !solicitudId && (!solicitudes || solicitudes.length === 0);
+  const actual = solicitudes?.find((s) => s.id === elegida);
+
   return (
-    <details ref={detailsRef} open={abiertoPorDefecto}>
-      <AddButtonSummary>Cargar presupuesto</AddButtonSummary>
-      <Card className="mt-3">
-        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input type="hidden" name="solicitud_id" value={solicitudId} />
-          <div>
-            <Label>Proveedor existente</Label>
-            <select name="proveedor_id" className={inputClass} defaultValue="">
-              <option value="">— elegir —</option>
-              {proveedores.map((p) => (
-                <option key={p.id} value={p.id}>{PROVEEDOR_ESTADO_EMOJI[p.estado || "nuevo"]} {p.nombre}</option>
-              ))}
-            </select>
-            <p className="text-[11px] text-ink-faint mt-1">🟢 habitual · 🟡 nuevo o en evaluación · ⚪ inactivo</p>
-          </div>
-          <div>
-            <Label>...o proveedor nuevo</Label>
-            <input name="nuevo_proveedor" className={inputClass} placeholder="Nombre del proveedor" />
-          </div>
-          <div>
-            <Label required>Precio</Label>
-            <input name="precio" type="number" step="0.01" required className={inputClass} />
-            <FieldError message={estado.fieldErrors?.precio} />
-          </div>
-          <div>
-            <Label>Precio unitario</Label>
-            <input name="precio_unitario" type="number" step="0.01" className={inputClass} />
-            <FieldError message={estado.fieldErrors?.precio_unitario} />
-          </div>
-          <div>
-            <Label>Costo de envío</Label>
-            <input name="costo_envio" type="number" step="0.01" className={inputClass} />
-            <FieldError message={estado.fieldErrors?.costo_envio} />
-          </div>
-          <div>
-            <Label>Plazo de entrega (días)</Label>
-            <input name="plazo_entrega_dias" type="number" className={inputClass} />
-            <FieldError message={estado.fieldErrors?.plazo_entrega_dias} />
-          </div>
-          <div>
-            <Label>Forma de pago</Label>
-            <input name="forma_pago" className={inputClass} placeholder="contado, 30 días…" />
-            <FieldError message={estado.fieldErrors?.forma_pago} />
-          </div>
-          <div>
-            <Label>Garantía</Label>
-            <input name="garantia" className={inputClass} />
-            <FieldError message={estado.fieldErrors?.garantia} />
-          </div>
-          <div className="sm:col-span-2">
-            <Label>Condiciones (calidad, entrega, etc.)</Label>
-            <input name="condiciones" className={inputClass} placeholder="Ej: material de primera calidad, entrega en obra incluida" />
-            <FieldError message={estado.fieldErrors?.condiciones} />
-          </div>
-          <div className="sm:col-span-2">
-            <Label>Notas</Label>
-            <input name="notas" className={inputClass} />
-            <FieldError message={estado.fieldErrors?.notas} />
-          </div>
-          <div className="sm:col-span-2">
-            <FormError message={estado.error} />
-          </div>
-          <div className="sm:col-span-2">
-            <SubmitButton pendingLabel="Guardando…">Guardar presupuesto</SubmitButton>
-          </div>
-        </form>
-      </Card>
-    </details>
+    <>
+      <AddButton onClick={() => setOpen(true)}>Agregar presupuesto</AddButton>
+      <Modal open={open} onClose={() => setOpen(false)} title="Agregar presupuesto" size="lg">
+        {sinSolicitudes ? (
+          <p className="text-sm text-ink">
+            Para cargar un presupuesto primero hace falta una solicitud de compra abierta. Creala con «Nueva solicitud» y después cargale las ofertas de los proveedores.
+          </p>
+        ) : (
+          <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
+            {solicitudId ? (
+              <input type="hidden" name="solicitud_id" value={solicitudId} />
+            ) : (
+              <div className="sm:col-span-2">
+                <Label required>¿Para qué compra es?</Label>
+                <select name="solicitud_id" required className={inputClass} value={elegida} onChange={(e) => setElegida(Number(e.target.value))}>
+                  {solicitudes!.map((s) => (
+                    <option key={s.id} value={s.id}>{s.material} — {s.presupuestos} de {minimo} presupuestos</option>
+                  ))}
+                </select>
+                {actual && actual.presupuestos < minimo && (
+                  <p className="text-[11px] text-ink-faint mt-1">El Reglamento pide al menos {minimo} presupuestos: falta{minimo - actual.presupuestos === 1 ? "" : "n"} {minimo - actual.presupuestos}.</p>
+                )}
+              </div>
+            )}
+            <div>
+              <Label>Proveedor existente</Label>
+              <select name="proveedor_id" className={inputClass} defaultValue="">
+                <option value="">— elegir —</option>
+                {proveedores.map((p) => (
+                  <option key={p.id} value={p.id}>{PROVEEDOR_ESTADO_EMOJI[p.estado || "nuevo"]} {p.nombre}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-ink-faint mt-1">🟢 habitual · 🟡 nuevo o en evaluación · ⚪ inactivo</p>
+            </div>
+            <div>
+              <Label>...o proveedor nuevo</Label>
+              <input name="nuevo_proveedor" className={inputClass} placeholder="Nombre del proveedor" />
+            </div>
+            <div>
+              <Label required>Precio total</Label>
+              <input name="precio" type="number" step="0.01" required className={inputClass} />
+              <FieldError message={estado.fieldErrors?.precio} />
+            </div>
+            <div>
+              <Label>Precio unitario</Label>
+              <input name="precio_unitario" type="number" step="0.01" className={inputClass} />
+              <FieldError message={estado.fieldErrors?.precio_unitario} />
+            </div>
+            <div>
+              <Label>Costo de envío</Label>
+              <input name="costo_envio" type="number" step="0.01" className={inputClass} />
+              <FieldError message={estado.fieldErrors?.costo_envio} />
+            </div>
+            <div>
+              <Label>Plazo de entrega (días)</Label>
+              <input name="plazo_entrega_dias" type="number" className={inputClass} />
+              <FieldError message={estado.fieldErrors?.plazo_entrega_dias} />
+            </div>
+            <div>
+              <Label>Forma de pago</Label>
+              <input name="forma_pago" className={inputClass} placeholder="contado, 30 días…" />
+              <FieldError message={estado.fieldErrors?.forma_pago} />
+            </div>
+            <div>
+              <Label>Garantía</Label>
+              <input name="garantia" className={inputClass} />
+              <FieldError message={estado.fieldErrors?.garantia} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Condiciones (calidad, entrega, etc.)</Label>
+              <input name="condiciones" className={inputClass} placeholder="Ej: material de primera calidad, entrega en obra incluida" />
+              <FieldError message={estado.fieldErrors?.condiciones} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Notas</Label>
+              <input name="notas" className={inputClass} />
+              <FieldError message={estado.fieldErrors?.notas} />
+            </div>
+            <div className="sm:col-span-2">
+              <FormError message={estado.error} />
+            </div>
+            <div className="sm:col-span-2 flex justify-end gap-2">
+              <button type="button" onClick={() => setOpen(false)} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-ink-muted hover:bg-surface-sunken">Volver</button>
+              <SubmitButton pendingLabel="Guardando…">Guardar presupuesto</SubmitButton>
+            </div>
+          </form>
+        )}
+      </Modal>
+    </>
   );
 }

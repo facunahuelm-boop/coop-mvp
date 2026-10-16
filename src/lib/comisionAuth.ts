@@ -27,6 +27,22 @@ export async function puedeGestionarComision(user: SessionUser, comisionId: numb
   return !!miembro;
 }
 
+/**
+ * Puede cargar solicitudes/presupuestos de compra: quien ya tiene permiso de
+ * módulo (canEdit "compras") o cualquier integrante activo de una comisión con
+ * función "compras" (aunque su rol general sea socio). Cada acción además
+ * exige que la solicitud sea de una comisión que esa persona integra.
+ */
+export async function puedeCargarCompras(user: SessionUser): Promise<boolean> {
+  if (canEdit(user.rol, "compras")) return true;
+  const fila = await get<{ id: number }>(
+    `SELECT cm.id FROM comision_miembros cm JOIN comisiones c ON c.id = cm.comision_id
+     WHERE cm.user_id = ? AND cm.activo = 1 AND c.activa = 1 AND c.funcion = 'compras' LIMIT 1`,
+    [user.id]
+  ).catch(() => undefined);
+  return !!fila;
+}
+
 /** Mensaje uniforme para cuando falla puedeGestionarComision. */
 export const ERROR_SIN_PERMISO_COMISION =
   "No tenés permiso para gestionar esta comisión — hace falta ser integrante activo de ella, o tener un rol de conducción (Admin, Consejo Directivo, Tesorería o Administración).";

@@ -6,7 +6,7 @@ import { insert, update, get, all, run, audit, eliminarLogico, updateConBloqueoO
 import { requireUser, type SessionUser } from "@/lib/auth";
 import { canEdit, canApprove } from "@/lib/roles";
 import { CATEGORIA_COMPRA_LABEL } from "@/lib/constants";
-import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
+import { puedeGestionarComision, puedeCargarCompras, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
 import { saveUploadedFile, TIPOS_DOCUMENTO } from "@/lib/upload";
 import { registrarFacturaInterna } from "@/lib/facturas";
 import { obtenerReglamento } from "@/lib/reglamento";
@@ -101,11 +101,14 @@ const crearSolicitudSchema = z.object({
 
 export async function crearSolicitudAction(formData: FormData) {
   const user = await requireUser();
-  if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
+  if (!(await puedeCargarCompras(user))) throw new Error("No autorizado");
   const datos = parseForm(crearSolicitudSchema, formData);
   if (datos.comision_id && !(await puedeGestionarComision(user, datos.comision_id))) {
     throw new Error(ERROR_SIN_PERMISO_COMISION);
   }
+  // Integrante de la Comisión de Compras con rol general de socio: sólo puede
+  // cargar solicitudes ligadas a una comisión que integra.
+  if (!canEdit(user.rol, "compras") && !datos.comision_id) throw new Error(ERROR_SIN_PERMISO_COMISION);
   // Si la migración 0020 (agrega esta columna) todavía no corrió en esta
   // base, insert() en sí mismo reintenta sin comision_id en vez de romper
   // toda la pantalla con un error 500 — ver el criterio centralizado en
@@ -227,9 +230,13 @@ const agregarPresupuestoSchema = z.object({
 
 export async function agregarPresupuestoAction(formData: FormData) {
   const user = await requireUser();
-  if (!canEdit(user.rol, "compras")) throw new Error("No autorizado");
+  if (!(await puedeCargarCompras(user))) throw new Error("No autorizado");
   const { solicitud_id: solicitudId, ...datos } = parseForm(agregarPresupuestoSchema, formData);
   await verificarPermisoSobreSolicitud(user, solicitudId);
+  if (!canEdit(user.rol, "compras")) {
+    const s = await get<{ comision_id: number | null }>(`SELECT comision_id FROM solicitudes_compra WHERE id = ?`, [solicitudId]).catch(() => undefined);
+    if (!s?.comision_id) throw new Error(ERROR_SIN_PERMISO_COMISION);
+  }
 
   // proveedor_id / nuevo_proveedor tienen una lógica de "uno u otro" que no
   // encaja en un campo Zod simple: se elige un proveedor ya cargado, o se

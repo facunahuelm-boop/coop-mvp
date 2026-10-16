@@ -40,6 +40,12 @@ Pedido: llevar a las comisiones los siete faltantes detectados al leer el Reglam
 - Permisos: integrar la comisión o conducción para cargar; solo directiva aprueba contrataciones; guardias con el permiso de planificación de Trabajo. Las lecturas toleran que la migración todavía no esté aplicada.
 - Pruebas: `test-obra.mjs` (17 chequeos) además de los 92 y 11 existentes. Pendiente: que la asamblea defina las versiones en amarillo del reglamento y cargar los cargos reales.
 
+## Compras: «Agregar presupuesto» arriba a la derecha y altas en pop-up
+
+- La ficha de cada comisión tiene arriba a la derecha su botón principal de alta. En Compras: «Agregar presupuesto» (eligiendo a qué solicitud abierta va, con el conteo de presupuestos contra el mínimo de 3 del art. 5b) y «Nueva solicitud» ya a nombre de la comisión. En las demás: «Agregar tarea».
+- Los integrantes de la Comisión de Compras (aunque su rol general sea socio) pueden cargar solicitudes y presupuestos de su comisión (`puedeCargarCompras`); siguen sin ver el resto del módulo.
+- Agregar integrante, agregar tarea, crear/editar comisión, agregar proveedor y cargar presupuesto ahora abren un pop-up en vez de desplegarse hacia abajo.
+
 ## Barra lateral sin «Obra y trámites» + QR en la barra superior (15/10)
 
 Pedido: lo de la obra va dentro de la Comisión de Obra, lo demás sale de la barra lateral, y el QR pasa a un ícono arriba que use la cámara del celular; solo la directiva genera el QR.
