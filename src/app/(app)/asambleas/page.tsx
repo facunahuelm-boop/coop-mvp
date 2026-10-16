@@ -1,3 +1,4 @@
+import { AbrirAlEntrar } from "@/components/comisiones/AbrirAlEntrar";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
@@ -147,7 +148,7 @@ export default async function AsambleasPage() {
         subtitle="Convocatoria, asistencia y actas de las asambleas de la cooperativa"
         action={
           puedeConvocar ? (
-            <CrearReunionForm comisiones={comisionesActivas} esOversightReuniones={puedeConvocar} tipoInicial="asamblea" />
+            <AbrirAlEntrar accion="convocar"><CrearReunionForm comisiones={comisionesActivas} esOversightReuniones={puedeConvocar} tipoInicial="asamblea" /></AbrirAlEntrar>
           ) : undefined
         }
       />

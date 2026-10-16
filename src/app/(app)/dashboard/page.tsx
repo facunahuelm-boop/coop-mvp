@@ -13,6 +13,7 @@ import { hoyEnUruguay as hoyUY } from "@/lib/horasObra";
 import { DashboardGrid, DashboardSection, SummaryCard, EstadoTag, DashboardCardLink, DashboardCardModal } from "@/components/DashboardCard";
 import { DashboardSummaryCard } from "@/components/DashboardSummaryCard";
 import { MisComisiones } from "@/components/comisiones/MisComisiones";
+import { PanelDirectiva, esDirectivaPanel } from "@/components/portal/PanelDirectiva";
 import { MonthCalendar, type EventoCalendario, type NotaCalendario } from "@/components/MonthCalendar";
 import {
   crearNotaCalendarioFormAction,
@@ -591,6 +592,8 @@ export default async function DashboardPage() {
       <InstallHint />
 
       <PageHeader title="Inicio" subtitle={dayjs().format("dddd DD [de] MMMM, YYYY")} />
+
+      {esDirectivaPanel(user) && <PanelDirectiva user={user} comprasADecidir={verCompras ? comparacionesListas : 0} />}
 
       <MisComisiones user={user} />
 

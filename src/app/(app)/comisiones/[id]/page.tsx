@@ -90,7 +90,7 @@ export default async function ComisionDetallePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; semana?: string; dia?: string; accion?: string }>;
+  searchParams: Promise<{ tab?: string; semana?: string; dia?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -754,7 +754,7 @@ export default async function ComisionDetallePage({
         action={
           <div className="flex flex-wrap items-center justify-end gap-3">
             {puedeGestionar && disponible && comision.activa ? (
-              <AbrirAlEntrar activo={sp.accion === "agregar"}>
+              <AbrirAlEntrar accion="agregar">
               {datosCompras ? (
                 <>
                   <CrearSolicitudForm comisiones={[{ id: comision.id, nombre: comision.nombre }]} comisionPorDefecto={{ id: comision.id, nombre: comision.nombre }} />

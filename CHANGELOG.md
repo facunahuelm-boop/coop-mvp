@@ -4,6 +4,12 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Inicio de la Directiva (16/10)
+
+- Para Consejo Directivo (y el admin), arriba del Inicio: la próxima reunión del Consejo o asamblea; «Para decidir» (compras para decidir, decisiones por resolver, solicitudes abiertas, actas por cargar, reclamos sin resolver — sólo lo que tiene algo, con un toque a dónde se resuelve); y «Cargar», botones grandes que abren directo el formulario: registrar movimiento, reunión del Consejo, convocar asamblea, registrar decisión, mandar un aviso, subir documento.
+- `AbrirAlEntrar` ahora lee `?accion=` de la dirección y abre botón o desplegable; se usa en Finanzas, Asambleas, Consejo Directivo, Decisiones y la página de cada comisión.
+- Archivos: `components/portal/PanelDirectiva.tsx` (nuevo), `components/comisiones/AbrirAlEntrar.tsx`, `app/(app)/dashboard`, `finanzas`, `asambleas`, `consejo-directivo`, `decisiones`, `comisiones/[id]`.
+
 ## Mail de cada comisión (16/10)
 
 - Cada comisión puede tener su mail (opcional), que se carga al crearla o desde «Editar comisión». Se muestra en la tarjeta del tablero de Comisiones, en su pop-up y en el Resumen de la comisión, con enlace para escribirle, así las comisiones saben a qué dirección comunicarse entre ellas.

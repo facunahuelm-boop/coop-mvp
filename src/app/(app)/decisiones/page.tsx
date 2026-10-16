@@ -1,3 +1,4 @@
+import { AbrirAlEntrar } from "@/components/comisiones/AbrirAlEntrar";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit } from "@/lib/roles";
@@ -123,7 +124,7 @@ export default async function DecisionesPage() {
       <PageHeader
         title="Decisiones"
         subtitle="Registro formal de decisiones de cada comisión, con votación cuando hace falta"
-        action={puedeEditar && comisionesDisponibles.length > 0 ? <CrearDecisionForm comisiones={comisionesDisponibles} /> : undefined}
+        action={puedeEditar && comisionesDisponibles.length > 0 ? <AbrirAlEntrar accion="nueva"><CrearDecisionForm comisiones={comisionesDisponibles} /></AbrirAlEntrar> : undefined}
       />
 
       <ResumenDecisiones tiles={tiles} />

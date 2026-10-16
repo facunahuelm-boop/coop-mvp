@@ -1,3 +1,4 @@
+import { AbrirAlEntrar } from "@/components/comisiones/AbrirAlEntrar";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, canApprove } from "@/lib/roles";
@@ -166,7 +167,7 @@ export default async function ConsejoDirectivoPage() {
         subtitle="Composición de cargos, reuniones y actas del Consejo Directivo"
         action={
           puedeConvocar ? (
-            <CrearReunionForm comisiones={comisionesActivas} esOversightReuniones={puedeConvocar} tipoInicial="consejo_directivo" />
+            <AbrirAlEntrar accion="reunion"><CrearReunionForm comisiones={comisionesActivas} esOversightReuniones={puedeConvocar} tipoInicial="consejo_directivo" /></AbrirAlEntrar>
           ) : undefined
         }
       />

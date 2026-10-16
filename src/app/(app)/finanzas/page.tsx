@@ -1,3 +1,4 @@
+import { AbrirAlEntrar } from "@/components/comisiones/AbrirAlEntrar";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { canRead, canEdit, canApprove, ROLES_FINANZAS_DETALLE } from "@/lib/roles";
@@ -961,7 +962,7 @@ export default async function FinanzasPage({
                   <Pagination page={page} totalPages={totalPages} basePath="/finanzas" searchParams={f} />
                   {puedeEditar && opciones && (
                     <div className="mt-4 flex flex-wrap items-start gap-3">
-                      <RegistrarMovimientoForm opciones={opciones} />
+                      <AbrirAlEntrar accion="movimiento"><RegistrarMovimientoForm opciones={opciones} /></AbrirAlEntrar>
                       {opciones.cuentas.length > 0 && <div className="mt-4"><TransferirForm opciones={opciones} /></div>}
                     </div>
                   )}
