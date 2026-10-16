@@ -4,6 +4,14 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Inicio: «Mis comisiones» como tarjeta mínima con pop-up (16/10)
+
+- Cada comisión del núcleo en Inicio muestra solo el nombre y cuántas tareas tiene pendientes (en rojo si hay vencidas). Al tocarla se abre un pop-up con la función, si la coordina o la integra, lo próximo que vence y tres botones:
+  - «+ Agregar en la comisión»: lleva a la comisión y abre solo su formulario principal (tarea, compra, incidente, correspondencia, elección, guardia o tarea del plan, según la función). Usa `?accion=agregar`, que se borra de la dirección al abrirse (`components/comisiones/AbrirAlEntrar.tsx`).
+  - «Cargar foto o archivo»: la carga rápida se despliega dentro del mismo pop-up (nunca un pop-up sobre otro).
+  - «Ver más detalle →»: va al panel de la comisión.
+- Archivos: `components/comisiones/MisComisiones.tsx`, `MiComisionPopup.tsx` (nuevo), `CargaRapida.tsx` (opción `enLinea`), `app/(app)/comisiones/[id]/page.tsx`.
+
 ## Altas en pop-up para toda la aplicación y revisión del usuario de directiva (16/10)
 
 - Todo botón de alta que antes desplegaba el formulario hacia abajo (`AddButtonSummary`) ahora abre una ventana emergente centrada con fondo oscurecido; se cierra con «Cerrar», tocando afuera o con Esc. Afecta Socios, Reuniones, Asambleas, Consejo Directivo, Finanzas (movimientos), Documentos, Gastos, Seguridad, Decisiones, Obra, Trabajo, etc.

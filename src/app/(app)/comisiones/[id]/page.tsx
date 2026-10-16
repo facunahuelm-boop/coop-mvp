@@ -25,7 +25,8 @@ import { PanelFuncion, Kpis } from "@/components/comisiones/PanelFuncion";
 import { CargarPresupuestoForm, CrearSolicitudForm, type SolicitudOpcion } from "@/components/compras/ComprasFormularios";
 import { RegistrarIncidenteForm } from "@/components/seguridad/SeguridadFormularios";
 import { CargaRapida } from "@/components/comisiones/CargaRapida";
-import { CorrespondenciaPanel, EleccionesPanel, BotonNuevaCorrespondencia, BotonNuevaEleccion } from "@/components/comisiones/PanelFormularios";
+import { AbrirAlEntrar } from "@/components/comisiones/AbrirAlEntrar";
+import { CorrespondenciaPanel,EleccionesPanel, BotonNuevaCorrespondencia, BotonNuevaEleccion } from "@/components/comisiones/PanelFormularios";
 import { FUNCION_COMISION, funcionDe, comisionDisponibleEnEtapa, textoEtapas, ETAPA_LABEL, type EtapaCooperativa } from "@/lib/comisionesFunciones";
 import { cargarSemanaHoras, obtenerHorarioObra } from "@/lib/horasTrabajo";
 import { hoyEnUruguay, lunesDe, sumarDias, diasDeSemana, textoSemana, esFechaISO, textoHoras, textoDia } from "@/lib/horasObra";
@@ -89,7 +90,7 @@ export default async function ComisionDetallePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; semana?: string; dia?: string }>;
+  searchParams: Promise<{ tab?: string; semana?: string; dia?: string; accion?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -743,7 +744,8 @@ export default async function ComisionDetallePage({
         action={
           <div className="flex flex-wrap items-center justify-end gap-3">
             {puedeGestionar && disponible && comision.activa ? (
-              datosCompras ? (
+              <AbrirAlEntrar activo={sp.accion === "agregar"}>
+              {datosCompras ? (
                 <>
                   <CrearSolicitudForm comisiones={[{ id: comision.id, nombre: comision.nombre }]} comisionPorDefecto={{ id: comision.id, nombre: comision.nombre }} />
                   <CargarPresupuestoForm
@@ -763,7 +765,8 @@ export default async function ComisionDetallePage({
                 <BotonNuevaEleccion comisionId={comisionId} principal />
               ) : (
                 <CrearTareaForm comisionId={comisionId} usuarios={usuarios} />
-              )
+              )}
+              </AbrirAlEntrar>
             ) : null}
             <Badge color={estado.color}>{estado.label}</Badge>
             {esOversight && comision.activa ? (

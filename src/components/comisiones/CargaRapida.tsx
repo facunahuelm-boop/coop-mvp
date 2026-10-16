@@ -7,13 +7,13 @@ import { Label, inputClass } from "@/components/ui";
 import { cargaRapidaComisionFormAction } from "@/lib/actions/cargaRapida";
 
 /** Carga rápida: sacar una foto (cámara trasera) o elegir una imagen, y dejarla en la comisión. */
-export function CargaRapida({ comisionId, claseBoton }: { comisionId: number; claseBoton?: string }) {
+export function CargaRapida({ comisionId, claseBoton, enLinea = false }: { comisionId: number; claseBoton?: string; enLinea?: boolean }) {
   const [modo, setModo] = useState<"foto" | "galeria">("foto");
   return (
     <FormularioEnModal
       textoBoton={
         <span className="inline-flex items-center gap-1.5">
-          <Camera size={14} aria-hidden /> Foto o imagen
+          <Camera size={14} aria-hidden /> {enLinea ? "Cargar foto o archivo" : "Foto o imagen"}
         </span>
       }
       claseBoton={claseBoton ?? "inline-flex items-center rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:bg-surface-sunken"}
@@ -22,6 +22,7 @@ export function CargaRapida({ comisionId, claseBoton }: { comisionId: number; cl
       action={cargaRapidaComisionFormAction}
       ocultos={{ comision_id: comisionId }}
       textoConfirmar="Cargar"
+      enLinea={enLinea}
     >
       <fieldset className="flex flex-wrap gap-4 text-sm">
         <legend className="sr-only">Cómo cargar</legend>
