@@ -1230,7 +1230,7 @@ export function MonthCalendar({
                 // Día con algo agendado: el contorno de la celda toma el color
                 // de la primera actividad (no se pinta todo el recuadro).
                 style={items.length > 0 && !esDestinoArrastre && !esSeleccionado ? { borderColor: `var(${items[0].colorVar})`, borderWidth: 2 } : undefined}
-                className={`group relative rounded-lg border transition-colors min-h-[76px] p-1 flex flex-col gap-0.5 ${
+                className={`group relative rounded-lg border transition-colors min-h-[110px] p-1 flex flex-col gap-0.5 ${
                   esDestinoArrastre
                     ? "border-[var(--color-verde)] bg-[var(--color-verde-bg)]"
                     : esSeleccionado
@@ -1276,9 +1276,10 @@ export function MonthCalendar({
                 <div className="flex flex-col gap-0.5 min-w-0">
                   {visibles.map((it) => {
                     const contenido = (
-                      <span className="block truncate rounded px-1 py-0.5 text-[10px] font-medium leading-tight" style={fondoSuave(it.colorVar, it.bgVar)}>
-                        {it.hora ? `${it.hora} ` : it.nota?.todoElDia ? "Todo el día · " : ""}
-                        {it.titulo}
+                      <span className="block rounded px-1.5 py-1 leading-tight" style={fondoSuave(it.colorVar, it.bgVar)}>
+                        <span className="block text-[11px] font-semibold line-clamp-2 break-words">{it.titulo}</span>
+                        <span className="block text-[10px] opacity-80">{key.slice(8, 10)}/{key.slice(5, 7)}/{key.slice(0, 4)}</span>
+                        <span className="block text-[10px] opacity-80">{it.hora ? `${it.hora} hs` : "Todo el día"}</span>
                       </span>
                     );
                     return it.href ? (
