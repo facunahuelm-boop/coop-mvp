@@ -1227,6 +1227,9 @@ export function MonthCalendar({
                 onDragLeave={() => setDiaResaltado((actual) => (actual === key ? null : actual))}
                 onDrop={(e) => soltarEnDia(e, key)}
                 title={items.length === 0 ? "Doble clic para agregar una actividad" : undefined}
+                // Día con algo agendado: el contorno de la celda toma el color
+                // de la primera actividad (no se pinta todo el recuadro).
+                style={items.length > 0 && !esDestinoArrastre && !esSeleccionado ? { borderColor: `var(${items[0].colorVar})`, borderWidth: 2 } : undefined}
                 className={`group relative rounded-lg border transition-colors min-h-[76px] p-1 flex flex-col gap-0.5 ${
                   esDestinoArrastre
                     ? "border-[var(--color-verde)] bg-[var(--color-verde-bg)]"
