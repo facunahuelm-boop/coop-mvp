@@ -1086,7 +1086,8 @@ export default async function DashboardPage() {
         <BandejaAtencion items={atencion} />
       </div>
 
-      <div className="mt-6">
+      {/* Celular (16/10): sin este bloque — el asistente sigue en el Menú. */}
+      <div className="mt-6 hidden sm:block">
         <SectionTitle>Preguntale a la IA</SectionTitle>
         <Card className="flex items-center justify-between">
           <p className="text-sm text-ink-muted">¿Cómo viene la obra? ¿Qué tenemos que controlar esta semana?</p>

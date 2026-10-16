@@ -4,6 +4,15 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Vista de celular más limpia (16/10)
+
+- Inicio: las tarjetas pasan a un mosaico de 2 columnas, compactas (sin «Ver detalle →» ni la línea extra: se toca la tarjeta entera). La página baja de ~3600 px a menos de la mitad. Sin el bloque «Preguntale a la IA» (sigue en el Menú). En escritorio, igual que antes.
+- Menú («Más» → «Menú»): la persona arriba (foto, nombre, rol, ver perfil) y cada grupo como sección plegable con su ícono de color. Sin «Inicio», que ya está abajo.
+- Barra de abajo: Inicio, Calendario, Comisiones, Alertas (Avisos para el socio) y Menú, con fondo translúcido.
+- Barra de arriba: logo y nombre (llevan al Inicio), lupa del Buscador, QR y sólo la foto de la cuenta.
+- Calendario: sin la leyenda de colores ni los filtros de categoría y comisión (quedan Mes/Agenda y «Sólo lo mío»).
+- Archivos: `components/DashboardCard.tsx`, `Nav.tsx`, `MiCuenta.tsx`, `MonthCalendar.tsx`, `app/(app)/mas/page.tsx`, `app/(app)/dashboard/page.tsx`.
+
 ## Inicio: «Mis comisiones» como tarjeta mínima con pop-up (16/10)
 
 - Cada comisión del núcleo en Inicio muestra solo el nombre y cuántas tareas tiene pendientes (en rojo si hay vencidas). Al tocarla se abre un pop-up con la función, si la coordina o la integra, lo próximo que vence y tres botones:

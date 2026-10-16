@@ -170,7 +170,9 @@ function isoDate(d: Dayjs) {
  * módulos + las 7 nuevas de la actividad enriquecida). */
 function LeyendaCategorias() {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-faint mb-2">
+    // Celular (16/10, pedido explícito): sin leyenda — ocupa media pantalla y
+    // cada actividad ya muestra su nombre. Sólo en escritorio.
+    <div className="hidden md:flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-faint mb-2">
       {CATEGORIAS_EVENTO.map((cat) => (
         <span key={cat} className="inline-flex items-center gap-1">
           <span className="h-2 w-2 rounded-full shrink-0" style={soloDot(CATEGORIA_EVENTO_COLOR_VAR[cat])} />
@@ -1158,7 +1160,7 @@ export function MonthCalendar({
           value={filtroCategoria}
           onChange={(e) => setFiltroCategoria(e.target.value)}
           aria-label="Filtrar por categoría"
-          className={inputClass + " !w-auto !py-1 text-xs"}
+          className={inputClass + " hidden sm:block !w-auto !py-1 text-xs"}
         >
           <option value="">Todas las categorías</option>
           {CATEGORIAS_ACTIVIDAD.map((c) => (
@@ -1173,7 +1175,7 @@ export function MonthCalendar({
             value={filtroComision}
             onChange={(e) => setFiltroComision(e.target.value)}
             aria-label="Filtrar por comisión"
-            className={inputClass + " !w-auto !py-1 text-xs"}
+            className={inputClass + " hidden sm:block !w-auto !py-1 text-xs"}
           >
             <option value="">Todas las comisiones</option>
             {comisiones.map((c) => (

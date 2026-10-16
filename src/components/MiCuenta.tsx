@@ -41,11 +41,8 @@ export function MiCuenta({ data, size = 32, variant = "desktop" }: { data: MiCue
   // distintos — solo cambia el envoltorio visual del botón que lo abre.
   const trigger =
     variant === "mobile" ? (
-      <span className="flex items-center gap-2">
-        <span className="text-right leading-tight">
-          <span className="block text-xs text-white">{primerNombre}</span>
-          <span className="block text-[10px] text-white/50">{ROLE_LABELS[data.rol]}</span>
-        </span>
+      // Celular (16/10, "más limpio"): sólo la foto; nombre y rol están adentro de Mi cuenta.
+      <span className="flex items-center" aria-label={`Mi cuenta: ${primerNombre}`}>
         <Avatar url={data.avatarUrl} nombre={data.nombre} size={size} className="border-white/30" />
       </span>
     ) : (

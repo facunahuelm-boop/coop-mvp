@@ -22,7 +22,9 @@ import { CardModalTrigger } from "./DashboardCardClient";
 //    falta duplicar esa pantalla en un modal (ej: Documentos, Comunicaciones).
 
 export function DashboardGrid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch">{children}</div>;
+  // Celular (16/10, pedido explícito: "más limpio"): mosaico de 2 columnas con
+  // tarjetas compactas en vez de una tarjeta gigante por fila.
+  return <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 items-stretch">{children}</div>;
 }
 
 // Sección con título (ej. "Comisiones") + grilla propia adentro — para no
@@ -32,8 +34,8 @@ export function DashboardGrid({ children }: { children: ReactNode }) {
 export function DashboardSection({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-base font-bold uppercase tracking-wide text-ink-faint">{title}</h2>
+      <div className="flex items-center justify-between mb-2 sm:mb-3">
+        <h2 className="text-sm sm:text-base font-bold uppercase tracking-wide text-ink-faint">{title}</h2>
         {action}
       </div>
       {children}
@@ -56,7 +58,7 @@ const ESTADO_STYLES: Record<EstadoVisual, { texto: string; cls: string; icon: st
 export function EstadoTag({ estado, texto }: { estado: EstadoVisual; texto?: string }) {
   const e = ESTADO_STYLES[estado];
   return (
-    <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${e.cls}`}>
+    <span className={`inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold ${e.cls}`}>
       <span aria-hidden>{e.icon}</span>
       {texto ?? e.texto}
     </span>
@@ -128,11 +130,13 @@ export function SummaryCard({
     );
   }
   return (
-    <div className="rounded-3xl border border-border bg-surface shadow-[var(--shadow-sm)] p-5 h-full min-h-[140px] flex flex-col gap-2 transition-all group-hover:shadow-[var(--shadow-lg)] group-hover:border-[var(--color-brand-700)]/30 group-focus-visible:shadow-[var(--shadow-lg)]">
-      <div className="flex items-center gap-2.5 text-sm font-semibold text-ink-muted uppercase tracking-wide">
+    // Celular (16/10): tarjeta compacta — sin el "Ver detalle →" (se toca la
+    // tarjeta entera) ni la línea extra, título en minúscula y dato más chico.
+    <div className="rounded-2xl sm:rounded-3xl border border-border bg-surface shadow-[var(--shadow-sm)] p-3.5 sm:p-5 h-full sm:min-h-[140px] flex flex-col gap-1.5 sm:gap-2 transition-all active:scale-[.98] group-hover:shadow-[var(--shadow-lg)] group-hover:border-[var(--color-brand-700)]/30 group-focus-visible:shadow-[var(--shadow-lg)]">
+      <div className="flex items-center gap-2 sm:gap-2.5 text-[13px] sm:text-sm font-semibold text-ink-muted sm:uppercase sm:tracking-wide">
         {accent ? (
           <span
-            className="inline-flex items-center justify-center w-9 h-9 rounded-full shrink-0 text-base"
+            className="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full shrink-0 text-base"
             style={{ background: ACCENT_BG[accent], color: ACCENT_FG[accent] }}
             aria-hidden
           >
@@ -148,17 +152,17 @@ export function SummaryCard({
       ) : (
         <>
           <div
-            className={`text-2xl sm:text-3xl font-bold leading-tight truncate ${accent ? "" : "text-ink"}`}
+            className={`text-xl sm:text-3xl font-bold leading-tight truncate ${accent ? "" : "text-ink"}`}
             style={accent ? { color: ACCENT_FG[accent] } : undefined}
           >
             {value}
           </div>
-          {status && <div>{status}</div>}
-          {hint && <p className="text-sm text-ink-faint truncate">{hint}</p>}
+          {status && <div className="leading-snug">{status}</div>}
+          {hint && <p className="hidden sm:block text-sm text-ink-faint truncate">{hint}</p>}
         </>
       )}
       {action && (
-        <div className="text-sm font-semibold text-[var(--color-brand-800)] mt-auto pt-1.5">{error ? "Reintentar" : action}</div>
+        <div className="hidden sm:block text-sm font-semibold text-[var(--color-brand-800)] mt-auto pt-1.5">{error ? "Reintentar" : action}</div>
       )}
     </div>
   );

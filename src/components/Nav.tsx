@@ -458,16 +458,20 @@ export function TopBar({ user, miCuenta }: { user: SessionUser; miCuenta: MiCuen
       className="md:hidden sticky top-0 z-20 text-white px-4 py-3 flex items-center justify-between"
       style={{ backgroundColor: color_primario }}
     >
-      <div className="flex items-center gap-2">
-        <img src={logo_url || "/logo-coova.png"} alt={nombre} className="h-7 w-7 rounded-full object-cover" />
-        <span className="text-sm font-bold">{nombre}</span>
-      </div>
+      <Link href="/dashboard" className="flex min-w-0 items-center gap-2">
+        <img src={logo_url || "/logo-coova.png"} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+        <span className="truncate text-[15px] font-bold">{nombre}</span>
+      </Link>
       {/* "Mi cuenta" (rediseño 17/09, reemplaza el punto 13 anterior): en
           celular no hay espacio para el buscador+campana+cuenta juntos como
           en escritorio (ver TopBarDesktop), pero sí para este único acceso
           compacto — mismo Avatar de siempre, ahora abre el modal "Mi cuenta"
           en vez de navegar a otra página. */}
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5">
+        {/* Celular (16/10): el Buscador sale de la barra de abajo y queda acá, como lupa. */}
+        <Link href="/buscar" aria-label="Buscar" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white/90 hover:bg-white/10">
+          <Search size={20} />
+        </Link>
         {user.etapa === "obra" && <EscanerQrBoton puedeGenerar={esDirectiva(user)} variante="oscuro" />}
         {miCuenta ? (
           <MiCuenta data={miCuenta} size={30} variant="mobile" />
@@ -556,23 +560,23 @@ export function BottomNav({ user, esSocio = false }: { user: SessionUser; esSoci
   // Prioriza en celular lo que cada persona usa todos los días. Fase 1D: el
   // socio común tiene su propia barra (Inicio = su portal, sus horas en
   // obra, sus avisos y documentos); el resto, la de siempre.
+  // Celular (16/10, pedido explícito "más fácil"): lo de todos los días —
+  // Inicio, Calendario, Comisiones y Alertas/Avisos — y el Menú con todo lo demás.
+  // El Buscador pasó a la lupa de la barra de arriba.
   const primary =
     user.rol === "socio"
-      ? ["/dashboard", user.etapa === "obra" ? "/mis-horas" : "/calendario", "/notificaciones", "/documentos"]
-      : ["/dashboard", "/buscar", "/documentos", "/alertas"];
+      ? ["/dashboard", user.etapa === "obra" ? "/mis-horas" : "/calendario", "/comisiones", "/notificaciones"]
+      : ["/dashboard", "/calendario", "/comisiones", "/alertas"];
   const disponibles = itemsAccesibles(user, esSocio);
   const items = primary.map((h) => disponibles.find((i) => i.href === h)).filter((i): i is NavItem => Boolean(i));
   const acento = user.organizacion.color_secundario || user.organizacion.color_primario;
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-surface border-t border-ink/10 safe-bottom">
-      <div className="flex text-ink/45">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-surface/95 backdrop-blur border-t border-ink/10 safe-bottom shadow-[0_-4px_16px_rgba(0,0,0,.04)]">
+      <div className="flex text-ink/50">
         {items.map((i) => (
           <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} variant="bottom" />
         ))}
-        <Link href="/mas" className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[11px]">
-          <Menu size={ICON_SIZE} className="mx-auto" />
-          Más
-        </Link>
+        <NavLink href="/mas" icon={<Menu size={ICON_SIZE} />} label="Menú" accentColor={acento} variant="bottom" />
       </div>
     </nav>
   );
