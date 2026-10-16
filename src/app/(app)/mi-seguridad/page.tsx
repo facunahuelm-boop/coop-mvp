@@ -30,10 +30,10 @@ export default async function MiSeguridadPage({ searchParams }: { searchParams: 
   const respaldosRestantes = fila?.totp_respaldo ? (JSON.parse(fila.totp_respaldo) as string[]).length : 0;
 
   return (
-    <div className="space-y-5 text-[16px]">
+    <div className="space-y-5 text-[15px]">
       <PageHeader title="Mi seguridad" subtitle="Cómo entrás a COOVA y cómo proteger tu cuenta" />
       {obligatorio && !activo && (
-        <p className="rounded-xl bg-[var(--color-amarillo-bg)] px-4 py-3 text-[16px] text-ink">
+        <p className="rounded-xl bg-[var(--color-amarillo-bg)] px-4 py-3 text-[15px] text-ink">
           La cooperativa pide que las cuentas de {user.rol === "tesoreria" ? "tesorería" : "conducción"} tengan la verificación en dos pasos. Activala para seguir usando COOVA.
         </p>
       )}

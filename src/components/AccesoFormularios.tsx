@@ -12,27 +12,27 @@ function Marco({ titulo, children }: { titulo: string; children: React.ReactNode
     <div className="min-h-full flex-1 flex items-center justify-center bg-[var(--color-page-bg)] px-4 py-10">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-ink text-center mb-4">{titulo}</h1>
-        <div className="bg-surface rounded-2xl shadow-sm border border-border p-5 space-y-4 text-[16px]">{children}</div>
+        <div className="bg-surface rounded-2xl shadow-sm border border-border p-5 space-y-4 text-[15px]">{children}</div>
         <Link href="/login" className="block text-center text-[15px] text-ink-muted hover:underline mt-4">← Volver al ingreso</Link>
       </div>
     </div>
   );
 }
 
-const botonGrande = "w-full rounded-xl bg-[var(--color-brand-800)] text-white py-3 text-[16px] font-semibold disabled:opacity-60 min-h-[48px]";
+const botonGrande = "w-full rounded-xl bg-[var(--color-brand-800)] text-white py-3 text-[15px] font-semibold disabled:opacity-60 min-h-[40px]";
 
 export function PedirLinkForm() {
   const [estado, accion, pendiente] = useActionState(solicitarLinkAccesoAction, undefined);
   return (
     <Marco titulo="Entrar sin contraseña">
       {estado?.ok ? (
-        <p className="text-[16px] text-ink" role="status">{estado.mensaje}</p>
+        <p className="text-[15px] text-ink" role="status">{estado.mensaje}</p>
       ) : (
         <form action={accion} className="space-y-4">
           <p className="text-ink">Escribí tu email y te mandamos un link para entrar. No hace falta recordar ninguna contraseña.</p>
           <div>
             <Label>Tu email</Label>
-            <input name="email" type="email" required autoComplete="email" className={`${inputClass} !text-[16px] !py-3`} placeholder="tu@email.com" />
+            <input name="email" type="email" required autoComplete="email" className={`${inputClass} !text-[15px] !py-3`} placeholder="tu@email.com" />
           </div>
           {estado?.error && <p className="text-[15px] text-[var(--color-rojo)]">{estado.error}</p>}
           <button className={botonGrande} disabled={pendiente}>{pendiente ? "Enviando…" : "Mandarme el link"}</button>

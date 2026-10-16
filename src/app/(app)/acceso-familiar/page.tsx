@@ -7,7 +7,7 @@ import { FormularioEnModal } from "@/components/FormularioEnModal";
 import { darAccesoFormAction, revocarAccesoFormAction } from "@/lib/actions/accesoDelegado";
 import { delegadosDeSocio, sociosQueAyudo } from "@/lib/accesoDelegado";
 
-const botonPrincipal = "inline-flex items-center justify-center rounded-xl bg-[var(--color-brand-800)] px-5 py-3 text-[16px] font-semibold text-white min-h-[48px]";
+const botonPrincipal = "inline-flex items-center justify-center rounded-xl bg-[var(--color-brand-800)] px-5 py-3 text-[15px] font-semibold text-white min-h-[40px]";
 const botonLink = "text-[15px] font-semibold text-ink-muted underline underline-offset-2";
 const dmy = (f: string) => f.slice(0, 10).split("-").reverse().join("/");
 
@@ -19,7 +19,7 @@ export default async function AccesoFamiliarPage() {
   const [delegados, ayudo] = await Promise.all([socio ? delegadosDeSocio(socio.id) : Promise.resolve([]), sociosQueAyudo(user.id)]);
 
   return (
-    <div className="max-w-3xl space-y-5 text-[16px]">
+    <div className="max-w-3xl space-y-5 text-[15px]">
       <PageHeader title="Acceso para un familiar" subtitle="Alguien de confianza puede ayudarte a ver tus cuotas, tus horas y los avisos" />
 
       {ayudo.length > 0 && (

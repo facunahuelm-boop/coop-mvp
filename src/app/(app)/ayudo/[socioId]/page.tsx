@@ -47,7 +47,7 @@ export default async function AyudoPage({ params }: { params: Promise<{ socioId:
   const nombre = acceso.socio_nombre.split(" ")[0];
 
   return (
-    <div className="max-w-3xl space-y-5 text-[16px]">
+    <div className="max-w-3xl space-y-5 text-[15px]">
       <PageHeader title={`Estás ayudando a ${acceso.socio_nombre}`} subtitle="Lo que ves y hacés acá queda registrado en su nombre" />
 
       <Card>
@@ -99,7 +99,7 @@ export default async function AyudoPage({ params }: { params: Promise<{ socioId:
                       ocultos={{ asignacion_id: t.id }}
                       textoConfirmar="Enviar aviso"
                       mensajeExito="Aviso enviado a la Comisión de Trabajo."
-                      claseBoton="inline-flex items-center justify-center rounded-xl border border-border bg-surface px-4 py-3 text-[15px] font-semibold text-ink hover:bg-surface-sunken min-h-[48px]"
+                      claseBoton="inline-flex items-center justify-center rounded-xl border border-border bg-surface px-4 py-3 text-[15px] font-semibold text-ink hover:bg-surface-sunken min-h-[40px]"
                     >
                       <label className="block">
                         <Label required>¿Por qué no puede ir?</Label>

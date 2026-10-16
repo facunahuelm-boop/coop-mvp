@@ -91,7 +91,7 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
       )}
       <Card className="mb-6">
         {aviso.urgente ? <Badge color="rojo">Urgente</Badge> : null}
-        <div className="mt-2 whitespace-pre-line text-[16px] leading-relaxed text-ink">{aviso.cuerpo}</div>
+        <div className="mt-2 whitespace-pre-line text-[15px] leading-relaxed text-ink">{aviso.cuerpo}</div>
       </Card>
 
       {emisor && (

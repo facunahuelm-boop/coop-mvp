@@ -4,6 +4,11 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## «Mis horas» en tarjetas y letra más chica en las pantallas del socio (15/10)
+
+- `/mis-horas`: semana, saldo, próximos turnos (con «Avisar que no puedo ir» dentro del pop-up), lo que pasó, libreta y seguridad pasan a tarjetas con pop-up.
+- Letra: en las pantallas del socio (avisos, ayudo, reservas, acceso familiar, mi seguridad, encuestas, bandeja de atención, seguridad de la cuenta) bajan los tamaños de 16–18 px a 15 px/base y los botones de 48 a 40 px de alto. Login y fichar con QR quedan como estaban (se usan parado en la obra).
+
 ## Mi vivienda en tarjetas, comisiones del socio, carga rápida e invitación por núcleo (15/10)
 
 - «Mi vivienda» pasa a tarjetas con pop-up (cuenta, horas, ¿en qué estamos?, asamblea, avisos, ayuda) y letra normal.

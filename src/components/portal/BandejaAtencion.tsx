@@ -14,7 +14,7 @@ export function BandejaAtencion({ items }: { items: ItemAtencion[] }) {
     <section className="mb-6" aria-labelledby="atencion-titulo">
       <h2 id="atencion-titulo" className="text-lg font-bold text-ink mb-2">Lo que necesita tu atención</h2>
       {items.length === 0 ? (
-        <p className="flex items-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3 text-[16px] text-ink">
+        <p className="flex items-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3 text-[15px] text-ink">
           <CheckCircle2 size={20} className="text-[var(--color-verde)]" aria-hidden /> Está todo al día. No hay nada pendiente para vos.
         </p>
       ) : (
@@ -22,7 +22,7 @@ export function BandejaAtencion({ items }: { items: ItemAtencion[] }) {
           {items.map((i, n) => (
             <li key={n} className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border border-l-4 ${BORDE[i.tono]} bg-surface px-4 py-3`}>
               <div className="min-w-0">
-                <p className="text-[16px] font-semibold text-ink">{i.texto}</p>
+                <p className="text-[15px] font-semibold text-ink">{i.texto}</p>
                 {i.detalle && <p className="text-[15px] text-ink-muted">{i.detalle}</p>}
               </div>
               <Link

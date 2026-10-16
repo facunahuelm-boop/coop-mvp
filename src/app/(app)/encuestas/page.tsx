@@ -9,7 +9,7 @@ import { crearEncuestaFormAction, responderEncuestaFormAction, cerrarEncuestaFor
 type Encuesta = { id: number; pregunta: string; opciones: string[]; multiple: number; anonima: number; cierra_en: string | null; estado: string; creado_en: string };
 type Resp = { encuesta_id: number; user_id: number; opciones: string[]; comentario: string | null; nombre: string };
 
-const botonPrincipal = "inline-flex items-center justify-center rounded-xl bg-[var(--color-brand-800)] px-5 py-3 text-[16px] font-semibold text-white min-h-[48px]";
+const botonPrincipal = "inline-flex items-center justify-center rounded-xl bg-[var(--color-brand-800)] px-5 py-3 text-[15px] font-semibold text-white min-h-[40px]";
 const botonLink = "text-sm font-semibold text-ink-muted underline underline-offset-2";
 const dmy = (f: string | null) => (f ? f.slice(0, 10).split("-").reverse().join("/") : "");
 
@@ -26,7 +26,7 @@ export default async function EncuestasPage() {
   const abierta = (e: Encuesta) => e.estado === "abierta" && (!e.cierra_en || e.cierra_en >= hoy);
 
   return (
-    <div className="max-w-3xl space-y-5 text-[16px]">
+    <div className="max-w-3xl space-y-5 text-[15px]">
       <PageHeader title="Encuestas" subtitle="Preguntas rápidas para saber qué piensa la cooperativa" />
       {emite && (
         <FormularioEnModal textoBoton="+ Nueva encuesta" claseBoton={botonPrincipal} titulo="Nueva encuesta" action={crearEncuestaFormAction} textoConfirmar="Enviar a todos">
@@ -78,7 +78,7 @@ export default async function EncuestasPage() {
                   <fieldset className="space-y-2">
                     <legend className="sr-only">Opciones</legend>
                     {e.opciones.map((o) => (
-                      <label key={o} className="flex items-center gap-3 rounded-xl border border-border px-3 py-3 text-[16px]">
+                      <label key={o} className="flex items-center gap-3 rounded-xl border border-border px-3 py-3 text-[15px]">
                         <input type={e.multiple ? "checkbox" : "radio"} name="opcion" value={o} defaultChecked={mia?.opciones.includes(o)} className="h-5 w-5" /> {o}
                       </label>
                     ))}

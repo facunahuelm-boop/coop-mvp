@@ -5,6 +5,9 @@ import { Card, PageHeader, EmptyState, Badge, Label, inputClass } from "@/compon
 import { FormularioEnModal } from "@/components/FormularioEnModal";
 import { avisarAusenciaFormAction } from "@/lib/actions/asistenciaHoras";
 import { cargarLibretas, nucleoDelUsuario, ESTADO_ASISTENCIA_LABEL } from "@/lib/libretaHoras";
+import { Clock, Scale, CalendarClock, History, BookOpen, ShieldCheck } from "lucide-react";
+import { DashboardGrid, DashboardSection, DashboardCardModal } from "@/components/DashboardCard";
+import { DashboardSummaryCard } from "@/components/DashboardSummaryCard";
 import { hoyEnUruguay, sumarDias, textoDia, textoHoras, textoSemana, textoSaldo } from "@/lib/horasObra";
 
 /**
@@ -56,154 +59,168 @@ export default async function MisHorasPage() {
     : [];
   const hayControlInduccion = !!(await get<{ id: number }>(`SELECT id FROM inducciones_seguridad WHERE anulado_en IS NULL LIMIT 1`).catch(() => undefined));
 
+  const botonAviso = "inline-flex items-center justify-center rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold text-ink hover:bg-surface-sunken";
+  const sigTurno = proximos[0];
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 text-[15px]">
       <PageHeader title="Mis horas" subtitle={nucleo ? `Núcleo ${nucleo.nombre}` : undefined} />
-      <p className="mb-4 rounded-xl bg-surface-sunken px-4 py-3 text-[16px] text-ink">
+      <p className="rounded-xl bg-surface-sunken px-4 py-2.5 text-sm text-ink">
         En la obra: escaneá con la cámara del celular el <b>QR del día</b> al llegar y al irte. Tus horas se anotan solas.
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card>
-          <p className="text-[15px] text-ink-muted">Esta semana</p>
-          {semana ? (
-            <>
-              <p className="text-3xl font-bold text-ink mt-1">
-                {textoHoras(semana.realMin)} <span className="text-xl font-semibold text-ink-muted">de {textoHoras(semana.exigibleMin)}</span>
-              </p>
-              <p className="text-lg mt-1 text-ink">
-                {semana.faltanMin > 0 ? `Te faltan ${textoHoras(semana.faltanMin)}.` : "¡Completaste la semana!"}
-              </p>
-              {semana.licenciaMin > 0 && <p className="text-[15px] text-ink-muted mt-1">Tenés licencia aprobada esta semana.</p>}
-            </>
-          ) : (
-            <p className="text-lg text-ink mt-1">No hay horas para esta semana.</p>
-          )}
-        </Card>
-        <Card>
-          <p className="text-[15px] text-ink-muted">Tu saldo de horas</p>
-          <p className={`text-3xl font-bold mt-1 ${saldo.color === "rojo" ? "text-[var(--color-rojo)]" : saldo.color === "verde" ? "text-[var(--color-verde)]" : "text-ink"}`}>
-            {saldo.texto}
-          </p>
-          <p className="text-[15px] text-ink-muted mt-1">Suma de las semanas ya cerradas.</p>
-        </Card>
-      </div>
-
-      <section>
-        <h2 className="text-lg font-bold text-ink mb-2">Tus próximos turnos</h2>
-        {proximos.length === 0 ? (
-          <Card>
-            <EmptyState>No tenés turnos asignados en las próximas tres semanas.</EmptyState>
-          </Card>
-        ) : (
-          <ul className="space-y-3">
-            {proximos.map((t) => (
-              <li key={t.id} className="rounded-2xl border border-border bg-surface p-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-lg font-bold text-ink">{t.fecha === hoy ? "Hoy" : textoDia(t.fecha)}</p>
-                  <p className="text-[15px] text-ink">
-                    De {t.hora_inicio} a {t.hora_fin} hs · {textoHoras(Number(t.minutos))}
-                  </p>
-                  {t.aviso_estado === "pendiente" && <p className="text-[15px] text-[var(--color-amarillo)] mt-1">Avisaste que no podés ir (la comisión lo está revisando).</p>}
-                  {t.aviso_estado === "aprobado" && <p className="text-[15px] text-[var(--color-verde)] mt-1">Tu falta quedó justificada.</p>}
-                  {t.aviso_estado === "rechazado" && (
-                    <p className="text-[15px] text-[var(--color-rojo)] mt-1">Tu aviso no fue aceptado{t.aviso_respuesta ? `: ${t.aviso_respuesta}` : "."}</p>
-                  )}
-                </div>
-                {!t.aviso_estado || t.aviso_estado === "rechazado" ? (
-                  <FormularioEnModal
-                    textoBoton="Avisar que no puedo ir"
-                    titulo={`No puedo ir el ${textoDia(t.fecha).toLowerCase()}`}
-                    descripcion="La Comisión de Trabajo va a recibir tu aviso. Si es justificado, esas horas no te quedan como deuda."
-                    action={avisarAusenciaFormAction}
-                    ocultos={{ asignacion_id: t.id }}
-                    textoConfirmar="Enviar aviso"
-                    mensajeExito="Aviso enviado a la Comisión de Trabajo."
-                    claseBoton="inline-flex items-center justify-center rounded-xl border border-border bg-surface px-4 py-3 text-[15px] font-semibold text-ink hover:bg-surface-sunken min-h-[48px]"
-                  >
-                    <label className="block">
-                      <Label required>¿Por qué no podés ir?</Label>
-                      <textarea name="motivo" required rows={3} maxLength={500} className={inputClass} placeholder="Ej.: tengo consulta médica" />
-                    </label>
-                    <label className="block">
-                      <Label>Certificado o comprobante (opcional)</Label>
-                      <input type="file" name="adjunto" accept="image/*,application/pdf" className="block w-full text-[15px]" />
-                    </label>
-                  </FormularioEnModal>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {turnosPasados.length > 0 && (
-        <section>
-          <h2 className="text-lg font-bold text-ink mb-2">Lo que ya pasó esta semana</h2>
-          <Card>
-            <ul className="divide-y divide-border">
-              {turnosPasados.map((t) => (
-                <li key={t.id} className="py-2 flex flex-wrap items-center justify-between gap-2 text-[15px]">
-                  <span>{textoDia(t.fecha)} · {t.hora_inicio}–{t.hora_fin}</span>
-                  <Badge color={t.estado === "ausente_injustificada" ? "rojo" : t.estado === "ausente_justificada" ? "azul" : "verde"}>
-                    {ESTADO_ASISTENCIA_LABEL[t.estado] ?? t.estado}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </section>
-      )}
-
-      <section>
-        <h2 className="text-lg font-bold text-ink mb-2">Tu libreta de horas</h2>
-        {!libreta || libreta.semanas.length === 0 ? (
-          <Card>
-            <EmptyState>Todavía no hay semanas cerradas.</EmptyState>
-          </Card>
-        ) : (
-          <Card>
-            <ul className="divide-y divide-border">
-              {libreta.semanas.slice(0, 12).map((s) => {
-                const t = textoSaldo(s.saldoMin);
-                return (
-                  <li key={s.semana} className="py-2.5 flex flex-wrap items-center justify-between gap-2 text-[15px]">
-                    <span>
-                      {textoSemana(s.semana)}
-                      <span className="block text-ink-muted">Hiciste {textoHoras(s.realMin)}{s.justificadoMin ? ` · ${textoHoras(s.justificadoMin)} justificadas` : ""}</span>
-                    </span>
-                    <Badge color={t.color}>{t.texto}</Badge>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-        )}
-        {libreta && libreta.nucleo.horasAnteriores > 0 && (
-          <p className="text-[15px] text-ink-muted mt-2">Además, en el registro anterior tenés {Math.round(libreta.nucleo.horasAnteriores)} h cargadas.</p>
-        )}
-      </section>
-
-      {socioPropio && (hayControlInduccion || epp.length > 0) && (
-        <section>
-          <h2 className="text-lg font-bold text-ink mb-2">Tu seguridad en la obra</h2>
-          <Card>
-            <p className="text-[15px] text-ink">
-              {induccion
-                ? `Hiciste la inducción de seguridad el ${induccion.fecha.slice(0, 10).split("-").reverse().join("/")}.`
-                : "Todavía no tenés registrada la inducción de seguridad. Hablá con la Comisión de Seguridad antes de ir a la obra."}
-            </p>
-            {epp.length > 0 && (
-              <p className="text-[15px] text-ink mt-2">
-                Elementos de protección que recibiste: {epp.map((e) => e.elemento).join(", ")}.{" "}
-                <a href={`/api/seguridad/constancia-epp/s-${socioPropio.id}`} target="_blank" rel="noopener" className="underline underline-offset-2">
-                  Ver la constancia
-                </a>
-              </p>
+      <DashboardSection title="Mi resumen">
+        <DashboardGrid>
+          <DashboardCardModal
+            title="Esta semana"
+            trigger={
+              <DashboardSummaryCard
+                icon={<Clock size={18} />}
+                title="Esta semana"
+                tone="azul"
+                value={semana ? `${textoHoras(semana.realMin)} / ${textoHoras(semana.exigibleMin)}` : "—"}
+                description={semana ? (semana.faltanMin > 0 ? `Te faltan ${textoHoras(semana.faltanMin)}` : "Semana completa") : "No hay horas esta semana"}
+              />
+            }
+          >
+            {semana ? (
+              <div className="space-y-2 text-sm text-ink">
+                <p className="text-2xl font-bold">{textoHoras(semana.realMin)} <span className="text-base font-semibold text-ink-muted">de {textoHoras(semana.exigibleMin)}</span></p>
+                <p>{semana.faltanMin > 0 ? `Te faltan ${textoHoras(semana.faltanMin)}.` : "¡Completaste la semana!"}</p>
+                {semana.licenciaMin > 0 && <p className="text-ink-muted">Tenés licencia aprobada esta semana.</p>}
+              </div>
+            ) : (
+              <p className="text-sm text-ink">No hay horas para esta semana.</p>
             )}
-          </Card>
-        </section>
-      )}
+          </DashboardCardModal>
+
+          <DashboardCardModal
+            title="Tu saldo de horas"
+            trigger={<DashboardSummaryCard icon={<Scale size={18} />} title="Mi saldo" tone={saldo.color === "rojo" ? "rojo" : saldo.color === "verde" ? "verde" : "neutro"} value={saldo.texto} description="Semanas ya cerradas" />}
+          >
+            <p className={`text-2xl font-bold ${saldo.color === "rojo" ? "text-[var(--color-rojo)]" : saldo.color === "verde" ? "text-[var(--color-verde)]" : "text-ink"}`}>{saldo.texto}</p>
+            <p className="mt-1 text-sm text-ink-muted">Suma de las semanas ya cerradas.</p>
+            {libreta && libreta.nucleo.horasAnteriores > 0 && <p className="mt-2 text-sm text-ink-muted">Además, en el registro anterior tenés {Math.round(libreta.nucleo.horasAnteriores)} h cargadas.</p>}
+          </DashboardCardModal>
+
+          <DashboardCardModal
+            title="Tus próximos turnos"
+            size="lg"
+            trigger={
+              <DashboardSummaryCard
+                icon={<CalendarClock size={18} />}
+                title="Próximos turnos"
+                tone="teal"
+                value={sigTurno ? (sigTurno.fecha === hoy ? "Hoy" : textoDia(sigTurno.fecha)) : "Sin turnos"}
+                description={sigTurno ? `${sigTurno.hora_inicio} a ${sigTurno.hora_fin} hs` : "Próximas tres semanas"}
+              />
+            }
+          >
+            {proximos.length === 0 ? (
+              <p className="text-sm text-ink">No tenés turnos asignados en las próximas tres semanas.</p>
+            ) : (
+              <ul className="space-y-2">
+                {proximos.map((t) => (
+                  <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3">
+                    <div className="text-sm">
+                      <p className="font-bold text-ink">{t.fecha === hoy ? "Hoy" : textoDia(t.fecha)}</p>
+                      <p className="text-ink">De {t.hora_inicio} a {t.hora_fin} hs · {textoHoras(Number(t.minutos))}</p>
+                      {t.aviso_estado === "pendiente" && <p className="mt-1 text-[var(--color-amarillo)]">Avisaste que no podés ir (la comisión lo está revisando).</p>}
+                      {t.aviso_estado === "aprobado" && <p className="mt-1 text-[var(--color-verde)]">Tu falta quedó justificada.</p>}
+                      {t.aviso_estado === "rechazado" && <p className="mt-1 text-[var(--color-rojo)]">Tu aviso no fue aceptado{t.aviso_respuesta ? `: ${t.aviso_respuesta}` : "."}</p>}
+                    </div>
+                    {!t.aviso_estado || t.aviso_estado === "rechazado" ? (
+                      <FormularioEnModal
+                        enLinea
+                        textoBoton="Avisar que no puedo ir"
+                        titulo={`No puedo ir el ${textoDia(t.fecha).toLowerCase()}`}
+                        descripcion="La Comisión de Trabajo va a recibir tu aviso. Si es justificado, esas horas no te quedan como deuda."
+                        action={avisarAusenciaFormAction}
+                        ocultos={{ asignacion_id: t.id }}
+                        textoConfirmar="Enviar aviso"
+                        mensajeExito="Aviso enviado a la Comisión de Trabajo."
+                        claseBoton={botonAviso}
+                      >
+                        <label className="block">
+                          <Label required>¿Por qué no podés ir?</Label>
+                          <textarea name="motivo" required rows={3} maxLength={500} className={inputClass} placeholder="Ej.: tengo consulta médica" />
+                        </label>
+                        <label className="block">
+                          <Label>Certificado o comprobante (opcional)</Label>
+                          <input type="file" name="adjunto" accept="image/*,application/pdf" className="block w-full text-sm" />
+                        </label>
+                      </FormularioEnModal>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DashboardCardModal>
+
+          <DashboardCardModal
+            title="Lo que ya pasó esta semana"
+            trigger={<DashboardSummaryCard icon={<History size={18} />} title="Esta semana, lo que pasó" tone="violeta" value={`${turnosPasados.length} turno${turnosPasados.length === 1 ? "" : "s"}`} description="Asistencia de los días que ya pasaron" />}
+          >
+            {turnosPasados.length === 0 ? (
+              <p className="text-sm text-ink">Todavía no pasó ningún turno esta semana.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {turnosPasados.map((t) => (
+                  <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                    <span>{textoDia(t.fecha)} · {t.hora_inicio}–{t.hora_fin}</span>
+                    <Badge color={t.estado === "ausente_injustificada" ? "rojo" : t.estado === "ausente_justificada" ? "azul" : "verde"}>{ESTADO_ASISTENCIA_LABEL[t.estado] ?? t.estado}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DashboardCardModal>
+
+          <DashboardCardModal
+            title="Tu libreta de horas"
+            size="lg"
+            trigger={<DashboardSummaryCard icon={<BookOpen size={18} />} title="Mi libreta" tone="ambar" value={`${libreta?.semanas.length ?? 0} semana${(libreta?.semanas.length ?? 0) === 1 ? "" : "s"}`} description="Semanas cerradas" />}
+          >
+            {!libreta || libreta.semanas.length === 0 ? (
+              <p className="text-sm text-ink">Todavía no hay semanas cerradas.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {libreta.semanas.slice(0, 12).map((s) => {
+                  const t = textoSaldo(s.saldoMin);
+                  return (
+                    <li key={s.semana} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                      <span>
+                        {textoSemana(s.semana)}
+                        <span className="block text-ink-muted">Hiciste {textoHoras(s.realMin)}{s.justificadoMin ? ` · ${textoHoras(s.justificadoMin)} justificadas` : ""}</span>
+                      </span>
+                      <Badge color={t.color}>{t.texto}</Badge>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </DashboardCardModal>
+
+          {socioPropio && (hayControlInduccion || epp.length > 0) && (
+            <DashboardCardModal
+              title="Tu seguridad en la obra"
+              trigger={<DashboardSummaryCard icon={<ShieldCheck size={18} />} title="Mi seguridad" tone={induccion ? "verde" : "ambar"} value={induccion ? "Inducción hecha" : "Falta la inducción"} description={epp.length ? `${epp.length} elemento${epp.length === 1 ? "" : "s"} de protección` : "Sin elementos entregados"} />}
+            >
+              <div className="space-y-2 text-sm text-ink">
+                <p>
+                  {induccion
+                    ? `Hiciste la inducción de seguridad el ${induccion.fecha.slice(0, 10).split("-").reverse().join("/")}.`
+                    : "Todavía no tenés registrada la inducción de seguridad. Hablá con la Comisión de Seguridad antes de ir a la obra."}
+                </p>
+                {epp.length > 0 && (
+                  <p>
+                    Elementos de protección que recibiste: {epp.map((e) => e.elemento).join(", ")}.{" "}
+                    <a href={`/api/seguridad/constancia-epp/s-${socioPropio.id}`} target="_blank" rel="noopener" className="underline underline-offset-2">Ver la constancia</a>
+                  </p>
+                )}
+              </div>
+            </DashboardCardModal>
+          )}
+        </DashboardGrid>
+      </DashboardSection>
     </div>
   );
 }

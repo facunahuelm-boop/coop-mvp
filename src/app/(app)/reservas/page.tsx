@@ -6,7 +6,7 @@ import { hoyEnUruguay, textoDia } from "@/lib/horasObra";
 import { espaciosComunes, reservasDesde, puedeAdministrarEspacios } from "@/lib/habitada";
 import { reservarFormAction, cancelarReservaFormAction, decidirReservaFormAction, crearEspacioFormAction } from "@/lib/actions/habitada";
 
-const botonPrincipal = "inline-flex items-center justify-center rounded-xl bg-[var(--color-brand-800)] px-5 py-3 text-[16px] font-semibold text-white min-h-[48px]";
+const botonPrincipal = "inline-flex items-center justify-center rounded-xl bg-[var(--color-brand-800)] px-5 py-3 text-[15px] font-semibold text-white min-h-[40px]";
 const botonLink = "text-sm font-semibold text-[var(--color-brand-800)] underline underline-offset-2";
 
 /** Fase 3H — reservas de los espacios comunes (salón, parrillero…). */
@@ -20,7 +20,7 @@ export default async function ReservasPage() {
   const fechas = [...new Set(reservas.map((r) => r.fecha))];
 
   return (
-    <div className="max-w-3xl space-y-5 text-[16px]">
+    <div className="max-w-3xl space-y-5 text-[15px]">
       <PageHeader title="Reservas de espacios comunes" subtitle="Salón, parrillero y otros espacios de la cooperativa" />
 
       {espacios.length > 0 ? (

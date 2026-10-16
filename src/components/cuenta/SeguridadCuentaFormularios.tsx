@@ -28,7 +28,7 @@ export function ConfirmarDosPasosForm() {
   if (estado.ok && estado.aviso) {
     const codigos = estado.aviso.split(" ");
     return (
-      <div className="space-y-3 rounded-2xl border border-[var(--color-verde)]/40 bg-[var(--color-verde-bg)]/40 p-4 text-[16px]">
+      <div className="space-y-3 rounded-2xl border border-[var(--color-verde)]/40 bg-[var(--color-verde-bg)]/40 p-4 text-[15px]">
         <p className="font-bold text-ink">¡Listo! La verificación en dos pasos quedó activada.</p>
         <p className="text-ink">
           Guardá estos <strong>códigos de respaldo</strong> en un lugar seguro (anotalos o imprimilos). Cada uno sirve una sola vez para entrar si perdés el celular.
