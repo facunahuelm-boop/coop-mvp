@@ -7,7 +7,6 @@ import { moduloVisible } from "@/components/Nav";
 import { Card, SectionTitle, StatTile, PageHeader, Button, Badge } from "@/components/ui";
 import { BandejaAtencion } from "@/components/portal/BandejaAtencion";
 import { itemsDeAtencion } from "@/lib/atencion";
-import { saludCooperativa, veSalud, colorGeneral } from "@/lib/saludCooperativa";
 import { comisionDisponibleEnEtapa } from "@/lib/comisionesFunciones";
 import { hoyEnUruguay as hoyUY } from "@/lib/horasObra";
 import { DashboardGrid, DashboardSection, SummaryCard, EstadoTag, DashboardCardLink, DashboardCardModal } from "@/components/DashboardCard";
@@ -102,8 +101,7 @@ export default async function DashboardPage() {
   // 15/10 (pedido explícito): el socio ve el mismo Inicio que el resto (tarjetas con
   // pop-ups de finanzas, tareas, comisiones…); su portal sigue en «Mi vivienda».
   const atencion = await itemsDeAtencion(user, hoyUY());
-  // Fase 3I: semáforo de salud (sólo conducción, Fiscal y Finanzas).
-  const salud = veSalud(user) ? await saludCooperativa(user.etapa).catch(() => []) : [];
+  // 16/10 (pedido explícito): el semáforo de salud ya no va en el Inicio; sigue en /salud.
 
   await recalcularAlertas();
 
@@ -596,24 +594,6 @@ export default async function DashboardPage() {
       {esDirectivaPanel(user) && <PanelDirectiva user={user} comprasADecidir={verCompras ? comparacionesListas : 0} />}
 
       <MisComisiones user={user} />
-
-      {salud.length > 0 && (
-        <Link href="/salud" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3 hover:bg-surface-sunken" data-testid="semaforo-salud">
-          <span className="font-semibold text-ink">
-            Salud de la cooperativa:{" "}
-            {colorGeneral(salud) === "verde" ? "bien" : colorGeneral(salud) === "amarillo" ? "hay cosas para atender" : "necesita atención"}
-          </span>
-          <span className="flex items-center gap-1.5" aria-hidden>
-            {salud.map((i) => (
-              <span
-                key={i.clave}
-                title={`${i.titulo}: ${i.valor}`}
-                className={`inline-block h-3 w-3 rounded-full ${i.color === "verde" ? "bg-[var(--color-verde)]" : i.color === "amarillo" ? "bg-[var(--color-amarillo)]" : i.color === "rojo" ? "bg-[var(--color-rojo)]" : "bg-ink-faint"}`}
-              />
-            ))}
-          </span>
-        </Link>
-      )}
 
       {/* Rediseño del Inicio — RESUMEN → CLICK → POP-UP → DETALLE. Cada
           módulo que antes era una <Card> larga y siempre desplegada ahora es

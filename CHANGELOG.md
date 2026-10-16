@@ -4,6 +4,10 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Inicio sin el semáforo de salud (16/10)
+
+- Sale del Inicio la franja «Salud de la cooperativa» con los puntos de colores (pedido explícito). La pantalla `/salud` sigue existiendo en el Menú.
+
 ## Inicio de la Directiva (16/10)
 
 - Para Consejo Directivo (y el admin), arriba del Inicio: la próxima reunión del Consejo o asamblea; «Para decidir» (compras para decidir, decisiones por resolver, solicitudes abiertas, actas por cargar, reclamos sin resolver — sólo lo que tiene algo, con un toque a dónde se resuelve); y «Cargar», botones grandes que abren directo el formulario: registrar movimiento, reunión del Consejo, convocar asamblea, registrar decisión, mandar un aviso, subir documento.
