@@ -14,6 +14,7 @@ import {
   CargarNucleosLoteForm,
   BajaNucleoBoton,
   IntegrantesBoton,
+  InvitarNucleoBoton,
   UsuarioForm,
   EstadoCuentaBadge,
   CambiarActivoUsuarioBoton,
@@ -72,6 +73,7 @@ export default async function CooperativaAdminPage({ params }: { params: Promise
         <td className={td}>{n.integrantes.filter((i) => i.estado === "activo").length}</td>
         <td className={`${td} text-right`}>
           <div className="flex flex-wrap justify-end gap-1.5">
+            <InvitarNucleoBoton orgId={orgId} nucleo={n} />
             <IntegrantesBoton orgId={orgId} nucleo={n} />
             <NucleoForm orgId={orgId} nucleo={n} />
             <BajaNucleoBoton orgId={orgId} nucleo={n} />

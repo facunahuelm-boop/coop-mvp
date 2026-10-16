@@ -22,6 +22,7 @@ import { historialComision } from "@/lib/logic";
 import { puntosDeAgenda, TIPO_REUNION_LABEL } from "@/lib/trazabilidad";
 import { panelDeFuncion, kpisComunes, correspondenciaReciente, eleccionesAbiertas } from "@/lib/panelesComision";
 import { PanelFuncion, Kpis } from "@/components/comisiones/PanelFuncion";
+import { CargaRapida } from "@/components/comisiones/CargaRapida";
 import { CorrespondenciaPanel, EleccionesPanel } from "@/components/comisiones/PanelFormularios";
 import { FUNCION_COMISION, funcionDe, comisionDisponibleEnEtapa, textoEtapas, ETAPA_LABEL, type EtapaCooperativa } from "@/lib/comisionesFunciones";
 import { cargarSemanaHoras, obtenerHorarioObra } from "@/lib/horasTrabajo";
@@ -574,6 +575,12 @@ export default async function ComisionDetallePage({
 
   const tabDocumentos = (
     <Card>
+      {puedeGestionar && disponible && (
+        <div className="mb-3 flex items-center justify-between gap-2 border-b border-ink/5 pb-3">
+          <p className="text-xs text-ink-muted">Desde el celular: sacá una foto o elegí una imagen y queda en esta comisión.</p>
+          <CargaRapida comisionId={comisionId} />
+        </div>
+      )}
       <div className="divide-y divide-ink/5">
         {documentos.map((d) => (
           <div key={d.id} className="py-2.5 flex flex-wrap items-center justify-between gap-2 text-sm">

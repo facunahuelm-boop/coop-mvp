@@ -12,6 +12,7 @@ import { comisionDisponibleEnEtapa } from "@/lib/comisionesFunciones";
 import { hoyEnUruguay as hoyUY } from "@/lib/horasObra";
 import { DashboardGrid, DashboardSection, SummaryCard, EstadoTag, DashboardCardLink, DashboardCardModal } from "@/components/DashboardCard";
 import { DashboardSummaryCard } from "@/components/DashboardSummaryCard";
+import { MisComisiones } from "@/components/comisiones/MisComisiones";
 import { MonthCalendar, type EventoCalendario, type NotaCalendario } from "@/components/MonthCalendar";
 import {
   crearNotaCalendarioFormAction,
@@ -590,6 +591,8 @@ export default async function DashboardPage() {
       <InstallHint />
 
       <PageHeader title="Inicio" subtitle={dayjs().format("dddd DD [de] MMMM, YYYY")} />
+
+      <MisComisiones user={user} />
 
       {salud.length > 0 && (
         <Link href="/salud" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3 hover:bg-surface-sunken" data-testid="semaforo-salud">

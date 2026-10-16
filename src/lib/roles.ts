@@ -42,6 +42,12 @@ export type Module = "obra" | "trabajo" | "compras" | "seguridad" | "finanzas" |
 // consejo directivo aprueba/edita con más alcance (puede cerrar una reunión
 // de cualquier comisión); fiscal solo mira, como en el resto de sus permisos.
 //
+// 15/10 (pedido explícito): el socio tiene "edit" en comisiones para poder cargar y
+// editar cosas en LAS COMISIONES DE LAS QUE ES INTEGRANTE. No amplía nada por sí
+// solo: cada acción vuelve a exigir ser integrante activo de esa comisión
+// (puedeGestionarComision) o conducción, y las reuniones de Asamblea/Consejo y
+// crear o archivar comisiones siguen siendo sólo de conducción.
+//
 // "socios" (ficha de socios, viviendas y lista de espera, Fase 05 del plan):
 // cualquier socio puede ver el padrón y la lista de espera (transparencia
 // básica), administración es quien día a día da de alta socios/viviendas y
@@ -57,7 +63,7 @@ export type Module = "obra" | "trabajo" | "compras" | "seguridad" | "finanzas" |
 // directivo aprueba/cierra con más alcance; el resto de las comisiones (que
 // no tienen nada que ver con mantenimiento del edificio) solo miran.
 const MATRIX: Record<Role, Record<Module, Access>> = {
-  socio: { obra: "read", trabajo: "read", compras: "none", seguridad: "read", finanzas: "read", documentos: "read", auditoria: "none", comisiones: "read", socios: "read", reclamos: "edit" },
+  socio: { obra: "read", trabajo: "read", compras: "none", seguridad: "read", finanzas: "read", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read", reclamos: "edit" },
   comision_obra: { obra: "edit", trabajo: "read", compras: "edit", seguridad: "read", finanzas: "none", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read", reclamos: "read" },
   comision_trabajo: { obra: "read", trabajo: "edit", compras: "edit", seguridad: "read", finanzas: "none", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read", reclamos: "read" },
   comision_compras: { obra: "read", trabajo: "read", compras: "edit", seguridad: "read", finanzas: "read", documentos: "read", auditoria: "none", comisiones: "edit", socios: "read", reclamos: "read" },

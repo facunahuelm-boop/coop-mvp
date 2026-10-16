@@ -4,6 +4,14 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Mi vivienda en tarjetas, comisiones del socio, carga rápida e invitación por núcleo (15/10)
+
+- «Mi vivienda» pasa a tarjetas con pop-up (cuenta, horas, ¿en qué estamos?, asamblea, avisos, ayuda) y letra normal.
+- Inicio: bloque «Mis comisiones» con las comisiones de las que la persona es integrante, sus tareas pendientes y acceso directo.
+- El socio pasa a tener «editar» en Comisiones (`roles.ts`), pero cada acción sigue exigiendo ser integrante activo de esa comisión o conducción; Asamblea/Consejo y crear/archivar comisiones siguen siendo solo de conducción.
+- Carga rápida (`CargaRapida.tsx`, `actions/cargaRapida.ts`): sacar una foto con la cámara o elegir una imagen/PDF y dejarla como documento de la comisión. Disponible en el Inicio y en la pestaña Documentos de toda comisión.
+- Plataforma, fila de cada núcleo: botón «Enviar mail». Guarda el email (crea el usuario pendiente si falta) y manda la invitación para elegir contraseña; si el mail no sale, muestra el link.
+
 ## Vista del socio igual a la de conducción (15/10)
 
 Pedido (tras entrar con un usuario real): el socio ve el mismo Inicio, las comisiones, socios y núcleos, QR, notificaciones y avisos.

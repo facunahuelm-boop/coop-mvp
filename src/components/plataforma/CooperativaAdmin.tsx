@@ -26,6 +26,7 @@ import {
   ejecutarLimpiezaPruebaFormAction,
   restaurarRespaldoLimpiezaFormAction,
   vaciarDatosPruebaFormAction,
+  invitarNucleoFormAction,
 } from "@/lib/actions/plataformaCooperativa";
 import type { NucleoFila, UsuarioFila, ComisionFila, IntegranteFila } from "@/lib/plataformaCoop";
 import type { VistaPreviaLimpieza } from "@/lib/plataformaLimpieza";
@@ -602,5 +603,25 @@ export function VaciarDatosForm({ orgId }: { orgId: number }) {
         <SubmitButton variant="danger" pendingLabel="Vaciando…">Vaciar datos de prueba</SubmitButton>
       </div>
     </form>
+  );
+}
+
+/** Cargar el email de un núcleo y mandarle la invitación para que elija su contraseña. */
+export function InvitarNucleoBoton({ orgId, nucleo }: { orgId: number; nucleo: NucleoFila }) {
+  return (
+    <FormularioEnModal
+      textoBoton="Enviar mail"
+      titulo={`Invitar a ${nucleo.nombre}`}
+      descripcion={<p>Cargá el email y se le manda un mail para que elija su contraseña y empiece a usar COOVA. El link vale 7 días; se puede reenviar.</p>}
+      action={invitarNucleoFormAction}
+      ocultos={{ org_id: orgId, socio_id: nucleo.socio_id }}
+      textoConfirmar="Guardar y enviar mail"
+      claseBoton={CLASE_BOTON_CHICO}
+    >
+      <div>
+        <Label required>Email</Label>
+        <input name="email" type="email" required defaultValue={nucleo.email ?? ""} className={inputClass} placeholder="nombre@gmail.com" />
+      </div>
+    </FormularioEnModal>
   );
 }

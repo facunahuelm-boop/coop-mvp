@@ -892,3 +892,37 @@ export async function vaciarDatosPruebaFormAction(_prev: ActionState, fd: FormDa
   });
   return r.ok ? { ...r, aviso } : r;
 }
+
+/**
+ * Desde la fila de un núcleo: guarda el email, se asegura de que el núcleo tenga usuario
+ * (lo crea pendiente si falta) y le manda la invitación para elegir su contraseña.
+ */
+export async function invitarNucleoAction(formData: FormData): Promise<string> {
+  const d = parseForm(z.object({ org_id: zId, socio_id: zId, email: z.string().trim().toLowerCase().email("Escribí un email válido.") }), formData);
+  const userId = await conCooperativa(d.org_id, async (tx, admin) => {
+    const socio = await tx.get<{ id: number; nombre: string; user_id: number | null }>(`SELECT id, nombre, user_id FROM socios WHERE id = ? AND estado <> 'baja'`, [d.socio_id]);
+    if (!socio) throw new ValidationError("email", "Ese núcleo no existe.");
+    const uso = await tx.get<{ nombre: string; id: number }>(`SELECT nombre, id FROM users WHERE lower(email) = ? AND estado_cuenta <> 'baja'`, [d.email]);
+    if (uso && uso.id !== socio.user_id) throw new ValidationError("email", `Ese email ya lo usa ${uso.nombre}.`);
+    let uid = socio.user_id;
+    if (!uid) {
+      uid = await crearUsuarioPendienteTx(tx, { nombre: socio.nombre, email: d.email, socio_id: socio.id });
+    } else {
+      await tx.run(`UPDATE users SET email = ? WHERE id = ?`, [d.email, uid]);
+    }
+    await tx.run(`UPDATE socios SET email = ? WHERE id = ?`, [d.email, socio.id]);
+    await auditarTx(tx, admin, "email_nucleo", "socios", socio.id, { email: d.email, user_id: uid });
+    return uid;
+  });
+  const fd = new FormData();
+  fd.set("org_id", String(d.org_id));
+  fd.set("id", String(userId));
+  return invitarUsuarioPlataformaAction(fd);
+}
+export async function invitarNucleoFormAction(_p: ActionState, fd: FormData): Promise<ActionState> {
+  let aviso = "";
+  const r = await conEstadoDeAccion(async () => {
+    aviso = await invitarNucleoAction(fd);
+  });
+  return r.ok ? { ...r, aviso } : r;
+}

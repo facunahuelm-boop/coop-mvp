@@ -9,6 +9,9 @@ import { ETAPA_LABEL, type EtapaCooperativa } from "@/lib/comisionesFunciones";
 import { listarHitos } from "@/lib/tramites";
 import { LineaDeTiempo } from "@/components/tramites/LineaDeTiempo";
 import { sociosQueAyudo } from "@/lib/accesoDelegado";
+import { Wallet, Clock, Milestone, CalendarDays, Inbox, LifeBuoy } from "lucide-react";
+import { DashboardGrid, DashboardSection, DashboardCardModal } from "@/components/DashboardCard";
+import { DashboardSummaryCard } from "@/components/DashboardSummaryCard";
 
 /**
  * Fase 1D — "Mi vivienda": la pantalla de inicio del socio. Responde, con
@@ -29,15 +32,15 @@ const pesos = (n: number) => `$ ${Math.round(n).toLocaleString("es-UY")}`;
 function Bloque({ titulo, children, tono = "normal" }: { titulo: string; children: React.ReactNode; tono?: "normal" | "alerta" | "ok" }) {
   const borde = tono === "alerta" ? "border-[var(--color-rojo)]/40" : tono === "ok" ? "border-[var(--color-verde)]/40" : "border-border";
   return (
-    <section className={`rounded-2xl border ${borde} bg-surface p-5 shadow-[var(--shadow-sm)]`}>
-      <h2 className="text-[15px] font-bold uppercase tracking-wide text-ink-muted">{titulo}</h2>
+    <section className={`rounded-2xl border ${borde} bg-surface p-4 shadow-[var(--shadow-sm)]`}>
+      <h2 className="text-sm font-bold uppercase tracking-wide text-ink-muted">{titulo}</h2>
       <div className="mt-2">{children}</div>
     </section>
   );
 }
 
 const boton =
-  "inline-flex items-center justify-center rounded-xl px-5 py-3 text-[16px] font-semibold min-h-[48px] transition-colors";
+  "inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold min-h-[40px] transition-colors";
 const botonPrincipal = `${boton} bg-[var(--color-brand-800)] text-white hover:bg-[var(--color-brand-700)]`;
 const botonSecundario = `${boton} border border-border bg-surface text-ink hover:bg-surface-sunken`;
 
@@ -118,32 +121,29 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
   const ayudo = await sociosQueAyudo(user.id);
 
   const primerNombre = user.nombre.split(" ")[0];
+  const estadoLabel = ETAPA_LABEL[user.etapa as EtapaCooperativa] ?? user.etapa;
   return (
-    <div className="space-y-5 text-[17px]">
+    <div className="space-y-5 text-[15px]">
       <div>
-        <h1 className="text-2xl font-bold text-ink">Hola, {primerNombre}</h1>
-        <p className="text-[16px] text-ink-muted first-letter:uppercase">{fechaLarga(hoy)}</p>
+        <h1 className="text-xl font-bold text-ink">Mi vivienda · Hola, {primerNombre}</h1>
+        <p className="text-sm text-ink-muted first-letter:uppercase">{fechaLarga(hoy)} · La cooperativa está en etapa: {estadoLabel}</p>
       </div>
 
       {encuesta && (
-        <Bloque titulo="Una pregunta rápida" tono="normal">
-          <p className="text-[17px] text-ink">{encuesta.pregunta}</p>
-          <div className="mt-3">
-            <Link href="/encuestas" className={botonPrincipal}>
-              Responder
-            </Link>
+        <Bloque titulo="Una pregunta rápida">
+          <p className="text-[15px] text-ink">{encuesta.pregunta}</p>
+          <div className="mt-2">
+            <Link href="/encuestas" className={botonPrincipal}>Responder</Link>
           </div>
         </Bloque>
       )}
 
       {ayudo.length > 0 && (
-        <Bloque titulo={ayudo.length === 1 ? "Ayudás a" : "Ayudás a estas personas"} tono="normal">
-          <ul className="space-y-2">
+        <Bloque titulo={ayudo.length === 1 ? "Ayudás a" : "Ayudás a estas personas"}>
+          <ul className="flex flex-wrap gap-2">
             {ayudo.map((a) => (
               <li key={a.id}>
-                <Link href={`/ayudo/${a.socio_id}`} className={botonPrincipal}>
-                  Ver lo de {a.socio_nombre}
-                </Link>
+                <Link href={`/ayudo/${a.socio_id}`} className={botonPrincipal}>Ver lo de {a.socio_nombre}</Link>
               </li>
             ))}
           </ul>
@@ -152,12 +152,11 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
 
       {oficiales.length > 0 && (
         <Bloque titulo={oficiales.length === 1 ? "Tenés un aviso sin leer" : `Tenés ${oficiales.length} avisos sin leer`} tono="alerta">
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {oficiales.map((a) => (
               <li key={a.id}>
                 <Link href={`/avisos/${a.id}`} className="font-semibold text-ink underline underline-offset-2">
-                  {a.urgente ? "URGENTE: " : ""}
-                  {a.titulo}
+                  {a.urgente ? "URGENTE: " : ""}{a.titulo}
                 </Link>
               </li>
             ))}
@@ -166,165 +165,174 @@ export async function PortalSocio({ user }: { user: SessionUser }) {
       )}
 
       {!socio && (
-        <p className="rounded-xl bg-surface-sunken px-4 py-3 text-[16px] text-ink">
+        <p className="rounded-xl bg-surface-sunken px-4 py-3 text-sm text-ink">
           Tu usuario todavía no está vinculado a tu ficha de socio. Pedile a la administración que lo vincule para ver lo que debés y tus recibos.
         </p>
       )}
 
-      {socio && (
-        <Bloque titulo="Lo que debés hoy" tono={vencidas.length ? "alerta" : debe === 0 ? "ok" : "normal"}>
-          <p className={`text-4xl font-bold ${vencidas.length ? "text-[var(--color-rojo)]" : "text-ink"}`}>{debe > 0 ? pesos(debe) : "No debés nada"}</p>
-          {vencidas.length > 0 && (
-            <p className="mt-1 text-[17px] text-[var(--color-rojo)]">
-              Tenés {vencidas.length} cuota{vencidas.length === 1 ? "" : "s"} atrasada{vencidas.length === 1 ? "" : "s"}.
-            </p>
-          )}
-          {proxima && (
-            <p className="mt-1 text-[17px] text-ink">
-              Próxima cuota: {pesos(proxima.montoPendiente)}, vence el {fechaLarga(proxima.fechaVencimiento!)}.
-            </p>
-          )}
-          <div className="mt-4 flex flex-wrap gap-3">
-            <details className="w-full sm:w-auto">
-              <summary className={`${botonPrincipal} list-none cursor-pointer`}>Cómo pagar</summary>
-              <div className="mt-3 rounded-xl bg-surface-sunken p-4 text-[16px] text-ink space-y-2">
-                <p>Podés pagar en la tesorería de la cooperativa o por transferencia o depósito.</p>
-                {codigo && (
-                  <p>
-                    Si transferís, escribí este código en el concepto: <strong className="font-mono text-xl tracking-wide">{codigo}</strong>. Así tu pago se identifica solo.
-                  </p>
+      <DashboardSection title="Mi resumen">
+        <DashboardGrid>
+          {socio && (
+            <DashboardCardModal
+              title="Lo que debés hoy"
+              trigger={
+                <DashboardSummaryCard
+                  icon={<Wallet size={18} />}
+                  title="Mi cuenta"
+                  tone={vencidas.length ? "rojo" : debe === 0 ? "verde" : "ambar"}
+                  value={debe > 0 ? pesos(debe) : "Al día"}
+                  description={vencidas.length ? `${vencidas.length} cuota${vencidas.length === 1 ? "" : "s"} atrasada${vencidas.length === 1 ? "" : "s"}` : proxima ? `Próxima: ${fechaLarga(proxima.fechaVencimiento!)}` : "No debés nada"}
+                />
+              }
+            >
+              <div className="space-y-3 text-sm">
+                <p className="text-2xl font-bold text-ink">{debe > 0 ? pesos(debe) : "No debés nada"}</p>
+                {vencidas.length > 0 && <p className="text-[var(--color-rojo)]">Tenés {vencidas.length} cuota{vencidas.length === 1 ? "" : "s"} atrasada{vencidas.length === 1 ? "" : "s"}.</p>}
+                {proxima && <p className="text-ink">Próxima cuota: {pesos(proxima.montoPendiente)}, vence el {fechaLarga(proxima.fechaVencimiento!)}.</p>}
+                {pendientes.length > 0 && (
+                  <ul className="rounded-xl bg-surface-sunken p-3 space-y-1.5 text-ink">
+                    {pendientes.map((c) => (
+                      <li key={c.id}>
+                        <strong>{c.concepto}</strong>: {pesos(c.montoPendiente)}
+                        {c.montoPagado > 0 ? ` (ya pagaste ${pesos(c.montoPagado)})` : ""}
+                        {c.fechaVencimiento ? (atrasada(c) ? ` — venció el ${fechaLarga(c.fechaVencimiento)}.` : ` — vence el ${fechaLarga(c.fechaVencimiento)}.`) : "."}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="rounded-xl bg-surface-sunken p-3 text-ink space-y-1">
+                  <p className="font-semibold">Cómo pagar</p>
+                  <p>Podés pagar en la tesorería de la cooperativa o por transferencia o depósito.</p>
+                  {codigo && <p>Si transferís, escribí este código en el concepto: <strong className="font-mono tracking-wide">{codigo}</strong>. Así tu pago se identifica solo.</p>}
+                </div>
+                <p>
+                  <a href={`/api/reportes/estado-cuenta/${socio.id}`} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 text-[var(--color-brand-800)]">Bajar mi estado de cuenta (PDF)</a>
+                </p>
+                {recibos.length > 0 && (
+                  <div>
+                    <p className="font-semibold text-ink">Tus últimos recibos</p>
+                    <ul className="mt-1 space-y-1">
+                      {recibos.map((r) => (
+                        <li key={r.id}>
+                          <a href={`/api/archivos/recibo/${r.id}`} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 text-[var(--color-brand-800)]">
+                            Recibo N° {r.numero} — {pesos(Number(r.monto))} ({r.fecha.slice(8, 10)}/{r.fecha.slice(5, 7)})
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
-            </details>
-            {pendientes.length > 0 && (
-              <details className="w-full sm:w-auto">
-                <summary className={`${botonSecundario} list-none cursor-pointer`}>¿Por qué debo esto?</summary>
-                <ul className="mt-3 rounded-xl bg-surface-sunken p-4 text-[16px] text-ink space-y-2">
-                  {pendientes.map((c) => (
-                    <li key={c.id}>
-                      <strong>{c.concepto}</strong>: {pesos(c.montoPendiente)}
-                      {c.montoPagado > 0 ? ` (ya pagaste ${pesos(c.montoPagado)})` : ""}
-                      {c.fechaVencimiento ? (atrasada(c) ? ` — venció el ${fechaLarga(c.fechaVencimiento)}, está atrasada.` : ` — vence el ${fechaLarga(c.fechaVencimiento)}.`) : "."}
-                    </li>
-                  ))}
-                </ul>
-              </details>
+            </DashboardCardModal>
+          )}
+
+          {libreta && (
+            <DashboardCardModal
+              title="Tus horas esta semana"
+              trigger={
+                <DashboardSummaryCard
+                  icon={<Clock size={18} />}
+                  title="Mis horas"
+                  tone={libreta.saldoAcumuladoMin < 0 ? "rojo" : "azul"}
+                  value={libreta.semanaActual ? `${textoHoras(libreta.semanaActual.realMin)} / ${textoHoras(libreta.semanaActual.exigibleMin)}` : "—"}
+                  description={libreta.semanaActual && libreta.semanaActual.faltanMin > 0 ? `Te faltan ${textoHoras(libreta.semanaActual.faltanMin)}` : "Semana completa"}
+                />
+              }
+            >
+              <div className="space-y-3 text-sm text-ink">
+                <p>
+                  {libreta.semanaActual && libreta.semanaActual.faltanMin > 0 ? `Te faltan ${textoHoras(libreta.semanaActual.faltanMin)}.` : "Completaste la semana."} Saldo: {textoSaldo(libreta.saldoAcumuladoMin).texto}.
+                </p>
+                {proximoTurno && <p>Próximo turno: {proximoTurno.fecha === hoy ? "hoy" : fechaLarga(proximoTurno.fecha)}, de {proximoTurno.hora_inicio} a {proximoTurno.hora_fin} hs.</p>}
+                <Link href="/mis-horas" className={botonPrincipal}>Ver mis horas o avisar que no puedo ir</Link>
+              </div>
+            </DashboardCardModal>
+          )}
+
+          {hitos.length > 0 && (
+            <DashboardCardModal
+              title="¿En qué estamos?"
+              size="lg"
+              trigger={<DashboardSummaryCard icon={<Milestone size={18} />} title="¿En qué estamos?" tone="violeta" value={`${hitos.length} paso${hitos.length === 1 ? "" : "s"}`} description="Trámites y avance" />}
+            >
+              <LineaDeTiempo hitos={hitos} hoy={hoy} compacta />
+              <Link href="/tramites" className={`${botonSecundario} mt-3`}>Ver todos los pasos</Link>
+            </DashboardCardModal>
+          )}
+
+          <DashboardCardModal
+            title="Próxima asamblea"
+            trigger={
+              <DashboardSummaryCard
+                icon={<CalendarDays size={18} />}
+                title="Próxima asamblea"
+                tone="teal"
+                value={asamblea ? fechaLarga(asamblea.fecha).replace(/^./, (c) => c.toUpperCase()) : "Sin convocar"}
+                description={asamblea ? asamblea.titulo : "No hay ninguna por ahora"}
+              />
+            }
+          >
+            {asamblea ? (
+              <div className="space-y-2 text-sm text-ink">
+                <p className="text-lg font-bold first-letter:uppercase">
+                  {fechaLarga(asamblea.fecha)}{asamblea.fecha.length > 10 ? `, ${asamblea.fecha.slice(11, 16)} hs` : ""}
+                </p>
+                <p>{asamblea.titulo}{asamblea.lugar ? ` — ${asamblea.lugar}` : ""}</p>
+                {temas.length > 0 && <p className="text-ink-muted">Temas: {temas.map((t) => t.titulo).join(", ")}</p>}
+                <Link href={`/reuniones/${asamblea.id}`} className={botonSecundario}>Ver la asamblea</Link>
+              </div>
+            ) : (
+              <p className="text-sm text-ink">No hay ninguna asamblea convocada por ahora.</p>
             )}
-          </div>
-          <p className="mt-3">
-            <a href={`/api/reportes/estado-cuenta/${socio.id}`} target="_blank" rel="noopener noreferrer" className="text-[16px] underline underline-offset-2 text-[var(--color-brand-800)]">
-              Bajar mi estado de cuenta (PDF)
-            </a>
-          </p>
-          {recibos.length > 0 && (
-            <div className="mt-4">
-              <p className="text-[16px] font-semibold text-ink">Tus últimos recibos</p>
-              <ul className="mt-1 space-y-1">
-                {recibos.map((r) => (
-                  <li key={r.id}>
-                    <a href={`/api/archivos/recibo/${r.id}`} target="_blank" rel="noopener noreferrer" className="text-[16px] underline underline-offset-2 text-[var(--color-brand-800)]">
-                      Recibo N° {r.numero} — {pesos(Number(r.monto))} ({r.fecha.slice(8, 10)}/{r.fecha.slice(5, 7)})
-                    </a>
+          </DashboardCardModal>
+
+          <DashboardCardModal
+            title="Avisos"
+            trigger={
+              <DashboardSummaryCard
+                icon={<Inbox size={18} />}
+                title="Avisos"
+                tone={sinLeer ? "ambar" : "neutro"}
+                value={sinLeer ? `${sinLeer} nuevo${sinLeer === 1 ? "" : "s"}` : "Al día"}
+                description={avisos[0]?.titulo ?? "No tenés avisos"}
+              />
+            }
+          >
+            {avisos.length === 0 ? (
+              <p className="text-sm text-ink">No tenés avisos.</p>
+            ) : (
+              <ul className="space-y-2 text-sm text-ink">
+                {avisos.map((a) => (
+                  <li key={a.id}>
+                    {!a.leida && <span className="mr-2 inline-block h-2 w-2 rounded-full bg-[var(--color-brand-800)]" aria-label="Nuevo" />}
+                    {a.titulo}
                   </li>
                 ))}
               </ul>
+            )}
+            <Link href="/notificaciones" className={`${botonSecundario} mt-3`}>Ver todos los avisos</Link>
+          </DashboardCardModal>
+
+          <DashboardCardModal
+            title="¿Necesitás ayuda?"
+            trigger={<DashboardSummaryCard icon={<LifeBuoy size={18} />} title="Ayuda" tone="neutro" value={reglamento.ayuda.telefono || "Consultá"} description={reglamento.ayuda.horario || "Con la administración"} />}
+          >
+            <div className="space-y-2 text-sm text-ink">
+              {reglamento.ayuda.telefono ? (
+                <p>Llamá al <a href={`tel:${reglamento.ayuda.telefono.replace(/\s/g, "")}`} className="font-bold underline">{reglamento.ayuda.telefono}</a>{reglamento.ayuda.horario ? ` (${reglamento.ayuda.horario})` : ""}.</p>
+              ) : (
+                <p>Consultá con la administración de la cooperativa.</p>
+              )}
+              {socio && (
+                <p>
+                  ¿Querés que un familiar te ayude a seguir tus cuotas y tus horas?{" "}
+                  <Link href="/acceso-familiar" className="font-semibold underline underline-offset-2">Darle acceso</Link>
+                </p>
+              )}
             </div>
-          )}
-        </Bloque>
-      )}
-
-      {libreta && (
-        <Bloque titulo="Tus horas esta semana" tono={libreta.saldoAcumuladoMin < 0 ? "alerta" : "normal"}>
-          {libreta.semanaActual ? (
-            <p className="text-3xl font-bold text-ink">
-              {textoHoras(libreta.semanaActual.realMin)} <span className="text-xl font-semibold text-ink-muted">de {textoHoras(libreta.semanaActual.exigibleMin)}</span>
-            </p>
-          ) : null}
-          <p className="mt-1 text-[17px] text-ink">
-            {libreta.semanaActual && libreta.semanaActual.faltanMin > 0 ? `Te faltan ${textoHoras(libreta.semanaActual.faltanMin)}.` : "Completaste la semana."}{" "}
-            Saldo: {textoSaldo(libreta.saldoAcumuladoMin).texto}.
-          </p>
-          {proximoTurno && (
-            <p className="mt-1 text-[17px] text-ink">
-              Próximo turno: {proximoTurno.fecha === hoy ? "hoy" : fechaLarga(proximoTurno.fecha)}, de {proximoTurno.hora_inicio} a {proximoTurno.hora_fin} hs.
-            </p>
-          )}
-          <div className="mt-4">
-            <Link href="/mis-horas" className={botonPrincipal}>Ver mis horas o avisar que no puedo ir</Link>
-          </div>
-        </Bloque>
-      )}
-
-      {hitos.length > 0 && (
-        <Bloque titulo="¿En qué estamos?">
-          <LineaDeTiempo hitos={hitos} hoy={hoy} compacta />
-          <Link href="/tramites" className={`${botonSecundario} mt-2 inline-flex`}>
-            Ver todos los pasos
-          </Link>
-        </Bloque>
-      )}
-
-      <Bloque titulo="Próxima asamblea">
-        {asamblea ? (
-          <>
-            <p className="text-xl font-bold text-ink first-letter:uppercase">
-              {fechaLarga(asamblea.fecha)}
-              {asamblea.fecha.length > 10 ? `, ${asamblea.fecha.slice(11, 16)} hs` : ""}
-            </p>
-            <p className="text-[17px] text-ink">{asamblea.titulo}{asamblea.lugar ? ` — ${asamblea.lugar}` : ""}</p>
-            {temas.length > 0 && <p className="mt-1 text-[16px] text-ink-muted">Temas: {temas.map((t) => t.titulo).join(", ")}</p>}
-            <div className="mt-3">
-              <Link href={`/reuniones/${asamblea.id}`} className={botonSecundario}>Ver la asamblea</Link>
-            </div>
-          </>
-        ) : (
-          <p className="text-[17px] text-ink">No hay ninguna asamblea convocada por ahora.</p>
-        )}
-      </Bloque>
-
-      <Bloque titulo={sinLeer ? `Avisos (${sinLeer} nuevo${sinLeer === 1 ? "" : "s"})` : "Avisos"}>
-        {avisos.length === 0 ? (
-          <p className="text-[17px] text-ink">No tenés avisos.</p>
-        ) : (
-          <ul className="space-y-2">
-            {avisos.map((a) => (
-              <li key={a.id} className="text-[16px] text-ink">
-                {!a.leida && <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[var(--color-brand-800)]" aria-label="Nuevo" />}
-                {a.titulo}
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="mt-3">
-          <Link href="/notificaciones" className={botonSecundario}>Ver todos los avisos</Link>
-        </div>
-      </Bloque>
-
-      {socio && (
-        <p className="text-[16px] text-ink">
-          ¿Querés que un familiar te ayude a seguir tus cuotas y tus horas?{" "}
-          <Link href="/acceso-familiar" className="font-semibold underline underline-offset-2">
-            Darle acceso
-          </Link>
-        </p>
-      )}
-
-      <p className="text-[16px] text-ink-muted">
-        La cooperativa está en etapa: <strong className="text-ink">{ETAPA_LABEL[user.etapa as EtapaCooperativa] ?? user.etapa}</strong>.
-      </p>
-
-      <div className="rounded-2xl bg-[var(--color-brand-100)]/50 px-5 py-4 text-[17px] text-ink">
-        <p className="font-semibold">¿Necesitás ayuda?</p>
-        {reglamento.ayuda.telefono ? (
-          <p>
-            Llamá al <a href={`tel:${reglamento.ayuda.telefono.replace(/\s/g, "")}`} className="font-bold underline">{reglamento.ayuda.telefono}</a>
-            {reglamento.ayuda.horario ? ` (${reglamento.ayuda.horario})` : ""}.
-          </p>
-        ) : (
-          <p>Consultá con la administración de la cooperativa.</p>
-        )}
-      </div>
+          </DashboardCardModal>
+        </DashboardGrid>
+      </DashboardSection>
     </div>
   );
 }
-
