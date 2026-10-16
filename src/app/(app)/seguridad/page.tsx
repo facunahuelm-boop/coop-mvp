@@ -125,7 +125,7 @@ export default async function SeguridadPage() {
         ))}
         {incidentes.length === 0 && <EmptyState>Sin incidentes registrados.</EmptyState>}
       </div>
-      {puedeEditar && <RegistrarIncidenteForm />}
+      {puedeEditar && <div className="mb-8"><RegistrarIncidenteForm /></div>}
 
       <h3 className="text-sm font-bold text-[var(--color-brand-900)] mb-2">Inspecciones (checklist)</h3>
       <div className="space-y-2 mb-4">

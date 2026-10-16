@@ -45,6 +45,7 @@ Pedido: llevar a las comisiones los siete faltantes detectados al leer el Reglam
 - La ficha de cada comisión tiene arriba a la derecha su botón principal de alta. En Compras: «Agregar presupuesto» (eligiendo a qué solicitud abierta va, con el conteo de presupuestos contra el mínimo de 3 del art. 5b) y «Nueva solicitud» ya a nombre de la comisión. En las demás: «Agregar tarea».
 - Los integrantes de la Comisión de Compras (aunque su rol general sea socio) pueden cargar solicitudes y presupuestos de su comisión (`puedeCargarCompras`); siguen sin ver el resto del módulo.
 - Agregar integrante, agregar tarea, crear/editar comisión, agregar proveedor y cargar presupuesto ahora abren un pop-up en vez de desplegarse hacia abajo.
+- Todas las comisiones tienen su botón principal arriba a la derecha según su función: Obra «Agregar tarea al plan», Trabajo «Asignar guardia», Seguridad «Registrar incidente», Administrativa «Registrar correspondencia», Electoral «Nueva elección»; el resto «Agregar tarea». Correspondencia e incidentes ahora se cargan en pop-up.
 
 ## Barra lateral sin «Obra y trámites» + QR en la barra superior (15/10)
 

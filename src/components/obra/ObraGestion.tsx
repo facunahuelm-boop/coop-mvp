@@ -64,6 +64,53 @@ function CambiarEstado({ titulo, action, ocultos, opciones, actual }: { titulo: 
   );
 }
 
+// ---------- Botones de alta reutilizables (también van arriba a la derecha de la comisión) ----------
+
+export function BotonNuevaTareaPlan({ comisionId, personas, hoy, clase = link, texto = "+ Agregar tarea al plan" }: { comisionId: number; personas: Opt[]; hoy: string; clase?: string; texto?: React.ReactNode }) {
+  return (
+    <FormularioEnModal textoBoton={texto} claseBoton={clase} titulo="Nueva tarea del plan" action={crearPlanFormAction} ocultos={{ comision_id: comisionId }}>
+      <Campo label="Plan" required>
+        <select name="tipo" defaultValue="semanal" className={inputClass}>
+          <option value="semanal">Semanal</option>
+          <option value="mensual">Mensual</option>
+        </select>
+      </Campo>
+      <div className="grid grid-cols-2 gap-3">
+        <Campo label="Desde" required><input name="desde" type="date" required defaultValue={hoy} className={inputClass} /></Campo>
+        <Campo label="Hasta" required><input name="hasta" type="date" required defaultValue={hoy} className={inputClass} /></Campo>
+      </div>
+      <Campo label="Tarea" required><input name="tarea" required maxLength={300} className={inputClass} /></Campo>
+      <Campo label="Responsable">
+        <select name="responsable_id" defaultValue="" className={inputClass}>
+          <option value="">Sin asignar</option>
+          {personas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+        </select>
+      </Campo>
+    </FormularioEnModal>
+  );
+}
+
+export function BotonAsignarGuardia({ comisionId, nucleos, hoy, horario, clase = link, texto = "+ Asignar guardia" }: { comisionId: number; nucleos: Opt[]; hoy: string; horario: { guardia: string; serenata: string }; clase?: string; texto?: React.ReactNode }) {
+  return (
+    <FormularioEnModal textoBoton={texto} claseBoton={clase} titulo="Asignar guardia o serenata" action={crearGuardiaFormAction} ocultos={{ comision_id: comisionId }}>
+      <Campo label="Tipo" required>
+        <select name="tipo" defaultValue="guardia" className={inputClass}>
+          <option value="guardia">Guardia ({horario.guardia})</option>
+          <option value="serenata">Serenata ({horario.serenata})</option>
+        </select>
+      </Campo>
+      <Campo label="Fecha" required><input name="fecha" type="date" required defaultValue={hoy} className={inputClass} /></Campo>
+      <Campo label="Núcleo" required>
+        <select name="nucleo_id" required defaultValue="" className={inputClass}>
+          <option value="" disabled>Elegí un núcleo</option>
+          {nucleos.map((n) => <option key={n.id} value={n.id}>{n.nombre}</option>)}
+        </select>
+      </Campo>
+      <Campo label="Observaciones"><input name="observaciones" maxLength={300} className={inputClass} /></Campo>
+    </FormularioEnModal>
+  );
+}
+
 // ---------- Integración ----------
 
 export function IntegracionPanel({ comisionId, integracion, puede, representaciones }: { comisionId: number; integracion: Integracion; puede: boolean; representaciones: Record<string, string> }) {
@@ -124,27 +171,7 @@ export function PlanTrabajoPanel({ comisionId, planes, personas, puede, hoy }: {
         titulo="Plan de trabajo mensual y semanal"
         nota="Art. 11b: la comisión planifica el trabajo del mes y de la semana."
         accion={
-          puede && (
-            <FormularioEnModal textoBoton="+ Agregar tarea al plan" claseBoton={link} titulo="Nueva tarea del plan" action={crearPlanFormAction} ocultos={{ comision_id: comisionId }}>
-              <Campo label="Plan" required>
-                <select name="tipo" defaultValue="semanal" className={inputClass}>
-                  <option value="semanal">Semanal</option>
-                  <option value="mensual">Mensual</option>
-                </select>
-              </Campo>
-              <div className="grid grid-cols-2 gap-3">
-                <Campo label="Desde" required><input name="desde" type="date" required defaultValue={hoy} className={inputClass} /></Campo>
-                <Campo label="Hasta" required><input name="hasta" type="date" required defaultValue={hoy} className={inputClass} /></Campo>
-              </div>
-              <Campo label="Tarea" required><input name="tarea" required maxLength={300} className={inputClass} /></Campo>
-              <Campo label="Responsable">
-                <select name="responsable_id" defaultValue="" className={inputClass}>
-                  <option value="">Sin asignar</option>
-                  {personas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                </select>
-              </Campo>
-            </FormularioEnModal>
-          )
+          puede && <BotonNuevaTareaPlan comisionId={comisionId} personas={personas} hoy={hoy} />
         }
       />
       {(["mensual", "semanal"] as const).map((tipo) => (
@@ -406,24 +433,7 @@ export function GuardiasPanel({ comisionId, guardias, nucleos, puede, hoy, horar
         titulo="Guardias y serenatas"
         nota={`Art. 8o, 18h y 34: guardia ${horario.guardia}, serenata ${horario.serenata}. Cada núcleo cumple las que le tocan; no suman horas de ayuda mutua.`}
         accion={
-          puede && (
-            <FormularioEnModal textoBoton="+ Asignar guardia" claseBoton={link} titulo="Asignar guardia o serenata" action={crearGuardiaFormAction} ocultos={{ comision_id: comisionId }}>
-              <Campo label="Tipo" required>
-                <select name="tipo" defaultValue="guardia" className={inputClass}>
-                  <option value="guardia">Guardia ({horario.guardia})</option>
-                  <option value="serenata">Serenata ({horario.serenata})</option>
-                </select>
-              </Campo>
-              <Campo label="Fecha" required><input name="fecha" type="date" required defaultValue={hoy} className={inputClass} /></Campo>
-              <Campo label="Núcleo" required>
-                <select name="nucleo_id" required defaultValue="" className={inputClass}>
-                  <option value="" disabled>Elegí un núcleo</option>
-                  {nucleos.map((n) => <option key={n.id} value={n.id}>{n.nombre}</option>)}
-                </select>
-              </Campo>
-              <Campo label="Observaciones"><input name="observaciones" maxLength={300} className={inputClass} /></Campo>
-            </FormularioEnModal>
-          )
+          puede && <BotonAsignarGuardia comisionId={comisionId} nucleos={nucleos} hoy={hoy} horario={horario} />
         }
       />
       <ul className="divide-y divide-border">

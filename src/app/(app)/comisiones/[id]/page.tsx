@@ -23,8 +23,9 @@ import { puntosDeAgenda, TIPO_REUNION_LABEL } from "@/lib/trazabilidad";
 import { panelDeFuncion, kpisComunes, correspondenciaReciente, eleccionesAbiertas } from "@/lib/panelesComision";
 import { PanelFuncion, Kpis } from "@/components/comisiones/PanelFuncion";
 import { CargarPresupuestoForm, CrearSolicitudForm, type SolicitudOpcion } from "@/components/compras/ComprasFormularios";
+import { RegistrarIncidenteForm } from "@/components/seguridad/SeguridadFormularios";
 import { CargaRapida } from "@/components/comisiones/CargaRapida";
-import { CorrespondenciaPanel, EleccionesPanel } from "@/components/comisiones/PanelFormularios";
+import { CorrespondenciaPanel, EleccionesPanel, BotonNuevaCorrespondencia, BotonNuevaEleccion } from "@/components/comisiones/PanelFormularios";
 import { FUNCION_COMISION, funcionDe, comisionDisponibleEnEtapa, textoEtapas, ETAPA_LABEL, type EtapaCooperativa } from "@/lib/comisionesFunciones";
 import { cargarSemanaHoras, obtenerHorarioObra } from "@/lib/horasTrabajo";
 import { hoyEnUruguay, lunesDe, sumarDias, diasDeSemana, textoSemana, esFechaISO, textoHoras, textoDia } from "@/lib/horasObra";
@@ -33,7 +34,7 @@ import {
   REPRESENTA, HORARIO_GUARDIA, cargarIntegracion, cargarPlanes, cargarTurnosExtendidos, cargarControlesCalidad, rubrosParaSelect,
   cargarContratados, cargarLicitaciones, cargarGuardias, nucleosParaSelect, personasParaSelect, puedeGestionarObra, puedeAprobarContratacion,
 } from "@/lib/obraGestion";
-import { IntegracionPanel, PlanTrabajoPanel, TurnosExtendidosPanel, CalidadPanel, ContratacionPanel, GuardiasPanel } from "@/components/obra/ObraGestion";
+import { BotonNuevaTareaPlan, BotonAsignarGuardia, IntegracionPanel, PlanTrabajoPanel, TurnosExtendidosPanel, CalidadPanel, ContratacionPanel, GuardiasPanel } from "@/components/obra/ObraGestion";
 
 /**
  * Página propia de una comisión (05/10) — /comisiones/[id]. NO está en el
@@ -732,6 +733,16 @@ export default async function ComisionDetallePage({
                     proveedores={datosCompras[1]}
                   />
                 </>
+              ) : funcion === "obra" && puedeObra && gestionObra ? (
+                <BotonNuevaTareaPlan comisionId={comisionId} personas={gestionObra[7]} hoy={hoy} clase={CLASE_PRINCIPAL} texto="+ Agregar tarea al plan" />
+              ) : funcion === "trabajo" && puedePlanificar && guardiasTrabajo ? (
+                <BotonAsignarGuardia comisionId={comisionId} nucleos={guardiasTrabajo[1]} hoy={hoy} horario={HORARIO_GUARDIA} clase={CLASE_PRINCIPAL} texto="+ Asignar guardia" />
+              ) : funcion === "seguridad" && canEdit(user.rol, "seguridad") ? (
+                <RegistrarIncidenteForm />
+              ) : funcion === "administrativa" ? (
+                <BotonNuevaCorrespondencia comisionId={comisionId} filas={correspondencia} hoy={hoy} />
+              ) : funcion === "electoral" ? (
+                <BotonNuevaEleccion comisionId={comisionId} principal />
               ) : (
                 <CrearTareaForm comisionId={comisionId} usuarios={usuarios} />
               )
@@ -761,6 +772,9 @@ export default async function ComisionDetallePage({
     </div>
   );
 }
+
+const CLASE_PRINCIPAL =
+  "inline-flex items-center justify-center gap-2 rounded-xl border-2 border-[var(--color-verde)] text-[var(--color-verde)] bg-transparent hover:bg-[var(--color-verde-bg)] px-4 py-2.5 text-sm font-semibold transition-colors whitespace-nowrap";
 
 function Dato({ label, valor }: { label: string; valor: string }) {
   return (

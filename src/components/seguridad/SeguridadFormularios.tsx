@@ -5,15 +5,15 @@
 // `useActionState` — mismo criterio que los demás módulos.
 // `resolverIncidenteAction` queda sin tocar (cambio de estado).
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   crearDocumentoSeguridadFormAction,
   crearIncidenteFormAction,
   crearInspeccionFormAction,
 } from "@/lib/actions/seguridad";
 import { ESTADO_INICIAL } from "@/lib/actionState";
-import { FieldError, FormError, SubmitButton, useToast } from "@/components/ui-client";
-import { AddButtonSummary, Card, Label, inputClass } from "@/components/ui";
+import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
+import { AddButton, AddButtonSummary, Card, Label, inputClass } from "@/components/ui";
 
 export function CargarDocumentoSeguridadForm() {
   const [estado, formAction] = useActionState(crearDocumentoSeguridadFormAction, ESTADO_INICIAL);
@@ -65,23 +65,24 @@ export function CargarDocumentoSeguridadForm() {
 export function RegistrarIncidenteForm() {
   const [estado, formAction] = useActionState(crearIncidenteFormAction, ESTADO_INICIAL);
   const formRef = useRef<HTMLFormElement>(null);
-  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const [abierto, setAbierto] = useState(false);
   const { show } = useToast();
 
   useEffect(() => {
     if (estado.ok) {
       formRef.current?.reset();
-      if (detailsRef.current) detailsRef.current.open = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAbierto(false);
       show("Incidente registrado.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
   return (
-    <details ref={detailsRef} className="mb-8">
-      <AddButtonSummary>Registrar incidente / observación</AddButtonSummary>
-      <Card className="mt-3">
-        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <>
+      <AddButton onClick={() => setAbierto(true)}>Registrar incidente / observación</AddButton>
+      <Modal open={abierto} onClose={() => setAbierto(false)} title="Registrar incidente / observación" size="lg">
+        <form ref={formRef} action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-ink">
           <div>
             <Label>Tipo</Label>
             <select name="tipo" className={inputClass} defaultValue="observacion">
@@ -110,12 +111,13 @@ export function RegistrarIncidenteForm() {
           <div className="sm:col-span-2">
             <FormError message={estado.error} />
           </div>
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 flex justify-end gap-2">
+            <button type="button" onClick={() => setAbierto(false)} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-ink-muted hover:bg-surface-sunken">Volver</button>
             <SubmitButton variant="add" pendingLabel="Registrando…">Registrar</SubmitButton>
           </div>
         </form>
-      </Card>
-    </details>
+      </Modal>
+    </>
   );
 }
 
