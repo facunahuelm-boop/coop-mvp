@@ -4,6 +4,11 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Usuarios de directiva desde el panel de plataforma (15/10)
+
+- Plataforma → Usuarios → Editar: casilla «Integra la directiva». Marcada, el usuario pasa a rol Consejo Directivo; desmarcada, vuelve a Socio. Nunca toca al administrador ni a otros roles.
+- Etiqueta «Directiva» junto al nombre en las listas de Núcleos y Usuarios de la plataforma.
+
 ## Eliminar definitivamente un núcleo dado de baja (15/10)
 
 - Plataforma → Núcleos: nueva sección «Núcleos dados de baja» con el botón «Eliminar definitivamente». Pide confirmación en un pop-up y escribir ELIMINAR.

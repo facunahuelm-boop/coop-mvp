@@ -391,6 +391,7 @@ const guardarUsuarioSchema = z.object({
   nombre: zNombre(200),
   email: zEmailOpcional,
   socio_id: zIdOpcional,
+  directiva: zCheckbox,
 });
 
 /** Deja la membresía activa de `userId` en exactamente `comisionIds` (nunca borra: cierra con fecha). */
@@ -499,10 +500,15 @@ export async function guardarUsuarioAction(formData: FormData) {
       // El email de una cuenta que ya inició sesión alguna vez no se cambia a la ligera: se permite, pero
       // vuelve a pedir activación si pasa de vacío a cargado (ver invitación).
       await tx.run(`UPDATE users SET nombre = ?, email = ? WHERE id = ?`, [d.nombre, d.email, d.id]);
+      // «Integra la directiva» = rol Consejo Directivo. Solo mueve entre socio y consejo_directivo:
+      // nunca toca al administrador ni a otros roles con permisos propios.
+      if (d.directiva && antes.rol === "socio") await tx.run(`UPDATE users SET rol = 'consejo_directivo' WHERE id = ?`, [d.id]);
+      if (!d.directiva && antes.rol === "consejo_directivo") await tx.run(`UPDATE users SET rol = 'socio' WHERE id = ?`, [d.id]);
       await vincularUsuarioConNucleo(tx, d.id, d.socio_id);
-      await auditarTx(tx, admin, "editar_usuario", "users", d.id, { nombre: d.nombre, email: d.email, socio_id: d.socio_id, comisiones: comisionIds }, { nombre: antes.nombre, email: antes.email });
+      await auditarTx(tx, admin, "editar_usuario", "users", d.id, { nombre: d.nombre, email: d.email, socio_id: d.socio_id, comisiones: comisionIds, directiva: d.directiva }, { nombre: antes.nombre, email: antes.email, rol: antes.rol });
     } else {
       userId = await crearUsuarioPendienteTx(tx, { nombre: d.nombre, email: d.email, socio_id: d.socio_id });
+      if (d.directiva) await tx.run(`UPDATE users SET rol = 'consejo_directivo' WHERE id = ?`, [userId]);
       await auditarTx(tx, admin, "crear_usuario", "users", userId, { nombre: d.nombre, email: d.email, rol: "socio", estado_cuenta: "pendiente", socio_id: d.socio_id, comisiones: comisionIds });
     }
     await sincronizarComisiones(tx, userId, comisionIds);

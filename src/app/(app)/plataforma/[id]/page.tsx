@@ -70,7 +70,7 @@ export default async function CooperativaAdminPage({ params }: { params: Promise
           <p className="font-medium text-ink">{n.nombre}</p>
           {(n.documento || n.telefono) && <p className="text-xs text-ink/50">{[n.documento, n.telefono].filter(Boolean).join(" · ")}</p>}
         </td>
-        <td className={td}>{u ? <span className="text-sm">{u.nombre}</span> : <span className="text-xs text-ink/40">Sin usuario</span>}</td>
+        <td className={td}>{u ? <span className="text-sm">{u.nombre} {u.rol === "consejo_directivo" && <Badge color="azul">Directiva</Badge>}</span> : <span className="text-xs text-ink/40">Sin usuario</span>}</td>
         <td className={td}>{n.integrantes.filter((i) => i.estado === "activo").length}</td>
         <td className={`${td} text-right`}>
           <div className="flex flex-wrap justify-end gap-1.5">
@@ -155,7 +155,7 @@ export default async function CooperativaAdminPage({ params }: { params: Promise
     <tr key={u.id} className={!u.activo ? "opacity-60" : ""}>
       <td className={td}>
         <p className="font-medium text-ink">
-          {u.nombre} {u.es_platform_admin && <Badge color="azul">Plataforma</Badge>}
+          {u.nombre} {u.es_platform_admin && <Badge color="azul">Plataforma</Badge>} {u.rol === "consejo_directivo" && <Badge color="verde">Directiva</Badge>}
         </p>
         <p className="text-xs text-ink/50">{u.email ?? "Sin email todavía"}</p>
       </td>

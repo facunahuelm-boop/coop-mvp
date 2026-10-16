@@ -348,6 +348,12 @@ export function UsuarioForm({
           </select>
         </div>
       </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="directiva" defaultChecked={usuario?.rol === "consejo_directivo"} disabled={!!usuario && usuario.rol !== "socio" && usuario.rol !== "consejo_directivo"} />
+        <span>
+          <b>Integra la directiva</b> <span className="text-ink/50">(usuario de directiva, rol Consejo Directivo)</span>
+        </span>
+      </label>
       <fieldset>
         <legend className="text-xs font-medium text-ink-muted mb-1">Comisiones (una o varias)</legend>
         {comisiones.filter((c) => c.activa).length === 0 ? (
