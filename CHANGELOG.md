@@ -4,6 +4,12 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Directiva: subir o fotografiar un documento desde el Inicio (16/10)
+
+- En el panel de la Directiva, «Subir o fotografiar documento» abre un pop-up con dos botones grandes: «Sacar foto» (cámara trasera del celular) o «Elegir archivo». Después se completa qué es, el tipo de documento, una fecha importante opcional (vencimiento, asamblea, plazo) y un comentario. Si hay fecha, se puede anotar en el calendario en el mismo paso.
+- Sin lectura automática por ahora (decisión del usuario: sin IA hasta tener la API key de Anthropic).
+- Archivos: `components/portal/SubirDocumentoRapido.tsx` y `lib/actions/documentoRapido.ts` (nuevos), `components/portal/PanelDirectiva.tsx`.
+
 ## Inicio sin el semáforo de salud (16/10)
 
 - Sale del Inicio la franja «Salud de la cooperativa» con los puntos de colores (pedido explícito). La pantalla `/salud` sigue existiendo en el Menú.

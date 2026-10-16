@@ -16,9 +16,11 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import { get } from "@/lib/db";
+import { all, get } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
 import { canEdit, canRead } from "@/lib/roles";
+import { CATEGORIAS_DOCUMENTO_BASE, CATEGORIA_DOCUMENTO_LABEL } from "@/lib/constants";
+import { SubirDocumentoRapido } from "@/components/portal/SubirDocumentoRapido";
 
 // Inicio de la Directiva (16/10, pedido explícito: "pantalla propia de la
 // directiva"). Arriba de todo, sólo para Consejo Directivo (y el admin):
@@ -35,12 +37,15 @@ const n = async (sql: string, params: unknown[] = []) =>
 type Pendiente = { label: string; cantidad: number; href: string; icon: ReactNode };
 type Accion = { label: string; href: string; icon: ReactNode; bg: string; fg: string };
 
+const CLASE_TILE =
+  "flex flex-col items-start gap-2 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow-sm)] active:scale-[.98] hover:border-[var(--color-brand-700)]/30";
+
 export function esDirectivaPanel(user: SessionUser) {
   return user.rol === "consejo_directivo" || user.rol === "admin";
 }
 
 export async function PanelDirectiva({ user, comprasADecidir }: { user: SessionUser; comprasADecidir: number }) {
-  const [solicitudes, decisiones, actasPorCargar, reclamos, proxima] = await Promise.all([
+  const [solicitudes, decisiones, actasPorCargar, reclamos, proxima, categoriasPropias] = await Promise.all([
     n(`SELECT COUNT(*) AS n FROM solicitudes_comision WHERE estado IN ('pendiente', 'en_revision', 'esperando_informacion')`),
     n(`SELECT COUNT(*) AS n FROM decisiones_comision WHERE resultado = 'pendiente'`),
     n(`SELECT COUNT(*) AS n FROM reuniones WHERE tipo IN ('asamblea', 'consejo_directivo') AND estado = 'realizada' AND acta_id IS NULL`),
@@ -51,7 +56,13 @@ export async function PanelDirectiva({ user, comprasADecidir }: { user: SessionU
         ORDER BY fecha ASC LIMIT 1`,
       [dayjs().format("YYYY-MM-DD")]
     ).catch(() => undefined),
+    all<{ nombre: string }>(`SELECT nombre FROM documento_categorias ORDER BY nombre ASC`).catch(() => []),
   ]);
+  const categorias = [
+    ...CATEGORIAS_DOCUMENTO_BASE.map((c) => ({ valor: c, label: CATEGORIA_DOCUMENTO_LABEL[c] ?? c })),
+    ...categoriasPropias.map((c) => ({ valor: c.nombre, label: c.nombre })),
+  ];
+  const puedeSubir = canEdit(user.rol, "documentos");
 
   const pendientes: Pendiente[] = [
     { label: "Compras para decidir", cantidad: comprasADecidir, href: "/compras", icon: <ShoppingCart size={18} /> },
@@ -69,7 +80,6 @@ export async function PanelDirectiva({ user, comprasADecidir }: { user: SessionU
     { label: "Convocar asamblea", href: "/asambleas?accion=convocar", icon: <Landmark size={20} />, bg: "var(--accent-violet-bg)", fg: "var(--accent-violet)" },
     { label: "Registrar decisión", href: "/decisiones?accion=nueva", icon: <Gavel size={20} />, bg: "var(--accent-teal-bg)", fg: "var(--accent-teal)" },
     { label: "Mandar un aviso", href: "/avisos#nuevo-aviso", icon: <Megaphone size={20} />, bg: "var(--accent-blue-bg)", fg: "var(--accent-blue)" },
-    { label: "Subir documento", href: "/documentos", icon: <FileText size={20} />, bg: "var(--accent-teal-bg)", fg: "var(--accent-teal)" },
   ];
 
   return (
@@ -123,17 +133,21 @@ export async function PanelDirectiva({ user, comprasADecidir }: { user: SessionU
           <p className="mb-2 text-[13px] font-semibold text-ink-muted lg:hidden">Cargar</p>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {acciones.map((a) => (
-              <Link
-                key={a.href}
-                href={a.href}
-                className="flex flex-col items-start gap-2 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow-sm)] active:scale-[.98] hover:border-[var(--color-brand-700)]/30"
-              >
+              <Link key={a.href} href={a.href} className={CLASE_TILE}>
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: a.bg, color: a.fg }} aria-hidden>
                   {a.icon}
                 </span>
                 <span className="text-[14px] font-semibold leading-tight text-ink">{a.label}</span>
               </Link>
             ))}
+            {puedeSubir && (
+              <SubirDocumentoRapido categorias={categorias} claseBoton={`${CLASE_TILE} text-left`}>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "var(--accent-teal-bg)", color: "var(--accent-teal)" }} aria-hidden>
+                  <FileText size={20} />
+                </span>
+                <span className="text-[14px] font-semibold leading-tight text-ink">Subir o fotografiar documento</span>
+              </SubirDocumentoRapido>
+            )}
           </div>
         </div>
       </div>
