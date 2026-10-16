@@ -153,9 +153,6 @@ type ModalEstado =
   | { tipo: "mover"; nota: NotaCalendario; fechaDestino: string }
   | null;
 
-function fondoSuave(colorVar: string, bgVar: string): CSSProperties {
-  return { color: `var(${colorVar})`, backgroundColor: `var(${bgVar})` };
-}
 function soloDot(colorVar: string): CSSProperties {
   return { backgroundColor: `var(${colorVar})` };
 }
@@ -1232,10 +1229,10 @@ export function MonthCalendar({
                 style={items.length > 0 && !esDestinoArrastre && !esSeleccionado ? { borderColor: `var(${items[0].colorVar})`, borderWidth: 2 } : undefined}
                 className={`group relative rounded-lg border transition-colors min-h-[110px] p-1 flex flex-col gap-0.5 ${
                   esDestinoArrastre
-                    ? "border-[var(--color-verde)] bg-[var(--color-verde-bg)]"
+                    ? "border-[var(--color-verde)]"
                     : esSeleccionado
-                    ? "border-[var(--color-brand-800)] bg-brand-50"
-                    : "border-border hover:border-ink/20 hover:bg-surface-sunken"
+                    ? "border-[var(--color-brand-800)]"
+                    : "border-border hover:border-ink/20"
                 }`}
               >
                 {/* Discoverability del doble clic (mejora global, 28/09,
