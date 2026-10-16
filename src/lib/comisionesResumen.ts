@@ -24,6 +24,8 @@ export type ComisionRow = {
   actualizado_en: string;
   funcion?: string | null;
   etapas?: string | null;
+  /** Mail de la comisión (migración 0080); undefined mientras no corrió. */
+  email?: string | null;
 };
 
 type Miembro = { comision_id: number; user_id: number; nombre: string; rol_en_comision: string };
@@ -128,6 +130,7 @@ export async function cargarResumenComisiones(comisiones: ComisionRow[], etapa: 
       nombre: c.nombre,
       descripcion: c.descripcion,
       objetivo: c.objetivo,
+      email: c.email || null,
       funcionLabel: `Función: ${FUNCION_COMISION[funcion].label}`,
       responsable: coordinadores.join(", ") || null,
       integrantes: integrantes.map((m) => ({ userId: m.user_id, nombre: m.nombre, rol: m.rol_en_comision })),

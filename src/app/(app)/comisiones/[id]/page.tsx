@@ -402,6 +402,16 @@ export default async function ComisionDetallePage({
       )}
       <Card>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+          <div className="sm:col-span-2">
+            <dt className="text-xs text-ink-faint">Mail de la comisión</dt>
+            <dd className="font-medium">
+              {comision.email ? (
+                <a href={`mailto:${comision.email}`} className="break-all text-[var(--color-brand-800)] underline underline-offset-2">{comision.email}</a>
+              ) : (
+                <span className="text-ink-faint">Sin cargar{esOversight ? " — se agrega desde «Editar comisión»" : ""}</span>
+              )}
+            </dd>
+          </div>
           <div><dt className="text-xs text-ink-faint">Función</dt><dd className="font-medium">{def.label}</dd></div>
           <div><dt className="text-xs text-ink-faint">Disponible en</dt><dd className="font-medium">{textoEtapas(comision)}</dd></div>
           {comision.objetivo && <div className="sm:col-span-2"><dt className="text-xs text-ink-faint">Objetivo</dt><dd>{comision.objetivo}</dd></div>}

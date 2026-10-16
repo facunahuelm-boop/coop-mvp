@@ -6,7 +6,7 @@ import { insert, update, get, audit, updateConBloqueoOptimista } from "@/lib/db"
 import { requireUser } from "@/lib/auth";
 import { canEdit } from "@/lib/roles";
 import { puedeGestionarComision, ERROR_SIN_PERMISO_COMISION } from "@/lib/comisionAuth";
-import { parseForm, zId, zIdOpcional, zTexto, zNombre, zTextoOpcional, zFechaOpcional } from "@/lib/validation";
+import { parseForm, zId, zIdOpcional, zTexto, zNombre, zTextoOpcional, zFechaOpcional, zEmailOpcional } from "@/lib/validation";
 import { conEstadoDeAccion, type ActionState } from "@/lib/actionState";
 import { FUNCIONES_COMISION, ETAPAS_COOPERATIVA } from "@/lib/comisionesFunciones";
 
@@ -66,6 +66,7 @@ const crearComisionSchema = z
     fecha_fin: zFechaOpcional,
     comision_padre_id: zIdOpcional,
     funcion: zFuncionComision,
+    email: zEmailOpcional,
   })
   .refine((d) => d.tipo !== "temporal" || d.fecha_fin, {
     message: "Una comisión temporal necesita fecha de finalización.",
@@ -77,7 +78,7 @@ export async function crearComisionAction(formData: FormData) {
   if (!esOversightComisiones(user.rol)) throw new Error("Crear una comisión nueva requiere un rol de conducción (Admin, Consejo Directivo, Tesorería o Administración).");
   const datos = parseForm(crearComisionSchema, formData);
   const etapas = etapasDelFormulario(formData);
-  const id = await insert("comisiones", { ...datos, etapas });
+  const id = await insert("comisiones", { ...datos, email: datos.email || null, etapas });
   await audit({ usuario_id: user.id, accion: "crear", entidad: "comisiones", entidad_id: id, valor_nuevo: { nombre: datos.nombre, tipo: datos.tipo, funcion: datos.funcion, etapas } });
   revalidatePath("/comisiones", "layout");
 }
@@ -109,6 +110,7 @@ const editarComisionSchema = z
     fecha_fin: zFechaOpcional,
     comision_padre_id: zIdOpcional,
     funcion: zFuncionComision,
+    email: zEmailOpcional,
     version_esperada: zTexto(100),
   })
   .refine((d) => d.tipo !== "temporal" || d.fecha_fin, {
@@ -123,10 +125,10 @@ export async function editarComisionAction(formData: FormData) {
   if (datos.comision_padre_id === id) throw new Error("Una comisión no puede ser subcomisión de sí misma.");
   const etapas = etapasDelFormulario(formData);
   const anterior = await get<Record<string, unknown>>(
-    `SELECT nombre, descripcion, tipo, objetivo, fecha_inicio, fecha_fin, comision_padre_id, funcion, etapas FROM comisiones WHERE id = ?`,
+    `SELECT nombre, descripcion, tipo, objetivo, fecha_inicio, fecha_fin, comision_padre_id, funcion, etapas, email FROM comisiones WHERE id = ?`,
     [id]
   ).catch(() => undefined);
-  await updateConBloqueoOptimista("comisiones", id, { ...datos, etapas }, version_esperada);
+  await updateConBloqueoOptimista("comisiones", id, { ...datos, email: datos.email || null, etapas }, version_esperada);
   await audit({ usuario_id: user.id, accion: "editar", entidad: "comisiones", entidad_id: id, valor_anterior: anterior, valor_nuevo: { ...datos, etapas } });
   revalidatePath("/comisiones", "layout");
   revalidatePath(`/comisiones/${id}`);

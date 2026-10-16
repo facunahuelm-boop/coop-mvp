@@ -4,6 +4,12 @@ Registro de cada fase del plan de mejora estructural ("Prompt Maestro"), en el o
 
 No se salta ninguna fase sin cerrar la anterior. Cada entrada documenta: qué se hizo, qué archivos/tablas/APIs cambiaron, qué se decidió y por qué, y qué queda pendiente.
 
+## Mail de cada comisión (16/10)
+
+- Cada comisión puede tener su mail (opcional), que se carga al crearla o desde «Editar comisión». Se muestra en la tarjeta del tablero de Comisiones, en su pop-up y en el Resumen de la comisión, con enlace para escribirle, así las comisiones saben a qué dirección comunicarse entre ellas.
+- Base de datos: migración `0080_comisiones_email.sql` (columna `comisiones.email`). Hay que correrla antes de publicar este cambio.
+- Archivos: `lib/actions/comisiones.ts`, `lib/comisionesResumen.ts`, `components/comisiones/ComisionesFormularios.tsx`, `ComisionResumenCard.tsx`, `app/(app)/comisiones/[id]/page.tsx`.
+
 ## Vista de celular más limpia (16/10)
 
 - Inicio: las tarjetas pasan a un mosaico de 2 columnas, compactas (sin «Ver detalle →» ni la línea extra: se toca la tarjeta entera). La página baja de ~3600 px a menos de la mitad. Sin el bloque «Preguntale a la IA» (sigue en el Menú). En escritorio, igual que antes.

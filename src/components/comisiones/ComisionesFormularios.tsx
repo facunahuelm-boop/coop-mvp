@@ -134,6 +134,7 @@ function CamposComision({
   padreInicial,
   funcionInicial,
   etapasInicial,
+  emailInicial,
 }: {
   estado: { fieldErrors?: Record<string, string> };
   comisiones?: Comision[];
@@ -145,6 +146,7 @@ function CamposComision({
   padreInicial?: number | null;
   funcionInicial?: string | null;
   etapasInicial?: string | null;
+  emailInicial?: string | null;
 }) {
   const [funcion, setFuncion] = useState<FuncionComision>(funcionDe(funcionInicial));
   const propiasIniciales = etapasPropias(etapasInicial);
@@ -207,6 +209,12 @@ function CamposComision({
           <FieldError message={estado.fieldErrors?.comision_padre_id} />
         </div>
       )}
+      <div className="sm:col-span-2">
+        <Label>Mail de la comisión (opcional)</Label>
+        <input name="email" type="email" defaultValue={emailInicial ?? ""} placeholder="Ej.: compras@micooperativa.uy" className={inputClass} />
+        <p className="text-[11px] text-ink-faint mt-1">Se muestra en el resumen para que las otras comisiones sepan a dónde escribir.</p>
+        <FieldError message={estado.fieldErrors?.email} />
+      </div>
       <div className="sm:col-span-2">
         <Label>Objetivo (opcional)</Label>
         <input name="objetivo" defaultValue={objetivoInicial} placeholder="Para qué existe esta comisión" className={inputClass} />
@@ -277,7 +285,7 @@ export function EditarComisionForm({
     id: number; nombre: string; descripcion?: string | null; tipo?: string | null;
     objetivo?: string | null; fecha_inicio?: string | null; fecha_fin?: string | null;
     comision_padre_id?: number | null; actualizado_en: string;
-    funcion?: string | null; etapas?: string | null;
+    funcion?: string | null; etapas?: string | null; email?: string | null;
   };
   comisiones: Comision[];
 }) {
@@ -319,6 +327,7 @@ export function EditarComisionForm({
             excluirId={comision.id}
             tipoInicial={comision.tipo ?? "permanente"}
             objetivoInicial={comision.objetivo ?? ""}
+            emailInicial={comision.email ?? ""}
             fechaInicioInicial={comision.fecha_inicio ?? ""}
             fechaFinInicial={comision.fecha_fin ?? ""}
             padreInicial={comision.comision_padre_id ?? null}

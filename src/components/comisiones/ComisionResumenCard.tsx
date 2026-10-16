@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Users } from "lucide-react";
+import { Mail, Users } from "lucide-react";
 import { Modal } from "@/components/ui-client";
 import { Badge } from "@/components/ui";
 
@@ -17,6 +17,7 @@ export type ComisionResumen = {
   nombre: string;
   descripcion: string | null;
   objetivo: string | null;
+  email?: string | null;
   funcionLabel: string;
   responsable: string | null;
   integrantes: { userId: number; nombre: string; rol: string }[];
@@ -57,6 +58,12 @@ export function ComisionResumenCard({ c }: { c: ComisionResumen }) {
           <span className="text-ink-faint">Próxima actividad: </span>
           {c.proxima || "sin agendar"}
         </p>
+        {c.email && (
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-muted">
+            <Mail size={13} className="shrink-0 text-ink-faint" aria-hidden />
+            <span className="truncate">{c.email}</span>
+          </p>
+        )}
       </button>
 
       <Modal
@@ -101,6 +108,16 @@ export function ComisionResumenCard({ c }: { c: ComisionResumen }) {
             <div>
               <dt className="text-xs text-ink-faint">Próxima actividad</dt>
               <dd className="font-medium">{c.proxima || "Sin agendar"}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-xs text-ink-faint">Mail de la comisión</dt>
+              <dd className="font-medium">
+                {c.email ? (
+                  <a href={`mailto:${c.email}`} className="break-all text-[var(--color-brand-800)] underline underline-offset-2">{c.email}</a>
+                ) : (
+                  "Sin cargar"
+                )}
+              </dd>
             </div>
           </dl>
 
