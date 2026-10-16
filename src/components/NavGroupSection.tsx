@@ -82,16 +82,18 @@ export function NavTopGroup({
   label,
   icon,
   allHrefs,
+  abiertoPorDefecto = false,
   children,
 }: {
   label: string;
   icon: ReactNode;
   allHrefs: string[];
+  abiertoPorDefecto?: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
   const childActive = allHrefs.some((href) => pathname === href || pathname.startsWith(`${href}/`));
-  const [open, setOpen] = useState(childActive);
+  const [open, setOpen] = useState(childActive || abiertoPorDefecto);
   const [pathnameAnterior, setPathnameAnterior] = useState(pathname);
   if (pathname !== pathnameAnterior) {
     setPathnameAnterior(pathname);

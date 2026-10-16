@@ -6,6 +6,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { alertasParaTopBar, datosMiCuenta } from "@/lib/logic";
 import { avisosParaTopBar } from "@/lib/avisos";
 import { puedeEnviarAvisos } from "@/lib/actions/avisos";
+import { all } from "@/lib/db";
+import { comisionDisponibleEnEtapa } from "@/lib/comisionesFunciones";
 import { Sidebar, TopBar, TopBarDesktop, BottomNav } from "@/components/Nav";
 import { CommandPalette } from "@/components/CommandPalette";
 import { ToastProvider, CommandPaletteProvider, PreservarDatosAnteErrores, ValidacionEnFormularios } from "@/components/ui-client";
@@ -42,6 +44,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const datosCuenta = await datosMiCuenta(user.id);
   const miCuenta = datosCuenta ? { ...datosCuenta, letraGrande: user.letra_grande } : datosCuenta;
 
+  // 15/10 (pedido explícito): las comisiones, una por una, en la barra lateral.
+  const comisionesNav = (
+    await all<{ id: number; nombre: string; funcion: string | null; etapas: string | null }>(
+      `SELECT id, nombre, funcion, etapas FROM comisiones WHERE activa = 1 ORDER BY nombre`
+    ).catch(() => [])
+  )
+    .filter((c) => comisionDisponibleEnEtapa(c, user.etapa))
+    .map((c) => ({ id: c.id, nombre: c.nombre }));
+
   return (
     // Fase 3 (sistema global de errores): ToastProvider ya existía construido
     // pero sin montar en ninguna pantalla — acá queda disponible una sola vez
@@ -54,7 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* Fase 1A (accesibilidad): "Letra grande" agranda la raíz del
               documento, así todo lo medido en rem crece parejo. */}
           {user.letra_grande && <style>{"html{font-size:112.5%}"}</style>}
-          <Sidebar user={user} esSocio={!!datosCuenta?.socio} />
+          <Sidebar user={user} esSocio={!!datosCuenta?.socio} comisiones={comisionesNav} />
           <div className="md:pl-64 flex flex-col min-h-full">
             <TopBar user={user} miCuenta={miCuenta} />
             <TopBarDesktop user={user} alertas={alertas} avisos={avisos} puedeEmitirAvisos={puedeEmitirAvisos} miCuenta={miCuenta} />

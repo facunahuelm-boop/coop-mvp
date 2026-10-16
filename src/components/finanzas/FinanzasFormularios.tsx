@@ -29,9 +29,10 @@ import {
 import { generarCuotaMensualFormAction } from "@/lib/actions/cuentaSocios";
 import { crearConvenioFormAction } from "@/lib/actions/convenios";
 import { ESTADO_INICIAL } from "@/lib/actionState";
-import { ActionForm, FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
+import { FieldError, FormError, SubmitButton, useToast, Modal } from "@/components/ui-client";
 import { AddButton, AddButtonSummary, Button, Card, Label, inputClass } from "@/components/ui";
 import { CamposLibro, CampoRubro, type OpcionesLibro } from "@/components/finanzas/LibroFormularios";
+import { FormularioEnModal } from "@/components/FormularioEnModal";
 
 export function AgregarCompromisoForm() {
   const [estado, formAction] = useActionState(agregarCompromisoFormAction, ESTADO_INICIAL);
@@ -301,14 +302,22 @@ export function EditarMovimientoForm({ movimiento: m, opciones }: { movimiento: 
  */
 export function AnularMovimientoBoton({ id, categoria }: { id: number; categoria: string }) {
   return (
-    <details className="inline-block">
-      <summary className="cursor-pointer text-xs text-[var(--color-rojo)] underline underline-offset-2">Anular</summary>
-      <ActionForm action={anularMovimientoFormAction} className="mt-2 flex items-center gap-2">
-        <input type="hidden" name="id" value={id} />
-        <input name="motivo" placeholder={`Motivo (opcional) — se va a anular "${categoria}"`} className={inputClass + " text-xs w-64"} />
-        <button className="rounded-lg bg-[var(--color-rojo-bg)] text-[var(--color-rojo)] px-3 py-2 text-xs font-semibold whitespace-nowrap">Confirmar anulación</button>
-      </ActionForm>
-    </details>
+    <FormularioEnModal
+      textoBoton="Anular"
+      claseBoton="text-xs text-[var(--color-rojo)] underline underline-offset-2"
+      titulo="Anular movimiento"
+      descripcion={<p>Se va a anular «{categoria}». Queda en el historial; no se borra.</p>}
+      action={anularMovimientoFormAction}
+      ocultos={{ id }}
+      textoConfirmar="Confirmar anulación"
+      peligro
+      mensajeExito="Movimiento anulado."
+    >
+      <label className="block">
+        <Label>Motivo (opcional)</Label>
+        <input name="motivo" className={inputClass} />
+      </label>
+    </FormularioEnModal>
   );
 }
 

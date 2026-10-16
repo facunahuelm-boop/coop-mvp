@@ -329,7 +329,26 @@ function groupsFor(user: SessionUser, esSocio = false): NavGroup[] {
   })).filter((g) => g.items.length > 0);
 }
 
-export function Sidebar({ user, esSocio = false }: { user: SessionUser; esSocio?: boolean }) {
+export type ComisionNav = { id: number; nombre: string };
+
+/** Las comisiones de la cooperativa, una por una, en la barra lateral (pedido 15/10). */
+function ComisionesLateral({ comisiones, acento }: { comisiones: ComisionNav[]; acento: string }) {
+  return (
+    <div className="space-y-0.5 pl-3" data-testid="comisiones-lateral">
+      {comisiones.map((c) => (
+        <NavLink
+          key={c.id}
+          href={`/comisiones/${c.id}`}
+          icon={<span className="block h-1.5 w-1.5 rounded-full bg-current opacity-70" aria-hidden />}
+          label={c.nombre}
+          accentColor={acento}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function Sidebar({ user, esSocio = false, comisiones = [] }: { user: SessionUser; esSocio?: boolean; comisiones?: ComisionNav[] }) {
   // La Sidebar (barra lateral de escritorio) ya no lista "Alertas" ni
   // "Buscador" como ítems del menú — pedido explícito: que la lista sea más
   // corta. Alertas y Buscar ahora se acceden desde los íconos junto al
@@ -381,11 +400,13 @@ export function Sidebar({ user, esSocio = false }: { user: SessionUser; esSocio?
       </div>
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
         {groups.map((g) => {
+          const conComisiones = g.label === "Comisiones y reuniones" || (user.rol === "socio" && g.label === "Inicio");
           const contenido = (
             <>
               {g.items.map((i) => (
                 <NavLink key={i.href} href={i.href} icon={i.icon} label={i.label} accentColor={acento} />
               ))}
+              {conComisiones && comisiones.length > 0 && <ComisionesLateral comisiones={comisiones} acento={acento} />}
             </>
           );
           // Mejora global del sidebar (28/09, pedido explícito — secciones
@@ -404,7 +425,7 @@ export function Sidebar({ user, esSocio = false }: { user: SessionUser; esSocio?
             );
           }
           return (
-            <NavTopGroup key={g.label} label={g.label} icon={GROUP_ICON[g.label]} allHrefs={g.items.map((i) => i.href)}>
+            <NavTopGroup key={g.label} label={g.label} abiertoPorDefecto={g.label === "Comisiones y reuniones" && comisiones.length > 0} icon={GROUP_ICON[g.label]} allHrefs={[...g.items.map((i) => i.href), ...(g.label === "Comisiones y reuniones" ? comisiones.map((c) => `/comisiones/${c.id}`) : [])]}>
               {contenido}
             </NavTopGroup>
           );

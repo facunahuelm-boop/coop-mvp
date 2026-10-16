@@ -196,12 +196,22 @@ export async function guardarNucleoFormAction(_p: ActionState, fd: FormData): Pr
 export async function darDeBajaNucleoAction(formData: FormData) {
   const d = parseForm(z.object({ org_id: zId, socio_id: zId }), formData);
   await conCooperativa(d.org_id, async (tx, admin) => {
-    const antes = await tx.get<{ nombre: string; estado: string; numero_nucleo: number | null }>(
-      `SELECT nombre, estado, numero_nucleo FROM socios WHERE id = ? AND estado <> 'baja'`,
+    // El UPDATE que manda el núcleo a la papelera necesita ver la fila ya marcada (ver db.ts).
+    await verPapelera(tx);
+    const antes = await tx.get<{ nombre: string; estado: string; numero_nucleo: number | null; nucleo_id: number | null }>(
+      `SELECT nombre, estado, numero_nucleo, nucleo_id FROM socios WHERE id = ? AND estado <> 'baja'`,
       [d.socio_id]
     );
     if (!antes) throw new Error("Ese núcleo no existe o ya está dado de baja.");
     await tx.run(`UPDATE socios SET estado = 'baja' WHERE id = ?`, [d.socio_id]);
+    // Un núcleo dado de baja no tiene que aparecer en ningún lado (Trabajo, horas, asambleas…):
+    // va a la papelera, igual que en la limpieza de datos de prueba. Se puede restaurar.
+    if (antes.nucleo_id) {
+      await tx.run(
+        `UPDATE nucleos_familiares SET eliminado_en = now()::text, eliminado_por_id = ?, motivo_eliminacion = 'Núcleo dado de baja' WHERE id = ? AND eliminado_en IS NULL`,
+        [admin.id, antes.nucleo_id]
+      );
+    }
     await insertarTx(tx, "socio_estados", {
       organization_id: tx.orgId,
       socio_id: d.socio_id,
